@@ -1,0 +1,16 @@
+name = "E4ST"
+uuid = "15c74807-6cb5-473c-8677-542c31c16277"
+authors = ["Ethan Russell <erussell@rff.org>"]
+version = "0.1.0"
+
+[deps]
+E4STUtil = "12abe42c-b2e7-4a68-9e37-c6d51b9b2893"
+
+[compat]
+julia = "1.0"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
