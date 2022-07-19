@@ -7,3 +7,17 @@
 [![codecov](https://codecov.io/gh/e4st-dev/E4ST.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/e4st-dev/E4ST.jl)
 
 This is the Julia rewrite of the Engineering, Economic, and Environmental Electricity Simulation Tool (E4ST).  The MATLAB-based model built on top of MATPOWER can be found [here](https://github.com/e4st-dev/e4st-mp).
+
+# Installation
+
+In the Julia REPL, run the following command:
+
+```julia
+]
+dev git@github.com:e4st-dev/E4ST.jl.git
+```
+This will clone E4ST into `<path to julia depot (usually ~/.julia)>/dev/E4ST`
+
+```julia
+using E4ST
+```
