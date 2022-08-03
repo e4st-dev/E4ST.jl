@@ -2,86 +2,20 @@ module E4ST
 
 using E4STUtil
 
-"""
-    load_config(path) -> config
+export save_config!, load_config
+export load_data
+export save_results!, load_results
 
-Load the config file from `path`, inferring any necessary settings as needed
-"""
-function load_config(path)
-    # TODO: implement this
-    return Dict()
-end
+export setup_model, solve_model!
+export postprocess!
+export run_e4st
 
-"""
-    save_config!(config) -> nothing
-    
-saves the config to the output folder specified inside the config file
-"""
-function save_config!(config)
-    # TODO: implement this
-    return nothing
-end
-
-"""
-    load_data(config) -> data
-
-Pulls in data found in files listed in the `config`, and stores into `data`
-"""
-function load_data(config)
-    # TODO: implement this
-    return Dict()
-end
-
-"""
-    setup_model(config, data) -> model
-"""
-function setup_model(config, data)
-    # TODO: implement this
-    return nothing
-end
-
-"""
-    solve!(config, data, model) -> results
-"""
-function solve!(config, data, model)
-    # TODO: implement this
-    return nothing
-end
-
-"""
-    save_results!(config, results) -> nothing
-
-Save the results to the location listed in `config`.
-"""
-function save_results!(config, results)
-    # TODO: implement this
-    return nothing
-end
-
-"""
-    load_results(config) -> results
-
-Load and return the `results` in from the `config`.  Assumes the `config` has been run as-is.
-"""
-function load_results(config)
-    # TODO: implement this
-    return Dict()
-end
-
-"""
-    postprocess!(config, results)
-
-Postprocess the `results` according to the instructions in `config`
-"""
-function postprocess!(config, results)
-    # TODO: Implement this
-    return nothing
-end
-
-function run_e4st(path::String)
-    run_e4st(load_config(path))
-end
-
+include("io/config.jl")
+include("io/data.jl")
+include("io/results.jl")
+include("model/setup.jl")
+include("model/solve.jl")
+include("post/postprocessing.jl")
 
 """
     run_e4st(config) -> results
@@ -94,10 +28,12 @@ function run_e4st(config)
     save_config!(config)
     data = load_data(config)
     model = setup_model(config, data)
-    results = solve!(config, data, model)
+    results = solve_model!(config, data, model)
     save_results!(config, results)
     postprocess!(config, results)
     return results
 end
+run_e4st(path::String) = run_e4st(load_config(path))
+
 
 end # module
