@@ -8,8 +8,8 @@ function setup_model(config, data)
     # TODO: setup basics of model
     setup_dcopf!(config, data, model)
 
-    for policy in getpolicies(data)
-        apply!(policy, config, data, model)
+    for mod in getmods(config)
+        apply!(mod, config, data, model)
     end
     return model
 end

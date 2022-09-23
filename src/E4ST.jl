@@ -8,22 +8,24 @@ using JuMP
 using E4STUtil
 
 export save_config!, load_config
-export load_data
+export load_data, initialize_data!
 export save_results!, load_results
 
-export setup_model, solve_model!
-export postprocess!
+export setup_model
+export parse_results, process!
+export should_iterate, iterate!
+export Modification, Policy
+export initialize!, apply!, results!
 export run_e4st
-export Policy, get_type
-export apply!, results!
 
 include("io/config.jl")
 include("io/data.jl")
 include("io/results.jl")
 include("model/setup.jl")
 include("model/results.jl")
-include("post/postprocessing.jl")
-include("policy/Policy.jl")
+include("model/iteration.jl")
+include("types/Modification.jl")
+include("types/Policy.jl")
 
 """
     run_e4st(config) -> results
@@ -35,13 +37,22 @@ Top-level file for running E4ST
 function run_e4st(config)
     save_config!(config)
     data = load_data(config)
-    model = setup_model(config, data)
-    optimize!(model)
-    results = get_results(config, data, model)
-    save_results!(config, results)
-    postprocess!(config, results)
+    initialize_data!(config, data) # or something, could also live inside load_data
+
+    check = true
+
+    while check
+        model = setup_model(config, data)
+        optimize!(model)
+        results = parse_results(config, data, model)  
+        process!(config, results)
+
+        check = should_iterate(config, data, model)
+        check && iterate!(config, data, model)
+    end
     return results
 end
+
 run_e4st(path::String) = run_e4st(load_config(path))
 
 """

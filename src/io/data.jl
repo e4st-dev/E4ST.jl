@@ -7,3 +7,14 @@ function load_data(config)
     # TODO: implement this
     return Dict()
 end
+
+"""
+    initialize_data!(config, data)
+
+Initializes the data with any necessary Modifications in the config
+"""
+function initialize_data!(config, data)
+    for mod in getmods(config)
+        initialize!(mod, config, data)
+    end
+end
