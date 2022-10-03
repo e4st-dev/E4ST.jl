@@ -22,6 +22,7 @@ include("io/config.jl")
 include("io/data.jl")
 include("io/results.jl")
 include("model/setup.jl")
+include("model/check.jl")
 include("model/results.jl")
 include("model/iteration.jl")
 include("types/Modification.jl")
@@ -39,16 +40,17 @@ function run_e4st(config)
     data = load_data(config)
     initialize_data!(config, data) # or something, could also live inside load_data
 
-    check = true
+    iter = true
 
-    while check
+    while iter
         model = setup_model(config, data)
         optimize!(model)
+        check(model)
         results = parse_results(config, data, model)  
         process!(config, results)
 
-        check = should_iterate(config, data, model)
-        check && iterate!(config, data, model)
+        iter = should_iterate(config, data, model)
+        iter && iterate!(config, data, model)
     end
     return results
 end
