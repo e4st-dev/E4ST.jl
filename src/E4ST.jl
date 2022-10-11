@@ -1,8 +1,10 @@
 module E4ST
 
 # General Packages
-using InteractiveUtils
 using JuMP
+using InteractiveUtils
+import OrderedCollections: OrderedDict
+import YAML
 
 # E4ST Packages
 using E4STUtil
@@ -67,6 +69,8 @@ function reload_policies!()
 end
 
 global STR2TYPE = Dict{String, Type}()
+global SYM2TYPE = Dict{Symbol, Type}()
+
 
 """
     reload_types!()
@@ -76,11 +80,14 @@ global STR2TYPE = Dict{String, Type}()
 Loads all types associated with E4ST so that the type will accessible by string with `get_type(str)`.
 """
 function reload_types!()
-    reload_types!(Policy)
+    reload_types!(Modification)
 end
 function reload_types!(::Type{T}) where T
     global STR2TYPE
+    global SYM2TYPE
     for type in subtypes(T)
+        symtype = Symbol(type)
+        SYM2TYPE[symtype] = type
         strtype = string(type)
         STR2TYPE[strtype] = type
         if isabstracttype(type)
@@ -90,7 +97,9 @@ function reload_types!(::Type{T}) where T
 end
 
 """
-    get_type(str::String) -> type
+    get_type(sym::Symbol) -> type (preferred)
+
+    get_type(str::String) -> type 
 
 Returns the E4ST-related `type` corresponding to `str`.  See also `reload_types!`
 
@@ -105,6 +114,16 @@ julia> T()
 MyType()
 ```
 """
+function get_type(sym::Symbol)
+    global SYM2TYPE
+    return get(SYM2TYPE, sym) do 
+        reload_types!()
+        get(SYM2TYPE, sym) do
+            error("There has been no type $sym defined!")
+        end
+    end
+end
+
 function get_type(str::String)
     global STR2TYPE
     return get(STR2TYPE, str) do 

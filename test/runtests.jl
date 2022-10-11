@@ -4,7 +4,7 @@ using E4ST
 @testset "Test E4ST" begin
     @testset "Unit Tests" begin
         @testset "Test Loading Config" begin
-            @test_skip "No Tests Written"
+            include("testloadconfig.jl")
         end
         @testset "Test Saving Config" begin
             @test_skip "No Tests Written"
