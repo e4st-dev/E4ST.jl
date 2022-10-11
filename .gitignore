@@ -1,2 +1,5 @@
 Manifest.toml
+.vscode
+*.swp
+
 *.asv
