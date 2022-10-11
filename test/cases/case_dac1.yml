@@ -1,0 +1,21 @@
+out_path:    "../out/case_dac1"
+gen_file:    "../matlab/t_case_e4st_dac1/gen.csv"
+bus_file:    "../matlab/t_case_e4st_dac1/bus.csv"
+branch_file: "../matlab/t_case_e4st_dac1/branch.csv"
+mods:
+
+  - type: "ExamplePolicyType"
+    value: 0
+    some_parameter:
+      - "This makes an "
+      - "array of strings."
+      - "Cool, right?"
+    other_parameter:
+      name: "This makes an OrderedDict"
+
+  - type: "OtherModificationType"
+    value: 0
+    custom_parameter: "hello!!!"
+
+  
+
