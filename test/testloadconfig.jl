@@ -9,7 +9,7 @@ Base.@kwdef struct OtherModificationType <: Modification
     custom_parameter        # no default, and no type specification
 end
 
-filename = joinpath(@__DIR__, "cases/case_dac1.yml")
+filename = joinpath(@__DIR__, "config/config_dac1.yml")
 
 @test load_config(filename) isa AbstractDict
 config = load_config(filename)
@@ -19,4 +19,4 @@ config = load_config(filename)
 @test isabspath(config[:bus_file])
 @test isabspath(config[:branch_file])
 
-@test config[:mods] isa Vector{<:Modification}
+@test config[:mods] isa OrderedDict{Symbol, <:Modification}

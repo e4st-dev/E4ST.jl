@@ -61,16 +61,6 @@ function make_paths_absolute!(config, filename; path_keys = (:gen_file, :bus_fil
 end
 
 function convert_types!(config, sym::Symbol)
-    config[sym] = map(Dict2Struct, config[sym])
+    config[sym] = OrderedDict(key=>ModWrapper(key, val) for (key,val) in config[sym])
 end
 
-"""
-    Dict2Struct(d::OrderedDict{Symbol}) -> thing
-
-Converts a dictionary `d` into a struct, where the type `T` is specified as a string or symbol by `d[:type]`.  The type is then instantiated with the other keys of `d` as kwargs.
-"""
-function Dict2Struct(d::OrderedDict{Symbol})
-    T = get_type(d[:type])
-    _discard_type(T; d...)
-end
-_discard_type(T; type=nothing, kwargs...) = T(;kwargs...)

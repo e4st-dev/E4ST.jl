@@ -3,8 +3,8 @@ gen_file:    "../matlab/t_case_e4st_dac1/gen.csv"
 bus_file:    "../matlab/t_case_e4st_dac1/bus.csv"
 branch_file: "../matlab/t_case_e4st_dac1/branch.csv"
 mods:
-
-  - type: "ExamplePolicyType"
+  example_policy:
+    type: "ExamplePolicyType"
     value: 0
     some_parameter:
       - "This makes an "
@@ -12,8 +12,8 @@ mods:
       - "Cool, right?"
     other_parameter:
       name: "This makes an OrderedDict"
-
-  - type: "OtherModificationType"
+  other_mod:
+    type: "OtherModificationType"
     value: 0
     custom_parameter: "hello!!!"
 

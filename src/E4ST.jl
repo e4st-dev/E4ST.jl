@@ -20,6 +20,9 @@ export Modification, Policy
 export initialize!, apply!, results!
 export run_e4st
 
+include("types/Modification.jl")
+include("types/Policy.jl")
+include("types/ModWrapper.jl")
 include("io/config.jl")
 include("io/data.jl")
 include("io/results.jl")
@@ -27,8 +30,7 @@ include("model/setup.jl")
 include("model/check.jl")
 include("model/results.jl")
 include("model/iteration.jl")
-include("types/Modification.jl")
-include("types/Policy.jl")
+
 
 """
     run_e4st(config) -> results
