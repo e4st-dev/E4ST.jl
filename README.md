@@ -40,3 +40,12 @@ Then, in a Julia REPL run (note that the bracket opens the package manager):
 dev E4ST
 ```
 
+## Connection Refused Error
+If you are trying to clone from an RFF computer, you may need to do a [small fix](https://gist.github.com/Tamal/1cc77f88ef3e900aeae65f0e5e504794).
+Make a file: `touch ~/.ssh/config`, insert the following:
+```
+Host github.com
+  Hostname ssh.github.com
+  Port 443
+```
+
