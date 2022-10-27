@@ -1,6 +1,7 @@
 using Test
 using E4ST
 using HiGHS
+using JuMP
 import OrderedCollections: OrderedDict
 
 @testset "Test E4ST" begin
