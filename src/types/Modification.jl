@@ -37,3 +37,23 @@ Gather the results from `mod` from the solved model, called in `parse_results`
 function results!(mod::Modification, config, data, model, results)
     @warn "No results! function defined for mod $mod, doing nothing"
 end
+
+"""
+    fieldnames_for_yaml(::Type{M}) where {M<:Modification}
+
+returns the fieldnames in a yaml, used for printing, modified for different types of mods 
+"""
+function fieldname_for_yaml(::Type{M}) where {M<:Modification}
+    return fieldnames(M)
+end
+
+
+"""
+    YAML._print(io::IO, mod::M) where {M<:Modificaiton}
+
+prints the appropriate data from an IO for each type of Modification
+"""
+
+function YAML._print(io::IO, mod::M) where {M<:Modification}
+    YAML._print(io::IO, OrderedDict(k=>getpropoerty(mod, k) for k in fieldnames_for_yaml(M)))
+end

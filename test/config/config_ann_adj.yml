@@ -1,0 +1,11 @@
+out_path:    "../out/t_ann_adj"
+
+mods:
+  example_ann_adj:
+    type: "AnnualAdjust"
+    setname: "test_ann_adj"
+    input_file: "../test_data/test_ann_adj.csv"
+
+
+  
+
