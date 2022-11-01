@@ -1,4 +1,4 @@
-out_path:    "../out/t_ann_adj"
+out_path:    "test_data/out/"
 
 mods:
   example_ann_adj:
