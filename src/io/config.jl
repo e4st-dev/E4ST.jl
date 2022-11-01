@@ -34,6 +34,7 @@ function required_fields()
         :branch_file,
         :bus_file,
         :out_path,
+        :optimizer,
         :mods
     )
 end

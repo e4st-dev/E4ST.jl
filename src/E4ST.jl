@@ -5,6 +5,7 @@ using JuMP
 using InteractiveUtils
 import OrderedCollections: OrderedDict
 import YAML
+import JuMP.MOI.AbstractOptimizer
 
 # E4ST Packages
 using E4STUtil
@@ -72,7 +73,27 @@ end
 
 global STR2TYPE = Dict{String, Type}()
 global SYM2TYPE = Dict{Symbol, Type}()
+global STR2OPT= Dict{String, Type}()
 
+function reload_optimizers!()
+    global STR2OPT
+    for type in subtypes(AbstractOptimizer)
+        if isconcretetype(type)
+            s = string(parentmodule(type))
+            STR2OPT[s] = type
+        end
+    end
+end
+
+function getoptimizertype(s::String)
+    global STR2OPT
+    return get(STR2OPT, s) do 
+        reload_optimizers!()
+        get(STR2OPT, s) do
+            error("There is no AbstractOptimizer defined in $s, or $s has not been imported yet!")
+        end
+    end
+end
 
 """
     reload_types!()
