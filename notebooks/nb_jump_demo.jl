@@ -5,7 +5,10 @@ using Markdown
 using InteractiveUtils
 
 # ╔═╡ 18e08e80-14d6-11ed-3cc4-d93c8d90b02f
-using JuMP
+begin
+	using JuMP
+	using GLPK
+end
 
 # ╔═╡ 4fc5f855-8653-4345-9f94-ff8d99623ce5
 md"""
@@ -18,7 +21,7 @@ md"""
 """
 
 # ╔═╡ 436401f5-f540-4573-ba31-0cdc8729bee7
-m = Model() # This is where we would put in the solver attributes too
+m = Model(GLPK.Optimizer) # This is where we would put in the solver attributes too
 
 # ╔═╡ f6a50502-4de4-4b2f-be48-942adf71a44d
 md"""
@@ -46,6 +49,9 @@ m[:gen] # Returns the whole set of variables
 
 # ╔═╡ 36d915dd-1797-4fb6-a6bb-5183925b470f
 m[:gen][2, :] # Returns the hourly variables for generator with id=2
+
+# ╔═╡ c20d898a-ac41-417e-ad25-6a4084e70e55
+gen[2,:]
 
 # ╔═╡ b978d278-fa45-4e52-a2f6-c7089861490c
 m[:gen][3, :] # Errors since there is no generator with id=3
@@ -94,18 +100,47 @@ m[:obj] += 5
 # ╔═╡ c7de2c5e-8b69-44d8-bfa1-98089298e43a
 m[:obj]
 
+# ╔═╡ ada57c94-9658-466f-a3a9-5655028016f6
+m[:obj] *= 5
+
+# ╔═╡ 0e0c24b0-199b-4641-8c50-e9c50716f715
+@expression(m, welfare, 10)
+
+# ╔═╡ d9773cbf-843a-467a-aa5a-8a92b913a038
+m[:obj] += m[:welfare]
+
 # ╔═╡ dad89c88-3d6a-4f9d-905a-8145b20f7c39
 md"Now make the above expression the objective"
 
 # ╔═╡ 7218d4fe-73db-4b7e-aac7-d7a9be782c53
-@objective(m, Min, m[:obj])
+@objective(m, Min, m[:obj]+m[:welfare])
+
+# ╔═╡ c4a8bf17-16ca-47be-aac8-aa7ab8cd0b3d
+optimize!(m)
+
+# ╔═╡ f2591537-22d7-40c4-907b-c37fc1bc38bc
+value.(gen)
+
+# ╔═╡ abc46416-bd62-48c8-8a55-c8d85e4d32a1
+value(m[:obj])
+
+# ╔═╡ df89e977-aaf2-4f56-84c7-7ac4bce19e0e
+value(m[:welfare])
+
+# ╔═╡ ffe5e8ad-0f62-4565-8283-7c9a3996634f
+value(gen2_hourly)
+
+# ╔═╡ 4a6d5be9-56b4-4ab7-ac23-f85191578fec
+gen2_hourly
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
+GLPK = "60bf3e95-4087-53dc-ae20-288a0d20c6a6"
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
 
 [compat]
+GLPK = "~1.0.1"
 JuMP = "~1.1.1"
 """
 
@@ -217,9 +252,25 @@ uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 
 [[deps.ForwardDiff]]
 deps = ["CommonSubexpressions", "DiffResults", "DiffRules", "LinearAlgebra", "LogExpFunctions", "NaNMath", "Preferences", "Printf", "Random", "SpecialFunctions", "StaticArrays"]
-git-tree-sha1 = "425e126d13023600ebdecd4cf037f96e396187dd"
+git-tree-sha1 = "187198a4ed8ccd7b5d99c41b69c679269ea2b2d4"
 uuid = "f6369f11-7733-5829-9624-2563aa707210"
-version = "0.10.31"
+version = "0.10.32"
+
+[[deps.GLPK]]
+deps = ["GLPK_jll", "MathOptInterface"]
+git-tree-sha1 = "c3cc0a7a4e021620f1c0e67679acdbf1be311eb0"
+uuid = "60bf3e95-4087-53dc-ae20-288a0d20c6a6"
+version = "1.0.1"
+
+[[deps.GLPK_jll]]
+deps = ["Artifacts", "GMP_jll", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "fe68622f32828aa92275895fdb324a85894a5b1b"
+uuid = "e8aa6df9-e6ca-548a-97ff-1f85fc5b8b98"
+version = "5.0.1+0"
+
+[[deps.GMP_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "781609d7-10c4-51f6-84f2-b8444358ff6d"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
@@ -466,13 +517,14 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╠═b9940a35-3cae-4079-92a6-39bdea80c050
 # ╠═39073fe8-2763-400b-adb0-23e0857ecae4
 # ╠═36d915dd-1797-4fb6-a6bb-5183925b470f
+# ╠═c20d898a-ac41-417e-ad25-6a4084e70e55
 # ╠═b978d278-fa45-4e52-a2f6-c7089861490c
 # ╠═0b83125d-0480-4f1a-95dc-b977e2a1cdcb
 # ╟─2a3244c8-a5bb-459f-a8bf-f9eb0d549d42
 # ╠═e63a65ce-49a3-40ad-8d9f-de88863bb9c5
 # ╟─9a3e8621-b3d6-4020-a1c2-910ebe0b0db8
 # ╠═ba9cf44d-c2e7-4d05-a82b-cda4b9c395b9
-# ╠═edf203ef-0835-4ff9-b4dd-fb88b9d46323
+# ╟─edf203ef-0835-4ff9-b4dd-fb88b9d46323
 # ╠═8c6ae7bf-ee37-4ae6-8e8e-bdc95b43c509
 # ╟─c4d911f4-30a9-4856-aefe-5b7c4b2cce48
 # ╠═f3a2db55-4b20-46b2-becb-69da197ea08d
@@ -480,7 +532,16 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╠═039936f1-2a33-47bf-8bd0-14fd983b7129
 # ╠═80898733-ee2d-4b7c-86b4-c8b14fbcac98
 # ╠═c7de2c5e-8b69-44d8-bfa1-98089298e43a
+# ╠═ada57c94-9658-466f-a3a9-5655028016f6
+# ╠═0e0c24b0-199b-4641-8c50-e9c50716f715
+# ╠═d9773cbf-843a-467a-aa5a-8a92b913a038
 # ╟─dad89c88-3d6a-4f9d-905a-8145b20f7c39
 # ╠═7218d4fe-73db-4b7e-aac7-d7a9be782c53
+# ╠═c4a8bf17-16ca-47be-aac8-aa7ab8cd0b3d
+# ╠═f2591537-22d7-40c4-907b-c37fc1bc38bc
+# ╠═abc46416-bd62-48c8-8a55-c8d85e4d32a1
+# ╠═df89e977-aaf2-4f56-84c7-7ac4bce19e0e
+# ╠═ffe5e8ad-0f62-4565-8283-7c9a3996634f
+# ╠═4a6d5be9-56b4-4ab7-ac23-f85191578fec
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
