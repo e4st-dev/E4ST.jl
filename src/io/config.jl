@@ -22,20 +22,22 @@ end
 saves the config to the output folder specified inside the config file
 """
 function save_config(config)
-    # create new ordered dict with just the necessary outputs for each Mod
-    configout = OrderedDict{Symbol, Any}() # could probably just modify config directly if done using it elsewhere
+
+    # create out path 
+    io = open(string(config[:out_path],config[:configfilename], "_out.yml"), "w")
+    
     for (i,j) in config
         if i === :mods
-            configout[i] = save_format_mods(config[:mods])
+            for (name, mod) in config[:mods]
+                #_print method for Mods that only prints relevant fieldnames
+                YAML._print(io, mod)          
+            end
         else
-            configout[i] = config[i]
+            YAML._print(io, config[i])
         end
     end
 
-    # write out configout
-    YAML.write_file(string(configout[:out_path],config[:configfilename], "_out"), configout)
-    # may need to change file path depending on where this gets run
-    return nothing
+    close(io)
 end
 
 ################################################################################

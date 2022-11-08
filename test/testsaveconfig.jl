@@ -36,7 +36,7 @@ testconfig[:mods] = OrderedDict{Symbol, Any}(:example_ann_adj => OrderedDict{Sym
 
 convert_types!(testconfig, :mods)
 
-testconfig[:configfilename] = "config_ann_adj.yml"
+testconfig[:configfilename] = "config_ann_adj"
 
 save_config(testconfig)
 
