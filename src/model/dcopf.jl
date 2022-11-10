@@ -70,17 +70,21 @@ function setup_dcopf!(config, data, model)
 
     # Objective Function
 
+    # This is written as a benefits maximization function, so costs are subtracted and revenues are added. 
+
     @expression(model, obj, 0)
     # TODO: build out this expression
     
-    # add costs to the objective 
-    add_varibale_gen_cost!(data, model, :vom)
-    # TODO: add_fixed_gen_cost! create similar function to add_varibale_gen_cost for fixed costs
-    #which are multiplied by capacity and rep_time
+    # subtract costs from the objective 
+    add_variable_obj_var!(data, model, :vom, oper = -)
+    add_variable_obj_var!(data, model, :fuel_cost, oper = -)
+
+    add_fixed_obj_var!(data, model, :fom, oper = -)
+    add_fixed_obj_var!(data, model, :invest_cost, oper = -)
+
+    # add revenue and benefits to the objective
+
     
-
-
-    model[:obj] = 
 
     # @objective() goes in the setup
     
@@ -225,17 +229,34 @@ function get_pf_branch_max(data, model, branch_id, time_id) end
 ################################################################################
 
 """
-    add_variable_gen_cost!(data, model, s::Symbol)
+    add_variable_obj_var!(data, model, s::Symbol; oper)
 
-Defines the expression for variable cost `s` and adds it to the objective function. Variable cost is 
-    multiplied by the energy generated. 
+Defines expression for the variable cost or revenue `s` which is multiplied by annual generation. Adds or subtracts that cost/rev to the objective function based on `oper`
 """
-function add_variable_gen_cost!(data, model, s::Symbol)
+function add_variable_obj_var!(data, model, s::Symbol; oper)
     gen = get_gen_table(data)
+
     model[s] = @expression(model, [gen_id in 1:nrow(gen)],
-        gen[gen_id, s].*get_eg_gen(data, model, gen_id))
-    add_obj_cost!(data, model, s::Symbol)
+        gen[gen_id, s] .* get_eg_gen(data, model, gen_id))
+
+    add_obj_var!(data, model, s::Symbol, oper = oper)
 end
+
+
+"""
+    add_fixed_obj_var!(data, model, s::Symbol; oper)
+
+    Defines expression for the fixed cost or revenue `s` which is multiplied by capacity. Adds or subtracts that cost/rev to the objective function based on `oper` 
+"""
+function add_fixed_obj_var!(data, model, s::Symbol; oper)
+    gen = get_gen_table(data)
+
+    model[s] = @expression(model, [gen_id in 1:nrow(gen)],
+        gen[gen_id, s] .* model[:pcap][gen_id])
+
+    add_obj_var!(data, model, s::Symbol, oper = oper)
+end
+
 
 """
     get_eg_gen(data, model, gen_id)
@@ -248,13 +269,24 @@ function get_eg_gen(data, model, gen_id)
 end
   
 """
-    add_obj_cost!(data, model, s::Symbol)
+    add_obj_var!(data, model, s::Symbol; oper)
 
-Adds cost `s` to the objective function of the `model`.
+Adds or subtracts cost/revenue `s` to the objective function of the `model` based on the operator `oper`. Adds the cost/revenue to the objective variables list in data. 
 """
-function add_obj_cost!(data, model, s::Symbol) 
-    model[:obj] += sum(model[s])
-    #TODO: add documentation of the cost added to some part of data so we have a list of everything in obj function
+function add_obj_var!(data, model, s::Symbol; oper) 
+    #Check if s has already been added to obj
+    Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
+    
+    if oper == + 
+        model[:obj] += sum(model[s])
+    elseif oper == -
+        model[:obj] -= sum(model[s])
+    else
+        Base.error("The entered operator isn't valid, oper must be + or -")
+    end
+    #Add s to array of variables included obj
+    data[:obj_vars][s] = oper
+    
 end
 
 
