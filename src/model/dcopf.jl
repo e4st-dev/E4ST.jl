@@ -76,11 +76,11 @@ function setup_dcopf!(config, data, model)
     # TODO: build out this expression
     
     # subtract costs from the objective 
-    add_variable_obj_var!(data, model, :vom, oper = -)
-    add_variable_obj_var!(data, model, :fuel_cost, oper = -)
+    add_variable_gen_var!(data, model, :vom, oper = -)
+    add_variable_gen_var!(data, model, :fuel_cost, oper = -)
 
-    add_fixed_obj_var!(data, model, :fom, oper = -)
-    add_fixed_obj_var!(data, model, :invest_cost, oper = -)
+    add_fixed_gen_var!(data, model, :fom, oper = -)
+    add_fixed_gen_var!(data, model, :invest_cost, oper = -)
 
     # add revenue and benefits to the objective
 
@@ -229,11 +229,11 @@ function get_pf_branch_max(data, model, branch_id, time_id) end
 ################################################################################
 
 """
-    add_variable_obj_var!(data, model, s::Symbol; oper)
+    add_variable_gen_var!(data, model, s::Symbol; oper)
 
-Defines expression for the variable cost or revenue `s` which is multiplied by annual generation. Adds or subtracts that cost/rev to the objective function based on `oper`
+Defines expression for the variable generator cost or revenue `s` which is multiplied by annual generation. Adds or subtracts that cost/rev to the objective function based on `oper`
 """
-function add_variable_obj_var!(data, model, s::Symbol; oper)
+function add_variable_gen_var!(data, model, s::Symbol; oper)
     gen = get_gen_table(data)
 
     model[s] = @expression(model, [gen_id in 1:nrow(gen)],
@@ -244,11 +244,11 @@ end
 
 
 """
-    add_fixed_obj_var!(data, model, s::Symbol; oper)
+    add_fixed_gen_var!(data, model, s::Symbol; oper)
 
-    Defines expression for the fixed cost or revenue `s` which is multiplied by capacity. Adds or subtracts that cost/rev to the objective function based on `oper` 
+    Defines expression for the fixed generator cost or revenue `s` which is multiplied by capacity. Adds or subtracts that cost/rev to the objective function based on `oper` 
 """
-function add_fixed_obj_var!(data, model, s::Symbol; oper)
+function add_fixed_gen_var!(data, model, s::Symbol; oper)
     gen = get_gen_table(data)
 
     model[s] = @expression(model, [gen_id in 1:nrow(gen)],
