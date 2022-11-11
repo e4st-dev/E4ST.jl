@@ -3,7 +3,9 @@ module E4ST
 # General Packages
 using JuMP
 using InteractiveUtils
+using DataFrames
 import OrderedCollections: OrderedDict
+import CSV
 import YAML
 import JuMP.MOI.AbstractOptimizer
 
@@ -14,7 +16,7 @@ export save_config!, load_config
 export load_data, initialize_data!
 export save_results!, load_results
 
-export setup_model
+export setup_model, check
 export parse_results, process!
 export should_iterate, iterate!
 export Modification, Policy

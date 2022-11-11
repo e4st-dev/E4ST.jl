@@ -9,7 +9,7 @@ Base.@kwdef struct OtherModificationType <: Modification
     custom_parameter        # no default, and no type specification
 end
 
-filename = joinpath(@__DIR__, "config/config_dac1.yml")
+filename = joinpath(@__DIR__, "config/config_3bus_examplepol.yml")
 
 @test load_config(filename) isa AbstractDict
 config = load_config(filename)

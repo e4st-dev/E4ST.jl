@@ -1,10 +1,13 @@
-out_path:    "../out/case_dac1"
-gen_file:    "../matlab/t_case_e4st_dac1/gen.csv"
-bus_file:    "../matlab/t_case_e4st_dac1/bus.csv"
-branch_file: "../matlab/t_case_e4st_dac1/branch.csv"
+out_path:    "../out/3bus"
+gen_file:    "../data/3bus/gen.csv"
+bus_file:    "../data/3bus/bus.csv"
+branch_file: "../data/3bus/branch.csv"
+time_file:   "../data/3bus/time.csv"
 optimizer:
-  type: "HiGHS"
+  type: "HiGHS" # See available options here: https://docs.juliahub.com/HiGHS/WFic5/0.3.1/
   dual_feasibility_tolerance: 1e-5
+  log_file: HiGHS.log
+  log_to_console: false
 mods:
   example_policy:
     type: "ExamplePolicyType"
@@ -19,6 +22,4 @@ mods:
     type: "OtherModificationType"
     value: 0
     custom_parameter: "hello!!!"
-
-  
 

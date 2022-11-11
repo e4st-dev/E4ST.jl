@@ -7,6 +7,7 @@ The Config File is a file that fully specifies all the necessary information.  N
 * `gen_file` - The filepath (relative or absolute) to the [generator table](gen.md).
 * `bus_file` - The filepath (relative or absolute) to the [bus table](gen.md).
 * `branch_file` - The filepath (relative or absolute) to the [branch table](gen.md).
+* `time_file` - The filepath (relative or absolute) to the [time representation](time.md).
 * `optimizer` - The optimizer type and attributes to use in solving the linear program.  E4ST is a BYOS (Bring Your Own Solver :smile:) library, with default attributes for HiGHS and Gurobi.  For all other solvers, you're on your own to provide a reasonable set of attributes.
 * `mods` - A list of `Modification`s specifying changes for how E4ST runs.  See the [modifications section](#modifications) below for information on how these should be formatted.
 

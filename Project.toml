@@ -4,6 +4,8 @@ authors = ["Ethan Russell <erussell@rff.org>"]
 version = "0.1.0"
 
 [deps]
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 E4STUtil = "12abe42c-b2e7-4a68-9e37-c6d51b9b2893"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
