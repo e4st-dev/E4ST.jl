@@ -3,8 +3,7 @@
 using E4ST
 using YAML
 import OrderedCollections: OrderedDict
-include("../src/io/config.jl")
-include("../src/types/Modification.jl")
+
 
 
 """
@@ -24,19 +23,17 @@ end
 
 
 
+filename = joinpath(@__DIR__, "config/config_dac1.yml")
+
+config = load_config(filename)
+
+save_config(config)
+
+# test if there is a config 
+
+# test if it can load in the saved config 
+
+# remove the config that was just created
 
 
-# testconfig = load_config(config_ann_adj)
-
-# temp making config dict manually to get around load config
-testconfig = OrderedDict{Symbol, Any}(:out_path => "test_data/out/")
-     
-testconfig[:mods] = OrderedDict{Symbol, Any}(:example_ann_adj => OrderedDict{Symbol, Any}(:type => "AnnualAdjust", 
-        :setname => "test_ann_adj", :input_file => "../test_data/test_ann_adj.csv", :extra_key => [2,3,4,5]))
-
-convert_types!(testconfig, :mods)
-
-testconfig[:configfilename] = "config_ann_adj"
-
-save_config(testconfig)
 

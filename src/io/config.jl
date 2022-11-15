@@ -6,7 +6,7 @@ Load the config file from `filename`, inferring any necessary settings as needed
 function load_config(filename)
     if contains(filename, ".yml")
         config = YAML.load_file(filename, dicttype=OrderedDict{Symbol, Any})
-        merge!(config, OrderedDict{Symbol, Any}("configfilename" => filename)) #maybe add a run name or date once that is part of e4st
+        get!(config, :config_file, filename)
     else
         error("No support for file $filename")
     end
@@ -17,25 +17,30 @@ function load_config(filename)
 end
 
 """
-    save_config!(config) -> nothing
+    save_config(config) -> nothing
     
 saves the config to the output folder specified inside the config file
 """
 function save_config(config)
 
+    # create output folder
+    mkpath(config[:out_path])
+
     # create out path 
-    io = open(string(config[:out_path],config[:configfilename], "_out.yml"), "w")
+    io = open(joinpath(config[:out_path],basename(config[:config_file])), "w")
     
-    for (i,j) in config
-        if i === :mods
-            for (name, mod) in config[:mods]
-                #_print method for Mods that only prints relevant fieldnames
-                YAML._print(io, mod)          
-            end
-        else
-            YAML._print(io, config[i])
-        end
-    end
+    # for (i,j) in config
+    #     if i === :mods
+    #         for (name, mod) in config[:mods]
+    #             #_print method for Mods that only prints relevant fieldnames
+    #             YAML._print(io, mod)          
+    #         end
+    #     else
+    #         YAML._print(io, config[i])
+    #     end
+    # end
+
+    YAML.write(io, config)
 
     close(io)
 end
@@ -77,7 +82,7 @@ function make_paths_absolute!(config, filename; path_keys = (:gen_file, :bus_fil
 end
 
 function convert_types!(config, sym::Symbol)
-    config[sym] = OrderedDict(key=>ModWrapper(key, val) for (key,val) in config[sym])
+    config[sym] = OrderedDict(key=>Modification(val) for (key,val) in config[sym])
 end
 
 """

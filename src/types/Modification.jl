@@ -10,6 +10,29 @@ Modifications can implement the following two interfaces:
 """
 abstract type Modification end
 
+
+
+"""
+    function Modification(d::OrderedDict)
+
+Constructs a Modification of type `d[:type]` with keyword arguments for all the other key value pairs in `d`.
+"""
+function Modification(d::OrderedDict)
+    T = get_type(d[:type])
+    mod = _discard_type(T; d...)
+    return mod
+end
+
+"""
+    function _discard_type(T; type=nothing, kwargs...)
+
+Makes sure type doesn't get passed in as a keyword argument. 
+"""
+function _discard_type(T; type=nothing, kwargs...) 
+    T(;kwargs...)
+end
+
+
 """
     initialize!(mod::Modification, config, data, model)
 
@@ -43,17 +66,16 @@ end
 
 returns the fieldnames in a yaml, used for printing, modified for different types of mods 
 """
-function fieldname_for_yaml(::Type{M}) where {M<:Modification}
+function fieldnames_for_yaml(::Type{M}) where {M<:Modification}
     return fieldnames(M)
 end
 
 
 """
-    YAML._print(io::IO, mod::M) where {M<:Modificaiton}
+    function YAML._print(io::IO, mod::M, level::Int=0, ignore_level::Bool=false) where {M<:Modification}
 
-prints the appropriate data from an IO for each type of Modification
+Prints the field determined in fieldnames_for_yaml from the Modification. 
 """
-
-function YAML._print(io::IO, mod::M) where {M<:Modification}
-    YAML._print(io::IO, OrderedDict(k=>getpropoerty(mod, k) for k in fieldnames_for_yaml(M)))
+function YAML._print(io::IO, mod::M, level::Int=0, ignore_level::Bool=false) where {M<:Modification}
+    YAML._print(io::IO, OrderedDict(k=>getproperty(mod, k) for k in fieldnames_for_yaml(M)), level, ignore_level)
 end
