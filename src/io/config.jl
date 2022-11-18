@@ -56,9 +56,10 @@ Make all the paths in `config` absolute, corresponding to the keys given in `pat
 
 Relative paths are relative to the location of the config file at `filename`
 """
-function make_paths_absolute!(config, filename; path_keys = (:gen_file, :bus_file, :branch_file, :time_file, :out_path))
+function make_paths_absolute!(config, filename; path_keys = (:gen_file, :bus_file, :branch_file, :time_file, :out_path, :af_file))
     path = dirname(filename)
     for key in path_keys
+        haskey(config, key) || continue
         fn = config[key]
         if ~isabspath(fn)
             config[key] = abspath(path, fn)

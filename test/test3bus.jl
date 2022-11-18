@@ -42,14 +42,16 @@ data = load_data(config)
     end
     @testset "Test Initializing the Data with UpdateAvailabilityFactors" begin
         config = load_config(config_file)
-        push!(config[:mods], :update_af=>UpdateAvailabilityFactors(filename=joinpath(@__DIR__, "data","3bus","af_hourly.csv")))
-        @test ~isempty(config[:mods])
         data = load_data(config)
-        data_0 = deepcopy(data)
 
-        @test get_availability_factor(data, 1, 1, 1) == 1.0
-        initialize_data!(config, data)
-        @test get_availability_factor(data, 1, 1, 1) != 1.0
+        # generator 1 is a natural gas plant, defaults to 1.0
+        @test get_af(data, 1, 1, 1) == 1.0
+
+        # Generator 2 is a solar generator in narnia, should be equal to 0.5 in hours 1 and 4, 0.6 in hours 2 and 3
+        @test get_af(data, 2, 1, 1) == 0.5
+        @test get_af(data, 2, 1, 2) == 0.6
+        @test get_af(data, 2, 1, 3) == 0.6
+        @test get_af(data, 2, 1, 4) == 0.5
     end
 end
 

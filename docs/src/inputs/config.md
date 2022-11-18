@@ -11,6 +11,9 @@ The Config File is a file that fully specifies all the necessary information.  N
 * `optimizer` - The optimizer type and attributes to use in solving the linear program.  E4ST is a BYOS (Bring Your Own Solver :smile:) library, with default attributes for HiGHS and Gurobi.  For all other solvers, you're on your own to provide a reasonable set of attributes.
 * `mods` - A list of `Modification`s specifying changes for how E4ST runs.  See the [modifications section](#modifications) below for information on how these should be formatted.
 
+## Optional Fields:
+* `af_file` - The filepath (relative or absolute) to the [availability factor table](af.md).
+
 ## Formatting Modifications
 
 `Modification`s represent ways to modify the behavior of E4ST.  Some possible examples of `Modifications` (not necessarily implemented) include:

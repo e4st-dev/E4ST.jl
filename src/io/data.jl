@@ -7,20 +7,21 @@ function load_data(config)
     data = OrderedDict()
 
     # Load in tables
-    data[:gen]    = load_gen_table(config)
-    data[:bus]    = load_bus_table(config)
-    data[:branch] = load_branch_table(config)
-    data[:time]   = load_time(config)
+    load_gen_table!(config, data)
+    load_bus_table!(config, data)
+    load_branch_table!(config, data)
+    load_time!(config, data)
+    load_af!(config, data)
 
     return data
 end
 
 """
-    load_gen_table(config) -> gen
+    load_gen_table!(config, data)
 
 Load the generator from the `:gen_file` specified in the `config`
 """
-function load_gen_table(config)
+function load_gen_table!(config, data)
     gen = load_table(config[:gen_file])
     force_table_types!(gen, :gen,
         :bus_idx=>Int64,
@@ -36,15 +37,16 @@ function load_gen_table(config)
     #     :capex=>Float64,
     #     optional=true
     # )
-    return gen
+    data[:gen] = gen
+    return
 end
 
 """
-    load_bus_table(config) -> bus
+    load_bus_table!(config, data)
 
 Load the bus table from the `:bus_file` specified in the `config`
 """
-function load_bus_table(config)
+function load_bus_table!(config, data)
     bus = load_table(config[:bus_file])
     force_table_types!(bus, :bus,
         :ref_bus=>Bool,
@@ -54,15 +56,16 @@ function load_bus_table(config)
     #     :capex=>Float64,
     #     optional=true
     # )
-    return bus
+    data[:bus] = bus
+    return
 end
 
 """
-    load_branch_table(config) -> branch
+    load_branch_table!(config, data)
 
 Load the branch table from the `:branch_file` specified in the `config`
 """
-function load_branch_table(config)
+function load_branch_table!(config, data)
     branch = load_table(config[:branch_file])
     force_table_types!(branch, :branch,
         :f_bus_idx=>Int64,
@@ -75,21 +78,108 @@ function load_branch_table(config)
     #     :capex=>Float64,
     #     optional=true
     # )
-    return branch
+    data[:branch] = branch
+    return
 end
 
 """
-    load_time(config) -> rep_time
+    load_time!(config, data) -> rep_time
 
 Load the representative time `rep_time` from the `:time_file` specified in the `config`
 """
-function load_time(config)
+function load_time!(config, data)
     rep_time = load_table(config[:time_file])
     force_table_types!(rep_time, :rep_time,
         :hours=>Float64,
         :day=>Int64,
     )
-    return rep_time
+    data[:time] = rep_time
+    return
+end
+
+"""
+    load_af!(config, data)
+
+Load the hourly availability factors, pulling them in from file, as needed.
+"""
+function load_af!(config, data)
+
+    # Fill in gen table with default af of 1.0 for every hour
+    gens = get_gen_table(data)
+    default_hourly_af = ones(get_num_rep_hours(data))
+    gens.af_hourly = fill(default_hourly_af, nrow(gens))
+    
+    # TODO: Add in yearly AF adjustments
+    # default_yearly_af = ones(get_num_years(data))
+    # gens.af_yearly = fill(default_yearly_af, nrow(gens))
+
+    # Return if there is no af_file
+    if ~haskey(config, :af_file) 
+        @warn "No field :af_file in config"
+        return
+    end
+
+    # Load in the af file
+    df = load_table(config[:af_file])
+    force_table_types!(df, :af,
+        :area=>String,
+        :subarea=>String,
+        :genfuel=>String,
+        :gentype=>String,
+        :joint=>Int64,
+        :status=>Bool,
+        ("h_$n"=>Float64 for n in 1:get_num_rep_hours(data))...
+    )
+
+    data[:af] = df
+
+    # Pull the availability factors in as a matrix
+    hr_idx = findfirst(s->s=="h_1",names(df))
+    af_mat = Matrix(df[:, hr_idx:end])
+    if size(af_mat,2) != get_num_rep_hours(data)
+        error("The number of representative hours given in :af_file=$(config[:af_file])  ($(size(af_mat,2))) is different than the hours in the time representation ($(get_num_rep_hours(data))).")
+    end
+
+    for i = 1:nrow(df)
+        row = df[i, :]
+        if row.status==false
+            continue
+        end
+        
+        gens = get_gen_table(data)
+
+        isempty(gens) && continue
+
+        # Add the area-subarea pair to the condition
+        if ~isempty(row.area) && ~isempty(row.subarea)
+            area = row.area
+            subarea = row.subarea
+            gens = filter(gen->get_gen_subarea(data, gen, area)==subarea, gens, view=true)
+        end
+
+        isempty(gens) && continue
+
+        # Add the genfuel to the condition
+        if ~isempty(row.genfuel)
+            genfuel = row.genfuel
+            gens = filter(:genfuel=>==(genfuel), gens, view=true)
+        end
+
+        isempty(gens) && continue
+
+        # Add the gentype to the condition
+        if ~isempty(row.gentype)
+            tmp = cond
+            gentype = row.gentype
+            gens = filter(:gentype=>==(gentype), gens, view=true)
+        end
+
+        isempty(gens) && continue
+        
+        af = [row[i_hr] for i_hr in hr_idx:ncol(df)]
+        foreach(gen->gen.af_hourly = af, eachrow(gens))
+    end
+    return data
 end
 
 """
@@ -125,6 +215,7 @@ end
 Initializes the data with any necessary Modifications in the config, calling `initialize!(mod, config, data)`
 """
 function initialize_data!(config, data)
+    # Initialize Modifications
     for (sym, mod) in getmods(config)
         initialize!(sym, mod, config, data)
     end
@@ -201,38 +292,35 @@ export get_generator, get_bus, get_branch
 export get_bus_from_generator_idx
 
 """
-    get_availability_factor(data, gen_idx, year_idx, time_idx) -> af
+    get_af(data, gen_idx, year_idx, time_idx) -> af
 
-Retrieves the availability factor for 
+Retrieves the availability factor for a generator at a year and a time.
 """
-function get_availability_factor(data, gen_idx, year_idx, time_idx)
-    haskey(data, :af_hourly) || return 1.0
-    af = data[:af_hourly]
-    g = get_generator(data, gen_idx)
-    return _get_availability_factor(af, g, year_idx, time_idx)
+function get_af(data, gen_idx, year_idx, time_idx)
+    gen = get_generator(data, gen_idx)
+    return gen.af_hourly[time_idx]
 end
 
-function _get_availability_factor(af::Number, g, year_idx, time_idx)
-    return af
+export get_af
+
+"""
+    get_gen_subarea(data, gen_idx::Int64, area::String) -> subarea
+
+    get_gen_subarea(data, gen, area) -> subarea
+
+Retrieves the `subarea` of the generator from the `area`
+"""
+function get_gen_subarea(data, gen_idx::Int64, area::String)
+    gens = get_gen_table(data)
+    bus = get_bus_table(data)
+    return bus[gens[gen_idx, :bus_idx], area]
 end
-
-function _get_availability_factor(af::AbstractDict, g, year_idx, time_idx)
-    for (cond,v) in af
-        cond(g) && return _getindex(v, time_idx)
-    end
-    return 1.0
+function get_gen_subarea(data, gen::DataFrameRow, area::String)
+    bus = get_bus_table(data)
+    return bus[gen.bus_idx, area]
 end
+export get_gen_subarea
 
-function _getindex(v::Vector, idx)
-    v[idx]
-end
-
-function _getindex(v::Number, idx)
-    v
-end
-
-
-export get_availability_factor
 
 """
     get_num_rep_hours(data) -> nh
@@ -254,85 +342,3 @@ function get_rep_time(data)
 end
 
 export get_num_rep_hours, get_rep_time
-
-
-
-"""
-    UpdateAvailabilityFactors(;filename)
-
-Update the availability factors according to a table stored in `filename`
-
-TODO ECR: Document how those should be stored!!
-"""
-struct UpdateAvailabilityFactors <: Modification
-    filename::String
-    hourly::DataFrame
-end
-
-function UpdateAvailabilityFactors(;filename::String="")
-    af = load_table(filename)
-    force_table_types!(af, :af,
-        :area=>String,
-        :subarea=>String,
-        :genfuel=>String,
-        :gentype=>String,
-        :joint=>Int64,
-        :status=>Bool,
-        ("h_$n"=>Float64 for n in 1:(ncol(af)-6))...
-    )
-    UpdateAvailabilityFactors(filename, af)
-end
-
-fieldnames_for_yaml(::Type{UpdateAvailabilityFactors}) = (:filename,)
-
-function initialize!(sym, mod::UpdateAvailabilityFactors, config, data)
-    df = mod.hourly
-    
-    # List of conditions mapping to the hourly availability factor
-    af_hourly = get!(data, :af_hourly, OrderedDict{Function, Any}())
-
-    hr_idx = findfirst(s->s=="h_1",names(df))
-    af_mat = Matrix(df[:, hr_idx:end])
-    if size(af_mat,2) != get_num_rep_hours(data)
-        error("The number of representative hours given in UpdateAvailabilityFactors($(mod.filename))  ($(size(af_mat,2))) is different than the hours in the time representation ($(get_num_rep_hours(data))).")
-    end
-
-    for i = nrow(df):-1:1
-        row = df[i, :]
-        if row.status==false
-            continue
-        end
-
-        cond = (gen)->true
-
-        # Add the area-subarea pair to the condition
-        if ~isnothing(row.area) && ~isnothing(row.subarea)
-            tmp = cond
-            area = row.area
-            subarea = row.subarea
-            cond = gen->(tmp(gen) && get_bus(data, gen.bus_idx)[area]==subarea)
-        end
-
-        # Add the genfuel to the condition
-        if ~isnothing(row.genfuel)
-            tmp = cond
-            genfuel = row.genfuel
-            @show typeof(genfuel)
-            cond = gen->begin
-                @show gen
-                @show tmp
-                tmp(gen) && return true
-                return (gen.genfuel == genfuel)
-            end
-        end
-
-        # # Add the gentype to the condition
-        # if ~isnothing(row.gentype)
-        #     tmp = cond
-        #     gentype = row.gentype
-        #     cond = gen->(tmp(gen) && gen.gentype == gentype)
-        # end
-        af_hourly[cond] = af_mat[i,:]
-    end
-end
-export UpdateAvailabilityFactors
