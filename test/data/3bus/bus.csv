@@ -1,4 +1,4 @@
-ref_bus,pd
-0,0.2
-1,1.6
-0,0.2
+ref_bus,pd,state
+0,0.2,state1
+1,1.6,state2
+0,0.2,state2

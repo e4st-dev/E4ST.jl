@@ -40,6 +40,17 @@ data = load_data(config)
         @test data != data_0
         @test sum(data[:bus].pd) == 2*sum(data_0[:bus].pd)
     end
+    @testset "Test Initializing the Data with UpdateAvailabilityFactors" begin
+        config = load_config(config_file)
+        push!(config[:mods], :update_af=>UpdateAvailabilityFactors(filename=joinpath(@__DIR__, "data","3bus","af_hourly.csv")))
+        @test ~isempty(config[:mods])
+        data = load_data(config)
+        data_0 = deepcopy(data)
+
+        @test get_availability_factor(data, 1, 1, 1) == 1.0
+        initialize_data!(config, data)
+        @test get_availability_factor(data, 1, 1, 1) != 1.0
+    end
 end
 
 @testset "Test Setting up the model" begin
