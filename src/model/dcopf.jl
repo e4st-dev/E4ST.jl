@@ -11,7 +11,10 @@ function setup_dcopf!(config, data, model)
     
     # define tables 
     bus = get_bus_table(data)
-    rep_time = get_rep_time(data) # weight of representative time chunks (hours) 
+    # TODO: add list of years, add year_idx with hour_idx
+    years = get_years(data)
+    # TODO: change rep_time name to be related to hours? 
+    rep_hours = get_rep_hours(data) # weight of representative time chunks (hours) 
     gen = get_gen_table(data)
     branch = get_branch_table(data)
 
@@ -19,39 +22,39 @@ function setup_dcopf!(config, data, model)
     ## Variables
 
     # Voltage Angle
-    @variable(model, θ[bus_idx in 1:nrow(bus), time_idx in 1:length(rep_time)])
+    @variable(model, θ[bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:length(rep_hours)])
 
     # Power Generation
-    @variable(model, pg[gen_idx in 1:nrow(gen), time_idx in 1:length(rep_time)])
+    @variable(model, pg[gen_idx in 1:nrow(gen), year_idx in 1:length(years), hour_idx in 1:length(rep_hours)])
 
     # Capacity
     @variable(model, pcap[gen_idx in 1:nrow(gen)])
 
     # Load Served
-    @variable(model, pl[bus_idx in 1:nrow(bus), time_idx in 1:length(rep_time)] >= 0)
+    @variable(model, pl[bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:length(rep_hours)] >= 0)
 
 
 
     ## Constraints
 
     # Constrain Power Flow
-    @constraint(model, cons_pf[bus_idx in 1:nrow(bus), time_idx in 1:length(rep_time)], 
-            get_pg_bus(data, model, bus_idx, time_idx) - get_pl_bus(data, model, bus_idx, time_idx) == 
-            get_pf_bus(data, model, bus_idx, time_idx))
+    @constraint(model, cons_pf[bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:length(rep_hours)], 
+            get_pg_bus(data, model, bus_idx, year_idx, hour_idx) - get_pl_bus(data, model, bus_idx, year_idx, hour_idx) == 
+            get_pf_bus(data, model, bus_idx, year_idx, hour_idx))
 
     # Constrain Reference Bus 
     @constraint(model, cons_ref_bus[ref_bus_idx in get_ref_bus_ids(data)], 
             model[:θ][ref_bus_idx] == 0)
 
     # Constrain Power Generation 
-    @constraint(model, cons_pg_min[gen_idx in 1:nrow(gen), time_idx in 1:length(rep_time)],
-            pg[gen_idx, time_idx] >= get_pg_min(data, model, gen_idx, time_idx))
-    @constraint(model, cons_pg_max[gen_idx in 1:nrow(gen), time_idx in 1:length(rep_time)],
-            pg[gen_idx, time_idx] <= get_pg_max(data, model, gen_idx, time_idx)) 
+    @constraint(model, cons_pg_min[gen_idx in 1:nrow(gen), year_idx in 1:length(years), hour_idx in 1:length(rep_hours)],
+            pg[gen_idx, year_idx, hour_idx] >= get_pg_min(data, model, gen_idx, year_idx, hour_idx))
+    @constraint(model, cons_pg_max[gen_idx in 1:nrow(gen), year_idx in 1:length(years), hour_idx in 1:length(rep_hours)],
+            pg[gen_idx, year_idx, hour_idx] <= get_pg_max(data, model, gen_idx, year_idx, hour_idx)) 
 
     # Constrain Load Served 
-    @constraint(model, cons_pl[bus_idx in 1:nrow(bus), time_idx in 1:length(rep_time)], 
-            pl[bus_idx, time_idx] <= get_dl(data, model, bus_idx, time_idx))
+    @constraint(model, cons_pl[bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:length(rep_hours)], 
+            pl[bus_idx, year_idx, hour_idx] <= get_dl(data, model, bus_idx, year_idx, hour_idx))
 
     # Constrain Capacity
     @constraint(model, cons_pcap_min[gen_idx in 1:nrow(gen)], 
@@ -60,11 +63,11 @@ function setup_dcopf!(config, data, model)
             pcap[gen_idx] <= get_pcap_max(data, model, gen_idx))
 
     # Constrain Transmission Lines 
-    @constraint(model, cons_branch_pf_pos[branch_idx in 1:nrow(branch), time_idx in 1:length(rep_time)], 
-            get_pf_branch(data, model, branch_idx, time_idx) <= get_pf_branch_max(data, model, branch_idx, time_idx))
+    @constraint(model, cons_branch_pf_pos[branch_idx in 1:nrow(branch), year_idx in 1:length(years), hour_idx in 1:length(rep_hours)], 
+            get_pf_branch(data, model, branch_idx, year_idx, hour_idx) <= get_pf_branch_max(data, model, branch_idx, year_idx hour_idx))
 
-    @constraint(model, cons_branch_pf_neg[branch_idx in 1:nrow(branch), time_idx in 1:length(rep_time)], 
-            -get_pf_branch(data, model, branch_idx, time_idx) <= get_pf_branch_max(data, model, branch_idx, time_idx))
+    @constraint(model, cons_branch_pf_neg[branch_idx in 1:nrow(branch), year_idx in 1:length(years), hour_idx in 1:length(rep_hours)], 
+            -get_pf_branch(data, model, branch_idx, year_idx, hour_idx) <= get_pf_branch_max(data, model, branch_idx, year_idx, hour_idx))
     
 
 
@@ -119,11 +122,18 @@ Returns the bus data table
 function get_bus_table(data) end
 
 """
-    get_rep_time(data)
+    get_years(data)
+
+Returns the array of years
+"""
+function get_years(data) end
+
+"""
+    get_rep_hours(data)
 
 Returns the array of representative time chunks (hours)
 """ 
-function get_rep_time(data) end
+function get_rep_hours(data) end
 
 """
     get_gen_table(data)
@@ -141,12 +151,12 @@ function get_branch_table(data) end
 
 
 """
-    get_pg_bus(data, model, bus_idx, time_idx)
+    get_pg_bus(data, model, bus_idx, year_idx, hour_idx)
 
 Returns total power generation for a bus at a time
 """
-function get_pg_bus(data, model, bus_idx, time_idx) end
-# function get_pg_bus(data, m, bus_idx, time_idx)
+function get_pg_bus(data, model, bus_idx, year_idx, hour_idx) end
+# function get_pg_bus(data, m, bus_idx, hour_idx)
 # 	gen_ids = get_gen_ids(data, bus_idx)
 # 	isempty(gen_ids) && return 0.0
 # 	return sum(gen_idx->get_power_gen(data, m, gen_idx), gen_ids)
@@ -155,27 +165,27 @@ function get_pg_bus(data, model, bus_idx, time_idx) end
 
 
 """
-    get_pl_bus(data, model, bus_idx, time_idx)
+    get_pl_bus(data, model, bus_idx, year_idx, hour_idx)
 
 Returns total load served for a bus at a time
 """
-function get_pl_bus(data, model, bus_idx, time_idx) end
+function get_pl_bus(data, model, bus_idx, year_idx, hour_idx) end
 
 
 """
-    get_pf_bus(data, model, bus_idx, time_idx)
+    get_pf_bus(data, model, bus_idx, year_idx, hour_idx)
 
 Returns net power flow out of the bus
 """ 
-function get_pf_bus(data, model, bus_idx, time_idx) end
+function get_pf_bus(data, model, bus_idx, year_idx, hour_idx) end
 
 
 """
-    get_pf_branch(data, model, branch_idx, time_idx)
+    get_pf_branch(data, model, branch_idx, year_idx, hour_idx)
 
 Return total power flow on a branch 
 """ 
-function get_pf_branch(data, model, branch_idx, time_idx) end
+function get_pf_branch(data, model, branch_idx, year_idx, hour_idx) end
 
 
 """
@@ -188,26 +198,26 @@ function get_ref_bus_ids(data) end
 
 # the get pg min and max functions require capacity which is a variable in model
 """
-    get_pg_min(data, model, gen_idx, time_idx)
+    get_pg_min(data, model, gen_idx, year_idx, hour_idx)
 
 Returns min power generation for a generator at a time
 """ 
-function get_pg_min(data, model, gen_idx, time_idx) end
+function get_pg_min(data, model, gen_idx, year_idx, hour_idx) end
 
 """
-    get_pg_max(data, model, gen_idx, time_idx)
+    get_pg_max(data, model, gen_idx, year_idx, hour_idx)
 
 Returns max power generation for a generator at a time
 """ 
-function get_pg_max(data, model, gen_idx, time_idx) end
+function get_pg_max(data, model, gen_idx, year_idx, hour_idx) end
 
 
 """
-    get_dl(data, model, bus_idx, time_idx)
+    get_dl(data, model, bus_idx, year_idx, hour_idx)
 
 Returns the demanded load at a bus at a time. Load served (pl) can be less than demanded when load is curtailed. 
 """
-function get_dl(data, model, bus_idx, time_idx) end
+function get_dl(data, model, bus_idx, year_idx, hour_idx) end
 
 
 """
@@ -226,11 +236,11 @@ function get_pcap_max(data, model, gen_idx) end
 
 
 """ 
-    get_pf_branch_max(data, model, branch_idx, time_idx)
+    get_pf_branch_max(data, model, branch_idx, year_idx, hour_idx)
 
 Returns max power flow on a branch at a given time. 
 """
-function get_pf_branch_max(data, model, branch_idx, time_idx) end
+function get_pf_branch_max(data, model, branch_idx, year_idx, hour_idx) end
 
 
 """
@@ -239,16 +249,17 @@ function get_pf_branch_max(data, model, branch_idx, time_idx) end
 Returns the total energy generation from a gen summed over all rep time. 
 """
 function get_eg_gen(data, model, gen_idx)
-    rep_time = get_rep_time(data)
-    return sum(rep_time[time_idx] .* model[:pg][gen_idx, time_idx] for time_idx in 1:length(rep_time))
+    rep_hours = get_rep_hours(data)
+    years = get_years(data)
+    return sum(rep_hours[hour_idx] .* model[:pg][gen_idx, year_idx, hour_idx] for year_idx in 1:length(years), hour_idx in 1:length(rep_hours))
 end
 
 """
-    get_voll(data, model, bus_idx, time_idx)
+    get_voll(data, model, bus_idx, year_idx, hour_idx)
 
 Returns the value of lost load at given bus and time
 """
-function get_voll(data, model, bus_idx, time_idx) end
+function get_voll(data, model, bus_idx, year_idx, hour_idx) end
 
 
 # Model Mutation Functions
@@ -355,16 +366,16 @@ function add_obj_term!(data, model, ::ConsumerBenefit, s::Symbol; oper)
     
     #write expression for the term
     bus = get_bus_table(data)
-    rep_time = get_rep_time(data)
+    rep_hours = get_rep_hours(data)
 
     # Use this expression for single VOLL
     model[s] = @expression (model, [bus_idx in 1:nrow(bus)],
-        sum(get_voll(data, model, bus_idx, time_idx) .* rep_time[time_idx] .* get_pl_bus(data, model, bus_idx, time_idx) for time_idx in 1:length(rep_time)))
+        sum(get_voll(data, model, bus_idx, year_idx, hour_idx) .* rep_hours[hour_idx] .* get_pl_bus(data, model, bus_idx, hour_idx) for year_idx in 1:length(years), hour_idx in 1:length(rep_hours)))
 
     # # Use this expression if we ever get VOLL for each bus 
 
     # model[s] = @expression(model, [bus_idx in 1:nrow(bus)],
-    #     bus[bus_idx, s] .* sum(rep_time[time_idx] .* get_pl_bus(data, model, bus_idx, time_idx) for time_idx in 1:length(rep_time)))
+    #     bus[bus_idx, s] .* sum(rep_hours[hour_idx] .* get_pl_bus(data, model, bus_idx, year_idx, hour_idx) for year_idx in 1:length(years), hour_idx in 1:length(rep_hours)))
 
     # add or subtract the expression from the objective function
     if oper == + 
