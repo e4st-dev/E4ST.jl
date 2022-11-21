@@ -70,7 +70,7 @@ function setup_dcopf!(config, data, model)
 
     # Objective Function
 
-    # This is written as a benefits maximization function, so costs are subtracted and revenues are added. 
+    # This is written as a benefits maximization function, so costs are subtracted and benefits are added. 
 
     @expression(model, obj, 0)
     # TODO: build out this expression
@@ -83,15 +83,16 @@ function setup_dcopf!(config, data, model)
     # add_fixed_gen_var!(data, model, :invest_cost, oper = -)
 
 
-    add_obj_term!(data, model, PerMWh(), :vom, oper = -)
-    add_obj_term!(data, model, PerMWh(), :fuel_cost, oper = -)
+    # Power System Costs
+    add_obj_term!(data, model, PerMWhGen(), :vom, oper = -)
+    add_obj_term!(data, model, PerMWhGen(), :fuel_cost, oper = -)
 
-    add_obj_term!(data, model, PerMW(), :fom, oper = -)
-    add_obj_term!(data, model, PerMW(), :invest_cost, oper = -)
+    add_obj_term!(data, model, PerMWCap(), :fom, oper = -)
+    add_obj_term!(data, model, PerMWCap(), :invest_cost, oper = -)
 
-    # add revenue and benefits to the objective
-
-    
+    # Consumer Benefits
+    add_obj_term!(data, model, PerMWhLoad(), :consumer_benefit, oper = +)
+    # for this, data[:consumer_benefit] = VOLL or 5000
 
     # @objective() goes in the setup
     
@@ -241,6 +242,8 @@ function get_eg_gen(data, model, gen_idx)
 end
 
 
+
+
 # Model Mutation Functions
 ################################################################################
 """
@@ -250,10 +253,9 @@ Abstract type Term is used to add variables (terms) to the objective function or
 """        
 abstract type Term end
 
-struct PerMWh <: Term end
-struct PerMW <: Term end
-
-
+struct PerMWhGen <: Term end
+struct PerMWCap <: Term end
+struct PerMWhLoad <: Term end
 
 # """
 #     add_variable_gen_var!(data, model, s::Symbol; oper)
@@ -294,7 +296,7 @@ Adds or subtracts cost/revenue `s` to the objective function of the `model` base
 """
 function add_obj_term!(data, model, term::Term, s::Symbol; oper) end
 
-function add_obj_term!(data, model, ::PerMWh, s::Symbol; oper) 
+function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper) 
     #Check if s has already been added to obj
     Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
     
@@ -317,7 +319,7 @@ function add_obj_term!(data, model, ::PerMWh, s::Symbol; oper)
     
 end
 
-function add_obj_term!(data, model, ::PerMW, s::Symbol; oper) 
+function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper) 
     #Check if s has already been added to obj
     Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
     
@@ -340,5 +342,32 @@ function add_obj_term!(data, model, ::PerMW, s::Symbol; oper)
     
 end
 
+function add_obj_term!(data, model, ::PerMWhLoad, s::Symbol; oper) 
+    #Check if s has already been added to obj
+    Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
+    
+    #write expression for the term
+    bus = get_bus_table(data)
+    rep_time = get_rep_time(data)
 
+    # Use this expression for single VOLL
+    model[s] = @expression (model, [bus_idx in 1:nrow(bus)],
+         data[s] .* sum(rep_time[time_idx] .* get_pl_bus(data, model, bus_idx, time_idx) for time_idx in 1:length(rep_time)))
 
+    # # Use this expression if we ever get VOLL for each bus 
+    
+    # model[s] = @expression(model, [bus_idx in 1:nrow(bus)],
+    #     bus[bus_idx, s] .* sum(rep_time[time_idx] .* get_pl_bus(data, model, bus_idx, time_idx) for time_idx in 1:length(rep_time)))
+
+    # add or subtract the expression from the objective function
+    if oper == + 
+        model[:obj] += sum(model[s])
+    elseif oper == -
+        model[:obj] -= sum(model[s])
+    else
+        Base.error("The entered operator isn't valid, oper must be + or -")
+    end
+    #Add s to array of variables included obj
+    data[:obj_vars][s] = oper
+    
+end
