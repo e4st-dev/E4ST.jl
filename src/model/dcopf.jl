@@ -74,6 +74,8 @@ function setup_dcopf!(config, data, model)
 
     @expression(model, obj, 0)
     # TODO: build out this expression
+
+    data[:obj_vars] = OrderedDict{Symbol, Any}()
     
     # # subtract costs from the objective 
     # add_variable_gen_var!(data, model, :vom, oper = -)
@@ -91,8 +93,8 @@ function setup_dcopf!(config, data, model)
     add_obj_term!(data, model, PerMWCap(), :invest_cost, oper = -)
 
     # Consumer Benefits
-    add_obj_term!(data, model, PerMWhLoad(), :consumer_benefit, oper = +)
-    # for this, data[:consumer_benefit] = VOLL or 5000
+    add_obj_term!(data, model, ConsumerBenefit(), :consumer_benefit, oper = +)
+
 
     # @objective() goes in the setup
     
@@ -241,7 +243,12 @@ function get_eg_gen(data, model, gen_idx)
     return sum(rep_time[time_idx] .* model[:pg][gen_idx, time_idx] for time_idx in 1:length(rep_time))
 end
 
+"""
+    get_voll(data, model, bus_idx, time_idx)
 
+Returns the value of lost load at given bus and time
+"""
+function get_voll(data, model, bus_idx, time_idx) end
 
 
 # Model Mutation Functions
@@ -255,7 +262,7 @@ abstract type Term end
 
 struct PerMWhGen <: Term end
 struct PerMWCap <: Term end
-struct PerMWhLoad <: Term end
+struct ConsumerBenefit <: Term end
 
 # """
 #     add_variable_gen_var!(data, model, s::Symbol; oper)
@@ -342,7 +349,7 @@ function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper)
     
 end
 
-function add_obj_term!(data, model, ::PerMWhLoad, s::Symbol; oper) 
+function add_obj_term!(data, model, ::ConsumerBenefit, s::Symbol; oper) 
     #Check if s has already been added to obj
     Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
     
@@ -352,10 +359,10 @@ function add_obj_term!(data, model, ::PerMWhLoad, s::Symbol; oper)
 
     # Use this expression for single VOLL
     model[s] = @expression (model, [bus_idx in 1:nrow(bus)],
-         data[s] .* sum(rep_time[time_idx] .* get_pl_bus(data, model, bus_idx, time_idx) for time_idx in 1:length(rep_time)))
+        sum(get_voll(data, model, bus_idx, time_idx) .* rep_time[time_idx] .* get_pl_bus(data, model, bus_idx, time_idx) for time_idx in 1:length(rep_time)))
 
     # # Use this expression if we ever get VOLL for each bus 
-    
+
     # model[s] = @expression(model, [bus_idx in 1:nrow(bus)],
     #     bus[bus_idx, s] .* sum(rep_time[time_idx] .* get_pl_bus(data, model, bus_idx, time_idx) for time_idx in 1:length(rep_time)))
 
