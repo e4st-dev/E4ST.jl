@@ -83,5 +83,10 @@ function make_paths_absolute!(config, filename; path_keys = (:gen_file, :bus_fil
 end
 
 function convert_types!(config, sym::Symbol)
+    if isnothing(config[sym])
+        config[sym] = OrderedDict{Symbol, Modification}()
+        return
+    end
     config[sym] = OrderedDict(key=>Modification(val) for (key,val) in config[sym])
+    return
 end

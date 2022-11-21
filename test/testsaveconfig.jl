@@ -21,7 +21,7 @@ function fieldnames_for_yaml(::Type{ExamplePolicyType})
     (:type, :some_parameter, :other_parameter)
 end
 
-filename = joinpath(@__DIR__, "config/config_dac1.yml")
+filename = joinpath(@__DIR__, "config/config_3bus_examplepol.yml")
 
 config = load_config(filename)
 
