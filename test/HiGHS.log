@@ -1,7 +1,0 @@
-Model   status      : Empty
-Simplex   iterations: -1
-IPM       iterations: -1
-Crossover iterations: -1
-QP ASM    iterations: -1
-Objective value     :  0.0000000000e+00
-HiGHS run time      :          0.00

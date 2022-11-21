@@ -4,11 +4,11 @@
 Pulls in data found in files listed in the `config`, and stores into `data`
 """
 function load_data(config)
-    data = OrderedDict()
+    data = OrderedDict{Symbol, Any}()
 
     # Load in tables
-    load_gen_table!(config, data)
     load_bus_table!(config, data)
+    load_gen_table!(config, data)
     load_branch_table!(config, data)
     load_time!(config, data)
     load_af!(config, data)
@@ -91,7 +91,7 @@ function load_time!(config, data)
     rep_time = load_table(config[:time_file])
     force_table_types!(rep_time, :rep_time,
         :hours=>Float64,
-        :day=>Int64,
+        # :day=>Int64,
     )
     data[:time] = rep_time
     return
@@ -169,7 +169,6 @@ function load_af!(config, data)
 
         # Add the gentype to the condition
         if ~isempty(row.gentype)
-            tmp = cond
             gentype = row.gentype
             gens = filter(:gentype=>==(gentype), gens, view=true)
         end
