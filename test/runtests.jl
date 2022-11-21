@@ -8,7 +8,6 @@ import OrderedCollections: OrderedDict
     @testset "Unit Tests" begin
         @testset "Test Loading Config" begin
             include("testloadconfig.jl")
-            @test_skip "Not working currently"
         end
         @testset "Test Saving Config" begin
             include("testsaveconfig.jl")

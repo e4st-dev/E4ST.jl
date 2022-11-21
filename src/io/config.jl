@@ -29,18 +29,12 @@ function save_config(config)
     # create out path 
     io = open(joinpath(config[:out_path],basename(config[:config_file])), "w")
     
-    # for (i,j) in config
-    #     if i === :mods
-    #         for (name, mod) in config[:mods]
-    #             #_print method for Mods that only prints relevant fieldnames
-    #             YAML._print(io, mod)          
-    #         end
-    #     else
-    #         YAML._print(io, config[i])
-    #     end
-    # end
+    # remove config filepath 
+    config_file = pop!(config, :config_file)
 
     YAML.write(io, config)
+
+    config[:config_file] = config_file
 
     close(io)
 end

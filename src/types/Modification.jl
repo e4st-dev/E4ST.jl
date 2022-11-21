@@ -77,5 +77,16 @@ end
 Prints the field determined in fieldnames_for_yaml from the Modification. 
 """
 function YAML._print(io::IO, mod::M, level::Int=0, ignore_level::Bool=false) where {M<:Modification}
-    YAML._print(io::IO, OrderedDict(k=>getproperty(mod, k) for k in fieldnames_for_yaml(M)), level, ignore_level)
+    println(io)
+    moddict = OrderedDict(:type => string(typeof(mod)), (k=>getproperty(mod, k) for k in fieldnames_for_yaml(M))...)
+    YAML._print(io::IO, moddict, level, ignore_level)
+end
+
+"""
+    function Base.getindex(mod::M, key) where {M<:Modification}
+
+Returns value of the Modification for the given key (not index)
+"""
+function Base.getindex(mod::M, key::Symbol) where {M<:Modification}
+    return getproperty(mod, key)
 end
