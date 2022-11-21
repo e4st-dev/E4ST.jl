@@ -78,22 +78,3 @@ end
 function convert_types!(config, sym::Symbol)
     config[sym] = OrderedDict(key=>Modification(val) for (key,val) in config[sym])
 end
-
-"""
-save_format_mods(mods::OrderedDict)
-
-takes the :mods dict for the config dict and pulls out only the required fields for saving into the output yml config file
-returns a :mods ordered dict with only select information 
-
-"""
-function save_format_mods(mods::OrderedDict)
-    for m in mods
-        #add relevant parts of the mod to configout
-        tmpmod = OrderedDict{Symbol, Any}()
-        for f in fieldname_for_yaml(m)
-            tmpmod[f] = m[f]
-        end
-        mods[m] = tmpmod
-    end
-    return mods
-end

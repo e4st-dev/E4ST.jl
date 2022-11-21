@@ -16,20 +16,6 @@ Base.@kwdef struct OtherModificationType <: Modification
     custom_parameter        # no default, and no type specification
 end
 
-"""
-struct AnnualAdjust <: Policy
-
-This is an example subtype of Policy that applies some annual adjustment to a value which comes from csv.
-"""
-mutable struct AnnualAdjust <: Modification
-    type::String
-    setname::String
-    inputfilepath::String
-end
-
-function fieldnames_for_yaml(::Type{AnnualAdjust})
-    (:type, :polname, :polvalfile)
-end
 
 function fieldnames_for_yaml(::Type{ExamplePolicyType})
     (:type, :some_parameter, :other_parameter)
