@@ -75,12 +75,19 @@ function setup_dcopf!(config, data, model)
     @expression(model, obj, 0)
     # TODO: build out this expression
     
-    # subtract costs from the objective 
-    add_variable_gen_var!(data, model, :vom, oper = -)
-    add_variable_gen_var!(data, model, :fuel_cost, oper = -)
+    # # subtract costs from the objective 
+    # add_variable_gen_var!(data, model, :vom, oper = -)
+    # add_variable_gen_var!(data, model, :fuel_cost, oper = -)
 
-    add_fixed_gen_var!(data, model, :fom, oper = -)
-    add_fixed_gen_var!(data, model, :invest_cost, oper = -)
+    # add_fixed_gen_var!(data, model, :fom, oper = -)
+    # add_fixed_gen_var!(data, model, :invest_cost, oper = -)
+
+
+    add_obj_term!(data, model, PerMWh(), :vom, oper = -)
+    add_obj_term!(data, model, PerMWh(), :fuel_cost, oper = -)
+
+    add_obj_term!(data, model, PerMW(), :fom, oper = -)
+    add_obj_term!(data, model, PerMW(), :invest_cost, oper = -)
 
     # add revenue and benefits to the objective
 
@@ -236,48 +243,91 @@ end
 
 # Model Mutation Functions
 ################################################################################
-
 """
-    add_variable_gen_var!(data, model, s::Symbol; oper)
+    abstract type Term
 
-Defines expression for the variable generator cost or revenue `s` which is multiplied by annual generation. Adds or subtracts that cost/rev to the objective function based on `oper`
-"""
-function add_variable_gen_var!(data, model, s::Symbol; oper)
-    gen = get_gen_table(data)
+Abstract type Term is used to add variables (terms) to the objective function or other functions. Subtypes include PerMWh and PerMW 
+"""        
+abstract type Term end
 
-    model[s] = @expression(model, [gen_idx in 1:nrow(gen)],
-        gen[gen_idx, s] .* get_eg_gen(data, model, gen_idx))
-
-    add_obj_var!(data, model, s::Symbol, oper = oper)
-end
+struct PerMWh <: Term end
+struct PerMW <: Term end
 
 
-"""
-    add_fixed_gen_var!(data, model, s::Symbol; oper)
 
-Defines expression for the fixed generator cost or revenue `s` which is multiplied by capacity. Adds or subtracts that cost/rev to the objective function based on `oper` 
-"""
-function add_fixed_gen_var!(data, model, s::Symbol; oper)
-    gen = get_gen_table(data)
+# """
+#     add_variable_gen_var!(data, model, s::Symbol; oper)
 
-    model[s] = @expression(model, [gen_idx in 1:nrow(gen)],
-        gen[gen_idx, s] .* model[:pcap][gen_id])
+# Defines expression for the variable generator cost or revenue `s` which is multiplied by annual generation. Adds or subtracts that cost/rev to the objective function based on `oper`
+# """
+# function add_variable_gen_var!(data, model, s::Symbol; oper)
+#     gen = get_gen_table(data)
 
-    add_obj_var!(data, model, s::Symbol, oper = oper)
-end
+#     model[s] = @expression(model, [gen_idx in 1:nrow(gen)],
+#         gen[gen_idx, s] .* get_eg_gen(data, model, gen_idx))
+
+#     add_obj_var!(data, model, s::Symbol, oper = oper)
+# end
+
+
+# """
+#     add_fixed_gen_var!(data, model, s::Symbol; oper)
+
+# Defines expression for the fixed generator cost or revenue `s` which is multiplied by capacity. Adds or subtracts that cost/rev to the objective function based on `oper` 
+# """
+# function add_fixed_gen_var!(data, model, s::Symbol; oper)
+#     gen = get_gen_table(data)
+
+#     model[s] = @expression(model, [gen_idx in 1:nrow(gen)],
+#         gen[gen_idx, s] .* model[:pcap][gen_id])
+
+#     add_obj_var!(data, model, s::Symbol, oper = oper)
+# end
 
 
   
 
 """
-    add_obj_var!(data, model, s::Symbol; oper)
+    add_obj_term!(data, model, ::Term, s::Symbol; oper)
 
 Adds or subtracts cost/revenue `s` to the objective function of the `model` based on the operator `oper`. Adds the cost/revenue to the objective variables list in data. 
 """
-function add_obj_var!(data, model, s::Symbol; oper) 
+function add_obj_term!(data, model, term::Term, s::Symbol; oper) end
+
+function add_obj_term!(data, model, ::PerMWh, s::Symbol; oper) 
     #Check if s has already been added to obj
     Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
     
+    #write expression for the term
+    gen = get_gen_table(data)
+
+    model[s] = @expression(model, [gen_idx in 1:nrow(gen)],
+        gen[gen_idx, s] .* get_eg_gen(data, model, gen_idx))
+
+    # add or subtract the expression from the objective function
+    if oper == + 
+        model[:obj] += sum(model[s])
+    elseif oper == -
+        model[:obj] -= sum(model[s])
+    else
+        Base.error("The entered operator isn't valid, oper must be + or -")
+    end
+    #Add s to array of variables included obj
+    data[:obj_vars][s] = oper
+    
+end
+
+function add_obj_term!(data, model, ::PerMW, s::Symbol; oper) 
+    #Check if s has already been added to obj
+    Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
+    
+    #write expression for the term
+    gen = get_gen_table(data)
+
+    model[s] = @expression(model, [gen_idx in 1:nrow(gen)],
+        gen[gen_idx, s] .* model[:pcap][gen_idx])
+
+    # add or subtract the expression from the objective function
     if oper == + 
         model[:obj] += sum(model[s])
     elseif oper == -
