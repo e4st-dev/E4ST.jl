@@ -10,6 +10,29 @@ Modifications can implement the following two interfaces:
 """
 abstract type Modification end
 
+
+
+"""
+    function Modification(d::OrderedDict)
+
+Constructs a Modification of type `d[:type]` with keyword arguments for all the other key value pairs in `d`.
+"""
+function Modification(d::OrderedDict)
+    T = get_type(d[:type])
+    mod = _discard_type(T; d...)
+    return mod
+end
+
+"""
+    function _discard_type(T; type=nothing, kwargs...)
+
+Makes sure type doesn't get passed in as a keyword argument. 
+"""
+function _discard_type(T; type=nothing, kwargs...) 
+    T(;kwargs...)
+end
+
+
 """
     initialize!(mod::Modification, config, data, model)
 
@@ -36,4 +59,34 @@ Gather the results from `mod` from the solved model, called in `parse_results`
 """
 function results!(mod::Modification, config, data, model, results)
     @warn "No results! function defined for mod $mod, doing nothing"
+end
+
+"""
+    fieldnames_for_yaml(::Type{M}) where {M<:Modification}
+
+returns the fieldnames in a yaml, used for printing, modified for different types of mods 
+"""
+function fieldnames_for_yaml(::Type{M}) where {M<:Modification}
+    return fieldnames(M)
+end
+
+
+"""
+    function YAML._print(io::IO, mod::M, level::Int=0, ignore_level::Bool=false) where {M<:Modification}
+
+Prints the field determined in fieldnames_for_yaml from the Modification. 
+"""
+function YAML._print(io::IO, mod::M, level::Int=0, ignore_level::Bool=false) where {M<:Modification}
+    println(io)
+    moddict = OrderedDict(:type => string(typeof(mod)), (k=>getproperty(mod, k) for k in fieldnames_for_yaml(M))...)
+    YAML._print(io::IO, moddict, level, ignore_level)
+end
+
+"""
+    function Base.getindex(mod::M, key) where {M<:Modification}
+
+Returns value of the Modification for the given key (not index)
+"""
+function Base.getindex(mod::M, key::Symbol) where {M<:Modification}
+    return getproperty(mod, key)
 end
