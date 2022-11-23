@@ -197,6 +197,10 @@ function load_af!(config, data)
     return data
 end
 
+
+# Helper Functions
+################################################################################
+
 """
     load_table(filename) -> table
 
@@ -205,6 +209,7 @@ Loads a table from filename, where filename is a csv.
 function load_table(filename::String)
     CSV.File(filename, missingstring="NA") |> DataFrame
 end
+export year2int
 
 """
     force_table_types!(df::DataFrame, name, pairs...)
@@ -232,13 +237,14 @@ Initializes the data with any necessary Modifications in the config, calling `in
 function initialize_data!(config, data)
     # Initialize Modifications
     for (sym, mod) in getmods(config)
-        initialize!(sym, mod, config, data)
+        initialize!(mod, config, data)
     end
 end
 
 
 # Accessor Functions
 ################################################################################
+
 """
     get_gen_table(data)
 
@@ -316,25 +322,25 @@ export get_generator, get_bus, get_branch
 export get_bus_from_generator_idx
 
 """
-    get_af(data, gen_idx, year_idx, time_idx) -> af
+    get_af(data, gen_idx, year_idx, hour_idx) -> af
 
 Retrieves the availability factor for a generator at a year and a time.
 """
-function get_af(data, gen_idx, year_idx, time_idx)
-    return get_gen_value(data, :af, gen_idx, year_idx, time_idx)
+function get_af(data, gen_idx, year_idx, hour_idx)
+    return get_gen_value(data, :af, gen_idx, year_idx, hour_idx)
 end
 
 export get_af
 
 """
-    get_gen_value(data, var::Symbol, gen_idx, year_idx, time_idx) -> val
+    get_gen_value(data, var::Symbol, gen_idx, year_idx, hour_idx) -> val
 
-Retrieve the `var` value for generator `gen_idx` in year `year_idx` at hour `time_idx`
+Retrieve the `var` value for generator `gen_idx` in year `year_idx` at hour `hour_idx`
 """
-function get_gen_value(data, name, gen_idx, year_idx, time_idx)
+function get_gen_value(data, name, gen_idx, year_idx, hour_idx)
     gen_table = get_gen_table(data)
     c = gen_table[gen_idx, name]
-    return c[year_idx, time_idx]::Float64
+    return c[year_idx, hour_idx]::Float64
 end
 export get_gen_value
 

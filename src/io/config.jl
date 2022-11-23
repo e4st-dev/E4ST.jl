@@ -87,6 +87,6 @@ function convert_types!(config, sym::Symbol)
         config[sym] = OrderedDict{Symbol, Modification}()
         return
     end
-    config[sym] = OrderedDict(key=>Modification(val) for (key,val) in config[sym])
+    config[sym] = OrderedDict(key=>Modification(key=>val) for (key,val) in config[sym])
     return
 end

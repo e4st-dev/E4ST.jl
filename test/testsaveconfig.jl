@@ -4,19 +4,6 @@ using E4ST
 using YAML
 import OrderedCollections: OrderedDict
 
-
-Base.@kwdef struct ExamplePolicyType <: Policy
-    value::Float64 = 1.0    # defaults to 1.0
-    some_parameter::Vector  # no default, so it must be specified, can be a Vector of any kind
-    other_parameter         # no default, and no type specification
-end
-
-Base.@kwdef struct OtherModificationType <: Modification
-    value::Float64 = 1.0    # defaults to 1.0
-    custom_parameter        # no default, and no type specification
-end
-
-
 function fieldnames_for_yaml(::Type{ExamplePolicyType})
     (:type, :some_parameter, :other_parameter)
 end

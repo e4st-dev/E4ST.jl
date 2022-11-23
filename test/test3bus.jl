@@ -29,10 +29,10 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         initialize_data!(config, data)
         @test data == data_0
     end
-    
+
     @testset "Test Initializing the Data with a mod" begin
         struct DoubleLoad <: Modification end
-        function E4ST.initialize!(sym, ::DoubleLoad, config, data)
+        function E4ST.initialize!(::DoubleLoad, config, data)
             data[:bus][!, :pd] .*= 2
         end
         config = load_config(config_file)
