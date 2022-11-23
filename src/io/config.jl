@@ -39,7 +39,12 @@ function save_config(config)
     close(io)
 end
 
+# Accessor Functions
 ################################################################################
+function getmods(config)
+    config[:mods]
+end
+
 # Helper Functions
 ################################################################################
 function required_fields()
@@ -47,6 +52,7 @@ function required_fields()
         :gen_file,
         :branch_file,
         :bus_file,
+        :hours_file,
         :out_path,
         :optimizer,
         :mods
@@ -64,9 +70,10 @@ Make all the paths in `config` absolute, corresponding to the keys given in `pat
 
 Relative paths are relative to the location of the config file at `filename`
 """
-function make_paths_absolute!(config, filename; path_keys = (:gen_file, :bus_file, :branch_file, :out_path))
+function make_paths_absolute!(config, filename; path_keys = (:gen_file, :bus_file, :branch_file, :hours_file, :out_path, :af_file))
     path = dirname(filename)
     for key in path_keys
+        haskey(config, key) || continue
         fn = config[key]
         if ~isabspath(fn)
             config[key] = abspath(path, fn)
@@ -76,5 +83,10 @@ function make_paths_absolute!(config, filename; path_keys = (:gen_file, :bus_fil
 end
 
 function convert_types!(config, sym::Symbol)
-    config[sym] = OrderedDict(key=>Modification(val) for (key,val) in config[sym])
+    if isnothing(config[sym])
+        config[sym] = OrderedDict{Symbol, Modification}()
+        return
+    end
+    config[sym] = OrderedDict(key=>Modification(key=>val) for (key,val) in config[sym])
+    return
 end
