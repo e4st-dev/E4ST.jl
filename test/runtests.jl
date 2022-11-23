@@ -2,6 +2,7 @@ using Test
 using E4ST
 using HiGHS
 using JuMP
+using DataFrames
 import OrderedCollections: OrderedDict
 
 @testset "Test E4ST" begin
@@ -10,7 +11,7 @@ import OrderedCollections: OrderedDict
             include("testloadconfig.jl")
         end
         @testset "Test Saving Config" begin
-            @test_skip "No Tests Written"
+            include("testsaveconfig.jl")
         end
         @testset "Test Loading Data" begin
             @test_skip "No Tests Written"
@@ -32,6 +33,6 @@ import OrderedCollections: OrderedDict
         end
     end
     @testset "System Tests" begin
-        @test_skip "No Tests Written"
+        include("test3bus.jl")
     end
 end

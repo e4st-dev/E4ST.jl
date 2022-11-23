@@ -4,3 +4,6 @@ Manifest.toml
 *.asv
 /.benchmarkci
 /benchmark/*.json
+/benchmark/data
+*.log
+/test/out

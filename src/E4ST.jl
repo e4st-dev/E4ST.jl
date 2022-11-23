@@ -3,18 +3,20 @@ module E4ST
 # General Packages
 using JuMP
 using InteractiveUtils
+using DataFrames
 import OrderedCollections: OrderedDict
+import CSV
 import YAML
 import JuMP.MOI.AbstractOptimizer
 
 # E4ST Packages
 using E4STUtil
 
-export save_config!, load_config
+export save_config, load_config
 export load_data, initialize_data!
 export save_results!, load_results
 
-export setup_model
+export setup_model, check
 export parse_results, process!
 export should_iterate, iterate!
 export Modification, Policy
@@ -23,7 +25,6 @@ export run_e4st
 
 include("types/Modification.jl")
 include("types/Policy.jl")
-include("types/ModWrapper.jl")
 include("io/config.jl")
 include("io/data.jl")
 include("io/results.jl")
@@ -41,7 +42,7 @@ include("model/iteration.jl")
 Top-level file for running E4ST
 """
 function run_e4st(config)
-    save_config!(config)
+    save_config(config)
     data = load_data(config)
     initialize_data!(config, data) # or something, could also live inside load_data
 
