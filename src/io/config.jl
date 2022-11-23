@@ -52,7 +52,7 @@ function required_fields()
         :gen_file,
         :branch_file,
         :bus_file,
-        :time_file,
+        :hours_file,
         :out_path,
         :optimizer,
         :mods
@@ -70,7 +70,7 @@ Make all the paths in `config` absolute, corresponding to the keys given in `pat
 
 Relative paths are relative to the location of the config file at `filename`
 """
-function make_paths_absolute!(config, filename; path_keys = (:gen_file, :bus_file, :branch_file, :time_file, :out_path, :af_file))
+function make_paths_absolute!(config, filename; path_keys = (:gen_file, :bus_file, :branch_file, :hours_file, :out_path, :af_file))
     path = dirname(filename)
     for key in path_keys
         haskey(config, key) || continue

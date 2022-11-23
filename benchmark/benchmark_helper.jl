@@ -65,12 +65,15 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
     CSV.write(joinpath(@__DIR__, "data/gen.csv"), gen)
     CSV.write(joinpath(@__DIR__, "data/branch.csv"), branch)
     CSV.write(joinpath(@__DIR__, "data/time.csv"), time)
+    years = ["y$y" for y in 2030:5:2050]
+    year_strs = vcat(years, "")
     config = OrderedDict(
         :out_path=>abspath(@__DIR__,"out"),
         :gen_file=>abspath(@__DIR__,"data/gen.csv"),
         :bus_file=>abspath(@__DIR__,"data/bus.csv"),
         :branch_file=>abspath(@__DIR__, "data/branch.csv"),
-        :time_file=>abspath(@__DIR__, "data/time.csv"),
+        :hours_file=>abspath(@__DIR__, "data/time.csv"),
+        :years=>years,
         :optimizer=>OrderedDict(
             :type=>"HiGHS",
         ),
@@ -82,6 +85,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
             "subarea" => String[],
             "genfuel" => String[],
             "gentype" => String[],
+            "year"=>String[],
             "joint" => Int64[],
             "status" => Bool[],
             ("h_$n"=>Float64[] for n in 1:n_hours)...
@@ -91,7 +95,8 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
             for country in countries
                 joint += 1
                 for genfuel in genfuels, gentype in gentypes[genfuel]
-                    push!(af, ("country", country, genfuel, gentype, joint, true, rand(n_hours)...))
+                    year = rand(year_strs)
+                    push!(af, ("country", country, genfuel, gentype, year, joint, true, rand(n_hours)...))
                     if nrow(af) == n_af
                         break
                     end

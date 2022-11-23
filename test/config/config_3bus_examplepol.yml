@@ -2,8 +2,12 @@ out_path:    "../out/3bus"
 gen_file:    "../data/3bus/gen.csv"
 bus_file:    "../data/3bus/bus.csv"
 branch_file: "../data/3bus/branch.csv"
-time_file:   "../data/3bus/time.csv"
-af_file:     "../data/3bus/af_hourly.csv"
+hours_file:   "../data/3bus/time.csv"
+af_file:     "../data/3bus/af.csv"
+years:
+  - y2030
+  - y2035
+  - y2040
 optimizer:
   type: "HiGHS" # See available options here: https://docs.juliahub.com/HiGHS/WFic5/0.3.1/
   dual_feasibility_tolerance: 1e-5

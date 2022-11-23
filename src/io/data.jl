@@ -6,11 +6,13 @@ Pulls in data found in files listed in the `config`, and stores into `data`
 function load_data(config)
     data = OrderedDict{Symbol, Any}()
 
+    data[:years] = config[:years]
+
     # Load in tables
     load_bus_table!(config, data)
     load_gen_table!(config, data)
     load_branch_table!(config, data)
-    load_time!(config, data)
+    load_hours_table!(config, data)
     load_af!(config, data)
 
     return data
@@ -83,17 +85,17 @@ function load_branch_table!(config, data)
 end
 
 """
-    load_time!(config, data) -> rep_time
+    load_hours_table!(config, data) -> rep_time
 
-Load the representative time `rep_time` from the `:time_file` specified in the `config`
+Load the representative time `rep_time` from the `:hours_file` specified in the `config`
 """
-function load_time!(config, data)
-    rep_time = load_table(config[:time_file])
-    force_table_types!(rep_time, :rep_time,
+function load_hours_table!(config, data)
+    hours = load_table(config[:hours_file])
+    force_table_types!(hours, :rep_time,
         :hours=>Float64,
         # :day=>Int64,
     )
-    data[:time] = rep_time
+    data[:hours] = hours
     return
 end
 
@@ -103,11 +105,11 @@ end
 Load the hourly availability factors, pulling them in from file, as needed.
 """
 function load_af!(config, data)
-
     # Fill in gen table with default af of 1.0 for every hour
     gens = get_gen_table(data)
-    default_hourly_af = ones(get_num_rep_hours(data))
-    gens.af_hourly = fill(default_hourly_af, nrow(gens))
+    default_af = ByNothing(1.0)
+    default_hourly_af = fill(1.0, get_num_hours(data))
+    gens.af = Container[default_af for _ in 1:nrow(gens)]
     
     # TODO: Add in yearly AF adjustments
     # default_yearly_af = ones(get_num_years(data))
@@ -128,7 +130,8 @@ function load_af!(config, data)
         :gentype=>String,
         :joint=>Int64,
         :status=>Bool,
-        ("h_$n"=>Float64 for n in 1:get_num_rep_hours(data))...
+        :year=>String,
+        ("h_$n"=>Float64 for n in 1:get_num_hours(data))...
     )
 
     data[:af] = df
@@ -136,13 +139,24 @@ function load_af!(config, data)
     # Pull the availability factors in as a matrix
     hr_idx = findfirst(s->s=="h_1",names(df))
     af_mat = Matrix(df[:, hr_idx:end])
-    if size(af_mat,2) != get_num_rep_hours(data)
-        error("The number of representative hours given in :af_file=$(config[:af_file])  ($(size(af_mat,2))) is different than the hours in the time representation ($(get_num_rep_hours(data))).")
+    if size(af_mat,2) != get_num_hours(data)
+        error("The number of representative hours given in :af_file=$(config[:af_file])  ($(size(af_mat,2))) is different than the hours in the time representation ($(get_num_hours(data))).")
     end
+
+    all_years = get_years(data)
+    nyr = get_num_years(data)
 
     for i = 1:nrow(df)
         row = df[i, :]
         if row.status==false
+            continue
+        end
+
+        if isempty(row.year)
+            yr_idx = (:)
+        elseif row.year ∈ all_years
+            yr_idx = findfirst(==(row.year), all_years)
+        else
             continue
         end
         
@@ -176,7 +190,9 @@ function load_af!(config, data)
         isempty(gens) && continue
         
         af = [row[i_hr] for i_hr in hr_idx:ncol(df)]
-        foreach(gen->gen.af_hourly = af, eachrow(gens))
+        foreach(eachrow(gens)) do gen
+            gen.af = set_hourly(gen.af, af, yr_idx; default=default_hourly_af, nyr)
+        end
     end
     return data
 end
@@ -229,7 +245,7 @@ end
 Returns gen data table
 """
 function get_gen_table(data) 
-    return data[:gen]
+    return data[:gen]::DataFrame
 end
 
 """
@@ -238,7 +254,7 @@ end
 Returns table of the transmission lines (branches) from data. 
 """
 function get_branch_table(data) 
-    return data[:branch]
+    return data[:branch]::DataFrame
 end
 
 """
@@ -247,7 +263,16 @@ end
 Returns the bus data table
 """
 function get_bus_table(data)
-    data[:bus]
+    data[:bus]::DataFrame
+end
+
+"""
+    get_hours_table(data)
+
+Returns the representative hours data table
+"""
+function get_hours_table(data)
+    data[:hours]::DataFrame
 end
 
 """
@@ -286,7 +311,7 @@ function get_bus_from_generator_idx(data, gen_idx)
     return get_bus(data, get_generator(data, gen_idx).bus_idx)
 end
 
-export get_gen_table, get_bus_table, get_branch_table
+export get_gen_table, get_bus_table, get_branch_table, get_hours_table
 export get_generator, get_bus, get_branch
 export get_bus_from_generator_idx
 
@@ -296,11 +321,22 @@ export get_bus_from_generator_idx
 Retrieves the availability factor for a generator at a year and a time.
 """
 function get_af(data, gen_idx, year_idx, time_idx)
-    gen = get_generator(data, gen_idx)
-    return gen.af_hourly[time_idx]
+    return get_gen_value(data, :af, gen_idx, year_idx, time_idx)
 end
 
 export get_af
+
+"""
+    get_gen_value(data, var::Symbol, gen_idx, year_idx, time_idx) -> val
+
+Retrieve the `var` value for generator `gen_idx` in year `year_idx` at hour `time_idx`
+"""
+function get_gen_value(data, name, gen_idx, year_idx, time_idx)
+    gen_table = get_gen_table(data)
+    c = gen_table[gen_idx, name]
+    return c[year_idx, time_idx]::Float64
+end
+export get_gen_value
 
 """
     get_gen_subarea(data, gen_idx::Int64, area::String) -> subarea
@@ -322,22 +358,161 @@ export get_gen_subarea
 
 
 """
-    get_num_rep_hours(data) -> nh
+    get_num_hours(data) -> nhr
 
 Returns the number of representative hours in a year
 """
-function get_num_rep_hours(data)
-    time = get_rep_time(data)
-    return length(time)
+function get_num_hours(data)
+    return nrow(get_hours_table(data))
 end
 
 """
-    get_rep_time(data)
+    get_hour_weights(data) -> weights
 
-Returns the array of representative time chunks (hours)
+Returns the number of hours in a year spent at each representative hour
 """ 
-function get_rep_time(data) 
-    return data[:time].hours
+function get_hour_weights(data)
+    hours_table = get_hours_table(data)
+    return hours_table.hours
 end
 
-export get_num_rep_hours, get_rep_time
+"""
+    get_hour_weight(data, hour_idx)
+
+Returns the number of hours in a year spent at the `hour_idx` representative hour
+"""
+function get_hour_weight(data, hour_idx)
+    return get_hours_table(data)[hour_idx, :hours]
+end
+export get_num_hours, get_hour_weights, get_hour_weight
+
+"""
+    get_years(data) -> years
+
+Returns the vector of years as strings (i.e. "y2022") that are being represented in the sim.
+"""
+function get_years(data)
+    return data[:years]::Vector{String}
+end
+
+"""
+    get_num_years(data) -> nyr
+
+Returns the number of years in this simulation
+"""
+function get_num_years(data)
+    return length(get_years(data))
+end
+export get_num_years, get_years
+
+
+
+# Containers
+################################################################################
+
+"""
+    abstract type Container
+
+Abstract type for containers that can be indexed by year and time.
+"""
+abstract type Container end
+
+mutable struct ByNothing <: Container 
+    v::Float64
+end
+struct ByYear <: Container
+    v::Vector{Float64}
+end
+struct ByHour <: Container
+    v::Vector{Float64}
+end
+struct ByYearAndHour <: Container
+    v::Vector{Vector{Float64}}
+end
+
+"""
+    Base.getindex(c::Container, year_idx, hour_idx) -> val::Float64
+
+Retrieve the value from `c` at `year_idx` and `hour_idx`
+"""
+function Base.getindex(c::ByNothing, year_idx, hour_idx)
+    c.v::Float64
+end
+function Base.getindex(c::ByYear, year_idx, hour_idx)
+    c.v[year_idx]::Float64
+end
+function Base.getindex(c::ByHour, year_idx, hour_idx)
+    c.v[hour_idx]::Float64
+end
+function Base.getindex(c::ByYearAndHour, year_idx, hour_idx)
+    c.v[year_idx][hour_idx]::Float64
+end
+function Base.getindex(n::Number, year_idx, hour_idx)
+    return n
+end
+
+"""
+    set_hourly(c::Container, v::Vector{Float64}, yr_idx; default, nyr)
+
+Sets the hourly values for `c` (creating a new Container of a different type as needed) for `yr_idx` to be `v`.
+
+If `yr_idx::Colon`, sets the hourly values for all years to be `v`.
+
+# keyword arguments
+* `default` - the default hourly values for years not specified, if they aren't already set.
+* `nyr` - the total number of years.
+"""
+function set_hourly(c::ByNothing, v, yr_idx::Colon; kwargs...)
+    return ByHour(v)
+end
+function set_hourly(c::ByNothing, v, yr_idx; default=nothing, nyr=nothing)
+    @assert nyr !== nothing error("Attempting to set hourly values for year index $yr_idx, but no nyr provided!")
+    if all(in(yr_idx), 1:nyr)
+        return set_hourly(c, v, (:); default, kwargs...)
+    end
+    @assert default !== nothing error("Attempting to set hourly values for year index $yr_idx, but no default provided!")
+    vv = fill(default, nyr)
+    foreach(i->(vv[i] = v), yr_idx)
+    return ByYearAndHour(vv)
+end
+
+function set_hourly(c::ByYear, v, yr_idx::Colon; kwargs...)
+    return ByHour(v)
+end
+function set_hourly(c::ByYear, v, yr_idx; kwargs...)
+    # Check to see if all the years are represented by yr_idx
+    if all(in(yr_idx), 1:length(c.v))
+        return set_hourly(c, v, (:); default, kwargs...)
+    end
+
+    # Set the default hourly values to be the original values
+    vv = map(c.v) do yr_val
+        fill(yr_val, nyr)
+    end
+    foreach(i->(vv[i] = v), yr_idx)
+    return ByYearAndHour(vv)
+end
+
+function set_hourly(c::ByHour, v, yr_idx::Colon; kwargs...)
+    return ByHour(v)
+end
+function set_hourly(c::ByHour, v, yr_idx; nyr=nothing, kwargs...)
+    @assert nyr !== nothing error("Attempting to set hourly values for year index $yr_idx, but no nyr provided!")
+    if all(in(yr_idx), 1:nyr)
+        return set_hourly(c, v, (:); default, kwargs...)
+    end
+    vv = fill(v, nyr)
+    foreach(i->(vv[i] = v), yr_idx)
+    return ByYearAndHour(vv)
+end
+
+function set_hourly(c::ByYearAndHour, v, yr_idx::Colon; kwargs...)
+    return ByHour(v)
+end
+function set_hourly(c::ByYearAndHour, v, yr_idx; kwargs...)
+    if all(in(yr_idx), 1:length(c.v))
+        return set_hourly(c, v, (:); default, kwargs...)
+    end
+    foreach(i->(c.v[i] = v), yr_idx)
+    return c
+end
