@@ -345,6 +345,18 @@ end
 export get_gen_value
 
 """
+    get_bus_value(data, var::Symbol, bus_idx, year_idx, hour_idx) -> val
+
+Retrieve the `var` value for bus `bus_idx` in year `year_idx` at hour `hour_idx`
+"""
+function get_bus_value(data, name, bus_idx, year_idx, hour_idx)
+    bus_table = get_bus_table(data)
+    c = bus_table[bus_idx, name]
+    return c[year_idx, hour_idx]::Float64
+end
+export get_bus_value
+
+"""
     get_gen_subarea(data, gen_idx::Int64, area::String) -> subarea
 
     get_gen_subarea(data, gen, area) -> subarea

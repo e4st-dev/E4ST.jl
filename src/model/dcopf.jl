@@ -11,9 +11,7 @@ function setup_dcopf!(config, data, model)
     
     # define tables 
     bus = get_bus_table(data)
-    # TODO: add list of years, add year_idx with hour_idx
     years = get_years(data)
-    # TODO: change rep_time name to be related to hours? 
     rep_hours = get_rep_hours(data) # weight of representative time chunks (hours) 
     gen = get_gen_table(data)
     branch = get_branch_table(data)
@@ -43,8 +41,8 @@ function setup_dcopf!(config, data, model)
             get_pf_bus(data, model, bus_idx, year_idx, hour_idx))
 
     # Constrain Reference Bus 
-    @constraint(model, cons_ref_bus[ref_bus_idx in get_ref_bus_ids(data)], 
-            model[:θ][ref_bus_idx] == 0)
+    @constraint(model, cons_ref_bus[ref_bus_id in get_ref_bus_idxs(data)], 
+            model[:θ][ref_bus_id] == 0)
 
     # Constrain Power Generation 
     @constraint(model, cons_pg_min[gen_idx in 1:nrow(gen), year_idx in 1:length(years), hour_idx in 1:length(rep_hours)],
@@ -119,35 +117,45 @@ end
 
 Returns the bus data table
 """
-function get_bus_table(data) end
+function get_bus_table(data) 
+    return data[:bus]    
+end
 
 """
     get_years(data)
 
 Returns the array of years
 """
-function get_years(data) end
+function get_years(data) 
+    return data[:years]
+end
 
 """
     get_rep_hours(data)
 
-Returns the array of representative time chunks (hours)
+Returns the vector of representative time chunks (hours)
 """ 
-function get_rep_hours(data) end
+function get_rep_hours(data) 
+    return data[:hours].hours
+end
 
 """
     get_gen_table(data)
 
 Returns gen data table
 """
-function get_gen_table(data) end
+function get_gen_table(data) 
+    return data[:gen]
+end
 
 """
     get_branch_table(data)
 
 Returns table of the transmission lines (branches) from data. 
 """
-function get_branch_table(data) end
+function get_branch_table(data)
+    return data[:branch]
+end
 
 
 """
@@ -155,14 +163,18 @@ function get_branch_table(data) end
 
 Returns total power generation for a bus at a time
 """
-function get_pg_bus(data, model, bus_idx, year_idx, hour_idx) end
-# function get_pg_bus(data, m, bus_idx, hour_idx)
-# 	gen_ids = get_gen_ids(data, bus_idx)
-# 	isempty(gen_ids) && return 0.0
-# 	return sum(gen_idx->get_power_gen(data, m, gen_idx), gen_ids)
-# end
+function get_pg_bus(data, model, bus_idx, year_idx, hour_idx) 
+    bus_gens = get_bus_gens(data, model, bus_idx)
+    sum(model[:pg][bus_gens, year_idx, hour_idx])
+end
 
 
+"""
+    get_bus_gens(data, model, bus_idx)
+
+Returns an array of the gen_idx of all the gens at the bus.
+"""
+function get_bus_gens(data, model, bus_idx) end
 
 """
     get_pl_bus(data, model, bus_idx, year_idx, hour_idx)
@@ -189,11 +201,14 @@ function get_pf_branch(data, model, branch_idx, year_idx, hour_idx) end
 
 
 """
-    get_ref_bus_ids(data)
+    get_ref_bus_idxs(data)
 
 Returns reference bus ids
 """
-function get_ref_bus_ids(data) end
+function get_ref_bus_idxs(data) 
+    bus = get_bus_table(data)
+    return findall(bus.ref_bus)
+end
 
 
 # the get pg min and max functions require capacity which is a variable in model
@@ -202,14 +217,18 @@ function get_ref_bus_ids(data) end
 
 Returns min power generation for a generator at a time
 """ 
-function get_pg_min(data, model, gen_idx, year_idx, hour_idx) end
+function get_pg_min(data, model, gen_idx, year_idx, hour_idx) 
+    
+end
 
 """
     get_pg_max(data, model, gen_idx, year_idx, hour_idx)
 
 Returns max power generation for a generator at a time
 """ 
-function get_pg_max(data, model, gen_idx, year_idx, hour_idx) end
+function get_pg_max(data, model, gen_idx, year_idx, hour_idx) 
+
+end
 
 
 """
@@ -217,7 +236,9 @@ function get_pg_max(data, model, gen_idx, year_idx, hour_idx) end
 
 Returns the demanded load at a bus at a time. Load served (pl) can be less than demanded when load is curtailed. 
 """
-function get_dl(data, model, bus_idx, year_idx, hour_idx) end
+function get_dl(data, model, bus_idx, year_idx, hour_idx) 
+    return get_bus_value(data, :pd, bus_idx, year_idx, hour_idx)
+end
 
 
 """
@@ -225,14 +246,18 @@ function get_dl(data, model, bus_idx, year_idx, hour_idx) end
 
 Returns min capacity for a generator
 """
-function get_pcap_min(data, model, gen_idx) end
+function get_pcap_min(data, model, gen_idx) 
+    return data[:gen].pcap_min[gen_idx]
+end
 
 """
     get_pcap_max(data, model, gen_idx)
 
 Returns max capacity for a generator
 """
-function get_pcap_max(data, model, gen_idx) end
+function get_pcap_max(data, model, gen_idx) 
+    return data[:gen].pcap_max[gen_idx]
+end
 
 
 """ 
@@ -240,7 +265,9 @@ function get_pcap_max(data, model, gen_idx) end
 
 Returns max power flow on a branch at a given time. 
 """
-function get_pf_branch_max(data, model, branch_idx, year_idx, hour_idx) end
+function get_pf_branch_max(data, model, branch_idx, year_idx, hour_idx) 
+    return data[:branch].pf_max[branch_idx]
+end
 
 
 """
@@ -389,3 +416,4 @@ function add_obj_term!(data, model, ::ConsumerBenefit, s::Symbol; oper)
     data[:obj_vars][s] = oper
     
 end
+
