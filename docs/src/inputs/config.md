@@ -7,10 +7,10 @@ The Config File is a file that fully specifies all the necessary information.  N
 * `gen_file` - The filepath (relative or absolute) to the [generator table](gen.md).
 * `bus_file` - The filepath (relative or absolute) to the [bus table](gen.md).
 * `branch_file` - The filepath (relative or absolute) to the [branch table](gen.md).
-* `hours_file` - The filepath (relative or absolute) to the [time representation](time.md).
+* `hours_file` - The filepath (relative or absolute) to the [time representation](hours.md).
 * `years` - a list of years to run in the simulation specified as a string.  I.e. `"y2030"`
 * `optimizer` - The optimizer type and attributes to use in solving the linear program.  The `type` field should be given, as well as each of the solver options you wish to set.  E4ST is a BYOS (Bring Your Own Solver :smile:) library, with default attributes for HiGHS and Gurobi.  For all other solvers, you're on your own to provide a reasonable set of attributes.  To see a full list of solvers with work with JuMP.jl, see [here](https://jump.dev/JuMP.jl/stable/installation/#Supported-solvers).
-* `mods` - A list of `Modification`s specifying changes for how E4ST runs.  See the [modifications page](../types/mods.md) for information on what they are, how to add them to a config file.
+* `mods` - A list of `Modification`s specifying changes for how E4ST runs.  See the [modifications page](../types/mod.md) for information on what they are, how to add them to a config file.
 
 ## Optional Fields:
 * `af_file` - The filepath (relative or absolute) to the [availability factor table](af.md).

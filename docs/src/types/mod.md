@@ -2,4 +2,8 @@ Modifications
 =============
 ```@docs
 Modification
+initialize!
+apply!
+results!
+fieldnames_for_yaml
 ```

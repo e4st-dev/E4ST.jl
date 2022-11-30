@@ -23,7 +23,7 @@ When defining a concrete `Modification` type, you should know the following.
 * After optimizing the model, in the results generation step via [`results!(mod, config, data, model, results)`](@ref)
 
 Modifications get printed to YAML when the config file is saved at the beginning of a call to `run_e4st`.  If you implement a Modification for which it is undesirable to print every field, you can implement the following interface:
-* `fieldnames_for_yaml(::Type{MyModificationType}) -> fieldnames_to_print` - returns the desired fieldnames as a collection of `Symbol`s
+* [`fieldnames_for_yaml(::Type)`](@ref) - returns the desired fieldnames as a collection of `Symbol`s
 
 ## Specifying a `Modification` in the config file YAML
 `Modifications` must be be specified in the config file.  They must have a type key, and keys for each other desired keyword argument in the constructor.
