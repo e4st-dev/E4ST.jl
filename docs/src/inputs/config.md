@@ -7,7 +7,13 @@ The Config File is a file that fully specifies all the necessary information.  N
 * `gen_file` - The filepath (relative or absolute) to the [generator table](gen.md).
 * `bus_file` - The filepath (relative or absolute) to the [bus table](gen.md).
 * `branch_file` - The filepath (relative or absolute) to the [branch table](gen.md).
+* `hours_file` - The filepath (relative or absolute) to the [time representation](time.md).
+* `years` - a list of years to run in the simulation specified as a string.  I.e. `"y2030"`
+* `optimizer` - The optimizer type and attributes to use in solving the linear program.  The `type` field should be given, as well as each of the solver options you wish to set.  E4ST is a BYOS (Bring Your Own Solver :smile:) library, with default attributes for HiGHS and Gurobi.  For all other solvers, you're on your own to provide a reasonable set of attributes.  To see a full list of solvers with work with JuMP.jl, see [here](https://jump.dev/JuMP.jl/stable/installation/#Supported-solvers).
 * `mods` - A list of `Modification`s specifying changes for how E4ST runs.  See the [modifications section](#modifications) below for information on how these should be formatted.
+
+## Optional Fields:
+* `af_file` - The filepath (relative or absolute) to the [availability factor table](af.md).
 
 ## Formatting Modifications
 
@@ -31,6 +37,9 @@ out_path:    "../out/case_dac1"
 gen_file:    "../matlab/t_case_e4st_dac1/gen.csv"
 bus_file:    "../matlab/t_case_e4st_dac1/bus.csv"
 branch_file: "../matlab/t_case_e4st_dac1/branch.csv"
+optimizer:
+  type: "HiGHS"
+  dual_feasibility_tolerance: 1e-5
 mods:
   example_policy:
     type: "ExamplePolicyType"

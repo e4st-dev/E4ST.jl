@@ -1,0 +1,30 @@
+out_path:    "../out/3bus"
+gen_file:    "../data/3bus/gen.csv"
+bus_file:    "../data/3bus/bus.csv"
+branch_file: "../data/3bus/branch.csv"
+hours_file:   "../data/3bus/time.csv"
+af_file:     "../data/3bus/af.csv"
+years:
+  - y2030
+  - y2035
+  - y2040
+optimizer:
+  type: "HiGHS" # See available options here: https://docs.juliahub.com/HiGHS/WFic5/0.3.1/
+  dual_feasibility_tolerance: 1e-5
+  log_file: HiGHS.log
+  log_to_console: false
+mods:
+  example_policy:
+    type: "ExamplePolicyType"
+    value: 0
+    some_parameter:
+      - "This makes an "
+      - "array of strings."
+      - "Cool, right?"
+    other_parameter:
+      name: "This makes an OrderedDict"
+  other_mod:
+    type: "OtherModificationType"
+    value: 0
+    custom_parameter: "hello!!!"
+

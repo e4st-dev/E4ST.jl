@@ -1,4 +1,5 @@
 Base.@kwdef struct ExamplePolicyType <: Policy
+    name::Symbol
     value::Float64 = 1.0    # defaults to 1.0
     some_parameter::Vector  # no default, so it must be specified, can be a Vector of any kind
     other_parameter         # no default, and no type specification
@@ -9,7 +10,7 @@ Base.@kwdef struct OtherModificationType <: Modification
     custom_parameter        # no default, and no type specification
 end
 
-filename = joinpath(@__DIR__, "config/config_dac1.yml")
+filename = joinpath(@__DIR__, "config/config_3bus_examplepol.yml")
 
 @test load_config(filename) isa AbstractDict
 config = load_config(filename)
@@ -20,3 +21,12 @@ config = load_config(filename)
 @test isabspath(config[:branch_file])
 
 @test config[:mods] isa OrderedDict{Symbol, <:Modification}
+@test config[:mods][:example_policy].name == :example_policy
+
+@testset "Test Loading Optimizer from Config" begin
+    attrib = E4ST.optimizer_attributes(config)
+    @test attrib isa NamedTuple
+    @test attrib.dual_feasibility_tolerance   == 1e-5 # From config file, not the default
+    @test attrib.primal_feasibility_tolerance == 1e-7 # From default, not in the config file
+    @test Model(E4ST.getoptimizer(config)) isa JuMP.Model
+end

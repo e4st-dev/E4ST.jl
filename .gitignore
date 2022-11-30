@@ -1,5 +1,9 @@
 Manifest.toml
 .vscode
 *.swp
-
 *.asv
+/.benchmarkci
+/benchmark/*.json
+/benchmark/data
+*.log
+/test/out
