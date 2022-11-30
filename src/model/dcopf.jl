@@ -26,7 +26,7 @@ function setup_dcopf!(config, data, model)
     @variable(model, pg[gen_idx in 1:nrow(gen), year_idx in 1:length(years), hour_idx in 1:length(rep_hours)])
 
     # Capacity
-    @variable(model, pcap[gen_idx in 1:nrow(gen)])
+    @variable(model, pcap[gen_idx in 1:nrow(gen), year_idx in 1:length(years)])
 
     # Load Served
     @variable(model, pl[bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:length(rep_hours)] >= 0)
@@ -55,10 +55,10 @@ function setup_dcopf!(config, data, model)
             pl[bus_idx, year_idx, hour_idx] <= get_dl(data, model, bus_idx, year_idx, hour_idx))
 
     # Constrain Capacity
-    @constraint(model, cons_pcap_min[gen_idx in 1:nrow(gen)], 
-            pcap[gen_idx] >= get_pcap_min(data, model, gen_idx))
-    @constraint(model, cons_pcap_max[gen_idx in 1:nrow(gen)], 
-            pcap[gen_idx] <= get_pcap_max(data, model, gen_idx))
+    @constraint(model, cons_pcap_min[gen_idx in 1:nrow(gen), year_idx in 1:length(years)], 
+            pcap[gen_idx, year_idx] >= get_pcap_min(data, model, gen_idx))
+    @constraint(model, cons_pcap_max[gen_idx in 1:nrow(gen), year_idx in 1:length(years)], 
+            pcap[gen_idx, year_idx] <= get_pcap_max(data, model, gen_idx))
 
     # Constrain Transmission Lines 
     @constraint(model, cons_branch_pf_pos[branch_idx in 1:nrow(branch), year_idx in 1:length(years), hour_idx in 1:length(rep_hours)], 
@@ -112,6 +112,9 @@ end
 # Accessor Functions
 ################################################################################
 
+
+### Data Table Functions
+
 """
     get_bus_table(data)
 
@@ -158,6 +161,9 @@ function get_branch_table(data)
 end
 
 
+### Get Model Variables Functions
+
+
 """
     get_pg_bus(data, model, bus_idx, year_idx, hour_idx)
 
@@ -170,18 +176,14 @@ end
 
 
 """
-    get_bus_gens(data, model, bus_idx)
-
-Returns an array of the gen_idx of all the gens at the bus.
-"""
-function get_bus_gens(data, model, bus_idx) end
-
-"""
     get_pl_bus(data, model, bus_idx, year_idx, hour_idx)
 
 Returns total load served for a bus at a time
 """
-function get_pl_bus(data, model, bus_idx, year_idx, hour_idx) end
+function get_pl_bus(data, model, bus_idx, year_idx, hour_idx) 
+    bus_gens = get_bus_gens(data, model, bus_idx)
+    sum(model[:pl][bus_gens, year_idx, hour_idx])
+end
 
 
 """
@@ -199,6 +201,18 @@ Return total power flow on a branch
 """ 
 function get_pf_branch(data, model, branch_idx, year_idx, hour_idx) end
 
+
+### System Mapping Helper Functions
+
+"""
+    get_bus_gens(data, model, bus_idx)
+
+Returns an array of the gen_idx of all the gens at the bus.
+"""
+function get_bus_gens(data, model, bus_idx) 
+    gen = get_gen_table(data)
+    findall(x -> x == bus_idx, gen.bus_idx)
+end
 
 """
     get_ref_bus_idxs(data)
@@ -227,7 +241,9 @@ end
 Returns max power generation for a generator at a time
 """ 
 function get_pg_max(data, model, gen_idx, year_idx, hour_idx) 
-
+    af = get_gen_value(data, :af, gen_idx, year_idx, hour_idx)
+    pcap = model[:pcap][gen_idx, year_idx]
+    return af .* pcap
 end
 
 
@@ -247,7 +263,7 @@ end
 Returns min capacity for a generator
 """
 function get_pcap_min(data, model, gen_idx) 
-    return data[:gen].pcap_min[gen_idx]
+    return get_gen_value(data, :pcap_min, gen_idx)
 end
 
 """
@@ -256,7 +272,7 @@ end
 Returns max capacity for a generator
 """
 function get_pcap_max(data, model, gen_idx) 
-    return data[:gen].pcap_max[gen_idx]
+    return get_gen_value(data, :pcap_max, gen_idx)
 end
 
 
@@ -266,7 +282,7 @@ end
 Returns max power flow on a branch at a given time. 
 """
 function get_pf_branch_max(data, model, branch_idx, year_idx, hour_idx) 
-    return data[:branch].pf_max[branch_idx]
+    return get_branch_value(data, :pf_max, branch_idx)
 end
 
 
@@ -282,11 +298,24 @@ function get_eg_gen(data, model, gen_idx)
 end
 
 """
+    get_eg_gen(data, model, gen_idx, year_idx)
+
+Returns the total energy generation from a gen summed over rep time for the given year. 
+"""
+function get_eg_gen(data, model, gen_idx, year_idx)
+    rep_hours = get_rep_hours(data)
+    return sum(rep_hours[hour_idx] .* model[:pg][gen_idx, year_idx, hour_idx] for hour_idx in 1:length(rep_hours))
+end
+
+"""
     get_voll(data, model, bus_idx, year_idx, hour_idx)
 
 Returns the value of lost load at given bus and time
 """
-function get_voll(data, model, bus_idx, year_idx, hour_idx) end
+function get_voll(data, model, bus_idx, year_idx, hour_idx) 
+    # If we want voll to be by bus_idx this could be modified and load_voll() will need to be changed
+    return data[:voll]
+end
 
 
 # Model Mutation Functions
@@ -347,9 +376,10 @@ function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper)
     
     #write expression for the term
     gen = get_gen_table(data)
+    years = get_years(data)
 
-    model[s] = @expression(model, [gen_idx in 1:nrow(gen)],
-        gen[gen_idx, s] .* get_eg_gen(data, model, gen_idx))
+    model[s] = @expression(model, [gen_idx in 1:nrow(gen), year in 1:length(years)],
+        get_gen_value(data, s, gen_idx, year_idx) .* get_eg_gen(data, model, gen_idx, year_idx))
 
     # add or subtract the expression from the objective function
     if oper == + 
@@ -371,8 +401,8 @@ function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper)
     #write expression for the term
     gen = get_gen_table(data)
 
-    model[s] = @expression(model, [gen_idx in 1:nrow(gen)],
-        gen[gen_idx, s] .* model[:pcap][gen_idx])
+    model[s] = @expression(model, [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
+        get_gen_value(data, s, gen_idx, year_idx) .* model[:pcap][gen_idx, year_idx])
 
     # add or subtract the expression from the objective function
     if oper == + 

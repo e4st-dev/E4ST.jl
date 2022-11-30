@@ -14,6 +14,7 @@ function load_data(config)
     load_branch_table!(config, data)
     load_hours_table!(config, data)
     load_af!(config, data)
+    load_voll!(config, data)
 
     return data
 end
@@ -197,6 +198,18 @@ function load_af!(config, data)
     return data
 end
 
+"""
+    load_voll!(config, data)
+
+Return the marginal cost of load curtailment / VOLL as a variable in data
+"""
+function load_voll!(config, data)
+    default_voll = 5000.0;
+    haskey(config, :voll) ? data[:voll] = config[:voll] : data[:voll] = default_voll
+    hasmethod(Float64, Tuple{typeof(data[:voll])}) || error("data[:voll] cannot be converted to a Float64")
+    Float64.(data[:voll]) 
+end
+
 
 # Helper Functions
 ################################################################################
@@ -355,6 +368,18 @@ function get_bus_value(data, name, bus_idx, year_idx, hour_idx)
     return c[year_idx, hour_idx]::Float64
 end
 export get_bus_value
+
+"""
+    get_branch_value(data, var::Symbol, branch_idx, year_idx, hour_idx) -> val
+
+Retrieve the `var` value for bus `bus_idx` in year `year_idx` at hour `hour_idx`
+"""
+function get_branch_value(data, name, branch_idx, year_idx, hour_idx)
+    branch_table = get_branch_table(data)
+    c = branch_table[branch_idx, name]
+    return c[year_idx, hour_idx]::Float64
+end
+export get_branch_value
 
 """
     get_gen_subarea(data, gen_idx::Int64, area::String) -> subarea
