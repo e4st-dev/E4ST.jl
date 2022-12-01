@@ -32,7 +32,6 @@ function setup_dcopf!(config, data, model)
     @variable(model, pl[bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:length(rep_hours)] >= 0)
 
 
-
     ## Constraints
 
     # Constrain Power Flow
@@ -51,8 +50,11 @@ function setup_dcopf!(config, data, model)
             pg[gen_idx, year_idx, hour_idx] <= get_pg_max(data, model, gen_idx, year_idx, hour_idx)) 
 
     # Constrain Load Served 
-    @constraint(model, cons_pl[bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:length(rep_hours)], 
+    @constraint(model, cons_pl_min[bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:length(rep_hours)], 
+            pl[bus_idx, year_idx, hour_idx] >= 0)
+    @constraint(model, cons_pl_max[bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:length(rep_hours)], 
             pl[bus_idx, year_idx, hour_idx] <= get_dl(data, model, bus_idx, year_idx, hour_idx))
+    
 
     # Constrain Capacity
     @constraint(model, cons_pcap_min[gen_idx in 1:nrow(gen), year_idx in 1:length(years)], 
@@ -187,22 +189,43 @@ end
 
 
 """
-    get_pf_bus(data, model, bus_idx, year_idx, hour_idx)
+    get_pf_bus(data, model, f_bus_idx, year_idx, hour_idx)
 
 Returns net power flow out of the bus
 """ 
-function get_pf_bus(data, model, bus_idx, year_idx, hour_idx) end
+function get_pf_bus(data, model, f_bus_idx, year_idx, hour_idx) 
+    sum(t_bus_idx -> get_pf_branch(data, model, f_bus_idx, t_bus_idx, year_idx, hour_idx), get_connected_buses(data, f_bus_idx))
+end
 
 
 """
-    get_pf_branch(data, model, branch_idx, year_idx, hour_idx)
+    get_pf_branch(data, model, f_bus_idx, t_bus_idx, year_idx, hour_idx)
 
 Return total power flow on a branch 
 """ 
-function get_pf_branch(data, model, branch_idx, year_idx, hour_idx) end
-
+function get_pf_branch(data, model, f_bus_idx, t_bus_idx, year_idx, hour_idx)
+    Δθ = model[:θ][t_bus_idx, year_idx, hour_idx] - model[:θ][f_bus_idx, year_idx, hour_idx]
+    branch_idx = get_branch_idx(data, f_bus_idx, t_bus_idx)
+    x = get_branch_value(data, :x, branch_idx, year_idx, hour_idx) # not sure I need time indices, check function arguments
+    return Δθ / x
+end
+# look at shadow price notebook 
 
 ### System Mapping Helper Functions
+
+"""
+    get_branch_idx(data, f_bus_idx, t_bus_idx)
+
+Returns the branch idx between two buses. 
+"""
+function get_branch_idx(data, f_bus_idx, t_bus_idx) end
+
+"""
+    get_connected_buses(data, bus_idx)
+
+Returns vector of t_bus_idx for all buses connected to the specified buses. 
+"""
+function get_connected_buses(data, bus_idx) end
 
 """
     get_bus_gens(data, model, bus_idx)
@@ -224,36 +247,38 @@ function get_ref_bus_idxs(data)
     return findall(bus.ref_bus)
 end
 
+### Contraint Info Functions
 
-# the get pg min and max functions require capacity which is a variable in model
 """
     get_pg_min(data, model, gen_idx, year_idx, hour_idx)
 
-Returns min power generation for a generator at a time
+Returns min power generation for a generator at a time, based on the optional gen property `cf_min`
 """ 
 function get_pg_min(data, model, gen_idx, year_idx, hour_idx) 
-    
+   default_pg_min = 0.0;
+   if hasproperty(data[:gen], cf_min)
+    pcap = model[:pcap][gen_idx, year_idx]
+    cf_min = get_gen_value(data, :cf_min, gen_idx, year_idx, hour_idx)
+     return pcap .* cf_min 
+   else
+     return default_pg_min
 end
 
 """
     get_pg_max(data, model, gen_idx, year_idx, hour_idx)
 
-Returns max power generation for a generator at a time
+Returns max power generation for a generator at a time, based on the lower of gen properties `af` and `cf_max`
 """ 
 function get_pg_max(data, model, gen_idx, year_idx, hour_idx) 
     af = get_gen_value(data, :af, gen_idx, year_idx, hour_idx)
     pcap = model[:pcap][gen_idx, year_idx]
-    return af .* pcap
-end
-
-
-"""
-    get_dl(data, model, bus_idx, year_idx, hour_idx)
-
-Returns the demanded load at a bus at a time. Load served (pl) can be less than demanded when load is curtailed. 
-"""
-function get_dl(data, model, bus_idx, year_idx, hour_idx) 
-    return get_bus_value(data, :pd, bus_idx, year_idx, hour_idx)
+    if hasproperty(data[:gen], cf_max)
+        cf_max = get_gen_value(data, :cf_max, gen_idx, year_idx, hour_idx)
+        cf_max < af ? pg_max = cf_max .* pcap : pg_max = af .* pcap
+    else 
+        pg_max = af .* pcap
+    end
+    return pg_max
 end
 
 
@@ -285,6 +310,16 @@ function get_pf_branch_max(data, model, branch_idx, year_idx, hour_idx)
     return get_branch_value(data, :pf_max, branch_idx)
 end
 
+### Misc Helper Functions
+
+"""
+    get_dl(data, model, bus_idx, year_idx, hour_idx)
+
+Returns the demanded load at a bus at a time. Load served (pl) can be less than demanded when load is curtailed. 
+"""
+function get_dl(data, model, bus_idx, year_idx, hour_idx) 
+    return get_bus_value(data, :pd, bus_idx, year_idx, hour_idx)
+end
 
 """
     get_eg_gen(data, model, gen_idx)
@@ -330,36 +365,6 @@ abstract type Term end
 struct PerMWhGen <: Term end
 struct PerMWCap <: Term end
 struct ConsumerBenefit <: Term end
-
-# """
-#     add_variable_gen_var!(data, model, s::Symbol; oper)
-
-# Defines expression for the variable generator cost or revenue `s` which is multiplied by annual generation. Adds or subtracts that cost/rev to the objective function based on `oper`
-# """
-# function add_variable_gen_var!(data, model, s::Symbol; oper)
-#     gen = get_gen_table(data)
-
-#     model[s] = @expression(model, [gen_idx in 1:nrow(gen)],
-#         gen[gen_idx, s] .* get_eg_gen(data, model, gen_idx))
-
-#     add_obj_var!(data, model, s::Symbol, oper = oper)
-# end
-
-
-# """
-#     add_fixed_gen_var!(data, model, s::Symbol; oper)
-
-# Defines expression for the fixed generator cost or revenue `s` which is multiplied by capacity. Adds or subtracts that cost/rev to the objective function based on `oper` 
-# """
-# function add_fixed_gen_var!(data, model, s::Symbol; oper)
-#     gen = get_gen_table(data)
-
-#     model[s] = @expression(model, [gen_idx in 1:nrow(gen)],
-#         gen[gen_idx, s] .* model[:pcap][gen_id])
-
-#     add_obj_var!(data, model, s::Symbol, oper = oper)
-# end
-
 
   
 

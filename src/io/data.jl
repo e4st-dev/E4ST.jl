@@ -31,6 +31,7 @@ function load_gen_table!(config, data)
         :status=>Bool,
         :genfuel=>String,
         :gentype=>String,
+        :pcap0=>Float64,
         :pcap_min=>Float64,
         :pcap_max=>Float64,
         :fom=>Float64,
