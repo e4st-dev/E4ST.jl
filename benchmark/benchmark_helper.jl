@@ -88,7 +88,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
             "year"=>String[],
             "joint" => Int64[],
             "status" => Bool[],
-            ("h_$n"=>Float64[] for n in 1:n_hours)...
+            ("h$n"=>Float64[] for n in 1:n_hours)...
         )
         joint = 1
         while nrow(af) < n_af
