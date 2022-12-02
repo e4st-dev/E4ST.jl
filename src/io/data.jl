@@ -1,7 +1,14 @@
 """
     load_data(config) -> data
 
-Pulls in data found in files listed in the `config`, and stores into `data`
+Pulls in data found in files listed in the `config`, and stores into `data`.
+
+For more information about the data to be found in each of the files, see the following functions:
+* [`summarize_bus_table()`](@ref)
+* [`summarize_branch_table()`](@ref)
+* [`summarize_gen_table()`](@ref)
+* [`summarize_hours_table()`](@ref)
+* [`summarize_af_table()`](@ref)
 """
 function load_data(config)
     data = OrderedDict{Symbol, Any}()
@@ -13,7 +20,7 @@ function load_data(config)
     load_gen_table!(config, data)
     load_branch_table!(config, data)
     load_hours_table!(config, data)
-    load_af!(config, data)
+    load_af_table!(config, data)
 
     return data
 end
@@ -61,20 +68,23 @@ Load the representative time `rep_time` from the `:hours_file` specified in the 
 """
 function load_hours_table!(config, data)
     hours = load_table(config[:hours_file])
-    force_table_types!(hours, :rep_time,
-        :hours=>Float64,
-        # :day=>Int64,
-    )
+    force_table_types!(hours, :rep_time, summarize_hours_table())
+    if sum(hours.hours) != 8760
+        s = sum(hours.hours)
+        sf = 8760/s
+        @warn "hours column of hours table sums to $s, scaling by $sf to reach 8760 hours per year"
+        hours.hours .*= sf
+    end
     data[:hours] = hours
     return
 end
 
 """
-    load_af!(config, data)
+    load_af_table!(config, data)
 
 Load the hourly availability factors, pulling them in from file, as needed.
 """
-function load_af!(config, data)
+function load_af_table!(config, data)
     # Fill in gen table with default af of 1.0 for every hour
     gens = get_gen_table(data)
     default_af = ByNothing(1.0)
@@ -93,16 +103,8 @@ function load_af!(config, data)
 
     # Load in the af file
     df = load_table(config[:af_file])
-    force_table_types!(df, :af,
-        :area=>String,
-        :subarea=>String,
-        :genfuel=>String,
-        :gentype=>String,
-        # :joint=>Int64,
-        :status=>Bool,
-        :year=>String,
-        ("h$n"=>Float64 for n in 1:get_num_hours(data))...
-    )
+    force_table_types!(df, :af, summarize_af_table())
+    force_table_types!(df, :af, ("h$n"=>Float64 for n in 2:get_num_hours(data))...)
 
     data[:af] = df
 
@@ -268,6 +270,30 @@ function summarize_branch_table()
 end
 export summarize_branch_table
 
+function summarize_hours_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    push!(df, 
+        (:hours, Float64, "hours", true, "The number of hours spent in each representative hour over the course of a year (must sum to 8760)"),
+    )
+    return df
+end
+export summarize_hours_table
+
+
+function summarize_af_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    push!(df, 
+        (:area, String, "n/a", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:genfuel, String, "n/a", true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
+        (:gentype, String, "n/a", true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
+        (:year, String, "year", true, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
+        (:status, Bool, "n/a", true, "Whether or not to use this AF adjustment"),
+        (:h1, Float64, "ratio", true, "Availability factor of hour 1.  Include 1 column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
+    )
+    return df
+end
+export summarize_af_table
 
 # Accessor Functions
 ################################################################################
