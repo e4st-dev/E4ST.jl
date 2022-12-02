@@ -25,20 +25,7 @@ Load the generator from the `:gen_file` specified in the `config`
 """
 function load_gen_table!(config, data)
     gen = load_table(config[:gen_file])
-    force_table_types!(gen, :gen,
-        :bus_idx=>Int64,
-        :status=>Bool,
-        :genfuel=>String,
-        :gentype=>String,
-        :pcap_min=>Float64,
-        :pcap_max=>Float64,
-        :fom=>Float64,
-        :vom=>Float64,
-    )
-    # force_table_types!(gen, :gen,
-    #     :capex=>Float64,
-    #     optional=true
-    # )
+    force_table_types!(gen, :gen, summarize_gen_table())
     data[:gen] = gen
     return
 end
@@ -50,14 +37,7 @@ Load the bus table from the `:bus_file` specified in the `config`
 """
 function load_bus_table!(config, data)
     bus = load_table(config[:bus_file])
-    force_table_types!(bus, :bus,
-        :ref_bus=>Bool,
-        :pd=>Float64,
-    )
-    # force_table_types!(bus, :bus,
-    #     :capex=>Float64,
-    #     optional=true
-    # )
+    force_table_types!(bus, :bus, summarize_bus_table())
     data[:bus] = bus
     return
 end
@@ -69,17 +49,7 @@ Load the branch table from the `:branch_file` specified in the `config`
 """
 function load_branch_table!(config, data)
     branch = load_table(config[:branch_file])
-    force_table_types!(branch, :branch,
-        :f_bus_idx=>Int64,
-        :t_bus_idx=>Int64,
-        :status=>Bool,
-        :x=>Float64,
-        :pf_max=>Float64,
-    )
-    # force_table_types!(branch, :branch,
-    #     :capex=>Float64,
-    #     optional=true
-    # )
+    force_table_types!(branch, :branch, summarize_branch_table())
     data[:branch] = branch
     return
 end
@@ -207,9 +177,8 @@ end
 Loads a table from filename, where filename is a csv.
 """
 function load_table(filename::String)
-    CSV.File(filename, missingstring="NA") |> DataFrame
+    CSV.read(filename, DataFrame, missingstring="NA")
 end
-export year2int
 
 """
     force_table_types!(df::DataFrame, name, pairs...)
@@ -220,6 +189,23 @@ function force_table_types!(df::DataFrame, name, pairs...; optional=false)
     for (col, T) in pairs
         if ~hasproperty(df, col)
             optional ? continue : error(":$name table missing column :$col")
+        end
+        ET = eltype(df[!,col])
+        if ~(ET <: T)
+            hasmethod(T, Tuple{ET}) || error("Column $name[$col] cannot be forced into type $T")
+            df[!, col] = T.(df[!,col])
+        end
+    end
+end
+
+function force_table_types!(df::DataFrame, name, summary::DataFrame; kwargs...) 
+    for row in eachrow(summary)
+        col = row["Column Name"]
+        req = row["Required"]
+        T = row["Data Type"]
+        if ~hasproperty(df, col)
+            req || continue
+            error(":$name table missing column :$col")
         end
         ET = eltype(df[!,col])
         if ~(ET <: T)
@@ -240,6 +226,47 @@ function initialize_data!(config, data)
         initialize!(mod, config, data)
     end
 end
+
+
+function summarize_gen_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[],  "Required"=>Bool[],"Description"=>String[])
+    push!(df, 
+        (:bus_idx, Int64, "n/a", true, "The index of the `bus` table that the generator corresponds to"),
+        (:status, Bool, "n/a", true, "Whether or not the generator is in service"),
+        (:genfuel, String, "n/a", true, "The fuel type that the generator uses"),
+        (:gentype, String, "n/a", true, "The generation technology type that the generator uses"),
+        (:pcap_min, Float64, "MW", true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
+        (:pcap_max, Float64, "MW", true, "Maximum nameplate power generation capacity of the generator"),
+        (:vom, Float64, "\$/MWh", true, "Variable operation and maintenance cost per MWh of generation"),
+        (:fom, Float64, "\$/MW", true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
+        (:capex, Float64, "\$/MW", false, "Hourly capital expenditures for a MW of generation capacity"),
+    )
+    return df
+end
+export summarize_gen_table
+
+function summarize_bus_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    push!(df, 
+        (:ref_bus, Bool, "n/a", true, "Whether or not the bus is a reference bus.  There should be a single reference bus for each island."),
+        (:pd, Float64, "MW", true, "The demanded load power at the bus"),
+    )
+    return df
+end
+export summarize_bus_table
+
+function summarize_branch_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    push!(df, 
+        (:f_bus_idx, Int64, "n/a", true, "The index of the `bus` table that the branch originates **f**rom"),
+        (:t_bus_idx, Int64, "n/a", true, "The index of the `bus` table that the branch goes **t**o"),
+        (:status, Bool, "n/a", true, "Whether or not the branch is in service"),
+        (:x, Float64, "p.u.", true, "Per-unit reactance of the line (resistance assumed to be 0 for DC-OPF)"),
+        (:pf_max, Float64, "MW", true, "Maximum power flowing through the branch")
+    )
+    return df
+end
+export summarize_branch_table
 
 
 # Accessor Functions
