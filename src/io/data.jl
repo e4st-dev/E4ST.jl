@@ -130,16 +130,16 @@ function load_af!(config, data)
         :subarea=>String,
         :genfuel=>String,
         :gentype=>String,
-        :joint=>Int64,
+        # :joint=>Int64,
         :status=>Bool,
         :year=>String,
-        ("h_$n"=>Float64 for n in 1:get_num_hours(data))...
+        ("h$n"=>Float64 for n in 1:get_num_hours(data))...
     )
 
     data[:af] = df
 
     # Pull the availability factors in as a matrix
-    hr_idx = findfirst(s->s=="h_1",names(df))
+    hr_idx = findfirst(s->s=="h1",names(df))
     af_mat = Matrix(df[:, hr_idx:end])
     if size(af_mat,2) != get_num_hours(data)
         error("The number of representative hours given in :af_file=$(config[:af_file])  ($(size(af_mat,2))) is different than the hours in the time representation ($(get_num_hours(data))).")

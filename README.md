@@ -49,3 +49,16 @@ Host github.com
   Port 443
 ```
 
+## Previewing Docs
+Try running the following:
+
+```
+cd docs
+julia --project
+```
+
+Then, in the julia repl, simply:
+```julia
+include("make.jl")
+```
+This will output the html documents to `docs/build` folder (which are being ignored by the .gitignore)
