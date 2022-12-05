@@ -1,9 +1,14 @@
 """
     load_data(config) -> data
 
-Pulls in data found in files listed in the `config`, and stores into `data`
+Pulls in data found in files listed in the `config`, and stores into `data`, then calls [`initialize_data!(config, data)`](@ref)
 """
 function load_data(config)
+    # Check to see if config has data_file specified to short-circuit.
+    if haskey(config, :data_file) 
+        return deserialize(config[:data_file])
+    end
+
     data = OrderedDict{Symbol, Any}()
 
     data[:years] = config[:years]
@@ -15,6 +20,7 @@ function load_data(config)
     load_hours_table!(config, data)
     load_af!(config, data)
 
+    initialize_data!(config, data)
     return data
 end
 
@@ -410,7 +416,6 @@ function get_num_years(data)
     return length(get_years(data))
 end
 export get_num_years, get_years
-
 
 
 # Containers

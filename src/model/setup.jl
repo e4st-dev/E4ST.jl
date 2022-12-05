@@ -2,6 +2,11 @@
     setup_model(config, data) -> model
 """
 function setup_model(config, data)
+    # Check to see if we already have a model to short-circuit
+    if haskey(config, :model_file)
+        return deserialize(config[:model_file])
+    end
+
     optimizer_factory = getoptimizer(config)
     model = JuMP.Model(optimizer_factory)
 

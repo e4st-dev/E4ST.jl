@@ -4,6 +4,7 @@ module E4ST
 using JuMP
 using InteractiveUtils
 using DataFrames
+using Serialization
 import OrderedCollections: OrderedDict
 import CSV
 import YAML
@@ -43,14 +44,22 @@ Top-level file for running E4ST
 """
 function run_e4st(config)
     save_config(config)
+
+    # Load data and save for easier access.
     data = load_data(config)
-    initialize_data!(config, data) # or something, could also live inside load_data
+    serialize(joinpath(config[:out_dir], "data.jls", data))
 
     iter = true
 
     while iter
+        # Setup the model and save the results
         model = setup_model(config, data)
+        serialize(joinpath(config[:out_dir], "setup_model.jls", model))
+
+        # Optimize and save
         optimize!(model)
+        serialize(joinpath(config[:out_dir], "solved_model.jls", model))
+
         check(model)
         results = parse_results(config, data, model)  
         process!(config, results)
