@@ -201,12 +201,15 @@ end
 """
     get_pf_branch(data, model, f_bus_idx, t_bus_idx, year_idx, hour_idx)
 
-Return total power flow on a branch 
+Return total power flow on a branch. Positive value if power flows from f_bus to t_bus, negative if it flows from t_bus to f_bus. 
 """ 
 function get_pf_branch(data, model, f_bus_idx, t_bus_idx, year_idx, hour_idx)
-    Δθ = model[:θ][t_bus_idx, year_idx, hour_idx] - model[:θ][f_bus_idx, year_idx, hour_idx]
+    Δθ = model[:θ][f_bus_idx, year_idx, hour_idx] - model[:θ][t_bus_idx, year_idx, hour_idx] #positive for power flow out(f_bus to t_bus)
     branch_idx = get_branch_idx(data, f_bus_idx, t_bus_idx)
-    x = get_branch_value(data, :x, branch_idx, year_idx, hour_idx) # not sure I need time indices, check function arguments
+    if branch_idx > 0 
+        x = get_branch_value(data, :x, branch_idx, year_idx, hour_idx) # not sure I need time indices, check function arguments
+    elseif branch_idx < 0
+        x = get_branch_value(data, :x, -branch_idx, year_idx, hour_idx) # not sure I need time indices, check function arguments
     return Δθ / x
 end
 # look at shadow price notebook 
@@ -216,16 +219,36 @@ end
 """
     get_branch_idx(data, f_bus_idx, t_bus_idx)
 
-Returns the branch idx between two buses. 
+Returns a vector with the branch idx and the f_bus and t_bus indices for that branch (could be flipped from inputs). 
 """
-function get_branch_idx(data, f_bus_idx, t_bus_idx) end
+function get_branch_idx(data, f_bus_idx, t_bus_idx) 
+    branch = get_branch_table(data)
+    for i in 1:nrows(branch)
+        if branch.f_bus_idx = f_bus_idx && branch.t_bus_idx = t_bus_idx
+            return i
+        elseif branch.f_bus_idx = t_bus_idx && branch.t_bus_idx = f_bus_idx
+            return -i
+        else
+            error("No branch connecting these buses.") # change this so doesn't error but keeps going or something, maybe returns 0
+        end
+    end
+end
 
 """
     get_connected_buses(data, bus_idx)
 
-Returns vector of t_bus_idx for all buses connected to the specified buses. 
+Returns vector of idxs for all buses connected to the specified buses. Returns whether it is the f_bus or the t_bus
 """
-function get_connected_buses(data, bus_idx) end
+function get_connected_buses(data, bus_idx) 
+    branch = get_branch_table(data)
+    connect_bus_idxs = []
+    for r in eachrow(branch)
+        r.f_bus_idx == bus_idx ? push!(connect_bus_idxs, r.t_bus_idx)
+        r.t_bus_idx == bus_idx ? push!(connect_bus_idxs, r.f_bus_idx)
+    end
+    unique!(connected_bus_idxs) #removes duplicates
+    return connect_bus_idxs
+end
 
 """
     get_bus_gens(data, model, bus_idx)
@@ -451,4 +474,3 @@ function add_obj_term!(data, model, ::ConsumerBenefit, s::Symbol; oper)
     data[:obj_vars][s] = oper
     
 end
-
