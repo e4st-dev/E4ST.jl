@@ -1,0 +1,6 @@
+bus_idx,pd,load_type
+1,0.2,residential
+2,0.2,residential
+3,0.2,residential
+2,0.7,industrial
+2,0.7,commercial

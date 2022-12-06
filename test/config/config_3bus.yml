@@ -2,8 +2,9 @@ out_path:    "../out/3bus"
 gen_file:    "../data/3bus/gen.csv"
 bus_file:    "../data/3bus/bus.csv"
 branch_file: "../data/3bus/branch.csv"
-hours_file:   "../data/3bus/hours.csv"
+hours_file:  "../data/3bus/hours.csv"
 af_file:     "../data/3bus/af.csv"
+demand_file: "../data/3bus/demand.csv"
 years:
   - y2030
   - y2035

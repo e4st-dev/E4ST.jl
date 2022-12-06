@@ -21,6 +21,7 @@ function load_data(config)
     load_branch_table!(config, data)
     load_hours_table!(config, data)
     load_af_table!(config, data)
+    load_demand_table!(config, data)
 
     return data
 end
@@ -120,7 +121,7 @@ function load_af_table!(config, data)
 
     for i = 1:nrow(df)
         row = df[i, :]
-        if row.status==false
+        if get(row, :status, true) == false
             continue
         end
 
@@ -169,6 +170,36 @@ function load_af_table!(config, data)
     return data
 end
 
+"""
+    load_demand_table!(config, data)
+"""
+function load_demand_table!(config, data)
+    # load in the table and force its types
+    demand = load_table(config[:demand_file])
+    force_table_types!(demand, :demand, summarize_demand_table())
+
+    ar = [demand.pd[i] for i in 1:nrow(demand), j in 1:get_num_years(data), k in 1:get_num_hours(data)] # ndemand * nyr * nhr
+    data[:demand_table] = demand
+    data[:demand_array] = ar
+
+    # Modify the demand by shaping, matching, and adding
+    haskey(config, :demand_shape_file) && shape_demand!(config, data)
+    haskey(config, :demand_match_file) && match_demand!(config, data)
+    haskey(config, :demand_add_file)   && add_demand!(config, data)
+
+    # Grab views of the demand for the pd column of the bus table
+    demand.pd = map(i->view(ar, i, :, :), 1:nrow(demand))
+
+    bus = get_bus_table(data)
+    bus.pd = [DemandContainer() for _ in 1:nrow(bus)]
+
+    for row in eachrow(demand)
+        bus_idx = row.bus_idx::Int64
+        c = bus[bus_idx, :pd]
+        _add_view!(c, row.pd)
+    end
+end  
+
 
 # Helper Functions
 ################################################################################
@@ -181,6 +212,7 @@ Loads a table from filename, where filename is a csv.
 function load_table(filename::String)
     CSV.read(filename, DataFrame, missingstring="NA")
 end
+export load_table
 
 """
     force_table_types!(df::DataFrame, name, pairs...)
@@ -234,7 +266,7 @@ function summarize_gen_table()
     df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[],  "Required"=>Bool[],"Description"=>String[])
     push!(df, 
         (:bus_idx, Int64, "n/a", true, "The index of the `bus` table that the generator corresponds to"),
-        (:status, Bool, "n/a", true, "Whether or not the generator is in service"),
+        (:status, Bool, "n/a", false, "Whether or not the generator is in service"),
         (:genfuel, String, "n/a", true, "The fuel type that the generator uses"),
         (:gentype, String, "n/a", true, "The generation technology type that the generator uses"),
         (:pcap_min, Float64, "MW", true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
@@ -251,7 +283,6 @@ function summarize_bus_table()
     df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
     push!(df, 
         (:ref_bus, Bool, "n/a", true, "Whether or not the bus is a reference bus.  There should be a single reference bus for each island."),
-        (:pd, Float64, "MW", true, "The demanded load power at the bus"),
     )
     return df
 end
@@ -262,7 +293,7 @@ function summarize_branch_table()
     push!(df, 
         (:f_bus_idx, Int64, "n/a", true, "The index of the `bus` table that the branch originates **f**rom"),
         (:t_bus_idx, Int64, "n/a", true, "The index of the `bus` table that the branch goes **t**o"),
-        (:status, Bool, "n/a", true, "Whether or not the branch is in service"),
+        (:status, Bool, "n/a", false, "Whether or not the branch is in service"),
         (:x, Float64, "p.u.", true, "Per-unit reactance of the line (resistance assumed to be 0 for DC-OPF)"),
         (:pf_max, Float64, "MW", true, "Maximum power flowing through the branch")
     )
@@ -288,12 +319,23 @@ function summarize_af_table()
         (:genfuel, String, "n/a", true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
         (:gentype, String, "n/a", true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
         (:year, String, "year", true, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
-        (:status, Bool, "n/a", true, "Whether or not to use this AF adjustment"),
+        (:status, Bool, "n/a", false, "Whether or not to use this AF adjustment"),
         (:h1, Float64, "ratio", true, "Availability factor of hour 1.  Include 1 column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
     )
     return df
 end
 export summarize_af_table
+
+function summarize_demand_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    push!(df, 
+        (:bus_idx, Int64, "MW", true, "The demanded power of the load element"),
+        (:pd, Float64, "MW", true, "The baseline demanded power of the load element"),
+        (:load_type, String, "n/a", false, "The type of load represented by this load element."),
+    )
+    return df
+end
+export summarize_demand_table
 
 # Accessor Functions
 ################################################################################
@@ -386,6 +428,16 @@ end
 export get_af
 
 """
+    get_pd(data, bus_idx, year_idx, hour_idx) -> pd
+
+Retrieves the demanded power for a bus at a year and a time.
+"""
+function get_pd(data, gen_idx, year_idx, hour_idx)
+    return get_bus_value(data, :pd, gen_idx, year_idx, hour_idx)
+end
+export get_pd
+
+"""
     get_gen_value(data, var::Symbol, gen_idx, year_idx, hour_idx) -> val
 
 Retrieve the `var` value for generator `gen_idx` in year `year_idx` at hour `hour_idx`
@@ -396,6 +448,18 @@ function get_gen_value(data, name, gen_idx, year_idx, hour_idx)
     return c[year_idx, hour_idx]::Float64
 end
 export get_gen_value
+
+"""
+    get_bus_value(data, var::Symbol, bus_idx, year_idx, hour_idx) -> val
+
+Retrieve the `var` value for bus `bus_idx` in year `year_idx` at hour `hour_idx`
+"""
+function get_bus_value(data, name, bus_idx, year_idx, hour_idx)
+    bus_table = get_bus_table(data)
+    c = bus_table[bus_idx, name]
+    return c[year_idx, hour_idx]::Float64
+end
+export get_bus_value
 
 """
     get_gen_subarea(data, gen_idx::Int64, area::String) -> subarea
@@ -506,7 +570,7 @@ end
 function Base.getindex(c::ByYearAndHour, year_idx, hour_idx)
     c.v[year_idx][hour_idx]::Float64
 end
-function Base.getindex(n::Number, year_idx, hour_idx)
+function Base.getindex(n::Number, year_idx::Int64, hour_idx::Int64)
     return n
 end
 
@@ -575,3 +639,28 @@ function set_hourly(c::ByYearAndHour, v, yr_idx; kwargs...)
     foreach(i->(c.v[i] = v), yr_idx)
     return c
 end
+
+"""
+    DemandContainer()
+
+Contains a vector of views of the demand_array, so that it is possible to access by 
+"""
+struct DemandContainer <: Container
+    v::Vector{SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}}
+end
+
+_add_view!(c::DemandContainer, v) = push!(c.v, v)
+
+DemandContainer() = DemandContainer(SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}[])
+function Base.getindex(c::DemandContainer, year_idx, hour_idx)
+    isempty(c.v) && return 0.0
+    return sum(vv->vv[year_idx, hour_idx], c.v)::Float64
+end
+
+function Base.show(io::IO, c::DemandContainer)
+    isempty(c.v) && return print(io, "empty DemandContainer")
+    l,m = size(c.v[1])
+    n = length(c.v)
+    print(io, "$n-element DemandContainer of $(l)×$m Matrix")
+end
+
