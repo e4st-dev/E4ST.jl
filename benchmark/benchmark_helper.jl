@@ -4,7 +4,7 @@ using OrderedCollections
 using CSV
 using E4ST
 
-function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n_hours=100, af_file=true)
+function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n_hours=100, n_demand = 200, af_file=true)
     Random.seed!(1)
 
     countries = ["narnia", "calormen", "archenland", "telmar"]
@@ -111,5 +111,13 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         config[:af_file] = abspath(@__DIR__, "data/af.csv")
 
     end
+
+    demand = DataFrame(
+        "bus_idx" => rand(1:n_bus, n_demand),
+        "pd" => rand(n_demand),
+        "load_type" => rand(["ev", "residential", "commercial", "industrial", "transportation"])
+    )
+    CSV.write(joinpath(@__DIR__, "data/demand.csv"), demand)
+    config[:demand_file] = abspath(@__DIR__, "data/demand.csv")
     return config
 end

@@ -570,7 +570,7 @@ end
 function Base.getindex(c::ByYearAndHour, year_idx, hour_idx)
     c.v[year_idx][hour_idx]::Float64
 end
-function Base.getindex(n::Number, year_idx, hour_idx)
+function Base.getindex(n::Number, year_idx::Int64, hour_idx::Int64)
     return n
 end
 
@@ -656,3 +656,11 @@ function Base.getindex(c::DemandContainer, year_idx, hour_idx)
     isempty(c.v) && return 0.0
     return sum(vv->vv[year_idx, hour_idx], c.v)::Float64
 end
+
+function Base.show(io::IO, c::DemandContainer)
+    isempty(c.v) && return print(io, "empty DemandContainer")
+    l,m = size(c.v[1])
+    n = length(c.v)
+    print(io, "$n-element DemandContainer of $(l)×$m Matrix")
+end
+
