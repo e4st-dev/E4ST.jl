@@ -45,7 +45,7 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         @test sum(data[:bus].pd) == 2*sum(data_0[:bus].pd)
     end
 
-    @testset "Test load_af!" begin
+    @testset "Test load_af_table!" begin
         config = load_config(config_file)
         data = load_data(config)
 

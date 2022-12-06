@@ -1,7 +1,14 @@
 """
     load_data(config) -> data
 
-Pulls in data found in files listed in the `config`, and stores into `data`
+Pulls in data found in files listed in the `config`, and stores into `data`.
+
+For more information about the data to be found in each of the files, see the following functions:
+* [`summarize_bus_table()`](@ref)
+* [`summarize_branch_table()`](@ref)
+* [`summarize_gen_table()`](@ref)
+* [`summarize_hours_table()`](@ref)
+* [`summarize_af_table()`](@ref)
 """
 function load_data(config)
     data = OrderedDict{Symbol, Any}()
@@ -13,7 +20,7 @@ function load_data(config)
     load_gen_table!(config, data)
     load_branch_table!(config, data)
     load_hours_table!(config, data)
-    load_af!(config, data)
+    load_af_table!(config, data)
 
     return data
 end
@@ -25,20 +32,7 @@ Load the generator from the `:gen_file` specified in the `config`
 """
 function load_gen_table!(config, data)
     gen = load_table(config[:gen_file])
-    force_table_types!(gen, :gen,
-        :bus_idx=>Int64,
-        :status=>Bool,
-        :genfuel=>String,
-        :gentype=>String,
-        :pcap_min=>Float64,
-        :pcap_max=>Float64,
-        :fom=>Float64,
-        :vom=>Float64,
-    )
-    # force_table_types!(gen, :gen,
-    #     :capex=>Float64,
-    #     optional=true
-    # )
+    force_table_types!(gen, :gen, summarize_gen_table())
     data[:gen] = gen
     return
 end
@@ -50,14 +44,7 @@ Load the bus table from the `:bus_file` specified in the `config`
 """
 function load_bus_table!(config, data)
     bus = load_table(config[:bus_file])
-    force_table_types!(bus, :bus,
-        :ref_bus=>Bool,
-        :pd=>Float64,
-    )
-    # force_table_types!(bus, :bus,
-    #     :capex=>Float64,
-    #     optional=true
-    # )
+    force_table_types!(bus, :bus, summarize_bus_table())
     data[:bus] = bus
     return
 end
@@ -69,17 +56,7 @@ Load the branch table from the `:branch_file` specified in the `config`
 """
 function load_branch_table!(config, data)
     branch = load_table(config[:branch_file])
-    force_table_types!(branch, :branch,
-        :f_bus_idx=>Int64,
-        :t_bus_idx=>Int64,
-        :status=>Bool,
-        :x=>Float64,
-        :pf_max=>Float64,
-    )
-    # force_table_types!(branch, :branch,
-    #     :capex=>Float64,
-    #     optional=true
-    # )
+    force_table_types!(branch, :branch, summarize_branch_table())
     data[:branch] = branch
     return
 end
@@ -91,20 +68,23 @@ Load the representative time `rep_time` from the `:hours_file` specified in the 
 """
 function load_hours_table!(config, data)
     hours = load_table(config[:hours_file])
-    force_table_types!(hours, :rep_time,
-        :hours=>Float64,
-        # :day=>Int64,
-    )
+    force_table_types!(hours, :rep_time, summarize_hours_table())
+    if sum(hours.hours) != 8760
+        s = sum(hours.hours)
+        sf = 8760/s
+        @warn "hours column of hours table sums to $s, scaling by $sf to reach 8760 hours per year"
+        hours.hours .*= sf
+    end
     data[:hours] = hours
     return
 end
 
 """
-    load_af!(config, data)
+    load_af_table!(config, data)
 
 Load the hourly availability factors, pulling them in from file, as needed.
 """
-function load_af!(config, data)
+function load_af_table!(config, data)
     # Fill in gen table with default af of 1.0 for every hour
     gens = get_gen_table(data)
     default_af = ByNothing(1.0)
@@ -123,16 +103,8 @@ function load_af!(config, data)
 
     # Load in the af file
     df = load_table(config[:af_file])
-    force_table_types!(df, :af,
-        :area=>String,
-        :subarea=>String,
-        :genfuel=>String,
-        :gentype=>String,
-        # :joint=>Int64,
-        :status=>Bool,
-        :year=>String,
-        ("h$n"=>Float64 for n in 1:get_num_hours(data))...
-    )
+    force_table_types!(df, :af, summarize_af_table())
+    force_table_types!(df, :af, ("h$n"=>Float64 for n in 2:get_num_hours(data))...)
 
     data[:af] = df
 
@@ -207,9 +179,8 @@ end
 Loads a table from filename, where filename is a csv.
 """
 function load_table(filename::String)
-    CSV.File(filename, missingstring="NA") |> DataFrame
+    CSV.read(filename, DataFrame, missingstring="NA")
 end
-export year2int
 
 """
     force_table_types!(df::DataFrame, name, pairs...)
@@ -220,6 +191,23 @@ function force_table_types!(df::DataFrame, name, pairs...; optional=false)
     for (col, T) in pairs
         if ~hasproperty(df, col)
             optional ? continue : error(":$name table missing column :$col")
+        end
+        ET = eltype(df[!,col])
+        if ~(ET <: T)
+            hasmethod(T, Tuple{ET}) || error("Column $name[$col] cannot be forced into type $T")
+            df[!, col] = T.(df[!,col])
+        end
+    end
+end
+
+function force_table_types!(df::DataFrame, name, summary::DataFrame; kwargs...) 
+    for row in eachrow(summary)
+        col = row["Column Name"]
+        req = row["Required"]
+        T = row["Data Type"]
+        if ~hasproperty(df, col)
+            req || continue
+            error(":$name table missing column :$col")
         end
         ET = eltype(df[!,col])
         if ~(ET <: T)
@@ -241,6 +229,71 @@ function initialize_data!(config, data)
     end
 end
 
+
+function summarize_gen_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[],  "Required"=>Bool[],"Description"=>String[])
+    push!(df, 
+        (:bus_idx, Int64, "n/a", true, "The index of the `bus` table that the generator corresponds to"),
+        (:status, Bool, "n/a", true, "Whether or not the generator is in service"),
+        (:genfuel, String, "n/a", true, "The fuel type that the generator uses"),
+        (:gentype, String, "n/a", true, "The generation technology type that the generator uses"),
+        (:pcap_min, Float64, "MW", true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
+        (:pcap_max, Float64, "MW", true, "Maximum nameplate power generation capacity of the generator"),
+        (:vom, Float64, "\$/MWh", true, "Variable operation and maintenance cost per MWh of generation"),
+        (:fom, Float64, "\$/MW", true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
+        (:capex, Float64, "\$/MW", false, "Hourly capital expenditures for a MW of generation capacity"),
+    )
+    return df
+end
+export summarize_gen_table
+
+function summarize_bus_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    push!(df, 
+        (:ref_bus, Bool, "n/a", true, "Whether or not the bus is a reference bus.  There should be a single reference bus for each island."),
+        (:pd, Float64, "MW", true, "The demanded load power at the bus"),
+    )
+    return df
+end
+export summarize_bus_table
+
+function summarize_branch_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    push!(df, 
+        (:f_bus_idx, Int64, "n/a", true, "The index of the `bus` table that the branch originates **f**rom"),
+        (:t_bus_idx, Int64, "n/a", true, "The index of the `bus` table that the branch goes **t**o"),
+        (:status, Bool, "n/a", true, "Whether or not the branch is in service"),
+        (:x, Float64, "p.u.", true, "Per-unit reactance of the line (resistance assumed to be 0 for DC-OPF)"),
+        (:pf_max, Float64, "MW", true, "Maximum power flowing through the branch")
+    )
+    return df
+end
+export summarize_branch_table
+
+function summarize_hours_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    push!(df, 
+        (:hours, Float64, "hours", true, "The number of hours spent in each representative hour over the course of a year (must sum to 8760)"),
+    )
+    return df
+end
+export summarize_hours_table
+
+
+function summarize_af_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    push!(df, 
+        (:area, String, "n/a", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:genfuel, String, "n/a", true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
+        (:gentype, String, "n/a", true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
+        (:year, String, "year", true, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
+        (:status, Bool, "n/a", true, "Whether or not to use this AF adjustment"),
+        (:h1, Float64, "ratio", true, "Availability factor of hour 1.  Include 1 column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
+    )
+    return df
+end
+export summarize_af_table
 
 # Accessor Functions
 ################################################################################
