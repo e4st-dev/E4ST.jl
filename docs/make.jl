@@ -12,6 +12,7 @@ makedocs(
             "Generator Table" => "inputs/gen.md",
             "Branch Table" => "inputs/branch.md",
             "Hours Table" => "inputs/hours.md",
+            "Demand" => "inputs/demand.md",
             "Availability Factor Table" => "inputs/af.md",
         ],
         "Types"=>Any[

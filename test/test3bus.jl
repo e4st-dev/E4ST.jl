@@ -31,21 +31,21 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
     end
 
     @testset "Test Initializing the Data with a mod" begin
-        struct DoubleLoad <: Modification end
-        function E4ST.initialize!(::DoubleLoad, config, data)
-            data[:bus][!, :pd] .*= 2
+        struct DoubleVOM <: Modification end
+        function E4ST.initialize!(::DoubleVOM, config, data)
+            data[:gen][!, :vom] .*= 2
         end
         config = load_config(config_file)
-        push!(config[:mods], :testmod=>DoubleLoad())
+        push!(config[:mods], :testmod=>DoubleVOM())
         @test ~isempty(config[:mods])
         data = load_data(config)
         data_0 = deepcopy(data)
         initialize_data!(config, data)
         @test data != data_0
-        @test sum(data[:bus].pd) == 2*sum(data_0[:bus].pd)
+        @test sum(data[:gen].vom) == 2*sum(data_0[:gen].vom)
     end
 
-    @testset "Test load_af!" begin
+    @testset "Test load_af_table!" begin
         config = load_config(config_file)
         data = load_data(config)
 
@@ -69,6 +69,33 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         @test get_af(data, 2, 3, 2) == 0.6
         @test get_af(data, 2, 3, 3) == 0.6
         @test get_af(data, 2, 3, 4) == 0.5
+    end
+
+    @testset "Test load_demand_table!" begin
+        config = load_config(config_file)
+        data = load_data(config)
+
+        # generator 1 is a natural gas plant, defaults to 1.0
+
+        # AF not specified for ng, should be default of 1.0
+        @test all(get_pd(data, 1, yr_idx, hr_idx) ≈ 0.2 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
+        @test all(get_pd(data, 2, yr_idx, hr_idx) ≈ 1.6 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
+        @test all(get_pd(data, 3, yr_idx, hr_idx) ≈ 0.2 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
+    end
+
+    @testset "Test load_demand_table! with shaping" begin
+        config = load_config(config_file)
+        @test_broken false
+    end
+
+    @testset "Test load_demand_table! with shaping and matching" begin
+        config = load_config(config_file)
+        @test_broken false
+    end
+
+    @testset "Test load_demand_table! with shaping, matching and adding" begin
+        config = load_config(config_file)
+        @test_broken false
     end
 end
 
