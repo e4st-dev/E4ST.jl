@@ -105,33 +105,43 @@ end
     model = setup_model(config, data)
     @test model isa JuMP.Model
 
-    # No curtailment (just for this test)
-    bus = get_bus_table(data)
-    years = get_years(data)
-    rep_hours = get_hours_table(data)
-    total_pl = sum(get_pl_bus(data, model, bus_idx, year_idx, hour_idx) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:length(rep_hours))
-    total_dl = sum(bus.dl[bus_idx, year_idx, hour_idx] for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:length(rep_hours))
-    @test total_pl == total_dl
 
     # variables have been added to the objective 
     @test haskey(data[:obj_vars], :fom)
     @test haskey(data[:obj_vars], :fuel_cost)
     @test haskey(data[:obj_vars], :vom)
-    @test haskey(data[:obj_vars], :invest_cost)
+    @test haskey(data[:obj_vars], :capex)
     @test haskey(data[:obj_vars], :consumer_benefit)
-    @test model[:obj] == model[:consumer_benefit] - model[:fom] - model[:fuel_cost] - model[:vom] - model[:invest_cost]
+    @test model[:obj] == sum(model[:consumer_benefit]) - sum(model[:fom]) - sum(model[:fuel_cost]) - sum(model[:vom]) - sum(model[:capex])
 
     # the number of constraints matches expected
-    @test num_constraints(model, count_variable_in_set_constraints = false) == 10
-
-    # make sure energy generated is non_zero
-    gen = get_gen_table(data)
-    for gen_idx in 1:nrow(gen)
-        @test model[:pg][gen_idx] >= 0
-    end
+    num_cons = 3*nrow(get_bus_table(data))*length(get_years(data))*nrow(get_hours_table(data))
+    num_cons += length(get_ref_bus_idxs(data))
+    num_cons += 2*nrow(get_gen_table(data))*length(get_years(data))*nrow(get_hours_table(data))
+    num_cons += 2*nrow(get_gen_table(data))*length(get_years(data))
+    num_cons += 2*nrow(get_branch_table(data))*length(get_years(data))*nrow(get_hours_table(data))
+    
+    @test num_constraints(model, count_variable_in_set_constraints = false) == num_cons
 
 
 
     optimize!(model)
+    solution_summary(model)
+
+    # No curtailment (just for this test)
+    bus = get_bus_table(data)
+    years = get_years(data)
+    rep_hours = get_hours_table(data)
+    total_pl = sum(value.(get_pl_bus(data, model, bus_idx, year_idx, hour_idx)) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
+    total_dl = sum(get_bus_value(data, :pd, bus_idx, year_idx, hour_idx) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
+    @test total_pl == total_dl
+
+    # make sure energy generated is non_zero
+    gen = get_gen_table(data)
+
+    for gen_idx in 1:nrow(gen)
+        @test get_eg_gen(data, model, gen_idx) >= 0
+    end
+
     @test_broken check(model)
 end

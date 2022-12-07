@@ -281,9 +281,11 @@ function summarize_gen_table()
         (:status, Bool, "n/a", false, "Whether or not the generator is in service"),
         (:genfuel, String, "n/a", true, "The fuel type that the generator uses"),
         (:gentype, String, "n/a", true, "The generation technology type that the generator uses"),
+        (:pcap0, Float64, "MW", true, "Starting nameplate power generation capacity for the generator"),
         (:pcap_min, Float64, "MW", true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, "MW", true, "Maximum nameplate power generation capacity of the generator"),
         (:vom, Float64, "\$/MWh", true, "Variable operation and maintenance cost per MWh of generation"),
+        (:fuel_cost, Float64, "\$/MWh", true, "Fuel cost per MWh of generation"),
         (:fom, Float64, "\$/MW", true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, "\$/MW", false, "Hourly capital expenditures for a MW of generation capacity"),
     )
@@ -595,9 +597,18 @@ end
 function Base.getindex(c::ByYearAndHour, year_idx, hour_idx)
     c.v[year_idx][hour_idx]::Float64
 end
+function Base.getindex(c::ByYearAndHour, year_idx, hour_idx::Colon)
+    c_arr = c.v[year_idx]
+    return c_arr
+end
 function Base.getindex(n::Number, year_idx::Int64, hour_idx::Int64)
     return n
 end
+function Base.getindex(n::Number, year_idx::Int64, hour_idx::Colon)
+    return n
+end
+
+
 
 """
     set_hourly(c::Container, v::Vector{Float64}, yr_idx; default, nyr)
@@ -698,7 +709,7 @@ end
 """
     get_branch_idx(data, f_bus_idx, t_bus_idx)
 
-Returns a vector with the branch idx and the f_bus and t_bus indices for that branch (could be flipped from inputs). 
+Returns the branch idx going between f_bus_idx and t_bus_idx. If f_bus and t_bus as flipped in the branch table from how they are in the arguments, it returns a negative value of the index.  
 """
 function get_branch_idx(data, f_bus_idx, t_bus_idx) 
     branch = get_branch_table(data)
