@@ -295,6 +295,7 @@ function get_hours_table(data)
     data[:hours]::DataFrame
 end
 
+
 """
     get_generator(data, gen_idx) -> row
 
@@ -560,3 +561,123 @@ function set_hourly(c::ByYearAndHour, v, yr_idx; kwargs...)
     foreach(i->(c.v[i] = v), yr_idx)
     return c
 end
+
+
+## Moved from dcopf, will organize later
+
+### System mapping helper functions
+
+"""
+    get_branch_idx(data, f_bus_idx, t_bus_idx)
+
+Returns a vector with the branch idx and the f_bus and t_bus indices for that branch (could be flipped from inputs). 
+"""
+function get_branch_idx(data, f_bus_idx, t_bus_idx) 
+    branch = get_branch_table(data)
+    for i in 1:nrow(branch)
+        if branch.f_bus_idx == f_bus_idx && branch.t_bus_idx == t_bus_idx
+            return i
+        elseif branch.f_bus_idx == t_bus_idx && branch.t_bus_idx == f_bus_idx
+            return -i
+        else
+            return 0
+        end
+    end
+end
+export get_branch_idx
+
+"""
+    get_connected_buses(data, bus_idx)
+
+Returns vector of idxs for all buses connected to the specified buses. Returns whether it is the f_bus or the t_bus
+"""
+function get_connected_buses(data, bus_idx) 
+    branch = get_branch_table(data)
+    connected_bus_idxs = []
+    for r in eachrow(branch)
+        if r.f_bus_idx == bus_idx push!(connected_bus_idxs, r.t_bus_idx) end
+        if r.t_bus_idx == bus_idx push!(connected_bus_idxs, r.f_bus_idx) end
+    end
+    unique!(connected_bus_idxs) #removes duplicates
+    return connected_bus_idxs
+end
+export get_connected_buses
+
+"""
+    get_bus_gens(data, bus_idx)
+
+Returns an array of the gen_idx of all the gens at the bus.
+"""
+function get_bus_gens(data, bus_idx) 
+    gen = get_gen_table(data)
+    findall(x -> x == bus_idx, gen.bus_idx)
+end
+export get_bus_gens
+
+"""
+    get_ref_bus_idxs(data)
+
+Returns reference bus ids
+"""
+function get_ref_bus_idxs(data) 
+    bus = get_bus_table(data)
+    return findall(bus.ref_bus)
+end
+export get_ref_bus_idxs
+
+### Constraint info functions (change name)
+
+"""
+    get_pcap_min(data, gen_idx, year_idx)
+
+Returns min capacity for a generator
+"""
+function get_pcap_min(data, gen_idx, year_idx) 
+    return get_gen_value(data, :pcap_min, gen_idx, year_idx, :)
+end
+export get_pcap_min
+
+
+"""
+    get_pcap_max(data, model, gen_idx, year_idx)
+
+Returns max capacity for a generator
+"""
+function get_pcap_max(data, gen_idx, year_idx) 
+    return get_gen_value(data, :pcap_max, gen_idx, year_idx, :)
+end
+export get_pcap_max
+
+
+""" 
+    get_pf_branch_max(data, branch_idx, year_idx, hour_idx)
+
+Returns max power flow on a branch at a given time. 
+"""
+function get_pf_branch_max(data, branch_idx, year_idx, hour_idx) 
+    return get_branch_value(data, :pf_max, branch_idx, year_idx, hour_idx)
+end
+export get_pf_branch_max
+
+
+### Misc
+"""
+    get_dl(data, bus_idx, year_idx, hour_idx)
+
+Returns the demanded load at a bus at a time. Load served (pl) can be less than demanded when load is curtailed. 
+"""
+function get_dl(data, bus_idx, year_idx, hour_idx) 
+    return get_bus_value(data, :pd, bus_idx, year_idx, hour_idx)
+end
+export get_dl
+
+"""
+    get_voll(data, bus_idx, year_idx, hour_idx)
+
+Returns the value of lost load at given bus and time
+"""
+function get_voll(data, bus_idx, year_idx, hour_idx) 
+    # If we want voll to be by bus_idx this could be modified and load_voll() will need to be changed
+    return data[:voll]
+end
+export get_voll

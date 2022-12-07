@@ -77,6 +77,34 @@ end
     data = load_data(config)
     model = setup_model(config, data)
     @test model isa JuMP.Model
+
+    # No curtailment (just for this test)
+    bus = get_bus_table(data)
+    years = get_years(data)
+    rep_hours = get_hours_table(data)
+    total_pl = sum(get_pl_bus(data, model, bus_idx, year_idx, hour_idx) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:length(rep_hours))
+    total_dl = sum(bus.dl[bus_idx, year_idx, hour_idx] for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:length(rep_hours))
+    @test total_pl == total_dl
+
+    # variables have been added to the objective 
+    @test haskey(data[:obj_vars], :fom)
+    @test haskey(data[:obj_vars], :fuel_cost)
+    @test haskey(data[:obj_vars], :vom)
+    @test haskey(data[:obj_vars], :invest_cost)
+    @test haskey(data[:obj_vars], :consumer_benefit)
+    @test model[:obj] == model[:consumer_benefit] - model[:fom] - model[:fuel_cost] - model[:vom] - model[:invest_cost]
+
+    # the number of constraints matches expected
+    @test num_constraints(model, count_variable_in_set_constraints = false) == 10
+
+    # make sure energy generated is non_zero
+    gen = get_gen_table(data)
+    for gen_idx in 1:nrow(gen)
+        @test model[:pg][gen_idx] >= 0
+    end
+
+
+
     optimize!(model)
     @test_broken check(model)
 end
