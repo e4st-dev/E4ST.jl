@@ -261,6 +261,92 @@ function initialize_data!(config, data)
     end
 end
 
+"""
+    shape_demand!(config, data)
+
+Shapes the hourly demand to match profiles given in config[:demand_shape_file]
+"""
+function shape_demand!(config, data)
+    demand_shape_table = load_table(config[:demand_shape_file])
+    bus_table = get_bus_table(data)
+    force_table_types!(demand_shape_table, :demand_shape_table, summarize_demand_shape_table())
+    force_table_types!(demand_shape_table, :demand_shape_table, ("h$n"=>Float64 for n in 2:get_num_hours(data))...)
+    demand_table = data[:demand_table]
+    demand_arr = data[:demand_array]
+    
+    # Grab the hour index for later use
+    hr_idx = findfirst(s->s=="h1",names(demand_shape_table))
+
+    # Pull out year info that will be needed
+    all_years = get_years(data)
+    nyr = get_num_years(data)
+
+
+    # Loop through each row in the demand_shape_table
+    for i in 1:nrow(demand_shape_table)
+        row = demand_shape_table[i, :]
+        if get(row, :status, true) == false
+            continue
+        end
+
+        if isempty(row.year)
+            yr_idx = 1:get_num_years(data)
+        elseif row.year ∈ all_years
+            yr_idx = findfirst(==(row.year), all_years)
+        else
+            continue
+        end
+
+
+        demand_table = view(data[:demand_table], :, :)
+
+        isempty(demand_table) && continue
+
+        # Add the area-subarea pair to the condition
+        if ~isempty(row.area) && ~isempty(row.subarea)
+            area = row.area
+            subarea = row.subarea
+            if area in names(bus_table)
+                demand_table = filter(demand->bus_table[demand.bus_idx, area]==subarea, demand_table, view=true)
+            elseif area in names(demand_table)
+                demand_table = filter(Symbol(area) => ==(subarea), demand_table, view=true)
+            else
+                error("Could not find demand_shape area $area in the demand_table or bus_table")
+            end
+        end
+
+        isempty(demand_table) && continue
+
+        # Filter by optional load_type
+        if haskey(row, :load_type) && ~isempty(row.load_type)
+            demand_table = filter(:load_type => ==(row.load_type), demand_table, view=true)
+        end
+        
+        isempty(demand_table) && continue
+
+        shape = Float64[row[i_hr] for i_hr in hr_idx:length(row)]
+        
+        row_idx = getfield(demand_table, :rows)
+        _scale_hourly!(demand_arr, shape, row_idx, yr_idx)
+    end
+end
+
+
+"""
+    _scale_hourly!(demand_arr, shape, row_idx, yr_idx)
+    
+Scales the hourly demand in `demand_arr` by `shape` for `row_idx` and `yr_idx`.
+"""
+function _scale_hourly!(demand_arr, shape, row_idxs, yr_idxs)
+    foreach(yr_idx->_scale_hourly!(demand_arr, shape, row_idxs, yr_idx), yr_idxs)
+end
+function _scale_hourly!(demand_arr, shape, row_idxs, yr_idx::Int64)
+    foreach(row_idx->_scale_hourly!(demand_arr, shape, row_idx, yr_idx), row_idxs)
+end
+function _scale_hourly!(demand_arr, shape, row_idx::Int64, yr_idx::Int64)
+    demand_arr[row_idx, yr_idx, :] .*= shape
+end
+
 
 function summarize_gen_table()
     df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[],  "Required"=>Bool[],"Description"=>String[])
@@ -336,6 +422,20 @@ function summarize_demand_table()
     return df
 end
 export summarize_demand_table
+
+function summarize_demand_shape_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    push!(df, 
+        (:area, String, "MW", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, String, "MW", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:load_type, String, "n/a", false, "The type of load represented for this load shape."),
+        (:year, String, "year", true, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
+        (:status, Bool, "n/a", false, "Whether or not to use this AF adjustment"),
+        (:h1, Float64, "ratio", true, "Availability factor of hour 1.  Include 1 column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
+    )
+    return df
+end
+export summarize_demand_shape_table
 
 # Accessor Functions
 ################################################################################

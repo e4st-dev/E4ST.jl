@@ -85,7 +85,27 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
 
     @testset "Test load_demand_table! with shaping" begin
         config = load_config(config_file)
-        @test_broken false
+        demand_shape_file = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
+        config[:demand_shape_file] = demand_shape_file
+        data = load_data(config)
+        archenland_buses = findall(==("archenland"), data[:bus].country)
+        narnia_buses = findall(==("narnia"), data[:bus].country)
+        all_buses = 1:nrow(data[:bus])
+
+
+        # Check that narnian demanded power is different across years (look at the demand_shape.csv)
+        @testset "Test that bus $bus_idx demand is different across years $yr_idx and $(yr_idx+1)" for bus_idx in narnia_buses, yr_idx in 1:get_num_years(data)-1
+            @test ~all(get_pd(data, 1, yr_idx, hr_idx) ≈ get_pd(data, 1, yr_idx+1, hr_idx) for hr_idx in 1:get_num_hours(data))
+        end
+        
+        @testset "Test that bus $bus_idx demand is the same across years $yr_idx and $(yr_idx+1)" for bus_idx in archenland_buses, yr_idx in 1:get_num_years(data)-1
+            @test all(get_pd(data, bus_idx, yr_idx, hr_idx) ≈ get_pd(data, bus_idx, yr_idx+1, hr_idx) for hr_idx in 1:get_num_hours(data))
+        end
+        
+        # Check that each bus changes demand across hours
+        @testset "Test that bus $bus_idx demand is different across hours" for bus_idx in all_buses, yr_idx in 1:get_num_years(data)
+            @test any(get_pd(data, bus_idx, yr_idx, 1) != get_pd(data, bus_idx, yr_idx, hr_idx) for hr_idx in 1:get_num_hours(data))
+        end
     end
 
     @testset "Test load_demand_table! with shaping and matching" begin
