@@ -46,6 +46,7 @@ Load the bus table from the `:bus_file` specified in the `config`
 function load_bus_table!(config, data)
     bus = load_table(config[:bus_file])
     force_table_types!(bus, :bus, summarize_bus_table())
+    bus.bus_idx = 1:nrow(bus)
     data[:bus] = bus
     return
 end
@@ -182,11 +183,6 @@ function load_demand_table!(config, data)
     data[:demand_table] = demand
     data[:demand_array] = ar
 
-    # Modify the demand by shaping, matching, and adding
-    haskey(config, :demand_shape_file) && shape_demand!(config, data)
-    haskey(config, :demand_match_file) && match_demand!(config, data)
-    haskey(config, :demand_add_file)   && add_demand!(config, data)
-
     # Grab views of the demand for the pd column of the bus table
     demand.pd = map(i->view(ar, i, :, :), 1:nrow(demand))
 
@@ -198,6 +194,11 @@ function load_demand_table!(config, data)
         c = bus[bus_idx, :pd]
         _add_view!(c, row.pd)
     end
+
+    # Modify the demand by shaping, matching, and adding
+    haskey(config, :demand_shape_file) && shape_demand!(config, data)
+    haskey(config, :demand_match_file) && match_demand!(config, data)
+    haskey(config, :demand_add_file)   && add_demand!(config, data)
 end  
 
 
@@ -282,52 +283,51 @@ function shape_demand!(config, data)
     nyr = get_num_years(data)
 
 
+    # Add columns to the demand_table so we can group more easily
+    all_areas = unique(demand_shape_table.area)
+    demand_table_names = names(demand_table)
+    areas_to_join = setdiff(all_areas, demand_table_names)
+    bus_view = view(bus_table, :, ["bus_idx", areas_to_join...])
+    leftjoin!(demand_table, bus_view, on=:bus_idx)
+    dropmissing!(demand_table, areas_to_join)
+    grouping_variables = copy(all_areas)
+
+    "load_type" in demand_table_names && push!(grouping_variables, "load_type")
+
+    gdf = groupby(demand_table, grouping_variables)
+
     # Loop through each row in the demand_shape_table
     for i in 1:nrow(demand_shape_table)
         row = demand_shape_table[i, :]
-        if get(row, :status, true) == false
-            continue
-        end
+
+        get(row, :status, true) || continue
 
         if isempty(row.year)
             yr_idx = 1:get_num_years(data)
         elseif row.year ∈ all_years
             yr_idx = findfirst(==(row.year), all_years)
         else
-            continue
-        end
-
-
-        demand_table = view(data[:demand_table], :, :)
-
-        isempty(demand_table) && continue
-
-        # Add the area-subarea pair to the condition
-        if ~isempty(row.area) && ~isempty(row.subarea)
-            area = row.area
-            subarea = row.subarea
-            if area in names(bus_table)
-                demand_table = filter(demand->bus_table[demand.bus_idx, area]==subarea, demand_table, view=true)
-            elseif area in names(demand_table)
-                demand_table = filter(Symbol(area) => ==(subarea), demand_table, view=true)
-            else
-                error("Could not find demand_shape area $area in the demand_table or bus_table")
-            end
-        end
-
-        isempty(demand_table) && continue
-
-        # Filter by optional load_type
-        if haskey(row, :load_type) && ~isempty(row.load_type)
-            demand_table = filter(:load_type => ==(row.load_type), demand_table, view=true)
+            continue # This row is for a year that we aren't simulating now
         end
         
-        isempty(demand_table) && continue
+        # Pull out some data to use
+        load_type = get(row, :load_type, "")
+        area = get(row, :area, "")
+        subarea = get(row, :subarea, "")
 
-        shape = Float64[row[i_hr] for i_hr in hr_idx:length(row)]
-        
-        row_idx = getfield(demand_table, :rows)
-        _scale_hourly!(demand_arr, shape, row_idx, yr_idx)
+        # Loop through the sub-dataframes
+        for key in eachindex(gdf)
+            isempty(load_type) || load_type == key.load_type || continue
+            isempty(area) || isempty(subarea) || subarea == key[area] || continue
+
+            shape = Float64[row[i_hr] for i_hr in hr_idx:length(row)]
+            sdf = gdf[key]
+            row_idx = getfield(sdf, :rows)
+            _scale_hourly!(demand_arr, shape, row_idx, yr_idx)
+            
+            # Or use below to scale the views
+            # _scale_hourly!(sdf.pd, shape, yr_idx)  
+        end
     end
 end
 
@@ -346,6 +346,18 @@ end
 function _scale_hourly!(demand_arr, shape, row_idx::Int64, yr_idx::Int64)
     demand_arr[row_idx, yr_idx, :] .*= shape
 end
+
+
+function _scale_hourly!(pds::AbstractArray{<:AbstractArray}, shape, yr_idxs)
+    foreach(pd->_scale_hourly!(pd, shape, yr_idxs), pds)
+end
+function _scale_hourly!(pd::SubArray{Float64}, shape, yr_idxs)
+    foreach(yr_idx->_scale_hourly!(pd, shape, yr_idx), yr_idxs)
+end
+function _scale_hourly!(pd::SubArray{Float64}, shape, yr_idx::Int64)
+    pd[yr_idx, :] .*= shape
+end
+
 
 
 function summarize_gen_table()
