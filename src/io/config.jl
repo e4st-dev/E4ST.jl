@@ -1,7 +1,37 @@
 """
+    read_sample_config_file() -> s
+
+Reads in a test config file as a string.
+"""
+function read_sample_config_file()
+    read(joinpath(@__DIR__,"../../test/config/config_3bus_examplepol.yml"), String)
+end
+
+@doc """
     load_config(filename) -> config::OrderedDict{Symbol,Any}
 
-Load the config file from `filename`, inferring any necessary settings as needed
+Load the config file from `filename`, inferring any necessary settings as needed.  See [`load_data`](@ref) to see how the `config` is used.
+
+The Config File is a file that fully specifies all the necessary information.  Note that when filenames are given as a relative path, they are assumed to be relative to the location of the config file.
+
+## Required Fields:
+* `out_path` - The path (relative or absolute) to the desired output folder.  This folder doesn't necessarily need to exist.  The code should make it for you if it doesn't exist yet.  If there are already results living in the output path, E4ST will back them up to a folder called `backup_yymmddhhmmss`
+* `gen_file` - The filepath (relative or absolute) to the generator table.  See [`load_gen_table!`](@ref).
+* `bus_file` - The filepath (relative or absolute) to the bus table.  See [`load_bus_table!`](@ref)
+* `branch_file` - The filepath (relative or absolute) to the branch table.  See [`load_branch_table!`](@ref)
+* `hours_file` - The filepath (relative or absolute) to the hours table for the model's time representation.  See [`load_hours_table!`](@ref)
+* `demand_file` - The filepath (relative or absolute) to the time representation.  See [`load_demand_table!`](@ref)
+* `years` - a list of years to run in the simulation specified as a string.  I.e. `"y2030"`
+* `optimizer` - The optimizer type and attributes to use in solving the linear program.  The `type` field should be always be given, (i.e. `type: HiGHS`) as well as each of the solver options you wish to set.  E4ST is a BYOS (Bring Your Own Solver :smile:) library, with default attributes for HiGHS and Gurobi.  For all other solvers, you're on your own to provide a reasonable set of attributes.  To see a full list of solvers with work with JuMP.jl, see [here](https://jump.dev/JuMP.jl/stable/installation/#Supported-solvers).
+* `mods` - A list of `Modification`s specifying changes for how E4ST runs.  See the [`Modification`](@ref) for information on what they are, how to add them to a config file.
+
+## Optional Fields:
+* `af_file` - The filepath (relative or absolute) to the availability factor table.  See [`load_af_table!`](@ref)
+
+## Example Config File
+```yaml
+$(read_sample_config_file())
+```
 """
 function load_config(filename)
     if contains(filename, ".yml")

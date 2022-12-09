@@ -4,11 +4,12 @@
 Pulls in data found in files listed in the `config`, and stores into `data`.
 
 For more information about the data to be found in each of the files, see the following functions:
-* [`summarize_bus_table()`](@ref)
-* [`summarize_branch_table()`](@ref)
-* [`summarize_gen_table()`](@ref)
-* [`summarize_hours_table()`](@ref)
-* [`summarize_af_table()`](@ref)
+* [`load_bus_table!`](@ref)
+* [`load_gen_table!`](@ref)
+* [`load_branch_table!`](@ref)
+* [`load_hours_table!`](@ref)
+* [`load_af_table!`](@ref)
+* [`load_demand_table!`](@ref)
 """
 function load_data(config)
     data = OrderedDict{Symbol, Any}()
@@ -29,7 +30,7 @@ end
 """
     load_gen_table!(config, data)
 
-Load the generator from the `:gen_file` specified in the `config`
+Load the generator from the `config[:gen_file]`.  See [`summarize_gen_table()`](@ref).
 """
 function load_gen_table!(config, data)
     gen = load_table(config[:gen_file])
@@ -37,11 +38,14 @@ function load_gen_table!(config, data)
     data[:gen] = gen
     return
 end
+export load_gen_table!
 
 """
     load_bus_table!(config, data)
 
-Load the bus table from the `:bus_file` specified in the `config`
+Load the bus table from the `config[:bus_file]` into `data[:bus]`.  See [`summarize_bus_table()`](@ref).
+
+Table representing all existing buses (also sometimes referred to as nodes or subs/substations) to be modeled.
 """
 function load_bus_table!(config, data)
     bus = load_table(config[:bus_file])
@@ -50,11 +54,12 @@ function load_bus_table!(config, data)
     data[:bus] = bus
     return
 end
+export load_bus_table!
 
 """
     load_branch_table!(config, data)
 
-Load the branch table from the `:branch_file` specified in the `config`
+Load the branch table from `config[:branch_file]` into `data[:branch]`.  See [`summarize_branch_table()`](@ref).
 """
 function load_branch_table!(config, data)
     branch = load_table(config[:branch_file])
@@ -62,11 +67,14 @@ function load_branch_table!(config, data)
     data[:branch] = branch
     return
 end
+export load_branch_table!
 
 """
-    load_hours_table!(config, data) -> rep_time
+    load_hours_table!(config, data)
 
-Load the representative time `rep_time` from the `:hours_file` specified in the `config`
+Load the hours representation table from `config[:hours_file]` into `data[:hours]`.  See [`summarize_hours_table()`](@ref).
+
+E4ST assumes that each year is broken up into a set of representative hours.  Each representative hour may have different parameters (i.e. load, availability factor, etc.) depending on the time of year, time of day, etc. Thus, we index many of the decision variables by representative hour.  For example, the variable for power generated (`pg`), is indexed by generator, year, and hour, meaning that for each generator, there is a different solved value of generation for each year in each representative hour.  The hours can contain any number of representative hours, but the number of hours spent at each representative hour (the `hours` column) generally should sum to 8760 (the number of hours in a year).
 """
 function load_hours_table!(config, data)
     hours = load_table(config[:hours_file])
@@ -80,11 +88,22 @@ function load_hours_table!(config, data)
     data[:hours] = hours
     return
 end
+export load_hours_table!
 
-"""
+@doc raw"""
     load_af_table!(config, data)
 
-Load the hourly availability factors, pulling them in from file, as needed.
+Load the hourly availability factors from `config[:af_file]` into `data[:af_table]`, if provided, and populates the `af` column of the `gen_table`.  
+
+Updates the generator table with the availability factors provided.  By default assigns an availability factor of `1.0` for every generator.  See [`summarize_af_table()`](@ref).
+
+Often, generators are unable to generate energy at their nameplate capacity over the course of any given representative hour.  This could depend on any number of things, such as how windy it is during a given representative hour, the time of year, the age of the generating unit, etc.  The ratio of available generation capacity to nameplate generation capacity is referred to as the availability factor (AF).
+
+The availability factor table includes availability factors for groups of generators specified by any combination of area, genfuel, gentype, year, and hour.
+
+```math
+P_{G_{g,h,y}} \leq f_{\text{avail}_{g,h,y}} \cdot P_{C{g,y}} \qquad \forall \{g \in \text{generators}, h \in \text{hours}, y \in \text{years} \}
+```
 """
 function load_af_table!(config, data)
     # Fill in gen table with default af of 1.0 for every hour
@@ -93,13 +112,8 @@ function load_af_table!(config, data)
     default_hourly_af = fill(1.0, get_num_hours(data))
     gens.af = Container[default_af for _ in 1:nrow(gens)]
     
-    # TODO: Add in yearly AF adjustments
-    # default_yearly_af = ones(get_num_years(data))
-    # gens.af_yearly = fill(default_yearly_af, nrow(gens))
-
     # Return if there is no af_file
     if ~haskey(config, :af_file) 
-        @warn "No field :af_file in config"
         return
     end
 
@@ -170,9 +184,18 @@ function load_af_table!(config, data)
     end
     return data
 end
+export load_af_table!
 
 """
     load_demand_table!(config, data)
+
+Loads the `demand_table` from `config[:demand_file]` into `data[:demand_table]`.
+
+The `demand_table` lets you specify a base demanded power for arbitrary buses.  Buses may have multiple demand elements (for example, a commercial demand, etc.).  See also [`summarize_demand_table`](@ref)
+
+Also calls the following:
+* [`shape_demand!(config, data)`](@ref) - scales hourly demanded power by an hourly demand profile by arbitrary region
+* [`match_demand!(config, data)`](@ref) - matches annual demanded energy by arbitrary region
 """
 function load_demand_table!(config, data)
     # load in the table and force its types
@@ -199,7 +222,9 @@ function load_demand_table!(config, data)
     haskey(config, :demand_shape_file) && shape_demand!(config, data)
     haskey(config, :demand_match_file) && match_demand!(config, data)
     haskey(config, :demand_add_file)   && add_demand!(config, data)
+    return nothing
 end  
+export load_demand_table!
 
 
 # Helper Functions
@@ -260,12 +285,15 @@ function initialize_data!(config, data)
     for (sym, mod) in getmods(config)
         initialize!(mod, config, data)
     end
+    return nothing
 end
 
 """
     shape_demand!(config, data)
 
-Shapes the hourly demand to match profiles given in config[:demand_shape_file]
+Shapes the hourly demand to match profiles given in `config[:demand_shape_file]`.  See [`summarize_demand_shape_table`](@ref) for more details
+
+Demanded power often changes on an hourly basis. The `demand_shape_table` allows the user to provide hourly demand profiles with which to scale the base demanded power for demand regions, types, or even specific demand elements.  Each row of the table represents a set of load elements, and the hourly demand profile with which to scale them.  For demand elements that fall in multiple sets, the hourly load will be scaled by each profile, in order.
 """
 function shape_demand!(config, data)
     demand_shape_table = load_table(config[:demand_shape_file])
@@ -330,6 +358,18 @@ function shape_demand!(config, data)
         end
     end
 end
+export shape_demand!
+
+"""
+    match_demand!(config, data)
+
+Match the yearly demand by area given in `config[:demand_match_file]`, updates the `pd` field of the `data[:bus]`.  See [`summarize_demand_match_table`](@ref) for more details.
+
+Often, we want to force the total energy demanded for a set of demand elements over a year to match load projections from a data source.  The `demand_match_table` allows the user to provide yearly energy demanded targets, in \$MWh\$, to match.  The matching weights each hourly demand by the number of hours spent at each of the representative hours, as provided in [`load_hours_table!`](@ref), converting from \$MW\$ power demanded over the representative hour, into \$MWh\$.
+"""
+function match_demand!(config, data) 
+end
+export match_demand!
 
 
 """
@@ -359,7 +399,9 @@ function _scale_hourly!(pd::SubArray{Float64}, shape, yr_idx::Int64)
 end
 
 
-
+"""
+    summarize_gen_table() -> summary
+"""
 function summarize_gen_table()
     df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[],  "Required"=>Bool[],"Description"=>String[])
     push!(df, 
@@ -377,6 +419,10 @@ function summarize_gen_table()
 end
 export summarize_gen_table
 
+
+"""
+    summarize_bus_table() -> summary
+"""
 function summarize_bus_table()
     df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
     push!(df, 
@@ -386,6 +432,9 @@ function summarize_bus_table()
 end
 export summarize_bus_table
 
+"""
+    summarize_branch_table() -> summary
+"""
 function summarize_branch_table()
     df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
     push!(df, 
@@ -399,6 +448,9 @@ function summarize_branch_table()
 end
 export summarize_branch_table
 
+"""
+    summarize_hours_table() -> summary
+"""
 function summarize_hours_table()
     df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
     push!(df, 
@@ -408,7 +460,9 @@ function summarize_hours_table()
 end
 export summarize_hours_table
 
-
+"""
+    summarize_af_table() -> summary
+"""
 function summarize_af_table()
     df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
     push!(df, 
@@ -424,6 +478,9 @@ function summarize_af_table()
 end
 export summarize_af_table
 
+"""
+    summarize_demand_table() -> summary
+"""
 function summarize_demand_table()
     df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
     push!(df, 
@@ -435,19 +492,39 @@ function summarize_demand_table()
 end
 export summarize_demand_table
 
+"""
+    summarize_demand_shape_table() -> summary
+"""
 function summarize_demand_shape_table()
     df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
     push!(df, 
-        (:area, String, "MW", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
-        (:subarea, String, "MW", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:area, String, "n/a", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:load_type, String, "n/a", false, "The type of load represented for this load shape."),
-        (:year, String, "year", true, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
+        (:year, String, "year", true, "The year to apply the demand profile to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
         (:status, Bool, "n/a", false, "Whether or not to use this AF adjustment"),
-        (:h1, Float64, "ratio", true, "Availability factor of hour 1.  Include 1 column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
+        (:h1, Float64, "ratio", true, "Demand scaling factor of hour 1.  Include a column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
     )
     return df
 end
 export summarize_demand_shape_table
+
+"""
+    summarize_demand_match_table() -> summary
+"""
+function summarize_demand_match_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    push!(df, 
+        (:area, String, "n/a", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:load_type, String, "n/a", false, "The type of load represented for this load shape."),
+        (:year, String, "year", true, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
+        (:status, Bool, "n/a", false, "Whether or not to use this AF adjustment"),
+        (:y2020, Float64, "MWh", false, "The annual demanded energy to match for the weighted demand of all load elements in the loads specified.  Include 1 column for each year being simulated.  I.e. \"y2030\", \"y2035\", ... "),
+    )
+    return df
+end
+export summarize_demand_match_table
 
 # Accessor Functions
 ################################################################################
