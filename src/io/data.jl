@@ -251,10 +251,10 @@ function force_table_types!(df::DataFrame, name, pairs...; optional=false)
             optional ? continue : error(":$name table missing column :$col")
         end
         ET = eltype(df[!,col])
-        if ~(ET <: T)
-            hasmethod(T, Tuple{ET}) || error("Column $name[$col] cannot be forced into type $T")
-            df[!, col] = T.(df[!,col])
-        end
+        ET <: T && continue
+        @show T, ET
+        hasmethod(T, Tuple{ET}) || error("Column $name[$col] cannot be forced into type $T")
+        df[!, col] = T.(df[!,col])
     end
 end
 
@@ -313,6 +313,7 @@ function shape_demand!(config, data)
 
     # Add columns to the demand_table so we can group more easily
     all_areas = unique(demand_shape_table.area)
+    filter!(!isempty, all_areas)
     demand_table_names = names(demand_table)
     areas_to_join = setdiff(all_areas, demand_table_names)
     bus_view = view(bus_table, :, ["bus_idx", areas_to_join...])
@@ -368,6 +369,128 @@ Match the yearly demand by area given in `config[:demand_match_file]`, updates t
 Often, we want to force the total energy demanded for a set of demand elements over a year to match load projections from a data source.  The `demand_match_table` allows the user to provide yearly energy demanded targets, in \$MWh\$, to match.  The matching weights each hourly demand by the number of hours spent at each of the representative hours, as provided in [`load_hours_table!`](@ref), converting from \$MW\$ power demanded over the representative hour, into \$MWh\$.
 """
 function match_demand!(config, data) 
+    demand_match_table = load_table(config[:demand_match_file])
+    bus_table = get_bus_table(data)
+    force_table_types!(demand_match_table, :demand_match_table, summarize_demand_match_table())
+    force_table_types!(demand_match_table, :demand_match_table, (y=>Float64 for y in get_years(data))...)
+    demand_table = data[:demand_table]
+    demand_arr = data[:demand_array]
+
+    # Pull out year info that will be needed
+    all_years = get_years(data)
+    nyr = get_num_years(data)
+
+
+    # Add columns to the demand_table so we can group more easily
+    all_areas = unique(demand_match_table.area)
+    filter!(!isempty, all_areas)
+    demand_table_names = names(demand_table)
+    areas_to_join = setdiff(all_areas, demand_table_names)
+    
+    if ~isempty(areas_to_join)
+        bus_view = view(bus_table, :, ["bus_idx", areas_to_join...])
+        leftjoin!(demand_table, bus_view, on=:bus_idx)
+        dropmissing!(demand_table, areas_to_join)
+    end
+    grouping_variables = copy(all_areas)
+
+    "load_type" in demand_table_names && push!(grouping_variables, "load_type")
+
+    gdf = groupby(demand_table, grouping_variables)
+
+    hr_weights = get_hour_weights(data)
+    
+    for i = 1:nrow(demand_match_table)
+        row = demand_match_table[i, :]
+        if get(row, :status, true) == false
+            continue
+        end
+
+
+        # Get the year indices to match
+        yr_idx_2_match = Dict{Int64, Float64}()
+        
+        for (yr_idx, yr) in enumerate(get_years(data))
+            row[yr] == -Inf && continue
+            push!(yr_idx_2_match, yr_idx=>row[yr])
+        end
+
+
+        demand_table = view(get_demand_table(data), :, :)
+
+        isempty(demand_table) && continue
+
+        # Add the area-subarea pair to the condition
+        if ~isempty(row.area) && ~isempty(row.subarea)
+            area = row.area
+            subarea = row.subarea
+            demand_table = filter(area => ==(subarea), demand_table, view=true)
+        end
+
+        isempty(demand_table) && continue
+
+        # Add the genfuel to the condition
+        if haskey(row, :load_type) && ~isempty(row.load_type)
+            demand_table = filter(:load_type=>==(row.load_type), demand_table, view=true)
+        end
+
+        isempty(demand_table) && continue
+
+        row_idx = getfield(demand_table, :rows)
+
+        for (yr_idx, match) in yr_idx_2_match
+            _match_yearly!(demand_arr, match, row_idx, yr_idx, hr_weights)
+        end
+    end
+    return data
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # Loop through each row in the demand_match_table
+    for i in 1:nrow(demand_match_table)
+        row = demand_match_table[i, :]
+
+        get(row, :status, true) || continue
+        yr_idx_2_match = Dict{Int64, Float64}()
+        
+        for (yr_idx, yr) in enumerate(get_years(data))
+            isempty(row[yr]) && continue
+            push!(yr_idx_2_match, yr_idx=>row[yr])
+        end
+
+        isempty(yr_idx_2_match) && continue
+        
+        # Pull out some data to use
+        load_type = get(row, :load_type, "")
+        area = get(row, :area, "")
+        subarea = get(row, :subarea, "")
+
+        # Loop through the sub-dataframes
+        for key in eachindex(gdf)
+            isempty(load_type) || load_type == key.load_type || continue
+            isempty(area) || isempty(subarea) || subarea == key[area] || continue
+
+            match = Float64[row[i_hr] for i_hr in hr_idx:length(row)]
+            sdf = gdf[key]
+            row_idx = getfield(sdf, :rows)
+
+            for (yr_idx, match) in yr_idx_2_match
+                _match_yearly!(demand_arr, match, row_idx, yr_idx, hr_weights)
+            end
+        end
+    end
 end
 export match_demand!
 
@@ -398,6 +521,30 @@ function _scale_hourly!(pd::SubArray{Float64}, shape, yr_idx::Int64)
     pd[yr_idx, :] .*= shape
 end
 
+"""
+    _match_yearly!(demand_arr, match, row_idxs, yr_idx, hr_weights)
+
+Match the yearly demand represented by `demand_arr[row_idxs, yr_idx, :]` to `match`, with hourly weights `hr_weights`.
+"""
+function _match_yearly!(demand_arr::Array{Float64, 3}, match::Float64, row_idxs, yr_idx::Int64, hr_weights)
+    # Select the portion of the demand_arr to match
+    _match_yearly!(view(demand_arr, row_idxs, yr_idx, :), match, hr_weights)
+end
+function _match_yearly!(demand_mat::SubArray{Float64, 2}, match::Float64, hr_weights)
+    # The demand_mat is now a 2d matrix indexed by [row_idx, hr_idx]
+    s = _sum_product(demand_mat, hr_weights)
+    scale_factor = match / s
+    demand_mat .*= scale_factor
+end
+
+"""
+    _sum_product(M, v) -> s
+
+Computes the sum of M*v
+"""
+function _sum_product(M::AbstractMatrix, v::AbstractVector)
+    @inbounds sum(M[row_idx, hr_idx]*v[hr_idx] for row_idx in 1:size(M,1), hr_idx in 1:size(M,2))
+end
 
 """
     summarize_gen_table() -> summary
@@ -518,9 +665,8 @@ function summarize_demand_match_table()
         (:area, String, "n/a", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:load_type, String, "n/a", false, "The type of load represented for this load shape."),
-        (:year, String, "year", true, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
         (:status, Bool, "n/a", false, "Whether or not to use this AF adjustment"),
-        (:y2020, Float64, "MWh", false, "The annual demanded energy to match for the weighted demand of all load elements in the loads specified.  Include 1 column for each year being simulated.  I.e. \"y2030\", \"y2035\", ... "),
+        (:y2020, Float64, "MWh", false, "The annual demanded energy to match for the weighted demand of all load elements in the loads specified.  Include 1 column for each year being simulated.  I.e. \"y2030\", \"y2035\", ... To not match a specific year, make it -Inf"),
     )
     return df
 end
@@ -564,6 +710,38 @@ Returns the representative hours data table
 function get_hours_table(data)
     data[:hours]::DataFrame
 end
+
+"""
+    get_demand_table(data)
+
+Returns the demand table
+"""
+function get_demand_table(data)
+    return data[:demand_table]::DataFrame
+end
+export get_demand_table
+
+"""
+    get_demand_array(data)
+
+Returns the demand array, a 3d array of demand indexed by [demand_idx, yr_idx, hr_idx]
+"""
+function get_demand_array(data)
+    return data[:demand_array]::Array{Float64,3}
+end
+export get_demand_array
+
+"""
+    get_af_table(data)
+
+Returns the availiability factor table
+"""
+function get_af_table(data)
+    return data[:af_table]::DataFrame
+end
+export get_af_table
+
+
 
 """
     get_generator(data, gen_idx) -> row
@@ -621,10 +799,48 @@ export get_af
 
 Retrieves the demanded power for a bus at a year and a time.
 """
-function get_pd(data, gen_idx, year_idx, hour_idx)
-    return get_bus_value(data, :pd, gen_idx, year_idx, hour_idx)
+function get_pd(data, bus_idx::Int64, year_idx::Int64, hour_idx::Int64)
+    return get_bus_value(data, :pd, bus_idx, year_idx, hour_idx)
 end
 export get_pd
+
+
+function get_ed(data, bus_idx::Int64, year_idx::Int64, hour_idx::Int64)
+    return get_hour_weight(data, hour_idx) * get_bus_value(data, :pd, bus_idx, year_idx, hour_idx)
+end
+
+function get_ed(data, demand_idxs::AbstractVector{Float64}, year_idx::Int64, ::Colon)
+    demand_arr = get_demand_array(data)
+    demand_mat = view(demand_arr, demand_idxs, year_idx, :)
+    hour_weights = get_hour_weights(data)
+    return _sum_product(demand_mat, hour_weights)
+end
+function get_ed(data, ::Colon, year_idx::Int64, ::Colon)
+    demand_arr = get_demand_array(data)
+    demand_mat = view(demand_arr, :, year_idx, :)
+    hour_weights = get_hour_weights(data)
+    return _sum_product(demand_mat, hour_weights)
+end
+
+function get_ed(data, pairs, year_idx::Int64, ::Colon)
+    demand_table = view(get_demand_table(data),:,:)
+    for (field, value) in pairs
+        demand_table = filter(field=>==(value), demand_table, view=true)
+    end
+    return get_ed(data, getfield(demand_table, :rows), year_idx, :)
+end
+function get_ed(data, pair::Pair, year_idx::Int64, ::Colon)
+    demand_table = view(get_demand_table(data),:,:,:)
+    field, value = pairs
+    demand_table = filter(field=>==(value), demand_table, view=true)
+    return get_ed(data, getfield(demand_table, :rows), year_idx, :)
+end
+function get_ed(data, demand_idxs, y::String, hr_idx)
+    year_idx = findfirst(==(y), get_years(data))
+    return get_ed(data, demand_idxs, year_idx, hr_idx)
+end
+export get_ed
+
 
 """
     get_gen_value(data, var::Symbol, gen_idx, year_idx, hour_idx) -> val

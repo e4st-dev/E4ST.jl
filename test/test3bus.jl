@@ -85,8 +85,7 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
 
     @testset "Test load_demand_table! with shaping" begin
         config = load_config(config_file)
-        demand_shape_file = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
-        config[:demand_shape_file] = demand_shape_file
+        config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
         data = load_data(config)
         archenland_buses = findall(==("archenland"), data[:bus].country)
         narnia_buses = findall(==("narnia"), data[:bus].country)
@@ -110,7 +109,19 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
 
     @testset "Test load_demand_table! with shaping and matching" begin
         config = load_config(config_file)
-        @test_broken false
+        config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
+        config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
+        data = load_data(config)
+        archenland_buses = findall(==("archenland"), data[:bus].country)
+        narnia_buses = findall(==("narnia"), data[:bus].country)
+        all_buses = 1:nrow(data[:bus])
+
+        # The last row, the all-area match is enabled for 2030 and 2035
+        @test get_ed(data, :, "y2030", :) ≈ 2.2
+        @test get_ed(data, :, "y2035", :) ≈ 2.3
+
+        # In 2040, it should be equal to the naria (2.2) + the archenland match (0.22)
+        @test get_ed(data, :, "y2040", :) ≈ 2.53
     end
 
     @testset "Test load_demand_table! with shaping, matching and adding" begin
