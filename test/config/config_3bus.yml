@@ -15,4 +15,5 @@ optimizer:
   dual_feasibility_tolerance: 1e-5
   log_file: HiGHS.log
   log_to_console: false
+  solver: ipm
 mods:

@@ -81,15 +81,27 @@ function setup_dcopf!(config, data, model)
     data[:obj_vars] = OrderedDict{Symbol, Any}()
 
 
-    # Power System Costs
-    add_obj_term!(data, model, PerMWhGen(), :vom, oper = -)
-    add_obj_term!(data, model, PerMWhGen(), :fuel_cost, oper = -)
+    # # Power System Costs
+    # add_obj_term!(data, model, PerMWhGen(), :vom, oper = -)
+    # add_obj_term!(data, model, PerMWhGen(), :fuel_cost, oper = -)
 
-    add_obj_term!(data, model, PerMWCap(), :fom, oper = -)
-    add_obj_term!(data, model, PerMWCap(), :capex, oper = -)
+    # add_obj_term!(data, model, PerMWCap(), :fom, oper = -)
+    # add_obj_term!(data, model, PerMWCap(), :capex, oper = -)
+
+    # # Consumer Benefits
+    # add_obj_term!(data, model, ConsumerBenefit(), :consumer_benefit, oper = +)
+
+    ## This section is written as a cost minimization
+    # Power System Costs
+    add_obj_term!(data, model, PerMWhGen(), :vom, oper = +)
+    add_obj_term!(data, model, PerMWhGen(), :fuel_cost, oper = +)
+
+    add_obj_term!(data, model, PerMWCap(), :fom, oper = +)
+    add_obj_term!(data, model, PerMWCap(), :capex, oper = +)
 
     # Consumer Benefits
-    add_obj_term!(data, model, ConsumerBenefit(), :consumer_benefit, oper = +)
+    add_obj_term!(data, model, PerMWCurtailed(), :curtailment_cost, oper = +)
+
 
 
     # @objective() goes in the setup
@@ -268,6 +280,7 @@ abstract type Term end
 struct PerMWhGen <: Term end
 struct PerMWCap <: Term end
 struct ConsumerBenefit <: Term end
+struct PerMWCurtailed <: Term end
 
   
 
@@ -338,6 +351,37 @@ function add_obj_term!(data, model, ::ConsumerBenefit, s::Symbol; oper)
     # Use this expression for single VOLL
     model[s] = @expression(model, [bus_idx in 1:nrow(bus)],
         sum(get_voll(data, bus_idx, year_idx, hour_idx) .* rep_hours.hours[hour_idx] .* get_pl_bus(data, model, bus_idx, year_idx, hour_idx) for year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)))
+
+    # # Use this expression if we ever get VOLL for each bus 
+
+    # model[s] = @expression(model, [bus_idx in 1:nrow(bus)],
+    #     bus[bus_idx, s] .* sum(rep_hours.hours[hour_idx] .* get_pl_bus(data, model, bus_idx, year_idx, hour_idx) for year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)))
+
+    # add or subtract the expression from the objective function
+    if oper == + 
+        model[:obj] += sum(model[s])
+    elseif oper == -
+        model[:obj] -= sum(model[s])
+    else
+        Base.error("The entered operator isn't valid, oper must be + or -")
+    end
+    #Add s to array of variables included obj
+    data[:obj_vars][s] = oper
+    
+end
+
+function add_obj_term!(data, model, ::PerMWCurtailed, s::Symbol; oper) 
+    #Check if s has already been added to obj
+    Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
+    
+    #write expression for the term
+    bus = get_bus_table(data)
+    rep_hours = get_hours_table(data)
+    years = get_years(data)
+
+    # Use this expression for single VOLL
+    model[s] = @expression(model, [bus_idx in 1:nrow(bus)],
+        sum(get_voll(data, bus_idx, year_idx, hour_idx) .* rep_hours.hours[hour_idx] .* (get_bus_value(data, :pd, bus_idx, year_idx, hour_idx) - get_pl_bus(data, model, bus_idx, year_idx, hour_idx)) for year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)))
 
     # # Use this expression if we ever get VOLL for each bus 
 
