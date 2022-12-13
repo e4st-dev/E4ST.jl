@@ -117,11 +117,15 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         all_buses = 1:nrow(data[:bus])
 
         # The last row, the all-area match is enabled for 2030 and 2035
-        @test get_ed(data, :, "y2030", :) ≈ 2.2
-        @test get_ed(data, :, "y2035", :) ≈ 2.3
+        @test get_ed_demand(data, :, "y2030", :) ≈ 2.2
+        @test get_ed_demand(data, :, "y2035", :) ≈ 2.3
 
         # In 2040, it should be equal to the naria (2.2) + the archenland match (0.22)
-        @test get_ed(data, :, "y2040", :) ≈ 2.53
+        @test get_ed_demand(data, :, "y2040", :) ≈ 2.53
+
+        @testset for y in get_years(data)
+            @test get_ed_demand(data, :country=>"narnia", y, :)*10 ≈ get_ed_demand(data, :country=>"archenland", y, :)
+        end
     end
 
     @testset "Test load_demand_table! with shaping, matching and adding" begin

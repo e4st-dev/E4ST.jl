@@ -396,8 +396,6 @@ function match_demand!(config, data)
 
     "load_type" in demand_table_names && push!(grouping_variables, "load_type")
 
-    gdf = groupby(demand_table, grouping_variables)
-
     hr_weights = get_hour_weights(data)
     
     for i = 1:nrow(demand_match_table)
@@ -414,26 +412,13 @@ function match_demand!(config, data)
             row[yr] == -Inf && continue
             push!(yr_idx_2_match, yr_idx=>row[yr])
         end
+        filters = Pair[]
+        
+        haskey(row, :load_type) && ~isempty(row.load_type) && push!(filters, :load_type=>row.load_type)
+        ~isempty(row.area) && ~isempty(row.subarea) && push!(filters, row.area=>row.subarea)
 
-
-        demand_table = view(get_demand_table(data), :, :)
-
-        isempty(demand_table) && continue
-
-        # Add the area-subarea pair to the condition
-        if ~isempty(row.area) && ~isempty(row.subarea)
-            area = row.area
-            subarea = row.subarea
-            demand_table = filter(area => ==(subarea), demand_table, view=true)
-        end
-
-        isempty(demand_table) && continue
-
-        # Add the genfuel to the condition
-        if haskey(row, :load_type) && ~isempty(row.load_type)
-            demand_table = filter(:load_type=>==(row.load_type), demand_table, view=true)
-        end
-
+        demand_table = get_demand_table(data, filters)
+        
         isempty(demand_table) && continue
 
         row_idx = getfield(demand_table, :rows)
@@ -719,6 +704,9 @@ Returns the demand table
 function get_demand_table(data)
     return data[:demand_table]::DataFrame
 end
+function get_demand_table(data, args...)
+    return filter_view_table(get_demand_table(data), args...)
+end
 export get_demand_table
 
 """
@@ -809,38 +797,33 @@ function get_ed(data, bus_idx::Int64, year_idx::Int64, hour_idx::Int64)
     return get_hour_weight(data, hour_idx) * get_bus_value(data, :pd, bus_idx, year_idx, hour_idx)
 end
 
-function get_ed(data, demand_idxs::AbstractVector{Float64}, year_idx::Int64, ::Colon)
+function get_ed_demand(data, demand_idxs::AbstractVector{Int64}, year_idx::Int64, hour_idxs)
     demand_arr = get_demand_array(data)
-    demand_mat = view(demand_arr, demand_idxs, year_idx, :)
-    hour_weights = get_hour_weights(data)
+    demand_mat = view(demand_arr, demand_idxs, year_idx, hour_idxs)
+    hour_weights = get_hour_weights(data, hour_idxs)
     return _sum_product(demand_mat, hour_weights)
 end
-function get_ed(data, ::Colon, year_idx::Int64, ::Colon)
+function get_ed_demand(data, ::Colon, year_idx::Int64, hour_idxs)
     demand_arr = get_demand_array(data)
-    demand_mat = view(demand_arr, :, year_idx, :)
-    hour_weights = get_hour_weights(data)
+    demand_mat = view(demand_arr, :, year_idx, hour_idxs)
+    hour_weights = get_hour_weights(data, hour_idxs)
     return _sum_product(demand_mat, hour_weights)
 end
 
-function get_ed(data, pairs, year_idx::Int64, ::Colon)
-    demand_table = view(get_demand_table(data),:,:)
-    for (field, value) in pairs
-        demand_table = filter(field=>==(value), demand_table, view=true)
-    end
-    return get_ed(data, getfield(demand_table, :rows), year_idx, :)
+function get_ed_demand(data, pairs, year_idx::Int64, hour_idxs)
+    demand_table = get_demand_table(data, pairs...)
+    return get_ed_demand(data, getfield(demand_table, :rows), year_idx, hour_idxs)
 end
-function get_ed(data, pair::Pair, year_idx::Int64, ::Colon)
-    demand_table = view(get_demand_table(data),:,:,:)
-    field, value = pairs
-    demand_table = filter(field=>==(value), demand_table, view=true)
-    return get_ed(data, getfield(demand_table, :rows), year_idx, :)
+
+function get_ed_demand(data, pair::Pair, year_idx::Int64, hour_idxs)
+    demand_table = get_demand_table(data, pair)
+    return get_ed_demand(data, getfield(demand_table, :rows), year_idx, hour_idxs)
 end
-function get_ed(data, demand_idxs, y::String, hr_idx)
+function get_ed_demand(data, demand_idxs, y::String, hr_idx)
     year_idx = findfirst(==(y), get_years(data))
-    return get_ed(data, demand_idxs, year_idx, hr_idx)
+    return get_ed_demand(data, demand_idxs, year_idx, hr_idx)
 end
-export get_ed
-
+export get_ed, get_ed_demand
 
 """
     get_gen_value(data, var::Symbol, gen_idx, year_idx, hour_idx) -> val
@@ -897,11 +880,19 @@ end
 """
     get_hour_weights(data) -> weights
 
+    get_hour_weights(data, hour_idxs) -> weights (view)
+
 Returns the number of hours in a year spent at each representative hour
 """ 
 function get_hour_weights(data)
     hours_table = get_hours_table(data)
     return hours_table.hours
+end
+function get_hour_weights(data, hour_idxs)
+    return view(get_hour_weights(data), hour_idxs)
+end
+function get_hour_weights(data, ::Colon)
+    return get_hour_weights(data)
 end
 
 """
@@ -909,8 +900,8 @@ end
 
 Returns the number of hours in a year spent at the `hour_idx` representative hour
 """
-function get_hour_weight(data, hour_idx)
-    return get_hours_table(data)[hour_idx, :hours]
+function get_hour_weight(data, hour_idx::Int64)
+    return get_hour_weights(data)[hour_idx, :hours]
 end
 export get_num_hours, get_hour_weights, get_hour_weight
 
@@ -934,6 +925,33 @@ end
 export get_num_years, get_years
 
 
+"""
+    filter_view(table::DataFrame, pairs...) -> v::SubDataFrame
+
+    filter_view(table::DataFrame, pairs...) -> v::SubDataFrame
+
+Return a `SubDataFrame` containing each row of `table` such that for each `(field,value)` pair in `pairs`, `row.field==value`.
+"""
+function filter_view_table(table::DataFrame, pairs::Pair...)
+    v = view(table,:,:)
+    for (field, value) in pairs
+        field isa AbstractString && isempty(field) && continue
+        isempty(value) && continue
+        v = filter(field=>==(value), v, view=true)
+        isempty(v) && break
+    end
+    return v
+end
+function filter_view_table(table::DataFrame, pairs)
+    v = view(table,:,:)
+    for (field, value) in pairs
+        field isa AbstractString && isempty(field) && continue
+        isempty(value) && continue
+        v = filter(field=>==(value), v, view=true)
+        isempty(v) && break
+    end
+    return v
+end
 
 # Containers
 ################################################################################
