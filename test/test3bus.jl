@@ -128,20 +128,22 @@ end
     optimize!(model)
     solution_summary(model)
 
+    @test check(model)
+
     # No curtailment (just for this test)
     bus = get_bus_table(data)
     years = get_years(data)
     rep_hours = get_hours_table(data)
-    total_pl = sum(value.(get_pl_bus(data, model, bus_idx, year_idx, hour_idx)) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
-    total_dl = sum(get_bus_value(data, :pd, bus_idx, year_idx, hour_idx) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
+    total_pl = sum(rep_hours.hours[hour_idx].*value.(get_pl_bus(data, model, bus_idx, year_idx, hour_idx)) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
+    total_dl = sum(rep_hours.hours[hour_idx].*get_bus_value(data, :pd, bus_idx, year_idx, hour_idx) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
     @test total_pl == total_dl
 
     # make sure energy generated is non_zero
     gen = get_gen_table(data)
 
     for gen_idx in 1:nrow(gen)
-        @test get_eg_gen(data, model, gen_idx) >= 0
+        @test value.(get_eg_gen(data, model, gen_idx)) >= 0
     end
 
-    @test_broken check(model)
+
 end

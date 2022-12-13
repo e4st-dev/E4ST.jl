@@ -1,3 +1,3 @@
 bus_idx,status,genfuel,gentype,pcap0,pcap_min,pcap_max,vom,fuel_cost,fom,capex
-3,1,ng,ngccccs,0,0,2.0,15,2.5,5,10
-1,1,solar,solar,0,0,1.2,10,0,5,5
+3,1,ng,ngccccs,0,0,2.0,1.5,2.5,5,10
+1,1,solar,solar,0,0,1.2,1.0,0,5,5

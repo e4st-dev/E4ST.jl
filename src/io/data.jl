@@ -343,7 +343,7 @@ export summarize_af_table
 function summarize_demand_table()
     df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
     push!(df, 
-        (:bus_idx, Int64, "MW", true, "The demanded power of the load element"),
+        (:bus_idx, Int64, "n/a", true, "The demanded power of the load element"),
         (:pd, Float64, "MW", true, "The baseline demanded power of the load element"),
         (:load_type, String, "n/a", false, "The type of load represented by this load element."),
     )
@@ -749,7 +749,7 @@ Returns an array of the gen_idx of all the gens at the bus.
 """
 function get_bus_gens(data, bus_idx) 
     gen = get_gen_table(data)
-    findall(x -> x == bus_idx, gen.bus_idx)
+    return findall(x -> x == bus_idx, gen.bus_idx)
 end
 export get_bus_gens
 

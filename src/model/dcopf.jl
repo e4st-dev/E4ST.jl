@@ -132,7 +132,11 @@ Returns total load served for a bus at a time
 """
 function get_pl_bus(data, model, bus_idx, year_idx, hour_idx) 
     bus_gens = get_bus_gens(data, bus_idx)
-    sum(model[:pl][bus_gens, year_idx, hour_idx])
+    if bus_gens == Int64[]
+        return 0
+    else
+        return sum(model[:pl][gen_idx, year_idx, hour_idx] for gen_idx in bus_gens)
+    end
 end
 export get_pl_bus
 
@@ -227,11 +231,15 @@ Returns the total energy generation from a gen summed over all rep time.
     get_eg_gen(data, model, gen_idx, year_idx)
 
 Returns the total energy generation from a gen summed over rep time for the given year. 
+
+    get_eg_gen(data, model, gen_idx, year_idx, hour_idx)
+
+Returns the total energy generation from a gen summed over rep time for the given year and hour. 
 """
 function get_eg_gen(data, model, gen_idx)
     rep_hours = get_hours_table(data)
     years = get_years(data)
-    return sum(rep_hours.hours[hour_idx] .* model[:pg][gen_idx, year_idx, hour_idx] for year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
+    return sum(rep_hours.hours[hour_idx] .* model[:pg][gen_idx, year_idx, hour_idx] for hour_idx in 1:nrow(rep_hours), year_idx in 1:length(years))
 end
 
 function get_eg_gen(data, model, gen_idx, year_idx)
@@ -239,12 +247,7 @@ function get_eg_gen(data, model, gen_idx, year_idx)
     return sum(rep_hours.hours[hour_idx] .* model[:pg][gen_idx, year_idx, hour_idx] for hour_idx in 1:nrow(rep_hours))
 end
 
-"""
-    get_eg_gen(data, model, gen_idx, year_idx, hour_idx)
-
-Returns the total energy generation from a gen summed over rep time for the given year. 
-"""
-function get_eg_gen(data, model, gen_idx, year_idx)
+function get_eg_gen(data, model, gen_idx, year_idx, hour_idx)
     return model[:pg][gen_idx, year_idx, hour_idx]
 end
 

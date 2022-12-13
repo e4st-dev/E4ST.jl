@@ -12,7 +12,7 @@ function setup_model(config, data)
         apply!(mod, config, data, model)
     end
 
-    @objective(model, Min, model[:obj])
+    @objective(model, Max, model[:obj])
 
     return model
 end
