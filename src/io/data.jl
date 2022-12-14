@@ -792,11 +792,35 @@ function get_pd(data, bus_idx::Int64, year_idx::Int64, hour_idx::Int64)
 end
 export get_pd
 
+"""
+    get_ed(data, bus_idx, year_idx, hour_idx) -> ed::Float64 (MWh)
 
+    get_ed(data, bus_idx, year_idx, hour_idxs) -> ed::Float64 (MWh)
+
+Retrieve the total energy demanded for a bus at a given year and hour(s).
+"""
 function get_ed(data, bus_idx::Int64, year_idx::Int64, hour_idx::Int64)
     return get_hour_weight(data, hour_idx) * get_bus_value(data, :pd, bus_idx, year_idx, hour_idx)
 end
+function get_ed(data, bus_idx::Int64, year_idx::Int64, hour_idxs)
+    return sum(get_hour_weight(data, hour_idx) * get_bus_value(data, :pd, bus_idx, year_idx, hour_idx) for hour_idx in hour_idxs)
+end
+function get_ed(data, bus_idx::Int64, year_idx::Int64, hour_idxs::Colon)
+    hour_weights = get_hour_weights(data)
+    return sum(hour_weights[hour_idx] * get_bus_value(data, :pd, bus_idx, year_idx, hour_idx) for hour_idx in eachindex(hour_weights))
+end
 
+"""
+    get_ed_demand(data, demand_idx, year_idx, hour_idxs) -> ed::Float64 (MWh)
+
+    get_ed_demand(data, demand_idxs, year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
+
+    get_ed_demand(data, pair(s), year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
+
+Return the energy demanded by demand elements corresponding to `demand_idx` or `demand_idxs`, for `year_idx` and `hour_idx`.  Note `year_idx` can be the index or the year string (i.e. "y2030").
+
+If pair(s) are given, filters the demand elements by pair.  i.e. pairs = ("country"=>"narnia", "load_type"=>"residential").
+"""
 function get_ed_demand(data, demand_idxs::AbstractVector{Int64}, year_idx::Int64, hour_idxs)
     demand_arr = get_demand_array(data)
     demand_mat = view(demand_arr, demand_idxs, year_idx, hour_idxs)
