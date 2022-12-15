@@ -60,6 +60,18 @@ function load_branch_table!(config, data)
     branch = load_table(config[:branch_file])
     force_table_types!(branch, :branch, summarize_branch_table())
     data[:branch] = branch
+
+    bus = get_bus_table(data)
+
+    # Add connected branches, connected buses.
+    bus.connected_branch_idxs = [Int64[] for _ in 1:nrow(bus)]
+    for (br_idx, br) in enumerate(eachrow(branch))
+        f_bus_idx = br.f_bus_idx::Int64
+        t_bus_idx = br.t_bus_idx::Int64
+        push!(bus[f_bus_idx, :connected_branch_idxs], br_idx)
+        push!(bus[t_bus_idx, :connected_branch_idxs], -br_idx)
+    end
+
     return
 end
 

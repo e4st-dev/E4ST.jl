@@ -15,59 +15,78 @@ function setup_dcopf!(config, data, model)
     rep_hours = get_hours_table(data) # weight of representative time chunks (hours) 
     gen = get_gen_table(data)
     branch = get_branch_table(data)
+    nbus = nrow(bus)
+    nyear = get_num_years(data)
+    nhour = get_num_hours(data)
+    nbranch = nrow(branch)
+    ngen = nrow(gen)
 
 
     ## Variables
 
     # Voltage Angle
-    @variable(model, θ[bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)])
+    @variable(model, θ[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour])
 
     # Power Generation
-    @variable(model, pg[gen_idx in 1:nrow(gen), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)])
+    @variable(model, pg[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour])
 
     # Capacity
-    @variable(model, pcap[gen_idx in 1:nrow(gen), year_idx in 1:length(years)])
+    @variable(model, pcap[gen_idx in 1:ngen, year_idx in 1:nyear])
 
     # Load Served
-    @variable(model, pl[bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)] >= 0)
+    @variable(model, pl[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour] >= 0)
 
+
+    ## Expressions to be used later
+    
+    # Power flowing through a given branch
+    @expression(model, pf_branch[branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour], get_pf_branch(data, model, branch_idx, year_idx, hour_idx))
+
+    # Power flowing out of a given bus
+    @expression(model, pf_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pf_bus(data, model, bus_idx, year_idx, hour_idx))
+
+    # Curtailed power of a given bus
+    @expression(model, pcurt[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pd(data, bus_idx, year_idx, hour_idx) - pl[bus_idx, year_idx, hour_idx])
+
+    # Curtailed power of a given bus
+    @expression(model, pg_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pg_bus(data, model, bus_idx, year_idx, hour_idx))
 
     ## Constraints
 
     # Constrain Power Flow
-    @constraint(model, cons_pf[bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)], 
-            get_pg_bus(data, model, bus_idx, year_idx, hour_idx) - get_pl_bus(data, model, bus_idx, year_idx, hour_idx) == 
-            get_pf_bus(data, model, bus_idx, year_idx, hour_idx))
+    @constraint(model, cons_pf[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
+            get_pg_bus(data, model, bus_idx, year_idx, hour_idx) - pl[bus_idx, year_idx, hour_idx] == 
+            pf_bus[bus_idx, year_idx, hour_idx])
 
     # Constrain Reference Bus 
     @constraint(model, cons_ref_bus[ref_bus_idx in get_ref_bus_idxs(data)], 
             model[:θ][ref_bus_idx] == 0)
 
     # Constrain Power Generation 
-    @constraint(model, cons_pg_min[gen_idx in 1:nrow(gen), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)],
+    @constraint(model, cons_pg_min[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour],
             pg[gen_idx, year_idx, hour_idx] >= get_pg_min(data, model, gen_idx, year_idx, hour_idx))
-    @constraint(model, cons_pg_max[gen_idx in 1:nrow(gen), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)],
+    @constraint(model, cons_pg_max[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour],
             pg[gen_idx, year_idx, hour_idx] <= get_pg_max(data, model, gen_idx, year_idx, hour_idx)) 
 
     # Constrain Load Served 
-    @constraint(model, cons_pl_min[bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)], 
+    @constraint(model, cons_pl_min[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
             pl[bus_idx, year_idx, hour_idx] >= 0)
-    @constraint(model, cons_pl_max[bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)], 
+    @constraint(model, cons_pl_max[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
             pl[bus_idx, year_idx, hour_idx] <= get_dl(data, bus_idx, year_idx, hour_idx))
     
 
     # Constrain Capacity
-    @constraint(model, cons_pcap_min[gen_idx in 1:nrow(gen), year_idx in 1:length(years)], 
+    @constraint(model, cons_pcap_min[gen_idx in 1:ngen, year_idx in 1:nyear], 
             pcap[gen_idx, year_idx] >= get_pcap_min(data, gen_idx, year_idx))
-    @constraint(model, cons_pcap_max[gen_idx in 1:nrow(gen), year_idx in 1:length(years)], 
+    @constraint(model, cons_pcap_max[gen_idx in 1:ngen, year_idx in 1:nyear], 
             pcap[gen_idx, year_idx] <= get_pcap_max(data, gen_idx, year_idx))
 
     # Constrain Transmission Lines 
-    @constraint(model, cons_branch_pf_pos[branch_idx in 1:nrow(branch), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)], 
-            get_pf_branch(data, model, branch_idx, year_idx, hour_idx) <= get_pf_branch_max(data, branch_idx, year_idx, hour_idx))
+    @constraint(model, cons_branch_pf_pos[branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour], 
+            pf_branch[branch_idx, year_idx, hour_idx] <= get_pf_branch_max(data, branch_idx, year_idx, hour_idx))
 
-    @constraint(model, cons_branch_pf_neg[branch_idx in 1:nrow(branch), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)], 
-            -get_pf_branch(data, model, branch_idx, year_idx, hour_idx) <= get_pf_branch_max(data, branch_idx, year_idx, hour_idx))
+    @constraint(model, cons_branch_pf_neg[branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour], 
+            -pf_branch[branch_idx, year_idx, hour_idx] <= get_pf_branch_max(data, branch_idx, year_idx, hour_idx))
     
 
 
@@ -138,31 +157,14 @@ export get_pg_bus
 
 
 """
-    get_pl_bus(data, model, bus_idx, year_idx, hour_idx)
-
-Returns total load served for a bus at a time
-"""
-function get_pl_bus(data, model, bus_idx, year_idx, hour_idx) 
-    bus_gens = get_bus_gens(data, bus_idx)
-    if bus_gens == Int64[]
-        return 0
-    else
-        return sum(model[:pl][gen_idx, year_idx, hour_idx] for gen_idx in bus_gens)
-    end
-end
-export get_pl_bus
-
-"""
     get_pf_bus(data, model, f_bus_idx, year_idx, hour_idx)
 
 Returns net power flow out of the bus
 """ 
 function get_pf_bus(data, model, bus_idx, year_idx, hour_idx) 
-    branches = [] #vector of the connecting branches with positive values for branches going out (branch f_bus = bus_idx) and negative values for branches coming in (branch t_bus = bus_idx)
-    for t_bus_idx in get_connected_buses(data, bus_idx)
-        push!(branches, get_branch_idx(data, bus_idx, t_bus_idx))
-    end
-    return sum(get_pf_branch(data, model, branch_idx, year_idx, hour_idx) for branch_idx in branches)
+    branch_idxs = get_bus_table(data)[bus_idx, :connected_branch_idxs] #vector of the connecting branches with positive values for branches going out (branch f_bus = bus_idx) and negative values for branches coming in (branch t_bus = bus_idx)
+    isempty(branch_idxs) && return 0.0
+    return sum(get_pf_branch(data, model, branch_idx, year_idx, hour_idx) for branch_idx in branch_idxs)
 end
 export get_pf_bus
 
@@ -170,25 +172,18 @@ export get_pf_bus
     get_pf_branch(data, model, branch_idx, year_idx, hour_idx)
 
 Return total power flow on a branch. 
-If branch_idx is positive then positive power flow is in the direction f_bus -> t_bus listed in the branch table. It is measuring the power flow out of f_bus.
-If branch_idx is negative then positive power flow is in the opposite direction, t_bus -> f_bus listed in the branch table. It is measuring the power flow out of t_bus. 
+* If branch_idx is positive then positive power flow is in the direction f_bus -> t_bus listed in the branch table. It is measuring the power flow out of f_bus.
+* If branch_idx is negative then positive power flow is in the opposite direction, t_bus -> f_bus listed in the branch table. It is measuring the power flow out of t_bus. 
 """ 
-function get_pf_branch(data, model, branch_idx, year_idx, hour_idx)
-    if branch_idx == 0 
-        return 0
-    else
-        f_bus_idx = data[:branch].f_bus_idx[branch_idx]
-        t_bus_idx = data[:branch].t_bus_idx[branch_idx]
-        if branch_idx > 0 
-            x = get_branch_value(data, :x, branch_idx, year_idx, hour_idx)
-            Δθ = model[:θ][f_bus_idx, year_idx, hour_idx] - model[:θ][t_bus_idx, year_idx, hour_idx] #positive for power flow out(f_bus to t_bus)
-            return Δθ / x
-        elseif branch_idx < 0
-            x = get_branch_value(data, :x, -branch_idx, year_idx, hour_idx)
-            Δθ = model[:θ][t_bus_idx, year_idx, hour_idx] - model[:θ][f_bus_idx, year_idx, hour_idx] 
-            return Δθ / x
-        end
-    end
+function get_pf_branch(data, model, branch_idx_signed, year_idx, hour_idx)
+    direction = sign(branch_idx_signed)
+    branch_idx = abs(branch_idx_signed)
+
+    f_bus_idx = data[:branch].f_bus_idx[branch_idx]
+    t_bus_idx = data[:branch].t_bus_idx[branch_idx]
+    x = get_branch_value(data, :x, branch_idx, year_idx, hour_idx)
+    Δθ = direction * (model[:θ][f_bus_idx, year_idx, hour_idx] - model[:θ][t_bus_idx, year_idx, hour_idx]) #positive for power flow out(f_bus to t_bus)
+    return Δθ / x
 end
 export get_pf_branch
 
@@ -279,7 +274,6 @@ abstract type Term end
 
 struct PerMWhGen <: Term end
 struct PerMWCap <: Term end
-struct ConsumerBenefit <: Term end
 struct PerMWCurtailed <: Term end
 
   
@@ -339,37 +333,6 @@ function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper)
     
 end
 
-function add_obj_term!(data, model, ::ConsumerBenefit, s::Symbol; oper) 
-    #Check if s has already been added to obj
-    Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
-    
-    #write expression for the term
-    bus = get_bus_table(data)
-    rep_hours = get_hours_table(data)
-    years = get_years(data)
-
-    # Use this expression for single VOLL
-    model[s] = @expression(model, [bus_idx in 1:nrow(bus)],
-        sum(get_voll(data, bus_idx, year_idx, hour_idx) .* rep_hours.hours[hour_idx] .* get_pl_bus(data, model, bus_idx, year_idx, hour_idx) for year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)))
-
-    # # Use this expression if we ever get VOLL for each bus 
-
-    # model[s] = @expression(model, [bus_idx in 1:nrow(bus)],
-    #     bus[bus_idx, s] .* sum(rep_hours.hours[hour_idx] .* get_pl_bus(data, model, bus_idx, year_idx, hour_idx) for year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)))
-
-    # add or subtract the expression from the objective function
-    if oper == + 
-        model[:obj] += sum(model[s])
-    elseif oper == -
-        model[:obj] -= sum(model[s])
-    else
-        Base.error("The entered operator isn't valid, oper must be + or -")
-    end
-    #Add s to array of variables included obj
-    data[:obj_vars][s] = oper
-    
-end
-
 function add_obj_term!(data, model, ::PerMWCurtailed, s::Symbol; oper) 
     #Check if s has already been added to obj
     Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
@@ -381,12 +344,7 @@ function add_obj_term!(data, model, ::PerMWCurtailed, s::Symbol; oper)
 
     # Use this expression for single VOLL
     model[s] = @expression(model, [bus_idx in 1:nrow(bus)],
-        sum(get_voll(data, bus_idx, year_idx, hour_idx) .* rep_hours.hours[hour_idx] .* (get_bus_value(data, :pd, bus_idx, year_idx, hour_idx) - get_pl_bus(data, model, bus_idx, year_idx, hour_idx)) for year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)))
-
-    # # Use this expression if we ever get VOLL for each bus 
-
-    # model[s] = @expression(model, [bus_idx in 1:nrow(bus)],
-    #     bus[bus_idx, s] .* sum(rep_hours.hours[hour_idx] .* get_pl_bus(data, model, bus_idx, year_idx, hour_idx) for year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)))
+        sum(get_voll(data, bus_idx, year_idx, hour_idx) .* rep_hours.hours[hour_idx] .* model[:pcurt][bus_idx, year_idx, hour_idx] for year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)))
 
     # add or subtract the expression from the objective function
     if oper == + 

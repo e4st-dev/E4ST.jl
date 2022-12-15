@@ -1,5 +1,53 @@
 config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
 
+function test_dcopf(config)
+    data = load_data(config)
+    model = setup_model(config, data)
+    @test model isa JuMP.Model
+
+
+    # variables have been added to the objective 
+    @test haskey(data[:obj_vars], :fom)
+    @test haskey(data[:obj_vars], :fuel_cost)
+    @test haskey(data[:obj_vars], :vom)
+    @test haskey(data[:obj_vars], :capex)
+    @test haskey(data[:obj_vars], :curtailment_cost)
+    @test model[:obj] == sum(model[:curtailment_cost]) + sum(model[:fom]) + sum(model[:fuel_cost]) + sum(model[:vom]) + sum(model[:capex])
+
+    # the number of constraints matches expected
+    num_cons = 3*nrow(get_bus_table(data))*length(get_years(data))*nrow(get_hours_table(data))
+    num_cons += length(get_ref_bus_idxs(data))
+    num_cons += 2*nrow(get_gen_table(data))*length(get_years(data))*nrow(get_hours_table(data))
+    num_cons += 2*nrow(get_gen_table(data))*length(get_years(data))
+    num_cons += 2*nrow(get_branch_table(data))*length(get_years(data))*nrow(get_hours_table(data))
+    
+    @test num_constraints(model, count_variable_in_set_constraints = false) == num_cons
+
+
+
+    optimize!(model)
+    solution_summary(model)
+
+    @test check(model)
+
+    # No curtailment (just for this test)
+    bus = get_bus_table(data)
+    years = get_years(data)
+    rep_hours = get_hours_table(data)
+    total_pl = sum(rep_hours.hours[hour_idx].*value.(model[:pl][bus_idx, year_idx, hour_idx]) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
+    total_dl = sum(rep_hours.hours[hour_idx].*get_bus_value(data, :pd, bus_idx, year_idx, hour_idx) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
+    @test total_pl == total_dl
+    @test all(p->abs(p)<1e-6, value.(model[:pcurt]))
+
+    # make sure energy generated is non_zero
+    gen = get_gen_table(data)
+
+    for gen_idx in 1:nrow(gen)
+        @test value.(get_eg_gen(data, model, gen_idx)) >= 0
+    end
+end
+
+
 @testset "Test Loading the Config File" begin
     @test load_config(config_file) isa AbstractDict    
 end
@@ -101,49 +149,5 @@ end
 
 @testset "Test Setting up the model" begin
     config = load_config(config_file)
-    data = load_data(config)
-    model = setup_model(config, data)
-    @test model isa JuMP.Model
-
-
-    # variables have been added to the objective 
-    @test haskey(data[:obj_vars], :fom)
-    @test haskey(data[:obj_vars], :fuel_cost)
-    @test haskey(data[:obj_vars], :vom)
-    @test haskey(data[:obj_vars], :capex)
-    @test haskey(data[:obj_vars], :consumer_benefit)
-    @test model[:obj] == sum(model[:consumer_benefit]) - sum(model[:fom]) - sum(model[:fuel_cost]) - sum(model[:vom]) - sum(model[:capex])
-
-    # the number of constraints matches expected
-    num_cons = 3*nrow(get_bus_table(data))*length(get_years(data))*nrow(get_hours_table(data))
-    num_cons += length(get_ref_bus_idxs(data))
-    num_cons += 2*nrow(get_gen_table(data))*length(get_years(data))*nrow(get_hours_table(data))
-    num_cons += 2*nrow(get_gen_table(data))*length(get_years(data))
-    num_cons += 2*nrow(get_branch_table(data))*length(get_years(data))*nrow(get_hours_table(data))
-    
-    @test num_constraints(model, count_variable_in_set_constraints = false) == num_cons
-
-
-
-    optimize!(model)
-    solution_summary(model)
-
-    @test check(model)
-
-    # No curtailment (just for this test)
-    bus = get_bus_table(data)
-    years = get_years(data)
-    rep_hours = get_hours_table(data)
-    total_pl = sum(rep_hours.hours[hour_idx].*value.(get_pl_bus(data, model, bus_idx, year_idx, hour_idx)) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
-    total_dl = sum(rep_hours.hours[hour_idx].*get_bus_value(data, :pd, bus_idx, year_idx, hour_idx) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
-    @test total_pl == total_dl
-
-    # make sure energy generated is non_zero
-    gen = get_gen_table(data)
-
-    for gen_idx in 1:nrow(gen)
-        @test value.(get_eg_gen(data, model, gen_idx)) >= 0
-    end
-
-
+    test_dcopf(config)
 end
