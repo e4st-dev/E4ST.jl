@@ -35,6 +35,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         status = trues(n_gen),
         genfuel = rand(genfuels, n_gen),
         pcap_min = zeros(n_gen),
+        pcap0 = ones(n_gen),
         pcap_max = ones(n_gen),
         vom = rand(n_gen),
         fom = rand(n_gen),

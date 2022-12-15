@@ -297,7 +297,7 @@ function summarize_gen_table()
         (:pcap_min, Float64, "MW", true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, "MW", true, "Maximum nameplate power generation capacity of the generator"),
         (:vom, Float64, "\$/MWh", true, "Variable operation and maintenance cost per MWh of generation"),
-        (:fuel_cost, Float64, "\$/MWh", true, "Fuel cost per MWh of generation"),
+        (:fuel_cost, Float64, "\$/MWh", false, "Fuel cost per MWh of generation"),
         (:fom, Float64, "\$/MW", true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, "\$/MW", false, "Hourly capital expenditures for a MW of generation capacity"),
     )
