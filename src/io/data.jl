@@ -719,42 +719,6 @@ end
 ### System mapping helper functions
 
 """
-    get_branch_idx(data, f_bus_idx, t_bus_idx)
-
-Returns the branch idx going between f_bus_idx and t_bus_idx. If f_bus and t_bus as flipped in the branch table from how they are in the arguments, it returns a negative value of the index.  
-"""
-function get_branch_idx(data, f_bus_idx, t_bus_idx) 
-    branch = get_branch_table(data)
-    for i in 1:nrow(branch)
-        if branch.f_bus_idx == f_bus_idx && branch.t_bus_idx == t_bus_idx
-            return i
-        elseif branch.f_bus_idx == t_bus_idx && branch.t_bus_idx == f_bus_idx
-            return -i
-        else
-            return 0
-        end
-    end
-end
-export get_branch_idx
-
-"""
-    get_connected_buses(data, bus_idx)
-
-Returns vector of idxs for all buses connected to the specified buses. Returns whether it is the f_bus or the t_bus
-"""
-function get_connected_buses(data, bus_idx) 
-    branch = get_branch_table(data)
-    connected_bus_idxs = []
-    for r in eachrow(branch)
-        if r.f_bus_idx == bus_idx push!(connected_bus_idxs, r.t_bus_idx) end
-        if r.t_bus_idx == bus_idx push!(connected_bus_idxs, r.f_bus_idx) end
-    end
-    unique!(connected_bus_idxs) #removes duplicates
-    return connected_bus_idxs
-end
-export get_connected_buses
-
-"""
     get_bus_gens(data, bus_idx)
 
 Returns an array of the gen_idx of all the gens at the bus.
