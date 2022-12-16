@@ -12,7 +12,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
     ## Make Bus Table
     bus = DataFrame(
         ref_bus = fill(false, n_bus),
-        pd = rand(n_bus),
+        pdem = rand(n_bus),
         country = rand(countries, n_bus)
     )
     ref_bus_idx = rand(1:n_bus)
@@ -35,6 +35,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         status = trues(n_gen),
         genfuel = rand(genfuels, n_gen),
         pcap_min = zeros(n_gen),
+        pcap0 = ones(n_gen),
         pcap_max = ones(n_gen),
         vom = rand(n_gen),
         fom = rand(n_gen),
@@ -49,7 +50,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         t_bus_idx = rand(1:n_bus, n_branch),
         status = trues(n_branch),
         x = fill(0.01, n_branch),
-        pf_max = rand(n_branch)
+        pflow_max = rand(n_branch)
     )
 
     
@@ -114,7 +115,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
 
     demand = DataFrame(
         "bus_idx" => rand(1:n_bus, n_demand),
-        "pd" => rand(n_demand),
+        "pdem" => rand(n_demand),
         "load_type" => rand(["ev", "residential", "commercial", "industrial", "transportation"])
     )
     CSV.write(joinpath(@__DIR__, "data/demand.csv"), demand)

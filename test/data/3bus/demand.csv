@@ -1,4 +1,4 @@
-bus_idx,pd,load_type
+bus_idx,pdem,load_type
 1,0.2,residential
 2,0.2,residential
 3,0.2,residential

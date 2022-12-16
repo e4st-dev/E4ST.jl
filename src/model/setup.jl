@@ -11,6 +11,10 @@ function setup_model(config, data)
     for mod in getmods(config)
         apply!(mod, config, data, model)
     end
+
+    #@objective(model, Max, model[:obj])
+    @objective(model, Min, model[:obj])
+
     return model
 end
 
@@ -74,12 +78,3 @@ function optimizer_attributes(::Val{:Gurobi}; kwargs...)
 end
 
 
-"""
-    setup_dcopf!(config, data, model)
-
-Set up a DC OPF problem
-"""
-function setup_dcopf!(config, data, model)
-    # TODO: setup DC OPF
-    return model
-end
