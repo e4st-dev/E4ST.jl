@@ -202,7 +202,7 @@ function load_demand_table!(config, data)
     demand = load_table(config[:demand_file])
     force_table_types!(demand, :demand, summarize_demand_table())
 
-    ar = [demand.pd[i] for i in 1:nrow(demand), j in 1:get_num_years(data), k in 1:get_num_hours(data)] # ndemand * nyr * nhr
+    ar = [demand.pd0[i] for i in 1:nrow(demand), j in 1:get_num_years(data), k in 1:get_num_hours(data)] # ndemand * nyr * nhr
     data[:demand_table] = demand
     data[:demand_array] = ar
 
@@ -328,6 +328,8 @@ function shape_demand!(config, data)
     # Loop through each row in the demand_shape_table
     for i in 1:nrow(demand_shape_table)
         row = demand_shape_table[i, :]
+        shape = Float64[row[i_hr] for i_hr in hr_idx:length(row)]
+
 
         get(row, :status, true) || continue
 
@@ -349,13 +351,12 @@ function shape_demand!(config, data)
             isempty(load_type) || load_type == key.load_type || continue
             isempty(area) || isempty(subarea) || subarea == key[area] || continue
 
-            shape = Float64[row[i_hr] for i_hr in hr_idx:length(row)]
             sdf = gdf[key]
             row_idx = getfield(sdf, :rows)
-            _scale_hourly!(demand_arr, shape, row_idx, yr_idx)
+            scale_hourly!(demand_arr, shape, row_idx, yr_idx)
             
             # Or use below to scale the views
-            # _scale_hourly!(sdf.pd, shape, yr_idx)  
+            # scale_hourly!(sdf.pd, shape, yr_idx)  
         end
     end
 end
@@ -392,9 +393,6 @@ function match_demand!(config, data)
         leftjoin!(demand_table, bus_view, on=:bus_idx)
         dropmissing!(demand_table, areas_to_join)
     end
-    grouping_variables = copy(all_areas)
-
-    "load_type" in demand_table_names && push!(grouping_variables, "load_type")
 
     hr_weights = get_hour_weights(data)
     
@@ -403,7 +401,6 @@ function match_demand!(config, data)
         if get(row, :status, true) == false
             continue
         end
-
 
         # Get the year indices to match
         yr_idx_2_match = Dict{Int64, Float64}()
@@ -428,82 +425,171 @@ function match_demand!(config, data)
         end
     end
     return data
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # Loop through each row in the demand_match_table
-    for i in 1:nrow(demand_match_table)
-        row = demand_match_table[i, :]
-
-        get(row, :status, true) || continue
-        yr_idx_2_match = Dict{Int64, Float64}()
-        
-        for (yr_idx, yr) in enumerate(get_years(data))
-            isempty(row[yr]) && continue
-            push!(yr_idx_2_match, yr_idx=>row[yr])
-        end
-
-        isempty(yr_idx_2_match) && continue
-        
-        # Pull out some data to use
-        load_type = get(row, :load_type, "")
-        area = get(row, :area, "")
-        subarea = get(row, :subarea, "")
-
-        # Loop through the sub-dataframes
-        for key in eachindex(gdf)
-            isempty(load_type) || load_type == key.load_type || continue
-            isempty(area) || isempty(subarea) || subarea == key[area] || continue
-
-            match = Float64[row[i_hr] for i_hr in hr_idx:length(row)]
-            sdf = gdf[key]
-            row_idx = getfield(sdf, :rows)
-
-            for (yr_idx, match) in yr_idx_2_match
-                _match_yearly!(demand_arr, match, row_idx, yr_idx, hr_weights)
-            end
-        end
-    end
 end
 export match_demand!
 
+"""
+    add_demand!(config, data)
+
+Add demanded power in `config[:demand_add_file]` to demand elements after the annual match in [`match_demand!`](@ref)
+
+We may wish to provide additional demand after the match so that we can compare the difference.
+"""
+function add_demand!(config, data)
+    demand_add_table = load_table(config[:demand_add_file])
+    bus_table = get_bus_table(data)
+    force_table_types!(demand_add_table, :demand_add_table, summarize_demand_add_table())
+    force_table_types!(demand_add_table, :demand_add_table, ("h$n"=>Float64 for n in 2:get_num_hours(data))...)
+    demand_table = data[:demand_table]
+    demand_arr = data[:demand_array]
+
+    # Pull out year info that will be needed
+    all_years = get_years(data)
+    nyr = get_num_years(data)
+
+
+    # Grab the hour index for later use
+    hr_idx = findfirst(s->s=="h1",names(demand_add_table))
+
+    # Add columns to the demand_table so we can group more easily
+    all_areas = unique(demand_add_table.area)
+    filter!(!isempty, all_areas)
+    demand_table_names = names(demand_table)
+    areas_to_join = setdiff(all_areas, demand_table_names)
+    
+    if ~isempty(areas_to_join)
+        bus_view = view(bus_table, :, ["bus_idx", areas_to_join...])
+        leftjoin!(demand_table, bus_view, on=:bus_idx)
+        dropmissing!(demand_table, areas_to_join)
+    end
+
+    # Loop through each row in the demand_shape_table
+    for i in 1:nrow(demand_add_table)
+        row = demand_add_table[i, :]
+
+        get(row, :status, true) || continue
+        shape = Float64[row[i_hr] for i_hr in hr_idx:length(row)]
+
+        if isempty(row.year)
+            yr_idx = 1:get_num_years(data)
+        elseif row.year ∈ all_years
+            yr_idx = findfirst(==(row.year), all_years)
+        else
+            continue # This row is for a year that we aren't simulating now
+        end
+
+        filters = Pair[]
+        
+        haskey(row, :load_type) && ~isempty(row.load_type) && push!(filters, :load_type=>row.load_type)
+        ~isempty(row.area) && ~isempty(row.subarea) && push!(filters, row.area=>row.subarea)
+
+        sdf = get_demand_table(data, filters)
+        
+        isempty(sdf) && continue
+
+        row_idxs = getfield(sdf, :rows)
+
+        
+        # we need to find the amount of power to add to each demand element, where it is weighted by their relative weights.
+        pd0_total = sum(sdf.pd0)
+
+        for (i,row_idx) in enumerate(row_idxs)
+            pd0 = sdf[i, :pd0]::Float64
+            s = pd0/pd0_total
+            add_hourly_scaled!(demand_arr, shape, s, row_idx, yr_idx)
+        end
+    end
+    return data
+end
+export add_demand!
 
 """
-    _scale_hourly!(demand_arr, shape, row_idx, yr_idx)
+    scale_hourly!(demand_arr, shape, row_idx, yr_idx)
     
 Scales the hourly demand in `demand_arr` by `shape` for `row_idx` and `yr_idx`.
 """
-function _scale_hourly!(demand_arr, shape, row_idxs, yr_idxs)
-    foreach(yr_idx->_scale_hourly!(demand_arr, shape, row_idxs, yr_idx), yr_idxs)
+function scale_hourly!(demand_arr, shape, row_idxs, yr_idxs)
+    for yr_idx in yr_idxs, row_idx in row_idxs
+        scale_hourly!(demand_arr, shape, row_idx, yr_idx)
+    end
+    return nothing
 end
-function _scale_hourly!(demand_arr, shape, row_idxs, yr_idx::Int64)
-    foreach(row_idx->_scale_hourly!(demand_arr, shape, row_idx, yr_idx), row_idxs)
+function scale_hourly!(ars::AbstractArray{<:AbstractArray}, shape, yr_idxs)
+    for ar in ars, yr_idx in yr_idxs
+        scale_hourly!(ar, shape, yr_idx)
+    end
+    return nothing
 end
-function _scale_hourly!(demand_arr, shape, row_idx::Int64, yr_idx::Int64)
-    demand_arr[row_idx, yr_idx, :] .*= shape
+function scale_hourly!(ar::AbstractArray{Float64}, shape, yr_idxs)
+    for yr_idx in yr_idxs
+        scale_hourly!(ar, shape, yr_idx)
+    end
+    return nothing
+end
+function scale_hourly!(ar::AbstractArray{Float64}, shape::AbstractVector{Float64}, idxs::Int64...)
+    view(ar, idxs..., :) .+= shape
+    return nothing
+end
+
+"""
+    add_hourly!(demand_arr, shape, row_idx, yr_idx)
+    
+adds the hourly demand in `demand_arr` by `shape` for `row_idx` and `yr_idx`.
+"""
+function add_hourly!(demand_arr, shape, row_idxs, yr_idxs; kwargs...)
+    for yr_idx in yr_idxs, row_idx in row_idxs
+        add_hourly!(demand_arr, shape, row_idx, yr_idx; kwargs...)
+    end
+    return nothing
+end
+function add_hourly!(ars::AbstractArray{<:AbstractArray}, shape, yr_idxs; kwargs...)
+    for ar in ars, yr_idx in yr_idxs
+        add_hourly!(ar, shape, yr_idx; kwargs...)
+    end
+    return nothing
+end
+function add_hourly!(ar::AbstractArray{Float64}, shape, yr_idxs; kwargs...)
+    for yr_idx in yr_idxs
+        add_hourly!(ar, shape, yr_idx; kwargs...)
+    end
+    return nothing
+end
+function add_hourly!(ar::AbstractArray{Float64}, shape::AbstractVector{Float64}, idxs::Int64...)
+    view(ar, idxs..., :) .+= shape
+    return nothing
+end
+
+"""
+    add_hourly_scaled!(ar, v::AbstractVector{Float64}, s::Float64, idx1, idx2)
+
+Adds `v.*s` to `ar[idx1, idx2, :]`, without allocating.
+"""
+function add_hourly_scaled!(ar::AbstractArray{Float64}, shape::AbstractVector{Float64}, s::Float64, idx1::Int64, idx2::Int64)
+    view(ar, idx1, idx2, :) .+= shape .* s
+    return nothing
+end
+function add_hourly_scaled!(ar, shape, s, idxs1, idxs2)
+    for idx1 in idxs1, idx2 in idxs2
+        add_hourly_scaled!(ar, shape, s, idx1, idx2)
+    end
+    return nothing
 end
 
 
-function _scale_hourly!(pds::AbstractArray{<:AbstractArray}, shape, yr_idxs)
-    foreach(pd->_scale_hourly!(pd, shape, yr_idxs), pds)
+function update_hourly!(op::typeof(+), args...)
+    add_hourly!(args...)
+    return nothing
 end
-function _scale_hourly!(pd::SubArray{Float64}, shape, yr_idxs)
-    foreach(yr_idx->_scale_hourly!(pd, shape, yr_idx), yr_idxs)
+function update_hourly!(op::typeof(*), args...)
+    scale_hourly!(args...)
+    return nothing
 end
-function _scale_hourly!(pd::SubArray{Float64}, shape, yr_idx::Int64)
-    pd[yr_idx, :] .*= shape
+
+function string2op(s::String)
+    s=="scale" && (op = *) 
+    s=="add" && (op = +)
+    s=="subtract" && (op = -)
+    return op::Function
 end
 
 """
@@ -617,7 +703,7 @@ function summarize_demand_table()
     df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
     push!(df, 
         (:bus_idx, Int64, "MW", true, "The demanded power of the load element"),
-        (:pd, Float64, "MW", true, "The baseline demanded power of the load element"),
+        (:pd0, Float64, "MW", true, "The baseline demanded power of the load element"),
         (:load_type, String, "n/a", false, "The type of load represented by this load element."),
     )
     return df
@@ -632,9 +718,9 @@ function summarize_demand_shape_table()
     push!(df, 
         (:area, String, "n/a", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
-        (:load_type, String, "n/a", false, "The type of load represented for this load shape."),
+        (:load_type, String, "n/a", false, "The type of load represented for this load shape.  Leave blank to not filter by type."),
         (:year, String, "year", true, "The year to apply the demand profile to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
-        (:status, Bool, "n/a", false, "Whether or not to use this AF adjustment"),
+        (:status, Bool, "n/a", false, "Whether or not to use this shape adjustment"),
         (:h1, Float64, "ratio", true, "Demand scaling factor of hour 1.  Include a column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
     )
     return df
@@ -649,13 +735,32 @@ function summarize_demand_match_table()
     push!(df, 
         (:area, String, "n/a", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
-        (:load_type, String, "n/a", false, "The type of load represented for this load shape."),
-        (:status, Bool, "n/a", false, "Whether or not to use this AF adjustment"),
+        (:load_type, String, "n/a", false, "The type of load represented for this load match.  Leave blank to not filter by type."),
+        (:status, Bool, "n/a", false, "Whether or not to use this match"),
         (:y2020, Float64, "MWh", false, "The annual demanded energy to match for the weighted demand of all load elements in the loads specified.  Include 1 column for each year being simulated.  I.e. \"y2030\", \"y2035\", ... To not match a specific year, make it -Inf"),
     )
     return df
 end
 export summarize_demand_match_table
+
+
+"""
+    summarize_demand_add_table() -> summary
+"""
+function summarize_demand_add_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    push!(df, 
+        (:area, String, "n/a", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:load_type, String, "n/a", false, "The type of load represented for this load add.  Leave blank to not filter by type."),
+        (:year, String, "year", true, "The year to apply the demand profile to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
+        (:status, Bool, "n/a", false, "Whether or not to use this addition"),
+        (:h1, Float64, "MW", true, "Amount of demanded power to add in hour 1.  Include a column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
+    )
+    return df
+end
+export summarize_demand_add_table
+
 
 # Accessor Functions
 ################################################################################

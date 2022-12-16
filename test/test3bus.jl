@@ -130,7 +130,15 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
 
     @testset "Test load_demand_table! with shaping, matching and adding" begin
         config = load_config(config_file)
-        @test_broken false
+        config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
+        config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
+        config[:demand_add_file]   = abspath(@__DIR__, "data", "3bus","demand_add.csv")
+        data = load_data(config)
+
+
+        @test get_ed_demand(data, :, "y2030", :) ≈ 2.2
+        @test get_ed_demand(data, :, "y2035", :) ≈ 2.3
+        @test get_ed_demand(data, :, "y2040", :) ≈ 2.53 + 0.01*8760
     end
 end
 
