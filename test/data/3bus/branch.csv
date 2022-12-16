@@ -1,3 +1,3 @@
-f_bus_idx,t_bus_idx,status,x,pf_max
+f_bus_idx,t_bus_idx,status,x,pflow_max
 1,2,1,0.01,10
 3,2,1,0.01,10
