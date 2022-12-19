@@ -515,11 +515,11 @@ function add_demand!(config, data)
 
         
         # we need to find the amount of power to add to each demand element, where it is weighted by their relative weights.
-        pd0_total = sum(sdf.pd0)
+        pdem0_total = sum(sdf.pdem0)
 
         for (i,row_idx) in enumerate(row_idxs)
-            pd0 = sdf[i, :pd0]::Float64
-            s = pd0/pd0_total
+            pdem0 = sdf[i, :pdem0]::Float64
+            s = pdem0/pdem0_total
             add_hourly_scaled!(demand_arr, shape, s, row_idx, yr_idx)
         end
     end
@@ -925,61 +925,61 @@ end
 export get_pdem
 
 """
-    get_ed(data, bus_idx, year_idx, hour_idx) -> ed::Float64 (MWh)
+    get_edem(data, bus_idx, year_idx, hour_idx) -> ed::Float64 (MWh)
 
-    get_ed(data, bus_idx, year_idx, hour_idxs) -> ed::Float64 (MWh)
+    get_edem(data, bus_idx, year_idx, hour_idxs) -> ed::Float64 (MWh)
 
 Retrieve the total energy demanded for a bus at a given year and hour(s).
 """
-function get_ed(data, bus_idx::Int64, year_idx::Int64, hour_idx::Int64)
-    return get_hour_weight(data, hour_idx) * get_bus_value(data, :pd, bus_idx, year_idx, hour_idx)
+function get_edem(data, bus_idx::Int64, year_idx::Int64, hour_idx::Int64)
+    return get_hour_weight(data, hour_idx) * get_pdem(data, bus_idx, year_idx, hour_idx)
 end
-function get_ed(data, bus_idx::Int64, year_idx::Int64, hour_idxs)
-    return sum(get_hour_weight(data, hour_idx) * get_bus_value(data, :pd, bus_idx, year_idx, hour_idx) for hour_idx in hour_idxs)
+function get_edem(data, bus_idx::Int64, year_idx::Int64, hour_idxs)
+    return sum(get_hour_weight(data, hour_idx) * get_pdem(data, bus_idx, year_idx, hour_idx) for hour_idx in hour_idxs)
 end
-function get_ed(data, bus_idx::Int64, year_idx::Int64, hour_idxs::Colon)
+function get_edem(data, bus_idx::Int64, year_idx::Int64, hour_idxs::Colon)
     hour_weights = get_hour_weights(data)
-    return sum(hour_weights[hour_idx] * get_bus_value(data, :pd, bus_idx, year_idx, hour_idx) for hour_idx in eachindex(hour_weights))
+    return sum(hour_weights[hour_idx] * get_pdem(data, bus_idx, year_idx, hour_idx) for hour_idx in eachindex(hour_weights))
 end
 
 """
-    get_ed_demand(data, demand_idx, year_idx, hour_idxs) -> ed::Float64 (MWh)
+    get_edem_demand(data, demand_idx, year_idx, hour_idxs) -> ed::Float64 (MWh)
 
-    get_ed_demand(data, demand_idxs, year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
+    get_edem_demand(data, demand_idxs, year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
 
-    get_ed_demand(data, pair(s), year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
+    get_edem_demand(data, pair(s), year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
 
 Return the energy demanded by demand elements corresponding to `demand_idx` or `demand_idxs`, for `year_idx` and `hour_idx`.  Note `year_idx` can be the index or the year string (i.e. "y2030").
 
 If pair(s) are given, filters the demand elements by pair.  i.e. pairs = ("country"=>"narnia", "load_type"=>"residential").
 """
-function get_ed_demand(data, demand_idxs::AbstractVector{Int64}, year_idx::Int64, hour_idxs)
+function get_edem_demand(data, demand_idxs::AbstractVector{Int64}, year_idx::Int64, hour_idxs)
     demand_arr = get_demand_array(data)
     demand_mat = view(demand_arr, demand_idxs, year_idx, hour_idxs)
     hour_weights = get_hour_weights(data, hour_idxs)
     return _sum_product(demand_mat, hour_weights)
 end
-function get_ed_demand(data, ::Colon, year_idx::Int64, hour_idxs)
+function get_edem_demand(data, ::Colon, year_idx::Int64, hour_idxs)
     demand_arr = get_demand_array(data)
     demand_mat = view(demand_arr, :, year_idx, hour_idxs)
     hour_weights = get_hour_weights(data, hour_idxs)
     return _sum_product(demand_mat, hour_weights)
 end
 
-function get_ed_demand(data, pairs, year_idx::Int64, hour_idxs)
+function get_edem_demand(data, pairs, year_idx::Int64, hour_idxs)
     demand_table = get_demand_table(data, pairs...)
-    return get_ed_demand(data, getfield(demand_table, :rows), year_idx, hour_idxs)
+    return get_edem_demand(data, getfield(demand_table, :rows), year_idx, hour_idxs)
 end
 
-function get_ed_demand(data, pair::Pair, year_idx::Int64, hour_idxs)
+function get_edem_demand(data, pair::Pair, year_idx::Int64, hour_idxs)
     demand_table = get_demand_table(data, pair)
-    return get_ed_demand(data, getfield(demand_table, :rows), year_idx, hour_idxs)
+    return get_edem_demand(data, getfield(demand_table, :rows), year_idx, hour_idxs)
 end
-function get_ed_demand(data, demand_idxs, y::String, hr_idx)
+function get_edem_demand(data, demand_idxs, y::String, hr_idx)
     year_idx = findfirst(==(y), get_years(data))
-    return get_ed_demand(data, demand_idxs, year_idx, hr_idx)
+    return get_edem_demand(data, demand_idxs, year_idx, hr_idx)
 end
-export get_ed, get_ed_demand
+export get_edem, get_edem_demand
 
 """
     get_gen_value(data, var::Symbol, gen_idx, year_idx, hour_idx) -> val
