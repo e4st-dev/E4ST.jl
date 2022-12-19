@@ -11,8 +11,8 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
     ## Make Bus Table
     bus = DataFrame(
         ref_bus = fill(false, n_bus),
-        pd = rand(n_bus),
-        country = rand(countries(), n_bus)
+        pdem = rand(n_bus),
+        country = rand(countries, n_bus)
     )
     ref_bus_idx = rand(1:n_bus)
     bus.ref_bus[ref_bus_idx] = true
@@ -22,6 +22,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         status = trues(n_gen),
         genfuel = rand(genfuels(), n_gen),
         pcap_min = zeros(n_gen),
+        pcap0 = ones(n_gen),
         pcap_max = ones(n_gen),
         vom = rand(n_gen),
         fom = rand(n_gen),
@@ -37,8 +38,10 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         t_bus_idx = rand(1:n_bus, n_branch),
         status = trues(n_branch),
         x = fill(0.01, n_branch),
-        pf_max = rand(n_branch)
-    )    
+        pflow_max = rand(n_branch)
+    )
+
+    
 
     h = rand(n_hours)
     h = h * 8760/sum(h)
@@ -116,7 +119,7 @@ end
 function rand_demand(;n_bus, n_demand, kwargs...)
     DataFrame(
         "bus_idx" => rand(1:n_bus, n_demand),
-        "pd0" => rand(n_demand),
+        "pdem0" => rand(n_demand),
         "load_type" => rand(load_types())
     )
 end

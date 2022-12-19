@@ -24,4 +24,4 @@ SUITE["load_demand_table! with match"] = @benchmarkable E4ST.load_demand_table!(
 SUITE["load_demand_table! with add"] = @benchmarkable E4ST.load_demand_table!(config, data) setup=(config=make_random_inputs(demand_add_file=true); data = load_data(config))
 SUITE["get_generator"] = @benchmarkable get_generator(data, 1) setup=(config=make_random_inputs(); data = load_data(config)) evals=1000
 SUITE["get_af"] = @benchmarkable get_af(data, 50, 3, 50) setup=(config=make_random_inputs(); data = load_data(config)) evals=1000
-SUITE["get_pd"] = @benchmarkable get_pd(data, 50, 3, 50) setup=(config=make_random_inputs(); data = load_data(config)) evals=1000
+SUITE["get_pdem"] = @benchmarkable get_pdem(data, 50, 3, 50) setup=(config=make_random_inputs(); data = load_data(config)) evals=1000

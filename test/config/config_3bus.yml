@@ -5,6 +5,7 @@ branch_file: "../data/3bus/branch.csv"
 hours_file:  "../data/3bus/hours.csv"
 af_file:     "../data/3bus/af.csv"
 demand_file: "../data/3bus/demand.csv"
+voll: 5000000
 years:
   - y2030
   - y2035
@@ -14,4 +15,5 @@ optimizer:
   dual_feasibility_tolerance: 1e-5
   log_file: HiGHS.log
   log_to_console: false
+  solver: ipm
 mods:

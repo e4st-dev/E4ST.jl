@@ -21,6 +21,7 @@ function load_data(config)
     load_gen_table!(config, data)
     load_branch_table!(config, data)
     load_hours_table!(config, data)
+    load_voll!(config, data)
     load_af_table!(config, data)
     load_demand_table!(config, data)
 
@@ -65,6 +66,18 @@ function load_branch_table!(config, data)
     branch = load_table(config[:branch_file])
     force_table_types!(branch, :branch, summarize_branch_table())
     data[:branch] = branch
+
+    bus = get_bus_table(data)
+
+    # Add connected branches, connected buses.
+    bus.connected_branch_idxs = [Int64[] for _ in 1:nrow(bus)]
+    for (br_idx, br) in enumerate(eachrow(branch))
+        f_bus_idx = br.f_bus_idx::Int64
+        t_bus_idx = br.t_bus_idx::Int64
+        push!(bus[f_bus_idx, :connected_branch_idxs], br_idx)
+        push!(bus[t_bus_idx, :connected_branch_idxs], -br_idx)
+    end
+
     return
 end
 export load_branch_table!
@@ -187,6 +200,17 @@ end
 export load_af_table!
 
 """
+    load_voll!(config, data)
+
+Return the marginal cost of load curtailment / VOLL as a variable in data
+"""
+function load_voll!(config, data)
+    default_voll = 5000.0;
+    haskey(config, :voll) ? data[:voll] = config[:voll] : data[:voll] = default_voll
+    hasmethod(Float64, Tuple{typeof(data[:voll])}) || error("data[:voll] cannot be converted to a Float64")
+    Float64.(data[:voll]) 
+end
+"""
     load_demand_table!(config, data)
 
 Loads the `demand_table` from `config[:demand_file]` into `data[:demand_table]`.
@@ -202,20 +226,20 @@ function load_demand_table!(config, data)
     demand = load_table(config[:demand_file])
     force_table_types!(demand, :demand, summarize_demand_table())
 
-    ar = [demand.pd0[i] for i in 1:nrow(demand), j in 1:get_num_years(data), k in 1:get_num_hours(data)] # ndemand * nyr * nhr
+    ar = [demand.pdem0[i] for i in 1:nrow(demand), j in 1:get_num_years(data), k in 1:get_num_hours(data)] # ndemand * nyr * nhr
     data[:demand_table] = demand
     data[:demand_array] = ar
 
     # Grab views of the demand for the pd column of the bus table
-    demand.pd = map(i->view(ar, i, :, :), 1:nrow(demand))
+    demand.pdem = map(i->view(ar, i, :, :), 1:nrow(demand))
 
     bus = get_bus_table(data)
-    bus.pd = [DemandContainer() for _ in 1:nrow(bus)]
+    bus.pdem = [DemandContainer() for _ in 1:nrow(bus)]
 
     for row in eachrow(demand)
         bus_idx = row.bus_idx::Int64
-        c = bus[bus_idx, :pd]
-        _add_view!(c, row.pd)
+        c = bus[bus_idx, :pdem]
+        _add_view!(c, row.pdem)
     end
 
     # Modify the demand by shaping, matching, and adding
@@ -627,9 +651,11 @@ function summarize_gen_table()
         (:status, Bool, "n/a", false, "Whether or not the generator is in service"),
         (:genfuel, String, "n/a", true, "The fuel type that the generator uses"),
         (:gentype, String, "n/a", true, "The generation technology type that the generator uses"),
+        (:pcap0, Float64, "MW", true, "Starting nameplate power generation capacity for the generator"),
         (:pcap_min, Float64, "MW", true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, "MW", true, "Maximum nameplate power generation capacity of the generator"),
         (:vom, Float64, "\$/MWh", true, "Variable operation and maintenance cost per MWh of generation"),
+        (:fuel_cost, Float64, "\$/MWh", false, "Fuel cost per MWh of generation"),
         (:fom, Float64, "\$/MW", true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, "\$/MW", false, "Hourly capital expenditures for a MW of generation capacity"),
     )
@@ -660,7 +686,7 @@ function summarize_branch_table()
         (:t_bus_idx, Int64, "n/a", true, "The index of the `bus` table that the branch goes **t**o"),
         (:status, Bool, "n/a", false, "Whether or not the branch is in service"),
         (:x, Float64, "p.u.", true, "Per-unit reactance of the line (resistance assumed to be 0 for DC-OPF)"),
-        (:pf_max, Float64, "MW", true, "Maximum power flowing through the branch")
+        (:pflow_max, Float64, "MW", true, "Maximum power flowing through the branch")
     )
     return df
 end
@@ -703,7 +729,7 @@ function summarize_demand_table()
     df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
     push!(df, 
         (:bus_idx, Int64, "MW", true, "The demanded power of the load element"),
-        (:pd0, Float64, "MW", true, "The baseline demanded power of the load element"),
+        (:pdem0, Float64, "MW", true, "The baseline demanded power of the load element"),
         (:load_type, String, "n/a", false, "The type of load represented by this load element."),
     )
     return df
@@ -801,6 +827,7 @@ function get_hours_table(data)
     data[:hours]::DataFrame
 end
 
+
 """
     get_demand_table(data)
 
@@ -888,14 +915,14 @@ end
 export get_af
 
 """
-    get_pd(data, bus_idx, year_idx, hour_idx) -> pd
+    get_pdem(data, bus_idx, year_idx, hour_idx) -> pdem
 
 Retrieves the demanded power for a bus at a year and a time.
 """
-function get_pd(data, bus_idx::Int64, year_idx::Int64, hour_idx::Int64)
-    return get_bus_value(data, :pd, bus_idx, year_idx, hour_idx)
+function get_pdem(data, gen_idx, year_idx, hour_idx)
+    return get_bus_value(data, :pdem, gen_idx, year_idx, hour_idx)
 end
-export get_pd
+export get_pdem
 
 """
     get_ed(data, bus_idx, year_idx, hour_idx) -> ed::Float64 (MWh)
@@ -977,6 +1004,18 @@ function get_bus_value(data, name, bus_idx, year_idx, hour_idx)
     return c[year_idx, hour_idx]::Float64
 end
 export get_bus_value
+
+"""
+    get_branch_value(data, var::Symbol, branch_idx, year_idx, hour_idx) -> val
+
+Retrieve the `var` value for bus `bus_idx` in year `year_idx` at hour `hour_idx`
+"""
+function get_branch_value(data, name, branch_idx, year_idx, hour_idx)
+    branch_table = get_branch_table(data)
+    c = branch_table[branch_idx, name]
+    return c[year_idx, hour_idx]::Float64
+end
+export get_branch_value
 
 """
     get_gen_subarea(data, gen_idx::Int64, area::String) -> subarea
@@ -1122,9 +1161,18 @@ end
 function Base.getindex(c::ByYearAndHour, year_idx, hour_idx)
     c.v[year_idx][hour_idx]::Float64
 end
+function Base.getindex(c::ByYearAndHour, year_idx, hour_idx::Colon)
+    c_arr = c.v[year_idx]
+    return c_arr
+end
 function Base.getindex(n::Number, year_idx::Int64, hour_idx::Int64)
     return n
 end
+function Base.getindex(n::Number, year_idx::Int64, hour_idx::Colon)
+    return n
+end
+
+
 
 """
     set_hourly(c::Container, v::Vector{Float64}, yr_idx; default, nyr)
@@ -1215,4 +1263,90 @@ function Base.show(io::IO, c::DemandContainer)
     n = length(c.v)
     print(io, "$n-element DemandContainer of $(l)×$m Matrix")
 end
+
+
+
+## Moved from dcopf, will organize later
+
+### System mapping helper functions
+
+"""
+    get_bus_gens(data, bus_idx)
+
+Returns an array of the gen_idx of all the gens at the bus.
+"""
+function get_bus_gens(data, bus_idx) 
+    gen = get_gen_table(data)
+    return findall(x -> x == bus_idx, gen.bus_idx)
+end
+export get_bus_gens
+
+"""
+    get_ref_bus_idxs(data)
+
+Returns reference bus ids
+"""
+function get_ref_bus_idxs(data) 
+    bus = get_bus_table(data)
+    return findall(bus.ref_bus)
+end
+export get_ref_bus_idxs
+
+### Constraint info functions (change name)
+
+"""
+    get_pcap_min(data, gen_idx, year_idx)
+
+Returns min capacity for a generator
+"""
+function get_pcap_min(data, gen_idx, year_idx) 
+    return get_gen_value(data, :pcap_min, gen_idx, year_idx, :)
+end
+export get_pcap_min
+
+
+"""
+    get_pcap_max(data, model, gen_idx, year_idx)
+
+Returns max capacity for a generator
+"""
+function get_pcap_max(data, gen_idx, year_idx) 
+    return get_gen_value(data, :pcap_max, gen_idx, year_idx, :)
+end
+export get_pcap_max
+
+
+""" 
+    get_pflow_branch_max(data, branch_idx, year_idx, hour_idx)
+
+Returns max power flow on a branch at a given time. 
+"""
+function get_pflow_branch_max(data, branch_idx, year_idx, hour_idx) 
+    return get_branch_value(data, :pflow_max, branch_idx, year_idx, hour_idx)
+end
+export get_pflow_branch_max
+
+
+### Misc
+"""
+    get_pdem_bus(data, bus_idx, year_idx, hour_idx)
+
+Returns the demanded load at a bus at a time. Load served (pserv) can be less than demanded when load is curtailed. 
+"""
+function get_pdem_bus(data, bus_idx, year_idx, hour_idx) 
+    return get_bus_value(data, :pdem, bus_idx, year_idx, hour_idx)
+end
+export get_pdem_bus
+
+"""
+    get_voll(data, bus_idx, year_idx, hour_idx)
+
+Returns the value of lost load at given bus and time
+"""
+function get_voll(data, bus_idx, year_idx, hour_idx) 
+    # If we want voll to be by bus_idx this could be modified and load_voll() will need to be changed
+    return data[:voll]
+end
+export get_voll
+
 
