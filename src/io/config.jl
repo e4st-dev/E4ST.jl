@@ -88,6 +88,22 @@ end
 export stop_logging!
 
 
+function print_header(config)
+    @info "#############################################################################################\n# STARTING E4ST ################################################################################\n################################################################################################"
+    @info "$(versioninfostring())"
+end
+export print_header
+
+function versioninfostring()
+    io = IOBuffer()
+    versioninfo(io)
+    s = String(take!(io))
+    close(io)
+    return s
+end
+
+
+
 """
     closestream(logger)
 

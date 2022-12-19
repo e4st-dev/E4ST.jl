@@ -48,7 +48,7 @@ function run_e4st(config)
     save_config(config)
 
     start_logging!(config)
-    @info "Starting E4ST"
+    print_header(config)
     @info "Config saved to: $(config[:out])"
 
     data = load_data(config)

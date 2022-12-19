@@ -5,6 +5,7 @@ function setup_model(config, data)
     @info "# SETTING UP MODEL #############################################################################"
     optimizer_factory = getoptimizer(config)
     model = JuMP.Model(optimizer_factory)
+    @show optimizer_factory
 
     # set_silent(model)
     # set_optimizer_attribute(model, MOI.Silent(), true)
@@ -83,8 +84,8 @@ function optimizer_attributes(config, ::Val{:HiGHS}; log_file = nothing, kwargs.
     (;
         dual_feasibility_tolerance   = 1e-7, # Notional, not sure what this should be
         primal_feasibility_tolerance = 1e-7,
-        log_to_console = true,
-        log_file = log_file_full,
+        log_to_console = false,
+        # log_file = log_file_full,
         kwargs...
     )
 end
