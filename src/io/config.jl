@@ -63,7 +63,7 @@ function start_logging!(config)
         # logger = Base.SimpleLogger(open(abspath(config[:out_path], "E4ST.log"),"w"), log_level)
         io = open(abspath(config[:out_path], "E4ST.log"),"w")
         format = "╭{[{timestamp}] - {level} - :func}{@ {module} {filepath}:{line:cyan}:light_green}\n╰→ {message}"
-        logger = MiniLogger(;io, minlevel, format)
+        logger = MiniLogger(;io, minlevel, format, message_mode=:notransformations)
     end
 
     old_logger = Logging.global_logger(logger)

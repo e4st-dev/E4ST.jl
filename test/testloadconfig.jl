@@ -35,7 +35,6 @@ end
     log_file = abspath(config[:out_path], "E4ST.log")
     rm(log_file, force=true)
 
-    @test (global_logger() isa ConsoleLogger)
     @test ~isfile(log_file)
 
 
@@ -45,11 +44,9 @@ end
     @info "info!!!"
     @debug "debug!!!" # SHOULD NOT LOG BY DEFAULT
     @warn "warning!!!"
-    @test ~(global_logger() isa ConsoleLogger)
     @test isfile(log_file)
     
     stop_logging!(config)
-    @test (global_logger() isa ConsoleLogger)
     @test length(readlines(log_file)) == 4
 
     ## Debug Mode
@@ -58,11 +55,9 @@ end
     @info "info!!!"
     @debug "debug!!!" # SHOULD LOG
     @warn "warning!!!"
-    @test ~(global_logger() isa ConsoleLogger)
     @test isfile(log_file)
     
     stop_logging!(config)
-    @test (global_logger() isa ConsoleLogger)
     @test length(readlines(log_file)) == 6
 
 

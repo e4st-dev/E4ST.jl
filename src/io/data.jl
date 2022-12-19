@@ -11,6 +11,7 @@ For more information about the data to be found in each of the files, see the fo
 * [`summarize_af_table()`](@ref)
 """
 function load_data(config)
+    @info "# LOADING DATA #################################################################################"
     data = OrderedDict{Symbol, Any}()
 
     data[:years] = config[:years]
@@ -45,6 +46,7 @@ end
 Load the bus table from the `:bus_file` specified in the `config`
 """
 function load_bus_table!(config, data)
+    @info "Loading the bus table from:  $(config[:bus_file])"
     bus = load_table(config[:bus_file])
     force_table_types!(bus, :bus, summarize_bus_table())
     data[:bus] = bus
@@ -57,6 +59,7 @@ end
 Load the branch table from the `:branch_file` specified in the `config`
 """
 function load_branch_table!(config, data)
+    @info "Loading the branch table from:  $(config[:branch_file])"
     branch = load_table(config[:branch_file])
     force_table_types!(branch, :branch, summarize_branch_table())
     data[:branch] = branch
@@ -81,6 +84,7 @@ end
 Load the representative time `rep_time` from the `:hours_file` specified in the `config`
 """
 function load_hours_table!(config, data)
+    @info "Loading the hours table from:  $(config[:hours_file])"
     hours = load_table(config[:hours_file])
     force_table_types!(hours, :rep_time, summarize_hours_table())
     if sum(hours.hours) != 8760
@@ -114,6 +118,8 @@ function load_af_table!(config, data)
         @warn "No field :af_file in config"
         return
     end
+
+    @info "Loading the availability factor table from:  $(config[:af_file])"
 
     # Load in the af file
     df = load_table(config[:af_file])
@@ -198,6 +204,8 @@ end
     load_demand_table!(config, data)
 """
 function load_demand_table!(config, data)
+    @info "Loading the demand table from:  $(config[:demand_file])"
+
     # load in the table and force its types
     demand = load_table(config[:demand_file])
     force_table_types!(demand, :demand, summarize_demand_table())
@@ -279,6 +287,7 @@ end
 Initializes the data with any necessary Modifications in the config, calling `initialize!(mod, config, data)`
 """
 function initialize_data!(config, data)
+    @info "# INITIALIZING DATA ############################################################################"
     # Initialize Modifications
     for (sym, mod) in getmods(config)
         initialize!(mod, config, data)

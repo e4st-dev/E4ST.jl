@@ -46,6 +46,11 @@ Top-level file for running E4ST
 """
 function run_e4st(config)
     save_config(config)
+
+    start_logging!(config)
+    @info "Starting E4ST"
+    @info "Config saved to: $(config[:out])"
+
     data = load_data(config)
     initialize_data!(config, data) # or something, could also live inside load_data
 

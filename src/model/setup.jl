@@ -2,6 +2,7 @@
     setup_model(config, data) -> model
 """
 function setup_model(config, data)
+    @info "# SETTING UP MODEL #############################################################################"
     optimizer_factory = getoptimizer(config)
     model = JuMP.Model(optimizer_factory)
 
@@ -17,7 +18,21 @@ function setup_model(config, data)
 
     @objective(model, Min, model[:obj])
 
+    @info "Model Summary: $(summarize(model))"
+
     return model
+end
+
+"""
+    summarize(model::Model) -> summary::String
+
+Returns the string that would be output by show(model).
+"""
+function summarize(model::Model)
+    buf = IOBuffer() 
+    show(buf, model)
+    summary = String(take!(buf))
+    return summary
 end
 
 """
