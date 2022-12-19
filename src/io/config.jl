@@ -39,6 +39,72 @@ function save_config(config)
     close(io)
 end
 
+
+"""
+    start_logging!(config)
+
+Starts logging according to `config[:logging]`.  Possible options for `config[:logging]`:
+* `true` (default): logs `@info`, `@warning`, and `@error` messages to `config[:out_path]/E4ST.log`
+* `"debug"` - logs `@debug`, `@info`, `@warning`, and `@error` messages to `config[:out_path]/E4ST.log`
+* `false` - no logging
+
+To stop the logger and close its io stream, see [`stop_logging!(config)`](@ref)
+"""
+function start_logging!(config)
+    logging = get(config, :logging, true)
+    if logging === false
+        logger = Base.NullLogger()
+    else
+        if logging == "debug"
+            minlevel = Logging.Debug
+        else
+            minlevel = Logging.Info
+        end
+        # logger = Base.SimpleLogger(open(abspath(config[:out_path], "E4ST.log"),"w"), log_level)
+        io = open(abspath(config[:out_path], "E4ST.log"),"w")
+        format = "╭{[{timestamp}] - {level} - :func}{@ {module} {filepath}:{line:cyan}:light_green}\n╰→ {message}"
+        logger = MiniLogger(;io, minlevel, format)
+    end
+
+    old_logger = Logging.global_logger(logger)
+    config[:logger] = logger
+    config[:old_logger] = old_logger
+    return
+end
+export start_logging!
+
+"""
+    stop_logging!(config)
+
+Stops logging to console, closes the io stream of the current logger.
+"""
+function stop_logging!(config)
+    haskey(config, :logger) || return
+    logger = config[:logger]
+    closestream(logger)
+    global_logger(config[:old_logger])
+    return
+end
+export stop_logging!
+
+
+"""
+    closestream(logger)
+
+Closes the logger's io stream, if applicable.
+"""
+function closestream(logger::SimpleLogger)
+    close(logger.stream)
+end
+
+function closestream(logger::NullLogger)
+end
+
+function closestream(logger::MiniLogger)
+    close(logger.io)
+end
+
+
 # Accessor Functions
 ################################################################################
 function getmods(config)

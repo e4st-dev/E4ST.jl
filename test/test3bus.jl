@@ -23,10 +23,8 @@ function test_dcopf(config)
     
     @test num_constraints(model, count_variable_in_set_constraints = false) == num_cons
 
-
-
     optimize!(model)
-    solution_summary(model)
+    # solution_summary(model)
 
     @test check(model)
 

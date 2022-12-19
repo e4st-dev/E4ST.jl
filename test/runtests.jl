@@ -3,6 +3,7 @@ using E4ST
 using HiGHS
 using JuMP
 using DataFrames
+using Logging
 import OrderedCollections: OrderedDict
 
 @testset "Test E4ST" begin

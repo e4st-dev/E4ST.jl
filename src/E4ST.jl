@@ -4,6 +4,8 @@ module E4ST
 using JuMP
 using InteractiveUtils
 using DataFrames
+using Logging
+using MiniLoggers
 import OrderedCollections: OrderedDict
 import CSV
 import YAML
