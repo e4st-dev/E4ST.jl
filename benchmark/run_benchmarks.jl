@@ -1,5 +1,6 @@
 using Pkg
 Pkg.activate(@__DIR__)
-using PkgBenchmark, E4ST
+using PkgBenchmark, E4ST, Dates
 res = benchmarkpkg(E4ST)
-export_markdown(joinpath(@__DIR__, "results.md"), res)
+ds = Dates.format(now(), dateformat"yymmdd_HHMMSS")
+export_markdown(joinpath(@__DIR__, "results/res$ds.md"), res)
