@@ -61,7 +61,21 @@ end
     stop_logging!(config)
     @test length(readlines(log_file)) == 6
 
+    # Logging off
+    rm(log_file, force=true)
+    config[:logging] = false
+    start_logging!(config)
+    @info "info!!!"
+    @debug "debug!!!"
+    @warn "warning!!!"
+    stop_logging!(config)
+    @test ~isfile(log_file)
 
-
+    # Log the info
+    config[:logging] = true
+    start_logging!(config)
+    log_info(config)
+    stop_logging!(config)
+    @test length(readlines(log_file)) > 6
 
 end
