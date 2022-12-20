@@ -9,6 +9,7 @@ The `demand_table` lets you specify a base demanded power for arbitrary buses.  
 Also calls the following:
 * [`shape_demand!(config, data)`](@ref) - scales hourly demanded power by an hourly demand profile by arbitrary region
 * [`match_demand!(config, data)`](@ref) - matches annual demanded energy by arbitrary region
+* [`add_demand!(config, data)`](@ref) - adds hourly demanded power by arbitrary region
 """
 function load_demand_table!(config, data)
     # load in the table and force its types
