@@ -1,0 +1,7 @@
+area,subarea,load_type,year,status,h1,h2,h3,h4,h5,h6,h7,h8
+country,narnia,,y2030,1,0.5,1.0,1.0,0.5,0.5,0.7,0.8,0.5
+country,narnia,,y2035,1,0.55,0.95,0.95,0.55,0.5,0.7,0.8,0.5
+country,narnia,,y2040,1,0.6,0.9,0.9,0.6,0.5,0.7,0.8,0.5
+country,archenland,residential,,1,0.6,1.0,1.0,0.6,0.5,0.7,0.8,0.5
+country,archenland,industrial,,1,0.9,1.0,1.0,0.9,0.8,0.9,0.9,0.8
+country,archenland,commercial,,1,1.0,0.9,0.9,1.0,0.9,0.8,0.8,0.9
