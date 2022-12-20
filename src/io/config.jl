@@ -12,6 +12,7 @@ function load_config(filename)
     end
     check_required_fields!(config)
     make_paths_absolute!(config, filename)
+    make_out_path!(config)
     convert_types!(config, :mods)
     return config
 end
@@ -121,6 +122,26 @@ function header_string(header)
     string("#"^80, "\n",header,"\n","#"^80)
 end
 
+"""
+    time_string() -> s
+
+Returns a time string in the format "yymmdd_HHMMSS"
+"""
+function time_string()
+    format(now(), dateformat"yymmdd_HHMMSS")
+end
+
+"""
+    date_string() -> s
+    
+Returns a date string in the format "yymmdd"
+"""
+function date_string()
+    format(now(), dateformat"yymmdd")
+end
+export date_string
+export time_string
+
 function version_info_string()
     io = IOBuffer()
     versioninfo(io)
@@ -200,6 +221,21 @@ function make_paths_absolute!(config, filename; path_keys = (:gen_file, :bus_fil
         end
     end
     return config
+end
+
+function make_out_path!(config)
+    out_path = config[:out_path]
+    if isdir(out_path)
+        # Check to see if we need to move the contents to backup
+        isempty(readdir(out_path)) && return
+        backup_path = string(out_path, "_backup_", time_string())
+        while isdir(backup_path)
+            backup_path = string(out_path, "_backup_", time_string())
+        end
+        mv(out_path, backup_path)
+    else
+        mkpath(config[:out_path])
+    end
 end
 
 function convert_types!(config, sym::Symbol)

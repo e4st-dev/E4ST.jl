@@ -33,7 +33,8 @@ end
 
 @testset "Test Logging" begin
     log_file = abspath(config[:out_path], "E4ST.log")
-    rm(log_file, force=true)
+    
+    isfile(log_file) && rm(log_file, force=true)
 
     @test ~isfile(log_file)
 
