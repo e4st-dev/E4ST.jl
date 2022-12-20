@@ -6,6 +6,7 @@ using InteractiveUtils
 using DataFrames
 using Logging
 using MiniLoggers
+using Pkg
 import OrderedCollections: OrderedDict
 import CSV
 import YAML
@@ -48,7 +49,7 @@ function run_e4st(config)
     save_config(config)
 
     start_logging!(config)
-    print_header(config)
+    log_info(config)
     @info "Config saved to: $(config[:out])"
 
     data = load_data(config)

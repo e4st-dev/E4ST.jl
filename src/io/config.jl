@@ -62,7 +62,7 @@ function start_logging!(config)
         end
         # logger = Base.SimpleLogger(open(abspath(config[:out_path], "E4ST.log"),"w"), log_level)
         io = open(abspath(config[:out_path], "E4ST.log"),"w")
-        format = "╭{[{timestamp}] - {level} - :func}{@ {module} {filepath}:{line:cyan}:light_green}\n╰→ {message}"
+        format = "{[{timestamp}] - {level} - :func}{@ {module} {filepath}:{line:cyan}:light_green}\n{message}"
         logger = MiniLogger(;io, minlevel, format, message_mode=:notransformations)
     end
 
@@ -87,14 +87,41 @@ function stop_logging!(config)
 end
 export stop_logging!
 
+"""
+    log_info(config)
 
-function print_header(config)
-    @info "#############################################################################################\n# STARTING E4ST ################################################################################\n################################################################################################"
-    @info "$(versioninfostring())"
+Logs any necessary info at the beginning of a run of E4ST
+"""
+function log_info(config)
+    @info string(
+        header_string("STARTING E4ST"), 
+        "\n\n",
+        version_info_string(),
+        "\nE4ST Info:\n",
+        package_status_string(),
+    )
 end
-export print_header
+export log_info
 
-function versioninfostring()
+"""
+    log_header(header)
+
+Logs a 3-line header string by calling `@info` [`header_string(header)`](@ref)
+"""
+function log_header(header)
+    @info header_string(header)
+end
+
+"""
+    header_string(header) -> s
+
+Returns a 3-line header string
+"""
+function header_string(header)
+    string("#"^80, "\n",header,"\n","#"^80)
+end
+
+function version_info_string()
     io = IOBuffer()
     versioninfo(io)
     s = String(take!(io))
@@ -102,7 +129,18 @@ function versioninfostring()
     return s
 end
 
+"""
+    package_status_string() -> s
 
+Returns the output of Pkg.status() in a string
+"""
+function package_status_string()
+    io = IOBuffer()
+    Pkg.status(;io)
+    s = String(take!(io))
+    close(io)
+    return s
+end
 
 """
     closestream(logger)

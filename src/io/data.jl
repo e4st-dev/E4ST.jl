@@ -11,7 +11,7 @@ For more information about the data to be found in each of the files, see the fo
 * [`summarize_af_table()`](@ref)
 """
 function load_data(config)
-    @info "# LOADING DATA #################################################################################"
+    log_header("LOADING DATA")
     data = OrderedDict{Symbol, Any}()
 
     data[:years] = config[:years]
@@ -287,7 +287,8 @@ end
 Initializes the data with any necessary Modifications in the config, calling `initialize!(mod, config, data)`
 """
 function initialize_data!(config, data)
-    @info "# INITIALIZING DATA ############################################################################"
+    log_header("INITIALIZING DATA")
+    
     # Initialize Modifications
     for (sym, mod) in getmods(config)
         initialize!(mod, config, data)
