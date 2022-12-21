@@ -1,6 +1,6 @@
 name = "E4ST"
 uuid = "15c74807-6cb5-473c-8677-542c31c16277"
-authors = ["Ethan Russell <erussell@rff.org>"]
+authors = ["Ethan Russell <erussell@rff.org>", "Sally Robson <srobson@rff.org>"]
 version = "0.1.0"
 
 [deps]

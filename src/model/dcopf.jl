@@ -92,7 +92,7 @@ function setup_dcopf!(config, data, model)
 
 
     ## Objective Function 
-    @expression(model, obj, 0*θ_bus[1,1,1]) 
+    @expression(model, obj, 0*model[:θ_bus][1,1,1]) 
     # needed to be defined as an GenericAffExp instead of an Int64 so multiplied by an arbitrary var
 
 
