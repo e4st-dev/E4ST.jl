@@ -4,6 +4,10 @@ module E4ST
 using JuMP
 using InteractiveUtils
 using DataFrames
+using Logging
+using MiniLoggers
+using Pkg
+import Dates: @dateformat_str, format, now
 import OrderedCollections: OrderedDict
 import CSV
 import YAML
@@ -28,6 +32,7 @@ include("types/Modification.jl")
 include("types/Policy.jl")
 include("io/config.jl")
 include("io/data.jl")
+include("io/demand.jl")
 include("io/results.jl")
 include("model/setup.jl")
 include("model/dcopf.jl")
@@ -45,6 +50,11 @@ Top-level file for running E4ST
 """
 function run_e4st(config)
     save_config(config)
+
+    start_logging!(config)
+    log_info(config)
+    @info "Config saved to: $(config[:out])"
+
     data = load_data(config)
     initialize_data!(config, data) # or something, could also live inside load_data
 

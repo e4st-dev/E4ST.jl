@@ -1,5 +1,9 @@
-﻿hours,day
-1000.0,1
-2000.0,1
-3000.0,2
-2760.0,2
+﻿hours,day,time_of_day,season
+500,1,morning,summer
+1000,1,noon,summer
+1500,1,evening,summer
+1380,1,night,summer
+500,2,morning,winter
+1000,2,noon,winter
+1500,2,evening,winter
+1380,2,night,winter

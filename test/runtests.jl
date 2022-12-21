@@ -3,8 +3,11 @@ using E4ST
 using HiGHS
 using JuMP
 using DataFrames
+using Logging
 import OrderedCollections: OrderedDict
+rm(joinpath(@__DIR__, "out"), force=true, recursive=true)
 
+original_logger = global_logger(NullLogger())
 @testset "Test E4ST" begin
     @testset "Unit Tests" begin
         @testset "Test Loading Config" begin
@@ -36,3 +39,6 @@ import OrderedCollections: OrderedDict
         include("test3bus.jl")
     end
 end
+
+global_logger(original_logger)
+rm(joinpath(@__DIR__, "out"), force=true, recursive=true)

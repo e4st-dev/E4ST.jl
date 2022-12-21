@@ -14,6 +14,7 @@ makedocs(
             "Hours Table" => "inputs/hours.md",
             "Demand" => "inputs/demand.md",
             "Availability Factor Table" => "inputs/af.md",
+            "Logging" => "inputs/logging.md"
         ],
         "Types"=>Any[
             "Modication"=>"types/mod.md"
