@@ -17,8 +17,9 @@ When defining a concrete `Modification` type, you should know the following.
 * Since Modifications are specified in a YAML config file, `Modification`s must be constructed with keyword arguments.  `Base.@kwdef` may come in handy here.
 * All `Modication`s are paired with a name in the config file.  That name is automatically passed in as a keyword argument to the `Modification` constructor if the type has a `name` field.  The `name` will be passed in as a `Symbol`.
 
-`Modification`'s can modify things in up to three places, with the default behavior of the methods being to make no changes:
-* In the data preparation step, before instantiating the `Model` via [`initialize!(mod, config, data)`](@ref)
+`Modification`'s can modify things in up to four places, with the default behavior of the methods being to make no changes:
+* In the data preparation step, right after [`load_data_files!(config, data)`](@ref) before setting up the data via [`modify_raw_data!(mod, config, data)`](@ref)
+* In the data preparation step, right after [`setup_data!(config, data)`](@ref) before setting up the `Model`` via [`modify_setup_data!(mod, config, data)`](@ref)
 * In the model setup step, after setting up the DC-OPF but before optimizing via [`apply!(mod, config, data, model)`](@ref)
 * After optimizing the model, in the results generation step via [`results!(mod, config, data, model, results)`](@ref)
 
@@ -51,7 +52,7 @@ function E4ST.fieldnames_for_yaml(::Type{UpdateNGPrice})
     return (:filename,)
 end
 
-function E4ST.initialize!(mod::UpdateNGPrice, config, data)
+function E4ST.modify_raw_data!(mod::UpdateNGPrice, config, data)
     # update the price of natural gas from mod.prices here
 end
 ```
@@ -97,12 +98,21 @@ end
 
 
 """
-    initialize!(mod::Modification, config, data, model)
+    modify_raw_data!(mod::Modification, config, data, model)
 
-Initialize the data with `mod`.
+Change the raw data with `mod`.
 """
-function initialize!(mod::Modification, config, data)
-    @warn "No initialize! function defined for mod $sym: $mod, doing nothing"
+function modify_raw_data!(mod::Modification, config, data)
+    @warn "No modify_raw_data! function defined for mod $mod, doing nothing"
+end
+
+"""
+    modify_setup_data!(mod::Modification, config, data, model)
+
+Change the setup data with `mod`.
+"""
+function modify_setup_data!(mod::Modification, config, data)
+    @warn "No modify_setup_data! function defined for mod $mod, doing nothing"
 end
 
 
@@ -112,7 +122,7 @@ end
 Apply mod to the model, called in `setup_model`
 """
 function apply!(mod::Modification, config, data, model)
-    @warn "No apply! function defined for mod $sym: $mod, doing nothing"
+    @warn "No apply! function defined for mod $mod, doing nothing"
 end
 
 """
@@ -121,7 +131,7 @@ end
 Gather the results from `mod` from the solved model, called in `parse_results`
 """
 function results!(mod::Modification, config, data, model, results)
-    @warn "No results! function defined for mod $sym: $mod, doing nothing"
+    @warn "No results! function defined for mod $mod, doing nothing"
 end
 
 """

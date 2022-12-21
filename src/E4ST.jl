@@ -20,7 +20,7 @@ export setup_model, check
 export parse_results, process!
 export should_iterate, iterate!
 export Modification, Policy
-export initialize!, apply!, results!, fieldnames_for_yaml
+export modify_raw_data!, modify_setup_data!, apply!, results!, fieldnames_for_yaml
 export run_e4st
 
 include("types/Modification.jl")

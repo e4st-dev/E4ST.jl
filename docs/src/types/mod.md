@@ -2,7 +2,8 @@ Modifications
 =============
 ```@docs
 Modification
-initialize!
+modify_raw_data!
+modify_setup_data!
 apply!
 results!
 fieldnames_for_yaml
