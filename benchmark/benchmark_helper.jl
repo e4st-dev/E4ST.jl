@@ -3,6 +3,8 @@ using DataFrames
 using OrderedCollections
 using CSV
 using E4ST
+using JuMP
+using HiGHS
 
 function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n_hours=100, n_demand = 200, af_file=true)
     Random.seed!(1)
@@ -38,6 +40,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         pcap0 = ones(n_gen),
         pcap_max = ones(n_gen),
         vom = rand(n_gen),
+        fuel_cost = rand(n_gen),
         fom = rand(n_gen),
         capex = rand(n_gen),
     )

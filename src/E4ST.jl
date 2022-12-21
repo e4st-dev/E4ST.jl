@@ -17,6 +17,7 @@ export load_data, initialize_data!
 export save_results!, load_results
 
 export setup_model, check
+export setup_dcopf!
 export parse_results, process!
 export should_iterate, iterate!
 export Modification, Policy
