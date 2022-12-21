@@ -12,6 +12,7 @@ For more information about the data to be found in each of the files, see the fo
 * [`load_demand_table!`](@ref)
 """
 function load_data(config)
+    log_header("LOADING DATA")
     data = OrderedDict{Symbol, Any}()
 
     data[:years] = config[:years]
@@ -49,6 +50,7 @@ Load the bus table from the `config[:bus_file]` into `data[:bus]`.  See [`summar
 Table representing all existing buses (also sometimes referred to as nodes or subs/substations) to be modeled.
 """
 function load_bus_table!(config, data)
+    @info "Loading the bus table from:  $(config[:bus_file])"
     bus = load_table(config[:bus_file])
     force_table_types!(bus, :bus, summarize_bus_table())
     bus.bus_idx = 1:nrow(bus)
@@ -63,6 +65,7 @@ export load_bus_table!
 Load the branch table from `config[:branch_file]` into `data[:branch]`.  See [`summarize_branch_table()`](@ref).
 """
 function load_branch_table!(config, data)
+    @info "Loading the branch table from:  $(config[:branch_file])"
     branch = load_table(config[:branch_file])
     force_table_types!(branch, :branch, summarize_branch_table())
     data[:branch] = branch
@@ -90,6 +93,7 @@ Load the hours representation table from `config[:hours_file]` into `data[:hours
 E4ST assumes that each year is broken up into a set of representative hours.  Each representative hour may have different parameters (i.e. load, availability factor, etc.) depending on the time of year, time of day, etc. Thus, we index many of the decision variables by representative hour.  For example, the variable for power generated (`pg`), is indexed by generator, year, and hour, meaning that for each generator, there is a different solved value of generation for each year in each representative hour.  The hours can contain any number of representative hours, but the number of hours spent at each representative hour (the `hours` column) generally should sum to 8760 (the number of hours in a year).
 """
 function load_hours_table!(config, data)
+    @info "Loading the hours table from:  $(config[:hours_file])"
     hours = load_table(config[:hours_file])
     force_table_types!(hours, :rep_time, summarize_hours_table())
     if sum(hours.hours) != 8760
@@ -129,6 +133,8 @@ function load_af_table!(config, data)
     if ~haskey(config, :af_file) 
         return
     end
+
+    @info "Loading the availability factor table from:  $(config[:af_file])"
 
     # Load in the af file
     df = load_table(config[:af_file])
@@ -265,6 +271,8 @@ end
 Initializes the data with any necessary Modifications in the config, calling `initialize!(mod, config, data)`
 """
 function initialize_data!(config, data)
+    log_header("INITIALIZING DATA")
+    
     # Initialize Modifications
     for (sym, mod) in getmods(config)
         initialize!(mod, config, data)

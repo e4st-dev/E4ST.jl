@@ -12,6 +12,8 @@ Also calls the following:
 * [`add_demand!(config, data)`](@ref) - adds hourly demanded power by arbitrary region
 """
 function load_demand_table!(config, data)
+    @info "Loading the demand table from:  $(config[:demand_file])"
+
     # load in the table and force its types
     demand = load_table(config[:demand_file])
     force_table_types!(demand, :demand, summarize_demand_table())

@@ -6,5 +6,7 @@ Should check the following:
 * That no constraints artificially limited things they weren't supposed to like carbon capture and storage
 """
 function check(model)
-    return termination_status(model) == JuMP.OPTIMAL
+    ts = termination_status(model)
+    @info "Optimized, termination status: $(ts)"
+    return ts == JuMP.OPTIMAL
 end
