@@ -5,7 +5,7 @@ function setup_model(config, data)
     optimizer_factory = getoptimizer(config)
     model = JuMP.Model(optimizer_factory)
 
-    # TODO: setup basics of model
+
     setup_dcopf!(config, data, model)
 
     for mod in getmods(config)
