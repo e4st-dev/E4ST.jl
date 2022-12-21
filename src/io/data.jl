@@ -10,15 +10,13 @@ Calls the following functions:
 * [`modify_setup_data!(config, data)`](@ref) - Gives [`Modification`](@ref)s a chance to modify the setup data before the model is built.
 """
 function load_data(config)
+    log_header("LOADING DATA")
     data = OrderedDict{Symbol, Any}()
     data[:years] = config[:years]
 
     load_data_files!(config, data)
-    
     modify_raw_data!(config, data)
-    
     setup_data!(config, data)
-
     modify_setup_data!(config, data)
 
     return data
@@ -40,7 +38,6 @@ Loads in the data files presented in the `config`.  Calls the following function
 * [`load_demand_add_table!(config, data)`](@ref)  - from `config[:demand_add_file] -> data[:demand_add_table]` (if `config[:demand_add_file]` provided)
 """
 function load_data_files!(config, data)
-    # Load in tables
     load_bus_table!(config, data)
     load_branch_table!(config, data)
     load_gen_table!(config, data)
@@ -60,7 +57,6 @@ export load_data_files!
 Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_raw_data!(mod, config, data)`](@ref)
 """
 function modify_raw_data!(config, data)    
-    # Initialize Modifications
     for (sym, mod) in getmods(config)
         modify_raw_data!(mod, config, data)
     end
@@ -73,7 +69,6 @@ end
 Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_setup_data!(mod, config, data)`](@ref)
 """
 function modify_setup_data!(config, data)    
-    # Initialize Modifications
     for (sym, mod) in getmods(config)
         modify_setup_data!(mod, config, data)
     end
