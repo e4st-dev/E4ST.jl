@@ -216,41 +216,6 @@ function load_voll!(config, data)
     hasmethod(Float64, Tuple{typeof(data[:voll])}) || error("data[:voll] cannot be converted to a Float64")
     Float64.(data[:voll]) 
 end
-<<<<<<< HEAD
-"""
-    load_demand_table!(config, data)
-"""
-function load_demand_table!(config, data)
-    @info "Loading the demand table from:  $(config[:demand_file])"
-
-    # load in the table and force its types
-    demand = load_table(config[:demand_file])
-    force_table_types!(demand, :demand, summarize_demand_table())
-
-    ar = [demand.pdem[i] for i in 1:nrow(demand), j in 1:get_num_years(data), k in 1:get_num_hours(data)] # ndemand * nyr * nhr
-    data[:demand_table] = demand
-    data[:demand_array] = ar
-
-    # Modify the demand by shaping, matching, and adding
-    haskey(config, :demand_shape_file) && shape_demand!(config, data)
-    haskey(config, :demand_match_file) && match_demand!(config, data)
-    haskey(config, :demand_add_file)   && add_demand!(config, data)
-
-    # Grab views of the demand for the pdem column of the bus table
-    demand.pdem = map(i->view(ar, i, :, :), 1:nrow(demand))
-
-    bus = get_bus_table(data)
-    bus.pdem = [DemandContainer() for _ in 1:nrow(bus)]
-
-    for row in eachrow(demand)
-        bus_idx = row.bus_idx::Int64
-        c = bus[bus_idx, :pdem]
-        _add_view!(c, row.pdem)
-    end
-end  
-
-=======
->>>>>>> main
 
 # Helper Functions
 ################################################################################
