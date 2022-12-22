@@ -18,6 +18,10 @@ makedocs(
         ],
         "Types"=>Any[
             "Modication"=>"types/mod.md"
+        ],
+        "Model"=>Any[
+            "DC Optimal Power Flow"=>"model/dcopf.md"
+            "Model Formulation"=>"model/formulation.md"
         ]
     ],
     # TODO: Comment out format line before deploying, this is only for testing locally
