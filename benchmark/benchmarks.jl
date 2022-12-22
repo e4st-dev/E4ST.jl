@@ -27,4 +27,4 @@ SUITE["load_demand_table! with add"] = @benchmarkable E4ST.load_demand_table!(co
 SUITE["get_generator"] = @benchmarkable get_generator(data, 1) setup=(config=make_random_inputs(); data = load_data(config)) evals=1000
 SUITE["get_af"] = @benchmarkable get_af(data, 50, 3, 50) setup=(config=make_random_inputs(); data = load_data(config)) evals=1000
 SUITE["get_pdem"] = @benchmarkable get_pdem(data, 50, 3, 50) setup=(config=make_random_inputs(); data = load_data(config)) evals=1000
-SUITE["setup_dcopf!"] = @benchmarkable setup_dcopf!(config, data, model) setup=(config=make_random_inputs(); data=load_data(config); model = JuMP.Model(HiGHS.Optimizer)) evals=1
+SUITE["setup_dcopf!"] = @benchmarkable setup_model(config, data) setup=(config=make_random_inputs(); data=load_data(config))
