@@ -10,7 +10,7 @@ using E4ST
 include("benchmark_helper.jl")
 
 const SUITE = BenchmarkGroup()
-# Base.global_logger(Base.NullLogger())
+Base.global_logger(Base.NullLogger())
 Base.disable_logging(Base.CoreLogging.Warn)
 # config = make_random_inputs(demand_shape_file=true, demand_match_file=true, demand_add_file=true)
 # data = load_data(config)
@@ -27,4 +27,4 @@ SUITE["load_demand_table! with add"] = @benchmarkable E4ST.load_demand_table!(co
 SUITE["get_generator"] = @benchmarkable get_generator(data, 1) setup=(config=make_random_inputs(); data = load_data(config)) evals=1000
 SUITE["get_af"] = @benchmarkable get_af(data, 50, 3, 50) setup=(config=make_random_inputs(); data = load_data(config)) evals=1000
 SUITE["get_pdem"] = @benchmarkable get_pdem(data, 50, 3, 50) setup=(config=make_random_inputs(); data = load_data(config)) evals=1000
-SUITE["setup_dcopf!"] = @benchmarkable setup_model(config, data) setup=(config=make_random_inputs(); data=load_data(config))
+SUITE["setup_model"] = @benchmarkable setup_model(config, data) setup=(config=make_random_inputs(); data=load_data(config))
