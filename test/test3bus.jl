@@ -72,21 +72,23 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         @test isempty(config[:mods])
         data = load_data(config)
         data_0 = deepcopy(data)
-        initialize_data!(config, data)
+        modify_raw_data!(config, data)
         @test data == data_0
     end
 
     @testset "Test Initializing the Data with a mod" begin
         struct DoubleVOM <: Modification end
-        function E4ST.initialize!(::DoubleVOM, config, data)
+        function E4ST.modify_raw_data!(::DoubleVOM, config, data)
             data[:gen][!, :vom] .*= 2
         end
+        function E4ST.modify_setup_data!(::DoubleVOM, config, data)
+            return
+        end
         config = load_config(config_file)
+        data_0 = load_data(config)
         push!(config[:mods], :testmod=>DoubleVOM())
         @test ~isempty(config[:mods])
         data = load_data(config)
-        data_0 = deepcopy(data)
-        initialize_data!(config, data)
         @test data != data_0
         @test sum(data[:gen].vom) == 2*sum(data_0[:gen].vom)
     end

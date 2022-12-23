@@ -5,21 +5,75 @@
 Loads the `demand_table` from `config[:demand_file]` into `data[:demand_table]`.
 
 The `demand_table` lets you specify a base demanded power for arbitrary buses.  Buses may have multiple demand elements (for example, a commercial demand, etc.).  See also [`summarize_demand_table`](@ref)
+"""
+function load_demand_table!(config, data)
+    # load in the table and force its types
+    demand = load_table(config[:demand_file])
+    force_table_types!(demand, :demand, summarize_demand_table())
+    data[:demand_table] = demand
+    return nothing
+end  
+export load_demand_table!
+
+
+"""
+    load_demand_shape_table!(config, data)
+
+Loads in `config[:demand_shape_file]` into `data[:demand_shape]`.
+
+See also [`summarize_demand_shape_table()`](@ref), [`shape_demand!(config, data)`](@ref), [`get_demand_shape_table(data)`](@ref).
+"""
+function load_demand_shape_table!(config, data)
+    demand_shape_table = load_table(config[:demand_shape_file])
+    force_table_types!(demand_shape_table, :demand_shape_table, summarize_demand_shape_table())
+    force_table_types!(demand_shape_table, :demand_shape_table, ("h$n"=>Float64 for n in 2:get_num_hours(data))...)
+    data[:demand_shape] = demand_shape_table
+end
+export load_demand_shape_table!
+
+"""
+    load_demand_match_table!(config, data)
+
+Loads in `config[:demand_match_file]` into `data[:demand_match]`.
+
+See also [`summarize_demand_match_table()`](@ref), [`match_demand!(config, data)`](@ref), [`get_demand_match_table(data)`](@ref).
+"""
+function load_demand_match_table!(config, data)
+    demand_match_table = load_table(config[:demand_match_file])
+    force_table_types!(demand_match_table, :demand_match_table, summarize_demand_match_table())
+    force_table_types!(demand_match_table, :demand_match_table, (y=>Float64 for y in get_years(data))...)
+    data[:demand_match] = demand_match_table
+end
+export load_demand_match_table!
+
+"""
+    load_demand_add_table!(config, data)
+
+Loads in `config[:demand_add_file]` into `data[:demand_add]`.
+
+See also [`summarize_demand_add_table()`](@ref), [`add_demand!(config, data)`](@ref), [`get_demand_add_table(data)`](@ref).
+"""
+function load_demand_add_table!(config, data)
+    demand_add_table = load_table(config[:demand_add_file])
+    force_table_types!(demand_add_table, :demand_add_table, summarize_demand_add_table())
+    force_table_types!(demand_add_table, :demand_add_table, ("h$n"=>Float64 for n in 2:get_num_hours(data))...)
+    data[:demand_add] = demand_add_table
+end
+export load_demand_add_table!
+
+"""
+    setup_demand!(config, data)
+
+Set up the demand table.
 
 Also calls the following:
 * [`shape_demand!(config, data)`](@ref) - scales hourly demanded power by an hourly demand profile by arbitrary region
 * [`match_demand!(config, data)`](@ref) - matches annual demanded energy by arbitrary region
 * [`add_demand!(config, data)`](@ref) - adds hourly demanded power by arbitrary region
 """
-function load_demand_table!(config, data)
-    @info "Loading the demand table from:  $(config[:demand_file])"
-
-    # load in the table and force its types
-    demand = load_table(config[:demand_file])
-    force_table_types!(demand, :demand, summarize_demand_table())
-
+function setup_demand!(config, data)
+    demand = get_demand_table(data)
     ar = [demand.pdem0[i] for i in 1:nrow(demand), j in 1:get_num_years(data), k in 1:get_num_hours(data)] # ndemand * nyr * nhr
-    data[:demand_table] = demand
     data[:demand_array] = ar
 
     # Grab views of the demand for the pd column of the bus table
@@ -38,9 +92,8 @@ function load_demand_table!(config, data)
     haskey(config, :demand_shape_file) && shape_demand!(config, data)
     haskey(config, :demand_match_file) && match_demand!(config, data)
     haskey(config, :demand_add_file)   && add_demand!(config, data)
-    return nothing
-end  
-export load_demand_table!
+end
+export setup_demand!
 
 """
     shape_demand!(config, data)
@@ -50,12 +103,10 @@ Shapes the hourly demand to match profiles given in `config[:demand_shape_file]`
 Demanded power often changes on an hourly basis. The `demand_shape_table` allows the user to provide hourly demand profiles with which to scale the base demanded power for demand regions, types, or even specific demand elements.  Each row of the table represents a set of load elements, and the hourly demand profile with which to scale them.  For demand elements that fall in multiple sets, the hourly load will be scaled by each profile, in order.
 """
 function shape_demand!(config, data)
-    demand_shape_table = load_table(config[:demand_shape_file])
+    demand_shape_table = data[:demand_shape]
     bus_table = get_bus_table(data)
-    force_table_types!(demand_shape_table, :demand_shape_table, summarize_demand_shape_table())
-    force_table_types!(demand_shape_table, :demand_shape_table, ("h$n"=>Float64 for n in 2:get_num_hours(data))...)
     demand_table = data[:demand_table]
-    demand_arr = data[:demand_array]
+    demand_arr = get_demand_array(data)
     
     # Grab the hour index for later use
     hr_idx = findfirst(s->s=="h1",names(demand_shape_table))
@@ -124,12 +175,10 @@ Match the yearly demand by area given in `config[:demand_match_file]`, updates t
 Often, we want to force the total energy demanded for a set of demand elements over a year to match load projections from a data source.  The `demand_match_table` allows the user to provide yearly energy demanded targets, in \$MWh\$, to match.  The matching weights each hourly demand by the number of hours spent at each of the representative hours, as provided in [`load_hours_table!`](@ref), converting from \$MW\$ power demanded over the representative hour, into \$MWh\$.
 """
 function match_demand!(config, data) 
-    demand_match_table = load_table(config[:demand_match_file])
+    demand_match_table = data[:demand_match]
     bus_table = get_bus_table(data)
-    force_table_types!(demand_match_table, :demand_match_table, summarize_demand_match_table())
-    force_table_types!(demand_match_table, :demand_match_table, (y=>Float64 for y in get_years(data))...)
     demand_table = data[:demand_table]
-    demand_arr = data[:demand_array]
+    demand_arr = get_demand_array(data)
 
     # Pull out year info that will be needed
     all_years = get_years(data)
@@ -190,12 +239,10 @@ Add demanded power in `config[:demand_add_file]` to demand elements after the an
 We may wish to provide additional demand after the match so that we can compare the difference.
 """
 function add_demand!(config, data)
-    demand_add_table = load_table(config[:demand_add_file])
+    demand_add_table = data[:demand_add]
     bus_table = get_bus_table(data)
-    force_table_types!(demand_add_table, :demand_add_table, summarize_demand_add_table())
-    force_table_types!(demand_add_table, :demand_add_table, ("h$n"=>Float64 for n in 2:get_num_hours(data))...)
     demand_table = data[:demand_table]
-    demand_arr = data[:demand_array]
+    demand_arr = get_demand_array(data)
 
     # Pull out year info that will be needed
     all_years = get_years(data)

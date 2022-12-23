@@ -2,15 +2,11 @@
     setup_model(config, data) -> model
 """
 function setup_model(config, data)
-    @info "# SETTING UP MODEL #############################################################################"
+    log_header("SETTING UP MODEL")
+
     optimizer_factory = getoptimizer(config)
     model = JuMP.Model(optimizer_factory)
-    @show optimizer_factory
 
-    # set_silent(model)
-    # set_optimizer_attribute(model, MOI.Silent(), true)
-
-    # TODO: setup basics of model
     setup_dcopf!(config, data, model)
 
     for mod in getmods(config)

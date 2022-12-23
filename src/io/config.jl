@@ -79,6 +79,8 @@ Starts logging according to `config[:logging]`.  Possible options for `config[:l
 * `"debug"` - logs `@debug`, `@info`, `@warning`, and `@error` messages to `config[:out_path]/E4ST.log`
 * `false` - no logging
 
+To log things, you can use `@info`, `@warn`, or `@debug` as defined in Logging.jl.  Or you can use a convenience method for logging a header, [`log_header`](@ref)
+
 To stop the logger and close its io stream, see [`stop_logging!(config)`](@ref)
 """
 function start_logging!(config)
@@ -142,6 +144,7 @@ Logs a 3-line header string by calling `@info` [`header_string(header)`](@ref)
 function log_header(header)
     @info header_string(header)
 end
+export log_header
 
 """
     header_string(header) -> s

@@ -3,31 +3,93 @@
 
 Pulls in data found in files listed in the `config`, and stores into `data`.
 
-For more information about the data to be found in each of the files, see the following functions:
-* [`load_bus_table!`](@ref)
-* [`load_gen_table!`](@ref)
-* [`load_branch_table!`](@ref)
-* [`load_hours_table!`](@ref)
-* [`load_af_table!`](@ref)
-* [`load_demand_table!`](@ref)
+Calls the following functions:
+* [`load_data_files!(config, data)`](@ref) - load in the data from files
+* [`modify_raw_data!(config, data)`](@ref) - Gives [`Modification`](@ref)s a chance to modify the raw data before the data gets setup.
+* [`setup_data!(config, data)`](@ref) - Sets up the data, modifying/adding to the tables as needed.
+* [`modify_setup_data!(config, data)`](@ref) - Gives [`Modification`](@ref)s a chance to modify the setup data before the model is built.
 """
 function load_data(config)
     log_header("LOADING DATA")
     data = OrderedDict{Symbol, Any}()
-
     data[:years] = config[:years]
 
-    # Load in tables
+    load_data_files!(config, data)
+    modify_raw_data!(config, data)
+    setup_data!(config, data)
+    modify_setup_data!(config, data)
+
+    return data
+end
+
+"""
+    load_data_files!(config, data)
+
+Loads in the data files presented in the `config`.  Calls the following functions:
+* [`load_bus_table!`](@ref) - from `config[:bus_file] -> data[:bus]`
+* [`load_branch_table!`](@ref) - from `config[:branch_file] -> data[:branch]`
+* [`load_gen_table!`](@ref) - from `config[:gen_file] -> data[:gen]`
+* [`load_hours_table!`](@ref) - from `config[:hours_file] -> data[:hours_table]`
+* [`load_voll!`](@ref) - from `config[:voll] -> data[:voll]`
+* [`load_af_table!`](@ref) - from `config[:af_file] -> data[:af_table]`
+* [`load_demand_table!(config, data)`](@ref) - from `config[:demand_file] -> data[:demand_table]`
+* [`load_demand_shape_table!(config, data)`](@ref)  - from `config[:demand_shape_file] -> data[:demand_shape_table]` (if `config[:demand_shape_file]` provided)
+* [`load_demand_match_table!(config, data)`](@ref)  - from `config[:demand_match_file] -> data[:demand_match_table]` (if `config[:demand_match_file]` provided)
+* [`load_demand_add_table!(config, data)`](@ref)  - from `config[:demand_add_file] -> data[:demand_add_table]` (if `config[:demand_add_file]` provided)
+"""
+function load_data_files!(config, data)
     load_bus_table!(config, data)
-    load_gen_table!(config, data)
     load_branch_table!(config, data)
+    load_gen_table!(config, data)
     load_hours_table!(config, data)
     load_voll!(config, data)
     load_af_table!(config, data)
     load_demand_table!(config, data)
-
-    return data
+    haskey(config, :demand_shape_file) && load_demand_shape_table!(config, data)
+    haskey(config, :demand_match_file) && load_demand_match_table!(config, data)
+    haskey(config, :demand_add_file) && load_demand_add_table!(config, data)
 end
+export load_data_files!
+
+"""
+    modify_raw_data!(config, data)
+
+Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_raw_data!(mod, config, data)`](@ref)
+"""
+function modify_raw_data!(config, data)    
+    for (sym, mod) in getmods(config)
+        modify_raw_data!(mod, config, data)
+    end
+    return nothing
+end
+
+"""
+    modify_setup_data!(config, data)
+
+Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_setup_data!(mod, config, data)`](@ref)
+"""
+function modify_setup_data!(config, data)    
+    for (sym, mod) in getmods(config)
+        modify_setup_data!(mod, config, data)
+    end
+    return nothing
+end
+
+"""
+    setup_data!(config, data)
+
+Sets up the data, modifying, adding to, or combining the tables as needed.
+"""
+function setup_data!(config, data)
+    setup_bus_table!(config, data)
+    setup_branch_table!(config, data)
+    setup_gen_table!(config, data)
+    setup_hours_table!(config, data)
+    setup_af!(config, data)
+    setup_demand!(config, data)
+end
+export setup_data!
+
 
 """
     load_gen_table!(config, data)
@@ -43,6 +105,15 @@ end
 export load_gen_table!
 
 """
+    setup_gen_table!(config, data)
+
+Sets up the generator table.
+"""
+function setup_gen_table!(config, data)
+end
+export setup_gen_table!
+
+"""
     load_bus_table!(config, data)
 
 Load the bus table from the `config[:bus_file]` into `data[:bus]`.  See [`summarize_bus_table()`](@ref).
@@ -53,11 +124,23 @@ function load_bus_table!(config, data)
     @info "Loading the bus table from:  $(config[:bus_file])"
     bus = load_table(config[:bus_file])
     force_table_types!(bus, :bus, summarize_bus_table())
-    bus.bus_idx = 1:nrow(bus)
     data[:bus] = bus
     return
 end
 export load_bus_table!
+
+"""
+    setup_bus_table!(config, data)
+
+Sets up the bus table.  
+* Makes a `:bus_idx` to track row numbers.
+"""
+function setup_bus_table!(config, data)
+    bus = get_bus_table(data)
+    bus.bus_idx = 1:nrow(bus)
+    return
+end
+export setup_bus_table!
 
 """
     load_branch_table!(config, data)
@@ -69,7 +152,18 @@ function load_branch_table!(config, data)
     branch = load_table(config[:branch_file])
     force_table_types!(branch, :branch, summarize_branch_table())
     data[:branch] = branch
+    return
+end
+export load_branch_table!
 
+"""
+    setup_branch_table!(config, data)
+
+Sets up the branch table.
+* Makes bus[:connected_branch_idxs] which contains a vector of the signed index of each branch leaving that bus. (`+` for `f_bus_idx`, `-` for `to_bus_idx`). 
+"""
+function setup_branch_table!(config, data)
+    branch = get_branch_table(data)
     bus = get_bus_table(data)
 
     # Add connected branches, connected buses.
@@ -80,10 +174,9 @@ function load_branch_table!(config, data)
         push!(bus[f_bus_idx, :connected_branch_idxs], br_idx)
         push!(bus[t_bus_idx, :connected_branch_idxs], -br_idx)
     end
-
     return
 end
-export load_branch_table!
+export setup_branch_table!
 
 """
     load_hours_table!(config, data)
@@ -96,39 +189,29 @@ function load_hours_table!(config, data)
     @info "Loading the hours table from:  $(config[:hours_file])"
     hours = load_table(config[:hours_file])
     force_table_types!(hours, :rep_time, summarize_hours_table())
-    if sum(hours.hours) != 8760
-        s = sum(hours.hours)
-        sf = 8760/s
-        @warn "hours column of hours table sums to $s, scaling by $sf to reach 8760 hours per year"
-        hours.hours .*= sf
-    end
     data[:hours] = hours
     return
 end
 export load_hours_table!
 
+"""
+    setup_hours_table!(config, data)
+
+Doesn't do anything yet.
+"""
+function setup_hours_table!(config, data)
+    return
+end
+export setup_hours_table!
+
 @doc raw"""
     load_af_table!(config, data)
 
-Load the hourly availability factors from `config[:af_file]` into `data[:af_table]`, if provided, and populates the `af` column of the `gen_table`.  
+Load the hourly availability factors from `config[:af_file]` into `data[:af_table]`, if provided. 
 
-Updates the generator table with the availability factors provided.  By default assigns an availability factor of `1.0` for every generator.  See [`summarize_af_table()`](@ref).
-
-Often, generators are unable to generate energy at their nameplate capacity over the course of any given representative hour.  This could depend on any number of things, such as how windy it is during a given representative hour, the time of year, the age of the generating unit, etc.  The ratio of available generation capacity to nameplate generation capacity is referred to as the availability factor (AF).
-
-The availability factor table includes availability factors for groups of generators specified by any combination of area, genfuel, gentype, year, and hour.
-
-```math
-P_{G_{g,h,y}} \leq f_{\text{avail}_{g,h,y}} \cdot P_{C{g,y}} \qquad \forall \{g \in \text{generators}, h \in \text{hours}, y \in \text{years} \}
-```
+See also [`summarize_af_table()`](@ref), [`setup_af!(config, data)`](@ref)
 """
 function load_af_table!(config, data)
-    # Fill in gen table with default af of 1.0 for every hour
-    gens = get_gen_table(data)
-    default_af = ByNothing(1.0)
-    default_hourly_af = fill(1.0, get_num_hours(data))
-    gens.af = Container[default_af for _ in 1:nrow(gens)]
-    
     # Return if there is no af_file
     if ~haskey(config, :af_file) 
         return
@@ -141,20 +224,47 @@ function load_af_table!(config, data)
     force_table_types!(df, :af, summarize_af_table())
     force_table_types!(df, :af, ("h$n"=>Float64 for n in 2:get_num_hours(data))...)
 
-    data[:af] = df
+    data[:af_table] = df
 
-    # Pull the availability factors in as a matrix
-    hr_idx = findfirst(s->s=="h1",names(df))
-    af_mat = Matrix(df[:, hr_idx:end])
-    if size(af_mat,2) != get_num_hours(data)
-        error("The number of representative hours given in :af_file=$(config[:af_file])  ($(size(af_mat,2))) is different than the hours in the time representation ($(get_num_hours(data))).")
+    return
+end
+export load_af_table!
+
+@doc raw"""
+    setup_af!(config, data)
+
+Populates the `af` column of the `gen_table`.  
+
+Updates the generator table with the availability factors provided.  By default assigns an availability factor of `1.0` for every generator.  See [`summarize_af_table()`](@ref).
+
+Often, generators are unable to generate energy at their nameplate capacity over the course of any given representative hour.  This could depend on any number of things, such as how windy it is during a given representative hour, the time of year, the age of the generating unit, etc.  The ratio of available generation capacity to nameplate generation capacity is referred to as the availability factor (AF).
+
+The availability factor table includes availability factors for groups of generators specified by any combination of area, genfuel, gentype, year, and hour.
+
+```math
+P_{G_{g,h,y}} \leq f_{\text{avail}_{g,h,y}} \cdot P_{C{g,y}} \qquad \forall \{g \in \text{generators}, h \in \text{hours}, y \in \text{years} \}
+```
+"""
+function setup_af!(config, data)
+    # Fill in gen table with default af of 1.0 for every hour
+    gens = get_gen_table(data)
+    default_af = ByNothing(1.0)
+    default_hourly_af = fill(1.0, get_num_hours(data))
+    gens.af = Container[default_af for _ in 1:nrow(gens)]
+    
+    # Return if there is no af_file
+    if ~haskey(data, :af_table) 
+        return
     end
 
+    af_table = data[:af_table]
+
+    hr_idx = findfirst(s->s=="h1",names(af_table))
     all_years = get_years(data)
     nyr = get_num_years(data)
 
-    for i = 1:nrow(df)
-        row = df[i, :]
+    for i = 1:nrow(af_table)
+        row = af_table[i, :]
         if get(row, :status, true) == false
             continue
         end
@@ -196,14 +306,14 @@ function load_af_table!(config, data)
 
         isempty(gens) && continue
         
-        af = [row[i_hr] for i_hr in hr_idx:ncol(df)]
+        af = [row[i_hr] for i_hr in hr_idx:ncol(af_table)]
         foreach(eachrow(gens)) do gen
             gen.af = set_hourly(gen.af, af, yr_idx; default=default_hourly_af, nyr)
         end
     end
     return data
 end
-export load_af_table!
+export setup_af!
 
 """
     load_voll!(config, data)
@@ -214,8 +324,9 @@ function load_voll!(config, data)
     default_voll = 5000.0;
     haskey(config, :voll) ? data[:voll] = config[:voll] : data[:voll] = default_voll
     hasmethod(Float64, Tuple{typeof(data[:voll])}) || error("data[:voll] cannot be converted to a Float64")
-    Float64.(data[:voll]) 
+    data[:voll] = Float64.(data[:voll]) 
 end
+export load_voll!
 
 # Helper Functions
 ################################################################################
@@ -264,22 +375,6 @@ function force_table_types!(df::DataFrame, name, summary::DataFrame; kwargs...)
         end
     end
 end
-
-"""
-    initialize_data!(config, data)
-
-Initializes the data with any necessary Modifications in the config, calling `initialize!(mod, config, data)`
-"""
-function initialize_data!(config, data)
-    log_header("INITIALIZING DATA")
-    
-    # Initialize Modifications
-    for (sym, mod) in getmods(config)
-        initialize!(mod, config, data)
-    end
-    return nothing
-end
-
 
 """
     scale_hourly!(demand_arr, shape, row_idx, yr_idx)
