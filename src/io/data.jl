@@ -12,7 +12,7 @@ Calls the following functions:
 function load_data(config)
     log_header("LOADING DATA")
 
-    # Load in the raw data
+    # Try loading the data directly
     if haskey(config, :data_file)
         @info "Loading data from $(config[:data_file])"
         data = deserialize(config[:data_file])

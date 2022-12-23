@@ -64,6 +64,8 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         :branch_file=>abspath(@__DIR__, "data/branch.csv"),
         :hours_file=>abspath(@__DIR__, "data/time.csv"),
         :years=>years(),
+        :save_data=>false,
+        :save_model_presolve=>false,
         :optimizer=>OrderedDict(
             :type=>"HiGHS",
         ),

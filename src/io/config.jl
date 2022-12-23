@@ -30,8 +30,10 @@ The Config File is a file that fully specifies all the necessary information.  N
 * `demand_shape_file` - a file for specifying the hourly shape of demand elements.  See [`load_demand_shape_table!`](@ref)
 * `demand_match_file` - a file for specifying annual demanded energy to match for sets  See [`load_demand_match_table!`](@ref)
 * `demand_add_file` - a file for specifying additional demanded energy, after matching.  See [`load_demand_add_table!`](@ref)
-* `save_data` - A boolean specifying whether or not to save the loaded data to file for later use (i.e. by specifying a `data_file` for future simulations)
+* `save_data` - A boolean specifying whether or not to save the loaded data to file for later use (i.e. by specifying a `data_file` for future simulations).  Defaults to `true`
 * `data_file` - The filepath (relative or absolute) to the data file (a serialized julia object).  If this is provided, it will use this instead of loading data from all the other files.
+* `save_model_presolve` - A boolean specifying whether or not to save the model before solving it, for later use (i.e. by specifying a `model_presolve_file` for future sims). Defaults to `true`
+* `model_presolve_file` - The filepath (relative or absolute) to the unsolved model.  If this is provided, it will use this instead of creating a new model.
 
 
 ## Example Config File
@@ -262,7 +264,8 @@ function make_paths_absolute!(config, filename;
         :demand_shape_file, 
         :demand_match_file, 
         :demand_add_file,
-        :data_file
+        :data_file,
+        :model_presolve_file
     )
 )
     path = dirname(filename)
