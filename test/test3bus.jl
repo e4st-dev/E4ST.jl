@@ -194,3 +194,20 @@ end
     config = load_config(config_file)
     test_dcopf(config)
 end
+
+@testset "Test loading/saving data from .jls file" begin
+    config = load_config(config_file)
+    config[:out_path] = "out/3bus1"
+    E4ST.make_out_path!(config)
+    data1 = load_data(config)
+
+    # Check that it is trying to load in the data file
+    config[:data_file] = "out/3bus1/blah.jls"
+    @test_throws Exception load_data(config)
+
+    # Check that data file is loaded in and identical.  Also check that other files aren't touched
+    config[:data_file] = "out/3bus1/data.jls"
+    config[:demand_file] = "blah.csv"
+    data2 = load_data(config)
+    @test data1 == data2
+end

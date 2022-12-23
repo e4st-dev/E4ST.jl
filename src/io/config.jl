@@ -27,6 +27,12 @@ The Config File is a file that fully specifies all the necessary information.  N
 
 ## Optional Fields:
 * `af_file` - The filepath (relative or absolute) to the availability factor table.  See [`load_af_table!`](@ref)
+* `demand_shape_file` - a file for specifying the hourly shape of demand elements.  See [`load_demand_shape_table!`](@ref)
+* `demand_match_file` - a file for specifying annual demanded energy to match for sets  See [`load_demand_match_table!`](@ref)
+* `demand_add_file` - a file for specifying additional demanded energy, after matching.  See [`load_demand_add_table!`](@ref)
+* `save_data` - A boolean specifying whether or not to save the loaded data to file for later use (i.e. by specifying a `data_file` for future simulations)
+* `data_file` - The filepath (relative or absolute) to the data file (a serialized julia object).  If this is provided, it will use this instead of loading data from all the other files.
+
 
 ## Example Config File
 ```yaml
@@ -244,7 +250,21 @@ Make all the paths in `config` absolute, corresponding to the keys given in `pat
 
 Relative paths are relative to the location of the config file at `filename`
 """
-function make_paths_absolute!(config, filename; path_keys = (:gen_file, :bus_file, :branch_file, :hours_file, :out_path, :af_file, :demand_file))
+function make_paths_absolute!(config, filename; 
+    path_keys = (
+        :gen_file, 
+        :bus_file, 
+        :branch_file, 
+        :hours_file, 
+        :out_path, 
+        :af_file, 
+        :demand_file,
+        :demand_shape_file, 
+        :demand_match_file, 
+        :demand_add_file,
+        :data_file
+    )
+)
     path = dirname(filename)
     for key in path_keys
         haskey(config, key) || continue
@@ -258,6 +278,7 @@ end
 
 function make_out_path!(config)
     out_path = config[:out_path]
+    @info "Making output path at $out_path"
     if isdir(out_path)
         # Check to see if we need to move the contents to backup
         isempty(readdir(out_path)) && return
@@ -266,9 +287,9 @@ function make_out_path!(config)
             backup_path = string(out_path, "_backup_", time_string())
         end
         mv(out_path, backup_path)
-    else
-        mkpath(config[:out_path])
+        @info "out_path already contains data, moving data from: \n$out_path\nto:\n$backup_path"
     end
+    mkpath(config[:out_path])
 end
 
 function convert_types!(config, sym::Symbol)
