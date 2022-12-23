@@ -1,5 +1,51 @@
 config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
 
+function test_dcopf(config)
+    data = load_data(config)
+    model = setup_model(config, data)
+    @test model isa JuMP.Model
+
+
+    # variables have been added to the objective 
+    @test haskey(data[:obj_vars], :fom)
+    @test haskey(data[:obj_vars], :fuel_cost)
+    @test haskey(data[:obj_vars], :vom)
+    @test haskey(data[:obj_vars], :capex)
+    @test haskey(data[:obj_vars], :curtailment_cost)
+    @test model[:obj] == sum(model[:curtailment_cost]) + sum(model[:fom]) + sum(model[:fuel_cost]) + sum(model[:vom]) + sum(model[:capex])
+
+    # the number of constraints matches expected
+    num_cons = 3*nrow(get_bus_table(data))*length(get_years(data))*nrow(get_hours_table(data))
+    num_cons += length(get_ref_bus_idxs(data))
+    num_cons += 2*nrow(get_gen_table(data))*length(get_years(data))*nrow(get_hours_table(data))
+    num_cons += 2*nrow(get_gen_table(data))*length(get_years(data))
+    num_cons += 2*nrow(get_branch_table(data))*length(get_years(data))*nrow(get_hours_table(data))
+    
+    @test num_constraints(model, count_variable_in_set_constraints = false) == num_cons
+
+    optimize!(model)
+    # solution_summary(model)
+
+    @test check(model)
+
+    # No curtailment (just for this test)
+    bus = get_bus_table(data)
+    years = get_years(data)
+    rep_hours = get_hours_table(data)
+    total_pserv = sum(rep_hours.hours[hour_idx].*value.(model[:pserv_bus][bus_idx, year_idx, hour_idx]) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
+    total_dl = sum(rep_hours.hours[hour_idx].*get_bus_value(data, :pdem, bus_idx, year_idx, hour_idx) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
+    @test total_pserv == total_dl
+    @test all(p->abs(p)<1e-6, value.(model[:pcurt_bus]))
+
+    # make sure energy generated is non_zero
+    gen = get_gen_table(data)
+
+    for gen_idx in 1:nrow(gen)
+        @test value.(get_egen_gen(data, model, gen_idx)) >= 0
+    end
+end
+
+
 @testset "Test Loading the Config File" begin
     @test load_config(config_file) isa AbstractDict    
 end
@@ -26,26 +72,28 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         @test isempty(config[:mods])
         data = load_data(config)
         data_0 = deepcopy(data)
-        initialize_data!(config, data)
+        modify_raw_data!(config, data)
         @test data == data_0
     end
 
     @testset "Test Initializing the Data with a mod" begin
-        struct DoubleLoad <: Modification end
-        function E4ST.initialize!(::DoubleLoad, config, data)
-            data[:bus][!, :pd] .*= 2
+        struct DoubleVOM <: Modification end
+        function E4ST.modify_raw_data!(::DoubleVOM, config, data)
+            data[:gen][!, :vom] .*= 2
+        end
+        function E4ST.modify_setup_data!(::DoubleVOM, config, data)
+            return
         end
         config = load_config(config_file)
-        push!(config[:mods], :testmod=>DoubleLoad())
+        data_0 = load_data(config)
+        push!(config[:mods], :testmod=>DoubleVOM())
         @test ~isempty(config[:mods])
         data = load_data(config)
-        data_0 = deepcopy(data)
-        initialize_data!(config, data)
         @test data != data_0
-        @test sum(data[:bus].pd) == 2*sum(data_0[:bus].pd)
+        @test sum(data[:gen].vom) == 2*sum(data_0[:gen].vom)
     end
 
-    @testset "Test load_af!" begin
+    @testset "Test load_af_table!" begin
         config = load_config(config_file)
         data = load_data(config)
 
@@ -70,13 +118,79 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         @test get_af(data, 2, 3, 3) == 0.6
         @test get_af(data, 2, 3, 4) == 0.5
     end
+
+    @testset "Test load_demand_table!" begin
+        config = load_config(config_file)
+        data = load_data(config)
+
+        # generator 1 is a natural gas plant, defaults to 1.0
+
+        # AF not specified for ng, should be default of 1.0
+        @test all(get_pdem(data, 1, yr_idx, hr_idx) ≈ 0.2 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
+        @test all(get_pdem(data, 2, yr_idx, hr_idx) ≈ 1.6 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
+        @test all(get_pdem(data, 3, yr_idx, hr_idx) ≈ 0.2 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
+    end
+
+    @testset "Test load_demand_table! with shaping" begin
+        config = load_config(config_file)
+        config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
+        data = load_data(config)
+        archenland_buses = findall(==("archenland"), data[:bus].country)
+        narnia_buses = findall(==("narnia"), data[:bus].country)
+        all_buses = 1:nrow(data[:bus])
+
+
+        # Check that narnian demanded power is different across years (look at the demand_shape.csv)
+        @testset "Test that bus $bus_idx demand is different across years $yr_idx and $(yr_idx+1)" for bus_idx in narnia_buses, yr_idx in 1:get_num_years(data)-1
+            @test ~all(get_pdem(data, 1, yr_idx, hr_idx) ≈ get_pdem(data, 1, yr_idx+1, hr_idx) for hr_idx in 1:get_num_hours(data))
+        end
+        
+        @testset "Test that bus $bus_idx demand is the same across years $yr_idx and $(yr_idx+1)" for bus_idx in archenland_buses, yr_idx in 1:get_num_years(data)-1
+            @test all(get_pdem(data, bus_idx, yr_idx, hr_idx) ≈ get_pdem(data, bus_idx, yr_idx+1, hr_idx) for hr_idx in 1:get_num_hours(data))
+        end
+        
+        # Check that each bus changes demand across hours
+        @testset "Test that bus $bus_idx demand is different across hours" for bus_idx in all_buses, yr_idx in 1:get_num_years(data)
+            @test any(get_pdem(data, bus_idx, yr_idx, 1) != get_pdem(data, bus_idx, yr_idx, hr_idx) for hr_idx in 1:get_num_hours(data))
+        end
+    end
+
+    @testset "Test load_demand_table! with shaping and matching" begin
+        config = load_config(config_file)
+        config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
+        config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
+        data = load_data(config)
+        archenland_buses = findall(==("archenland"), data[:bus].country)
+        narnia_buses = findall(==("narnia"), data[:bus].country)
+        all_buses = 1:nrow(data[:bus])
+
+        # The last row, the all-area match is enabled for 2030 and 2035
+        @test get_edem_demand(data, :, "y2030", :) ≈ 2.2
+        @test get_edem_demand(data, :, "y2035", :) ≈ 2.3
+
+        # In 2040, it should be equal to the naria (2.2) + the archenland match (0.22)
+        @test get_edem_demand(data, :, "y2040", :) ≈ 2.53
+
+        @testset for y in get_years(data)
+            @test get_edem_demand(data, :country=>"narnia", y, :)*10 ≈ get_edem_demand(data, :country=>"archenland", y, :)
+        end
+    end
+
+    @testset "Test load_demand_table! with shaping, matching and adding" begin
+        config = load_config(config_file)
+        config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
+        config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
+        config[:demand_add_file]   = abspath(@__DIR__, "data", "3bus","demand_add.csv")
+        data = load_data(config)
+
+
+        @test get_edem_demand(data, :, "y2030", :) ≈ 2.2
+        @test get_edem_demand(data, :, "y2035", :) ≈ 2.3
+        @test get_edem_demand(data, :, "y2040", :) ≈ 2.53 + 0.01*8760
+    end
 end
 
 @testset "Test Setting up the model" begin
     config = load_config(config_file)
-    data = load_data(config)
-    model = setup_model(config, data)
-    @test model isa JuMP.Model
-    optimize!(model)
-    @test_broken check(model)
+    test_dcopf(config)
 end

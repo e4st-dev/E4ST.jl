@@ -3,19 +3,78 @@
 
 Modification represents an abstract type for really anything that would make changes to a model.
 
-Modifications can implement the following two interfaces:
-* `initialize!(mod, config, data)` - initialize the data according to the `mod`, called in `initialize_data!`
-* `apply!(mod, config, data, model)` - apply the `mod` to the model, called in `setup_model`
-* `results!(mod, config, data, model, results)` - gather the results from the `mod` from the solved model, called in `parse_results`
+`Modification`s represent ways to modify the behavior of E4ST.  Some possible examples of `Modifications` (not necessarily implemented) include:
+* Scale the NG price for each year
+* Enforce a cap on carbon emissions in Colorado.
+* Adding a national CES with changing target and benchmark rate
+* Preventing the addition of new Nuclear Generation in PJM
+* Logging a custom calculated result to file
+* Plotting and saving a heat map of emissions by state as part of the results processing 
+* The sky is the limit!
+
+## Defining a `Modification`
+When defining a concrete `Modification` type, you should know the following.
+* Since Modifications are specified in a YAML config file, `Modification`s must be constructed with keyword arguments.  `Base.@kwdef` may come in handy here.
+* All `Modication`s are paired with a name in the config file.  That name is automatically passed in as a keyword argument to the `Modification` constructor if the type has a `name` field.  The `name` will be passed in as a `Symbol`.
+
+`Modification`'s can modify things in up to four places, with the default behavior of the methods being to make no changes:
+* In the data preparation step, right after [`load_data_files!(config, data)`](@ref) before setting up the data via [`modify_raw_data!(mod, config, data)`](@ref)
+* In the data preparation step, right after [`setup_data!(config, data)`](@ref) before setting up the `Model`` via [`modify_setup_data!(mod, config, data)`](@ref)
+* In the model setup step, after setting up the DC-OPF but before optimizing via [`apply!(mod, config, data, model)`](@ref)
+* After optimizing the model, in the results generation step via [`results!(mod, config, data, model, results)`](@ref)
+
+Modifications get printed to YAML when the config file is saved at the beginning of a call to `run_e4st`.  If you implement a Modification for which it is undesirable to print every field, you can implement the following interface:
+* [`fieldnames_for_yaml(::Type)`](@ref) - returns the desired fieldnames as a collection of `Symbol`s
+
+## Specifying a `Modification` in the config file YAML
+`Modifications` must be be specified in the config file.  They must have a type key, and keys for each other desired keyword argument in the constructor.
+
+## An Example
+
+Say we want to make a Modification to change the price of natural gas based on a table in a CSV file.
+
+```julia
+using E4ST, CSV, DataFrames
+struct UpdateNGPrice <: Modification
+    filename::String
+    prices::DataFrame
+end
+
+# Define kwarg constructor
+function UpdateNGPrice(; filename=nothing)
+    filename === nothing && error("Must provide UpdateNGPrice with a filename")
+    prices = CSV.read(filename, DataFrame)
+    return UpdateNGPrice(filename, prices)
+end
+
+# Make sure YAML doesn't try printing out the whole prices table
+function E4ST.fieldnames_for_yaml(::Type{UpdateNGPrice})
+    return (:filename,)
+end
+
+function E4ST.modify_raw_data!(mod::UpdateNGPrice, config, data)
+    # update the price of natural gas from mod.prices here
+end
+```
+
+Now, to add this to the `mods` list in the config file:
+```yaml
+mods:
+  ...                                   # other mods as needed
+  update_ng_price:                      # This is the name of the mod
+    type: UpdateNGPrice
+    filename: "C:/path/to/file.csv"
+  ...                                   # other mods as needed
+```
 """
 abstract type Modification end
 
 
 
 """
-    function Modification(d::OrderedDict)
+    Modification(p::Pair) -> mod
 
-Constructs a Modification of type `d[:type]` with keyword arguments for all the other key value pairs in `d`.
+Constructs a Modification from `p`, a `Pair` of `name=>d`.  The Modification is of type `d[:type]` with keyword arguments for all the other key value pairs in `d`.
 """
 function Modification(p::Pair)
     name, d = p
@@ -39,12 +98,21 @@ end
 
 
 """
-    initialize!(mod::Modification, config, data, model)
+    modify_raw_data!(mod::Modification, config, data, model)
 
-Initialize the data with `mod`.
+Change the raw data with `mod`.
 """
-function initialize!(mod::Modification, config, data)
-    @warn "No initialize! function defined for mod $sym: $mod, doing nothing"
+function modify_raw_data!(mod::Modification, config, data)
+    @warn "No modify_raw_data! function defined for mod $mod, doing nothing"
+end
+
+"""
+    modify_setup_data!(mod::Modification, config, data, model)
+
+Change the setup data with `mod`.
+"""
+function modify_setup_data!(mod::Modification, config, data)
+    @warn "No modify_setup_data! function defined for mod $mod, doing nothing"
 end
 
 
@@ -54,7 +122,7 @@ end
 Apply mod to the model, called in `setup_model`
 """
 function apply!(mod::Modification, config, data, model)
-    @warn "No apply! function defined for mod $sym: $mod, doing nothing"
+    @warn "No apply! function defined for mod $mod, doing nothing"
 end
 
 """
@@ -63,7 +131,7 @@ end
 Gather the results from `mod` from the solved model, called in `parse_results`
 """
 function results!(mod::Modification, config, data, model, results)
-    @warn "No results! function defined for mod $sym: $mod, doing nothing"
+    @warn "No results! function defined for mod $mod, doing nothing"
 end
 
 """

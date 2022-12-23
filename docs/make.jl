@@ -7,11 +7,28 @@ makedocs(
     pages = [
         "Home" => "index.md",
         "Inputs"=>Any[
-            "Config File" => "inputs/config.md"
+            "Config File" => "inputs/config.md",
+            "Bus Table" => "inputs/bus.md",
+            "Generator Table" => "inputs/gen.md",
+            "Branch Table" => "inputs/branch.md",
+            "Hours Table" => "inputs/hours.md",
+            "Demand" => "inputs/demand.md",
+            "Availability Factor Table" => "inputs/af.md",
+            "Logging" => "inputs/logging.md"
+        ],
+        "Types"=>Any[
+            "Modication"=>"types/mod.md"
+        ],
+        "Model"=>Any[
+            "DC Optimal Power Flow"=>"model/dcopf.md"
+            "Model Formulation"=>"model/formulation.md"
         ]
-    ]
+    ],
+    # TODO: Comment out format line before deploying, this is only for testing locally
+    format = Documenter.HTML(prettyurls = false)
 )
 
+# TODO: Uncomment below to deploy the docs to the github repo!
 # deploydocs(
 #     repo = "https://github.com/e4st-dev/E4ST.jl"
 # )

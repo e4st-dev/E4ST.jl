@@ -5,5 +5,7 @@ Manifest.toml
 /.benchmarkci
 /benchmark/*.json
 /benchmark/data
+/benchmark/*.md
+/benchmark/results
 *.log
 /test/out
