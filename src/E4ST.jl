@@ -57,18 +57,15 @@ function run_e4st(config)
     @info "Config saved to: $(config[:out])"
 
     data = load_data(config)
-    serialize(joinpath(config[:out_dir], "data.jls", data))
 
     iter = true
 
     while iter
         # Setup the model and save the results
         model = setup_model(config, data)
-        serialize(joinpath(config[:out_dir], "setup_model.jls", model))
 
         # Optimize and save
         optimize!(model)
-        serialize(joinpath(config[:out_dir], "solved_model.jls", model))
 
         check(model)
         results = parse_results(config, data, model)  
