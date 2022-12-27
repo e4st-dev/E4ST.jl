@@ -1,17 +1,20 @@
 Bus Table
 =========
 
-Table representing all existing buses (also sometimes referred to as nodes or subs/substations) to be modeled.  
+```@docs
+load_bus_table!
+setup_bus_table!
+summarize_bus_table
+```
 
-
-## Columns:
+#### Column Summary
 
 ```@example
 using E4ST # hide
-summarize_bus_table()
+summarize_bus_table() # hide
 ```
 
-## Additional Fields:
+#### Additional Columns:
 
 Depending on what you are doing with the model, you may require additional fields associated with buses.  These could be things like:
 * `latitude` and `longitude`

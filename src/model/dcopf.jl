@@ -92,7 +92,9 @@ function setup_dcopf!(config, data, model)
 
 
     ## Objective Function 
-    @expression(model, obj, 0)
+    @expression(model, obj, 0*model[:θ_bus][1,1,1]) 
+    # needed to be defined as an GenericAffExp instead of an Int64 so multiplied by an arbitrary var
+
 
     # This keeps track of the expressions added to the obj and their signs
     data[:obj_vars] = OrderedDict{Symbol, Any}()
@@ -330,10 +332,11 @@ Adds expression s (already defined in model) to the objective expression model[:
 Adds the name, oper, and type of the term to data[:obj_vars].
 """
 function add_obj_exp!(data, model, term::Term, s::Symbol; oper)
+    new_term = sum(model[s])
     if oper == + 
-        model[:obj] += sum(model[s])
+        add_to_expression!(model[:obj], new_term)
     elseif oper == -
-        model[:obj] -= sum(model[s])
+        add_to_expression!(model[:obj], -1, new_term)
     else
         Base.error("The entered operator isn't valid, oper must be + or -")
     end

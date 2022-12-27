@@ -30,3 +30,52 @@ config = load_config(filename)
     @test attrib.primal_feasibility_tolerance == 1e-7 # From default, not in the config file
     @test Model(E4ST.getoptimizer(config)) isa JuMP.Model
 end
+
+@testset "Test Logging" begin
+    log_file = abspath(config[:out_path], "E4ST.log")
+    
+    isfile(log_file) && rm(log_file, force=true)
+
+    @test ~isfile(log_file)
+
+
+    ## Normal Mode
+    # See if logging sets up the log file
+    start_logging!(config)
+    @info "info!!!"
+    @debug "debug!!!" # SHOULD NOT LOG BY DEFAULT
+    @warn "warning!!!"
+    @test isfile(log_file)
+    
+    stop_logging!(config)
+    @test length(readlines(log_file)) == 4
+
+    ## Debug Mode
+    config[:logging] = "debug"
+    start_logging!(config)
+    @info "info!!!"
+    @debug "debug!!!" # SHOULD LOG
+    @warn "warning!!!"
+    @test isfile(log_file)
+    
+    stop_logging!(config)
+    @test length(readlines(log_file)) == 6
+
+    # Logging off
+    rm(log_file, force=true)
+    config[:logging] = false
+    start_logging!(config)
+    @info "info!!!"
+    @debug "debug!!!"
+    @warn "warning!!!"
+    stop_logging!(config)
+    @test ~isfile(log_file)
+
+    # Log the info
+    config[:logging] = true
+    start_logging!(config)
+    log_info(config)
+    stop_logging!(config)
+    @test length(readlines(log_file)) > 6
+
+end
