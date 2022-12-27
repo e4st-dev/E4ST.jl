@@ -58,6 +58,8 @@ function run_e4st(config)
     data = load_data(config)
     initialize_data!(config, data) # or something, could also live inside load_data
 
+    setup_new_gens!(config, data)
+
     iter = true
 
     while iter

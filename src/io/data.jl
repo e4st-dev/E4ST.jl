@@ -358,6 +358,7 @@ function force_table_types!(df::DataFrame, name, pairs...; optional=false)
         df[!, col] = T.(df[!,col])
     end
 end
+export force_table_types!
 
 function force_table_types!(df::DataFrame, name, summary::DataFrame; kwargs...) 
     for row in eachrow(summary)
