@@ -685,13 +685,24 @@ export get_af_table
 
 
 """
-    get_newgen_char_table(data) -> 
+    get_newgen_char_table(data) -> newgen_char table
 
 Returns table of newgen characteristics. 
 """
 function get_newgen_char_table(data)
     return data[:newgen_char]::DataFrame
 end
+export get_newgen_char_table
+
+"""
+    get_newgen_table(data) -> newgen table
+
+Returns the newgen table from data.
+"""
+function get_newgen_table(data)
+    return data[:newgen]::DataFrame
+end
+export get_newgen_table
 
 
 

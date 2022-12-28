@@ -11,7 +11,8 @@ function setup_new_gens!(config, data)
     
     characterize_newgen!(config, data)
 
-    append_newgen_table!(data)
+    append_newgen_table!(data) # after this, all mods should apply to the gen table, should we delete data[:newgen] so that it doesn't get confusing if gen is modified but not newgen? 
+
 end
 
 
@@ -38,10 +39,11 @@ function make_newgen_table!(config, data)
             newgen_row[:bus_idx] = bus_idx
             newgen_row[:gentype] = gentype
             newgen_row[:genfuel] = genfuel
-            push!(data[:newgen], newgen_row)
+            # newgen_row[:build_status] = "new"
+            push!(newgen, newgen_row)
         end
     end
-    
+    data[:newgen] = newgen
 end
 
 """
@@ -51,7 +53,12 @@ Assigns new generator characteristics (fuel cost, emis rate, etc) to gens in the
 """
 function characterize_newgen!(config, data)
     newgen_char_table = get_newgen_char_table(data)
-    
+    newgen = get_newgen_table(data)
+    for char_idx in 1:nrow(newgen_char_table)
+        newgen_idx = get_filtered_idx(newgen_char_table, char_idx, newgen)
+        update_gen_chars!(newgen_char_table, char_idx, newgen, newgen_idx)
+    end
+    data[:newgen] = newgen
 end
 
 
@@ -91,4 +98,25 @@ Makes a DataFrameRow for the newgen table with default values for all the column
 function make_newgen_row(data, newgen_table)
     # maybe use sumamrize_gen_table() but would have to add default values in there somewhere
     # need to store default values somewhere, they don't have to be meaningful
+end
+
+
+#TODO: find a better place for this function to live, it's too general for here
+"""
+    get_filtered_idx(info_table, info_idx, data_table) -> 
+
+Returns the idxs from data_table which meet the filtering parameters from info_table.
+"""
+function get_filtered_idx(info_table, info_idx, data_table)
+    
+end
+export get_filtered_idx
+
+"""
+    update_gen_chars!(info_table, info_idx, gen_table, gen_idx) ->
+    
+Updates characterisitcs in gen_table for gen_idx from characteristics in info_table at info_idx. 
+"""
+function update_gen_chars!(info_table, info_idx, gen_table, gen_idx)
+    
 end
