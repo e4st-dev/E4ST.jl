@@ -36,6 +36,7 @@ Loads in the data files presented in the `config`.  Calls the following function
 * [`load_demand_shape_table!(config, data)`](@ref)  - from `config[:demand_shape_file] -> data[:demand_shape_table]` (if `config[:demand_shape_file]` provided)
 * [`load_demand_match_table!(config, data)`](@ref)  - from `config[:demand_match_file] -> data[:demand_match_table]` (if `config[:demand_match_file]` provided)
 * [`load_demand_add_table!(config, data)`](@ref)  - from `config[:demand_add_file] -> data[:demand_add_table]` (if `config[:demand_add_file]` provided)
+* [`load_newgen_char_table!(config, data)`](@ref)  - from `config[:newgen_char_file] -> data[:newgen_char_table]`
 """
 function load_data_files!(config, data)
     load_bus_table!(config, data)
@@ -48,6 +49,7 @@ function load_data_files!(config, data)
     haskey(config, :demand_shape_file) && load_demand_shape_table!(config, data)
     haskey(config, :demand_match_file) && load_demand_match_table!(config, data)
     haskey(config, :demand_add_file) && load_demand_add_table!(config, data)
+    load_newgen_char_table!(config, data)
 end
 export load_data_files!
 
@@ -87,6 +89,7 @@ function setup_data!(config, data)
     setup_hours_table!(config, data)
     setup_af!(config, data)
     setup_demand!(config, data)
+    setup_newgen_char_table!(config, data)
 end
 export setup_data!
 
@@ -104,6 +107,7 @@ function load_gen_table!(config, data)
 end
 export load_gen_table!
 
+
 """
     setup_gen_table!(config, data)
 
@@ -112,6 +116,28 @@ Sets up the generator table.
 function setup_gen_table!(config, data)
 end
 export setup_gen_table!
+
+"""
+    load_newgen_char_table!(config, data)
+
+Load the new generator characteristics table from the `config[:newgen_char_file]`.  See [`summarize_newgen_char_table()`](@ref).
+"""
+function load_newgen_char_table!(config, data)
+    newgen_char = load_table(config[:newgen_char_file])
+    force_table_types!(newgen_char, :newgen_char, summarize_newgen_char_table())
+    data[:newgen_char] = newgen_char
+    return
+end
+export load_newgen_char_table!
+
+"""
+    setup_newgen_char_table!(config, data)
+
+Sets up the new generator characteristics table.
+"""
+function setup_newgen_char_table!(config, data)
+end
+export setup_newgen_char_table!
 
 """
     load_bus_table!(config, data)
@@ -562,6 +588,28 @@ function summarize_af_table()
 end
 export summarize_af_table
 
+
+"""
+    summarize_newgen_char_table() -> summary
+"""
+function summarize_newgen_char_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    push!(df, 
+        #TODO: not sure if I will need area and subarea
+        #(:area, String, "n/a", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        #(:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:genfuel, String, "n/a", true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
+        (:gentype, String, "n/a", true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
+        (:status, Bool, "n/a", false, "Whether or not to use this set of characteristics"),
+        (:vom, Float64, "\$/MWh", true, "Variable operation and maintenance cost per MWh of generation"),
+        (:fuel_cost, Float64, "\$/MWh", false, "Fuel cost per MWh of generation"),
+        (:fom, Float64, "\$/MW", true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
+        (:capex, Float64, "\$/MW", false, "Hourly capital expenditures for a MW of generation capacity"),
+    )
+    return df
+end
+export summarize_newgen_char_table
+
 # Accessor Functions
 ################################################################################
 
@@ -634,6 +682,16 @@ function get_af_table(data)
     return data[:af_table]::DataFrame
 end
 export get_af_table
+
+
+"""
+    get_newgen_char_table(data) -> 
+
+Returns table of newgen characteristics. 
+"""
+function get_newgen_char_table(data)
+    return data[:newgen_char]::DataFrame
+end
 
 
 

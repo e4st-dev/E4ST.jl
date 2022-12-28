@@ -22,13 +22,13 @@ Create newgen table with zero cap gens at buildable buses. Structure mirrors the
 """
 function make_newgen_table!(config, data)
     #create table with same columns as gen
-    gen_col_names = names(data[:gen])
+    gen_col_names = names(get_gen_table(data))
     newgen = DataFrame([name => [] for name in gen_col_names])
     force_table_types!(newgen, :newgen, summarize_gen_table())
 
     #for each bus, add rows to newgen for each type of buildable gen
     build_gentypes = get_build_gentypes(config, data)
-    bus = data[:bus]
+    bus = get_bus_table(data)
     for gentype in build_gentypes
         colname = Symbol("build"*gentype)
         gentype_bus_idxs = findall(1, bus[colname])
@@ -50,6 +50,7 @@ end
 Assigns new generator characteristics (fuel cost, emis rate, etc) to gens in the newgen table. 
 """
 function characterize_newgen!(config, data)
+    newgen_char_table = get_newgen_char_table(data)
     
 end
 
