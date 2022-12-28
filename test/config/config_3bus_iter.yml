@@ -6,7 +6,7 @@ hours_file:  "../data/3bus/hours.csv"
 af_file:     "../data/3bus/af.csv"
 demand_file: "../data/3bus/demand.csv"
 logging:     false
-voll: 5000000
+voll: 100    # Set a bit lower to allow curtailment due to ng fuel price
 years:
   - y2030
   - y2035
@@ -17,3 +17,7 @@ optimizer:
   log_file: HiGHS.log
   solver: ipm
 mods:
+iter:
+  type:   "TargetAvgAnnualNGGen"
+  target: 0       # MWh.  First iteration on fuel_price will be 8560 MWh/year.  Set to zero because this example is so small that NG is pretty much all or nothing
+  tol:    100     # MWh

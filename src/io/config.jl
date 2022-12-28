@@ -43,7 +43,8 @@ function load_config(filename)
     check_required_fields!(config)
     make_paths_absolute!(config, filename)
     make_out_path!(config)
-    convert_types!(config, :mods)
+    convert_mods!(config)
+    convert_iter!(config)
     return config
 end
 
@@ -271,11 +272,17 @@ function make_out_path!(config)
     end
 end
 
-function convert_types!(config, sym::Symbol)
-    if isnothing(config[sym])
-        config[sym] = OrderedDict{Symbol, Modification}()
+function convert_mods!(config)
+    if ~haskey(config, :mods) || isnothing(config[:mods])
+        config[:mods] = OrderedDict{Symbol, Modification}()
         return
     end
-    config[sym] = OrderedDict(key=>Modification(key=>val) for (key,val) in config[sym])
+    config[:mods] = OrderedDict(key=>Modification(key=>val) for (key,val) in config[:mods])
+    return
+end
+
+function convert_iter!(config)
+    haskey(config, :iter) || return
+    config[:iter] = Iterable(config[:iter])
     return
 end

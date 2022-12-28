@@ -572,6 +572,9 @@ Returns gen data table
 function get_gen_table(data) 
     return data[:gen]::DataFrame
 end
+function get_gen_table(data, args...)
+    return filter_view(get_gen_table(data), args...)
+end
 
 """
     get_branch_table(data)
@@ -581,6 +584,9 @@ Returns table of the transmission lines (branches) from data.
 function get_branch_table(data) 
     return data[:branch]::DataFrame
 end
+function get_branch_table(data, args...)
+    return filter_view(get_branch_table(data), args...)
+end
 
 """
     get_bus_table(data)
@@ -589,6 +595,9 @@ Returns the bus data table
 """
 function get_bus_table(data)
     data[:bus]::DataFrame
+end
+function get_bus_table(data, args...)
+    return filter_view(get_bus_table(data), args...)
 end
 
 """
@@ -610,7 +619,7 @@ function get_demand_table(data)
     return data[:demand_table]::DataFrame
 end
 function get_demand_table(data, args...)
-    return filter_view_table(get_demand_table(data), args...)
+    return filter_view(get_demand_table(data), args...)
 end
 export get_demand_table
 
@@ -842,7 +851,7 @@ end
 Returns the number of hours in a year spent at the `hour_idx` representative hour
 """
 function get_hour_weight(data, hour_idx::Int64)
-    return get_hour_weights(data)[hour_idx, :hours]
+    return get_hour_weights(data)[hour_idx]
 end
 export get_num_hours, get_hour_weights, get_hour_weight
 
@@ -873,7 +882,7 @@ export get_num_years, get_years
 
 Return a `SubDataFrame` containing each row of `table` such that for each `(field,value)` pair in `pairs`, `row.field==value`.
 """
-function filter_view_table(table::DataFrame, pairs::Pair...)
+function filter_view(table::DataFrame, pairs::Pair...)
     v = view(table,:,:)
     for (field, value) in pairs
         field isa AbstractString && isempty(field) && continue
@@ -881,9 +890,9 @@ function filter_view_table(table::DataFrame, pairs::Pair...)
         v = filter(field=>==(value), v, view=true)
         isempty(v) && break
     end
-    return v
+    return v::SubDataFrame
 end
-function filter_view_table(table::DataFrame, pairs)
+function filter_view(table::DataFrame, pairs)
     v = view(table,:,:)
     for (field, value) in pairs
         field isa AbstractString && isempty(field) && continue
@@ -891,7 +900,7 @@ function filter_view_table(table::DataFrame, pairs)
         v = filter(field=>==(value), v, view=true)
         isempty(v) && break
     end
-    return v
+    return v::SubDataFrame
 end
 
 # Containers
