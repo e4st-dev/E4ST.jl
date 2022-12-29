@@ -27,6 +27,7 @@ The Config File is a file that fully specifies all the necessary information.  N
 
 ## Optional Fields:
 * `af_file` - The filepath (relative or absolute) to the availability factor table.  See [`load_af_table!`](@ref)
+* `iter` - The [`Iterable`](@ref) object to specify the way the sim should iterate.  If nothing specified, defaults to run a single time.  Specify the `Iterable` type, and all keyword arguments.
 
 ## Example Config File
 ```yaml
