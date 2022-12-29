@@ -223,7 +223,7 @@ end
             
             diff = ng_gen_ann - tgt
             gen = get_gen_table(data, :genfuel=>"ng")
-            ng_price_avg = mean(gen.fuel_cost)
+            ng_price_avg = sum(gen.fuel_cost)/length(gen.fuel_cost)
             if any(≈(ng_gen_ann), iter.avg_ng_egen)
                 idx = findfirst(≈(ng_gen_ann), iter.avg_ng_egen)
                 iter.avg_ng_prices[idx] = ng_price_avg
