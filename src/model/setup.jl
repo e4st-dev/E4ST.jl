@@ -104,6 +104,7 @@ function get_model_val_by_gen(data, model, name::Symbol, idxs = :, year_idxs = :
 
     _idxs, _year_idxs, _hour_idxs = get_gen_idxs(data, idxs, year_idxs, hour_idxs)
     v = _view_model(model, name, _idxs, _year_idxs, _hour_idxs)
+    isempty(v) && return 0.0
     return sum(value, v)
 end
 export get_model_val_by_gen
@@ -134,7 +135,7 @@ function get_year_idxs(data, year_idxs::Int64)
     year_idxs
 end
 function get_year_idxs(data, year_idxs::AbstractString)
-    return findfirst(==(y), get_years(data))
+    return findfirst(==(year_idxs), get_years(data))
 end
 function get_year_idxs(data, year_idxs::AbstractVector{<:AbstractString})
     yrs = get_years(data)
@@ -170,7 +171,7 @@ function table_rows(table, pairs)
     row_idxs = Int64[i for i in 1:nrow(table)]
     for pair in pairs
         key, val = pair
-        v = table[key, !]
+        v = table[!,key]
         comp = ==(val)
         filter!(row_idx->comp(v[row_idx]), row_idxs)
     end
