@@ -18,10 +18,10 @@ When defining a concrete `Modification` type, you should know the following.
 * All `Modication`s are paired with a name in the config file.  That name is automatically passed in as a keyword argument to the `Modification` constructor if the type has a `name` field.  The `name` will be passed in as a `Symbol`.
 
 `Modification`'s can modify things in up to four places, with the default behavior of the methods being to make no changes:
-* In the data preparation step, right after [`load_data_files!(config, data)`](@ref) before setting up the data via [`modify_raw_data!(mod, config, data)`](@ref)
-* In the data preparation step, right after [`setup_data!(config, data)`](@ref) before setting up the `Model`` via [`modify_setup_data!(mod, config, data)`](@ref)
-* In the model setup step, after setting up the DC-OPF but before optimizing via [`apply!(mod, config, data, model)`](@ref)
-* After optimizing the model, in the results generation step via [`results!(mod, config, data, model, results)`](@ref)
+* [`modify_raw_data!(mod, config, data)`](@ref) - In the data preparation step, right after [`load_data_files!(config, data)`](@ref) before setting up the data
+* [`modify_setup_data!(mod, config, data)`](@ref) - In the data preparation step, right after [`setup_data!(config, data)`](@ref) before setting up the `Model`
+* [`apply!(mod, config, data, model)`](@ref) - In the model setup step, after setting up the DC-OPF but before optimizing
+* [`results!(mod, config, data, model, results)`](@ref) - After optimizing the model, in the results generation step
 
 Modifications get printed to YAML when the config file is saved at the beginning of a call to `run_e4st`.  If you implement a Modification for which it is undesirable to print every field, you can implement the following interface:
 * [`fieldnames_for_yaml(::Type)`](@ref) - returns the desired fieldnames as a collection of `Symbol`s
