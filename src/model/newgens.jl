@@ -7,21 +7,25 @@ Creates new generators with zero capacity. Location is determined by build___ co
 """
 function setup_new_gens!(config, data)
 
-    make_newgen_table!(config, data)
+    newgen = make_newgen_table(config, data)
     
-    characterize_newgen!(config, data)
+    # TODO: pass in newgen to these functions
+    characterize_newgen!(config, data, newgen)
 
-    append_newgen_table!(data) # after this, all mods should apply to the gen table, should we delete data[:newgen] so that it doesn't get confusing if gen is modified but not newgen? 
+    add_exogenous_gens!(config, data, newgen)
+
+    append_newgen_table!(data, newgen)
+    # TODO: newgen shouldn't be a part of data
 
 end
 
 
 """
-    make_newgen_table!(config, data) -> 
+    make_newgen_table(config, data) -> 
     
 Create newgen table with zero cap gens at buildable buses. Structure mirrors the existing gen table.
 """
-function make_newgen_table!(config, data)
+function make_newgen_table(config, data)
     #create table with same columns as gen
     gen_col_names = names(get_gen_table(data))
     newgen = DataFrame([name => [] for name in gen_col_names])
@@ -43,32 +47,30 @@ function make_newgen_table!(config, data)
             push!(newgen, newgen_row)
         end
     end
-    data[:newgen] = newgen
+    return newgen
 end
 
 """
-    characterize_newgen!(config, data) -> 
+    characterize_newgen!(config, data, newgen) -> 
 
-Assigns new generator characteristics (fuel cost, emis rate, etc) to gens in the newgen table. 
+Assigns new generator characteristics/specs (fuel cost, emis rate, etc) to gens in the newgen table. 
 """
-function characterize_newgen!(config, data)
-    newgen_char_table = get_newgen_char_table(data)
-    newgen = get_newgen_table(data)
-    for char_idx in 1:nrow(newgen_char_table)
-        newgen_idx = get_filtered_idx(newgen_char_table, char_idx, newgen)
-        update_gen_chars!(newgen_char_table, char_idx, newgen, newgen_idx)
+function characterize_newgen!(config, data, newgen)
+    build_gen = get_build_gen_table(data)
+    for spec_idx in 1:nrow(build_gen)
+        newgen_idx = get_filtered_idx(build_gen, spec_idx, newgen)
+        update_gen_spec!(build_gen, spec_idx, newgen, newgen_idx)
     end
-    data[:newgen] = newgen
 end
 
 
 """
-    append_newgen_table!(data) -> 
+    append_newgen_table!(data, newgen) -> 
 
 Appends the newgen table to the gen table. 
 """
-function append_newgen_table!(data)
-    
+function append_newgen_table!(data, newgen)
+    append!(data[:gen], newgen)
 end
 
 
@@ -86,20 +88,36 @@ end
 
 Returns the corresponding genfuel for the given gentype. 
 """
-function get_genfuel(data, gentype)
-    
+function get_genfuel(data, gentype::String)
+    genfuel_table = get_genfuel_table(data) #TODO: update data to load in genfuel table
+    genfuel = genfuel_table.genfuel[findall(x -> x == gentype, genfuel_table[!, :gentype])]
+    genfuel == String[] && error("There is no corresponding genfuel for this gentype")
+    return genfuel
 end
 
 """
-    make_newgen_row(data, newgen_table) -> 
+    make_newgen_row(data, newgen) -> 
 
 Makes a DataFrameRow for the newgen table with default values for all the columns
 """
-function make_newgen_row(data, newgen_table)
+function make_newgen_row(data, newgen)
     # maybe use sumamrize_gen_table() but would have to add default values in there somewhere
     # need to store default values somewhere, they don't have to be meaningful
+    newgen_col_names = name(newgen)
+    newgenrow = DataFrameRow([name => [] for name in newgen_col_names])
+    force_table_types!(newgenrow, :newgenrow, summarize_gen_table())
+    #TODO: add the default or missing values to newgenrow[1,:]
+
 end
 
+"""
+    update_gen_specs!(info_table, info_idx, gen_table, gen_idx) ->
+    
+Updates characterisitcs/specs in gen_table for gen_idx from characteristics in info_table at info_idx. 
+"""
+function update_gen_specs!(info_table, info_idx, gen_table, gen_idx)
+    
+end
 
 #TODO: find a better place for this function to live, it's too general for here
 """
@@ -112,11 +130,3 @@ function get_filtered_idx(info_table, info_idx, data_table)
 end
 export get_filtered_idx
 
-"""
-    update_gen_chars!(info_table, info_idx, gen_table, gen_idx) ->
-    
-Updates characterisitcs in gen_table for gen_idx from characteristics in info_table at info_idx. 
-"""
-function update_gen_chars!(info_table, info_idx, gen_table, gen_idx)
-    
-end

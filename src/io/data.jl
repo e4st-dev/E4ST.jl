@@ -36,7 +36,8 @@ Loads in the data files presented in the `config`.  Calls the following function
 * [`load_demand_shape_table!(config, data)`](@ref)  - from `config[:demand_shape_file] -> data[:demand_shape_table]` (if `config[:demand_shape_file]` provided)
 * [`load_demand_match_table!(config, data)`](@ref)  - from `config[:demand_match_file] -> data[:demand_match_table]` (if `config[:demand_match_file]` provided)
 * [`load_demand_add_table!(config, data)`](@ref)  - from `config[:demand_add_file] -> data[:demand_add_table]` (if `config[:demand_add_file]` provided)
-* [`load_newgen_char_table!(config, data)`](@ref)  - from `config[:newgen_char_file] -> data[:newgen_char_table]`
+* [`load_build_gen_table!(config, data)`](@ref)  - from `config[:build_gen_file] -> data[:build_gen]`
+* [`load_genfuel_table!(config, data)`](@ref)  - from `config[:genfuel_gentype_file] -> data[:genfuel_table]`
 """
 function load_data_files!(config, data)
     load_bus_table!(config, data)
@@ -49,7 +50,8 @@ function load_data_files!(config, data)
     haskey(config, :demand_shape_file) && load_demand_shape_table!(config, data)
     haskey(config, :demand_match_file) && load_demand_match_table!(config, data)
     haskey(config, :demand_add_file) && load_demand_add_table!(config, data)
-    load_newgen_char_table!(config, data)
+    load_build_gen_table!(config, data)
+    load_genfuel_table!(config, data)
 end
 export load_data_files!
 
@@ -89,7 +91,8 @@ function setup_data!(config, data)
     setup_hours_table!(config, data)
     setup_af!(config, data)
     setup_demand!(config, data)
-    setup_newgen_char_table!(config, data)
+    setup_build_gen_table!(config, data)
+    setup_genfuel_table!(config, data)
 end
 export setup_data!
 
@@ -118,26 +121,26 @@ end
 export setup_gen_table!
 
 """
-    load_newgen_char_table!(config, data)
+    load_build_gen_table!(config, data)
 
-Load the new generator characteristics table from the `config[:newgen_char_file]`.  See [`summarize_newgen_char_table()`](@ref).
+Load the new generator characteristics/specs table from the `config[:build_gen_file]`.  See [`summarize_build_gen_table()`](@ref).
 """
-function load_newgen_char_table!(config, data)
-    newgen_char = load_table(config[:newgen_char_file])
-    force_table_types!(newgen_char, :newgen_char, summarize_newgen_char_table())
-    data[:newgen_char] = newgen_char
+function load_build_gen_table!(config, data)
+    build_gen = load_table(config[:build_gen_file])
+    force_table_types!(build_gen, :build_gen, summarize_build_gen_table())
+    data[:build_gen] = build_gen
     return
 end
-export load_newgen_char_table!
+export load_build_gen_table!
 
 """
-    setup_newgen_char_table!(config, data)
+    setup_build_gen_table!(config, data)
 
-Sets up the new generator characteristics table.
+Sets up the new generator characteristics/specs table.
 """
-function setup_newgen_char_table!(config, data)
+function setup_build_gen_table!(config, data)
 end
-export setup_newgen_char_table!
+export setup_build_gen_table!
 
 """
     load_bus_table!(config, data)
@@ -340,6 +343,31 @@ function setup_af!(config, data)
     return data
 end
 export setup_af!
+
+
+"""
+    load_genfuel_table!(config, data) -> data[:genfuel_table]
+
+Loads in the genfuel table which contains gentypes and their corresponding genfuel.
+"""
+function load_genfuel_table!(config, data)
+    @info "Loading the genfuel table from:  $(config[:genfuel_gentype_file])"
+    genfuel = load_table(config[:genfuel_gentype_file])
+    force_table_types!(genfuel, :genfuel, summarize_genfuel_table())
+    data[:genfuel_table] = genfuel
+    return
+end
+export load_genfuel_table!
+
+"""
+    setup_genfuel_table!(config, data) -> data[:genfuel_table]
+
+Sets up the genfuel table. (currently doesn't change anything)
+"""
+function setup_genfuel_table!(config, data)
+    
+end
+
 
 """
     load_voll!(config, data)
@@ -590,9 +618,9 @@ export summarize_af_table
 
 
 """
-    summarize_newgen_char_table() -> summary
+    summarize_build_gen_table() -> summary
 """
-function summarize_newgen_char_table()
+function summarize_build_gen_table()
     df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
     push!(df, 
         #TODO: not sure if I will need area and subarea
@@ -600,7 +628,7 @@ function summarize_newgen_char_table()
         #(:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:genfuel, String, "n/a", true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
         (:gentype, String, "n/a", true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
-        (:status, Bool, "n/a", false, "Whether or not to use this set of characteristics"),
+        (:status, Bool, "n/a", false, "Whether or not to use this set of characteristics/specs"),
         (:vom, Float64, "\$/MWh", true, "Variable operation and maintenance cost per MWh of generation"),
         (:fuel_cost, Float64, "\$/MWh", false, "Fuel cost per MWh of generation"),
         (:fom, Float64, "\$/MW", true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
@@ -608,7 +636,19 @@ function summarize_newgen_char_table()
     )
     return df
 end
-export summarize_newgen_char_table
+export summarize_build_gen_table
+
+"""
+    summarize_genfuel_table() -> 
+"""
+function summarize_genfuel_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    push!(df, 
+        (:gentype, String, "n/a", true, "The generator type (ie. ngcc, dist_solar, os_wind)"),
+        (:genfuel, String, "n/a", true, "The corresponding generator fuel or renewable type (ie. ng, solar, wind)"),
+    )
+    return df
+end
 
 # Accessor Functions
 ################################################################################
@@ -685,24 +725,21 @@ export get_af_table
 
 
 """
-    get_newgen_char_table(data) -> newgen_char table
+    get_build_gen_table(data) -> build_gen table
 
-Returns table of newgen characteristics. 
+Returns table of newgen characteristics/specs. 
 """
-function get_newgen_char_table(data)
-    return data[:newgen_char]::DataFrame
+function get_build_gen_table(data)
+    return data[:build_gen]::DataFrame
 end
-export get_newgen_char_table
+export get_build_gen_table
 
 """
-    get_newgen_table(data) -> newgen table
-
-Returns the newgen table from data.
+    get_genfuel_table(data) -> genfuel_table
 """
-function get_newgen_table(data)
-    return data[:newgen]::DataFrame
+function get_genfuel_table(data)
+    data[:genfuel]
 end
-export get_newgen_table
 
 
 

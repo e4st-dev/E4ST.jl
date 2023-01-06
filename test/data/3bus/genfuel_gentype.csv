@@ -1,0 +1,30 @@
+gentype, genfuel
+nuclear, nuclear
+ngcc, ng
+ngt, ng
+ngo, ng
+ngccs_new, ng
+ngccs_ret, ng
+coal, coal
+igcc, coal
+coalccs_new, coal
+coalccs_ret, coal
+solar, solar
+dist_solar, solar
+wind, wind
+oswind, wind
+geothermal, geothermal
+deepgeo, geothermal
+biomass, biomass
+battery, storage
+hyc, water
+hyps, water
+hyrr, water
+oil, oil
+hcc_new, hydrogen
+hcc_ret, hydrogen
+other, other
+
+
+
+

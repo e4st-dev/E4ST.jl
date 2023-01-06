@@ -5,7 +5,7 @@ branch_file: "../data/3bus/branch.csv"
 hours_file:  "../data/3bus/hours.csv"
 af_file:     "../data/3bus/af.csv"
 demand_file: "../data/3bus/demand.csv"
-voll: 5000000
+genfuel_gentype_file: "../data/3bus/genfuel_gentype.csv"
 years:
   - y2030
   - y2035
