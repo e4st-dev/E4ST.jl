@@ -3,7 +3,7 @@
 
 Sets up a JuMP Model for E4ST using `config` and `data`.
 
-## Parameters
+# Parameters
 | Name | Symbol | Letter |
 | :--- | :--- | :--- |
 | $N_G$ | :num_gen | Number of generators |
@@ -16,7 +16,7 @@ Sets up a JuMP Model for E4ST using `config` and `data`.
 | $b \in B$ | :bus_idx | Bus index |
 | $l \in L$ | :branch_idx | Branch index |
 
-## Variables
+# Variables
 These are the decision variables to be optimized over.  Can be accessed by `model[symbol]`
 
 | Name | Symbol |  Unit | Description |
@@ -26,7 +26,7 @@ These are the decision variables to be optimized over.  Can be accessed by `mode
 | $P_{C_{g,y}}$ | `:pcap_gen` | MW | Annual power generation capacity of each generator |
 | $P_{S_{b,y,h}}$ | `:pserv_bus` | MW | Hourly avg. power served to each bus |
 
-## Expressions
+# Expressions
 
 Expressions are calculated as linear combinations of variables.  Can be accessed by `model[symbol]`
 
@@ -37,7 +37,7 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 | $P_{U_{b,y,h}}$ | `:pcurt_bus` | MW | Hourly avg. power curtailed at each bus |
 | $P_{G_{b,y,h}}$ | `:pgen_bus` | MW | Hourly avg. power generated at each bus |
 
-## Constraints
+# Constraints
 
 | Name | Constraint | Symbol |  Unit | Description |
 | :--- | :--- | :--- | :--- | :--- |
@@ -52,10 +52,9 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 | $C_{PL_{l,y,h}}^{+}$ | $P_{F_{l,y,h}} \leq P_{L_{l,y,h}}^{\text{max}}$ | `:cons_branch_pflow_pos` | MW | Constrain the branch power flow to be less than or equal to its maximum. |
 | $C_{PL_{l,y,h}}^{-}$ | $-P_{F_{l,y,h}} \leq P_{L_{l,y,h}}^{\text{max}}$ | `:cons_branch_pflow_neg` | MW | Constrain the negative branch power flow to be less than or equal to its maximum. |
 
-### Power Flow
+# Objective
 
-
-## Objective
+The objective is a single expression that can be accessed via `model[:obj]`.  In general, we add things to the objective via 
 
 """
 function setup_model(config, data)
