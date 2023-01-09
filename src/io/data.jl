@@ -570,7 +570,11 @@ export summarize_af_table
 """
     get_gen_table(data)
 
-Returns gen data table
+Returns gen table
+
+    get_gen_table(data, pairs...)
+
+Returns a SubDataFrame of the gen table where each pair represents a filter condition.  See [`filter_view`](@ref) for reference.
 """
 function get_gen_table(data) 
     return data[:gen]::DataFrame
@@ -583,6 +587,10 @@ end
     get_branch_table(data)
 
 Returns table of the transmission lines (branches) from data. 
+
+    get_branch_table(data, pairs...)
+
+Returns a SubDataFrame of the branch table where each pair represents a filter condition.  See [`filter_view`](@ref) for reference.
 """
 function get_branch_table(data) 
     return data[:branch]::DataFrame
@@ -595,6 +603,10 @@ end
     get_bus_table(data)
 
 Returns the bus data table
+
+    get_bus_table(data, pairs...)
+
+Returns a SubDataFrame of the bus table where each pair represents a filter condition.  See [`filter_view`](@ref) for reference.
 """
 function get_bus_table(data)
     data[:bus]::DataFrame
@@ -883,7 +895,7 @@ export get_num_years, get_years
 
     filter_view(table::DataFrame, pairs...) -> v::SubDataFrame
 
-Return a `SubDataFrame` containing each row of `table` such that for each `(field,value)` pair in `pairs`, `row.field==value`.
+Return a `SubDataFrame` containing each row of `table` such that for each `(field,value)` pair in `pairs`, `row[field]==value`.
 """
 function filter_view(table::DataFrame, pairs::Pair...)
     v = view(table,:,:)

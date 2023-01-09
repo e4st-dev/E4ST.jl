@@ -102,7 +102,7 @@ end
 
 function get_model_val_by_gen(data, model, name::Symbol, idxs = :, year_idxs = :, hour_idxs = :)
 
-    _idxs, _year_idxs, _hour_idxs = get_gen_idxs(data, idxs, year_idxs, hour_idxs)
+    _idxs, _year_idxs, _hour_idxs = get_gen_array_idxs(data, idxs, year_idxs, hour_idxs)
     v = _view_model(model, name, _idxs, _year_idxs, _hour_idxs)
     isempty(v) && return 0.0
     return sum(value, v)
@@ -114,75 +114,13 @@ function _view_model(model, name, idxs, year_idxs, hour_idxs)
     return view(var, idxs, year_idxs, hour_idxs)
 end
 
-function get_gen_idxs(data, idxs, year_idxs, hour_idxs)
-    _idxs = get_gen_idxs(data, idxs)
+function get_gen_array_idxs(data, idxs, year_idxs, hour_idxs)
+    _idxs = get_gen_array_idxs(data, idxs)
     _year_idxs = get_year_idxs(data, year_idxs)
     _hour_idxs = get_hour_idxs(data, hour_idxs)
     return _idxs, _year_idxs, _hour_idxs
 end
-function get_gen_idxs(data, idxs)
+function get_gen_array_idxs(data, idxs)
     return table_rows(get_gen_table(data), idxs)
 end
-export get_gen_idxs
-
-function get_year_idxs(data, year_idxs::Colon)
-    year_idxs
-end
-function get_year_idxs(data, year_idxs::AbstractVector{Int64})
-    year_idxs
-end
-function get_year_idxs(data, year_idxs::Int64)
-    year_idxs
-end
-function get_year_idxs(data, year_idxs::AbstractString)
-    return findfirst(==(year_idxs), get_years(data))
-end
-function get_year_idxs(data, year_idxs::AbstractVector{<:AbstractString})
-    yrs = get_years(data)
-    return map(y->findfirst(==(y), yrs), year_idxs)
-end
-export get_year_idxs
-
-
-function get_hour_idxs(data, year_idxs::Colon)
-    year_idxs
-end
-function get_hour_idxs(data, year_idxs::AbstractVector{Int64})
-    year_idxs
-end
-function get_hour_idxs(data, year_idxs::Int64)
-    year_idxs
-end
-export get_hour_idxs
-
-function table_rows(table, idxs::Colon)
-    return idxs
-end
-
-function table_rows(table, idxs::AbstractVector{Int64})
-    return idxs
-end
-
-function table_rows(table, idxs::Int64)
-    return idxs
-end
-
-function table_rows(table, pairs)
-    row_idxs = Int64[i for i in 1:nrow(table)]
-    for pair in pairs
-        key, val = pair
-        v = table[!,key]
-        comp = ==(val)
-        filter!(row_idx->comp(v[row_idx]), row_idxs)
-    end
-
-    return row_idxs
-end
-function table_rows(table, pair::Pair)
-    row_idxs = Int64[i for i in 1:nrow(table)]
-    key, val = pair
-    v = table[!, key]
-    comp = ==(val)
-    filter!(row_idx->comp(v[row_idx]), row_idxs)
-    return row_idxs
-end
+export get_gen_array_idxs
