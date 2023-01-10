@@ -221,6 +221,10 @@ function getmods(config)
     config[:mods]
 end
 
+function get_iterator(config)
+    return get(config, :iter, RunOnce())
+end
+
 # Helper Functions
 ################################################################################
 function required_fields()

@@ -56,22 +56,29 @@ function run_e4st(config)
     log_info(config)
     @info "Config saved to: $(config[:out_path])"
 
-    data = load_data(config)
+    data  = load_data(config)
+    model = setup_model(config, data)
 
-    iter = true
+    optimize!(model)
+    check(model)
 
     all_results = []
 
-    while iter
+    parse_results!(config, data, model, all_results)  
+    process!(config, all_results)
+
+    iter = get_iterator(config)
+
+    while should_iterate(iter, config, data, model, all_results)
+        iterate!(iter, config, data, model, all_results)
+        data = should_reload_data(iter) ? load_data(config) : data
         model = setup_model(config, data)
         optimize!(model)
         check(model)
-        parse_results!(config, data, model, all_results)  
-        process!(config, last(all_results))
-
-        iter = should_iterate(config, data, model, last(all_results))
-        iter && iterate!(config, data, model, last(all_results))
+        parse_results!(config, data, model, all_results)
+        process!(config, all_results)
     end
+
     stop_logging!(config)
     return all_results
 end

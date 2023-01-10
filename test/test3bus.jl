@@ -258,11 +258,11 @@ end
                 interp = LinearInterpolator(iter.avg_ng_egen, iter.avg_ng_prices, NoBoundaries())
                 ng_price_new = interp(tgt)
             end
-
             ng_price_diff = ng_price_new - ng_price_avg
             gen.fuel_cost .+= ng_price_diff
             return nothing            
         end
+        E4ST.should_reload_data(::TargetAvgAnnualNGGen) = false
         
         config_file = joinpath(@__DIR__, "config", "config_3bus_iter.yml")
         config = load_config(config_file)
