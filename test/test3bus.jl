@@ -255,8 +255,9 @@ end
     @test abs(cap_prices["y2035"]) > 1
     @test abs(cap_prices["y2040"]) > 1
 
-    # TODO: make accessor method that allow year string or year index for constraints, etc
-    
+    @test get_gen_result(data, model, PerMWhGen(), :emis_co2, :, "y2030") <= config[:mods][:co2_cap].targets["y2030"] + 1e-6
+    @test get_gen_result(data, model, PerMWhGen(), :emis_co2, :, "y2035") <= config[:mods][:co2_cap].targets["y2035"] + 1e-6
+    @test get_gen_result(data, model, PerMWhGen(), :emis_co2, :, "y2040") <= config[:mods][:co2_cap].targets["y2040"] + 1e-6
 
 end
 
