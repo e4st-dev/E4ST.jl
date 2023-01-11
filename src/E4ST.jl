@@ -32,6 +32,7 @@ include("types/Modification.jl")
 include("types/Policy.jl")
 include("io/config.jl")
 include("io/data.jl")
+include("io/util.jl")
 include("io/demand.jl")
 include("io/results.jl")
 include("model/setup.jl")
@@ -53,36 +54,36 @@ function run_e4st(config)
 
     start_logging!(config)
     log_info(config)
-    @info "Config saved to: $(config[:out])"
+    @info "Config saved to: $(config[:out_path])"
 
-    data = load_data(config)
-    initialize_data!(config, data) # or something, could also live inside load_data
+    data  = load_data(config)
+    model = setup_model(config, data)
 
-    iter = true
+    optimize!(model)
+    check(model)
 
-    while iter
+    all_results = []
+
+    parse_results!(config, data, model, all_results)  
+    process!(config, all_results)
+
+    iter = get_iterator(config)
+
+    while should_iterate(iter, config, data, model, all_results)
+        iterate!(iter, config, data, model, all_results)
+        data = should_reload_data(iter) ? load_data(config) : data
         model = setup_model(config, data)
         optimize!(model)
         check(model)
-        results = parse_results(config, data, model)  
-        process!(config, results)
-
-        iter = should_iterate(config, data, model)
-        iter && iterate!(config, data, model)
+        parse_results!(config, data, model, all_results)
+        process!(config, all_results)
     end
-    return results
+
+    stop_logging!(config)
+    return all_results
 end
 
 run_e4st(path::String) = run_e4st(load_config(path))
-
-"""
-    reload_policies!() -> nothing
-
-Reloads the any `Policy` types so that `PolicyFromString` will work.
-"""
-function reload_policies!()
-    reload_types!(Policy)
-end
 
 global STR2TYPE = Dict{String, Type}()
 global SYM2TYPE = Dict{Symbol, Type}()
@@ -117,6 +118,7 @@ Loads all types associated with E4ST so that the type will accessible by string 
 """
 function reload_types!()
     reload_types!(Modification)
+    reload_types!(Iterable)
 end
 function reload_types!(::Type{T}) where T
     global STR2TYPE

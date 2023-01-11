@@ -7,7 +7,7 @@ Retrieves results from the model, including:
 * Raw policy results (?)
 * Welfare 
 """
-function parse_results(config, data, model)
+function parse_results!(config, data, model, all_results)
 
     results = Dict()
     # TODO: any general results gathering
@@ -15,6 +15,8 @@ function parse_results(config, data, model)
     for mod in getmods(config)
         results!(mod, config, data, model, results)
     end
+
+    push!(all_results, results)
 
     return nothing
 end

@@ -4,6 +4,7 @@ using HiGHS
 using JuMP
 using DataFrames
 using Logging
+using BasicInterpolators
 import OrderedCollections: OrderedDict
 rm(joinpath(@__DIR__, "out"), force=true, recursive=true)
 

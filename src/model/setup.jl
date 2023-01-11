@@ -100,4 +100,27 @@ function optimizer_attributes(config, ::Val{:Gurobi}; kwargs...)
     )
 end
 
+function get_model_val_by_gen(data, model, name::Symbol, idxs = :, year_idxs = :, hour_idxs = :)
 
+    _idxs, _year_idxs, _hour_idxs = get_gen_array_idxs(data, idxs, year_idxs, hour_idxs)
+    v = _view_model(model, name, _idxs, _year_idxs, _hour_idxs)
+    isempty(v) && return 0.0
+    return sum(value, v)
+end
+export get_model_val_by_gen
+
+function _view_model(model, name, idxs, year_idxs, hour_idxs)
+    var = model[name]::Array{<:Any, 3}
+    return view(var, idxs, year_idxs, hour_idxs)
+end
+
+function get_gen_array_idxs(data, idxs, year_idxs, hour_idxs)
+    _idxs = get_gen_array_idxs(data, idxs)
+    _year_idxs = get_year_idxs(data, year_idxs)
+    _hour_idxs = get_hour_idxs(data, hour_idxs)
+    return _idxs, _year_idxs, _hour_idxs
+end
+function get_gen_array_idxs(data, idxs)
+    return table_rows(get_gen_table(data), idxs)
+end
+export get_gen_array_idxs

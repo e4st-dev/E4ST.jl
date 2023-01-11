@@ -27,6 +27,7 @@ The Config File is a file that fully specifies all the necessary information.  N
 
 ## Optional Fields:
 * `af_file` - The filepath (relative or absolute) to the availability factor table.  See [`load_af_table!`](@ref)
+* `iter` - The [`Iterable`](@ref) object to specify the way the sim should iterate.  If nothing specified, defaults to run a single time.  Specify the `Iterable` type, and all keyword arguments.
 
 ## Example Config File
 ```yaml
@@ -43,7 +44,8 @@ function load_config(filename)
     check_required_fields!(config)
     make_paths_absolute!(config, filename)
     make_out_path!(config)
-    convert_types!(config, :mods)
+    convert_mods!(config)
+    convert_iter!(config)
     return config
 end
 
@@ -219,6 +221,10 @@ function getmods(config)
     config[:mods]
 end
 
+function get_iterator(config)
+    return get(config, :iter, RunOnce())
+end
+
 # Helper Functions
 ################################################################################
 function required_fields()
@@ -271,11 +277,17 @@ function make_out_path!(config)
     end
 end
 
-function convert_types!(config, sym::Symbol)
-    if isnothing(config[sym])
-        config[sym] = OrderedDict{Symbol, Modification}()
+function convert_mods!(config)
+    if ~haskey(config, :mods) || isnothing(config[:mods])
+        config[:mods] = OrderedDict{Symbol, Modification}()
         return
     end
-    config[sym] = OrderedDict(key=>Modification(key=>val) for (key,val) in config[sym])
+    config[:mods] = OrderedDict(key=>Modification(key=>val) for (key,val) in config[:mods])
+    return
+end
+
+function convert_iter!(config)
+    haskey(config, :iter) || return
+    config[:iter] = Iterable(config[:iter])
     return
 end
