@@ -194,3 +194,54 @@ end
     config = load_config(config_file)
     test_dcopf(config)
 end
+
+@testset "Test adding a Mod with constraint" begin
+    """
+
+    """
+    struct GenerationCap <: Policy
+        name::Symbol
+        column::Symbol
+        targets::OrderedDict{String, Float64}
+        function GenerationCap(;name, column, targets)
+            new_targets = OrderedDict(String(k)=>v for (k,v) in targets)
+            return new(Symbol(name), Symbol(column), new_targets)
+        end
+    end
+    function E4ST.apply!(pol::GenerationCap, config, data, model)
+        gen = get_gen_table(data)
+        gen_idxs = 1:nrow(gen)
+
+        years = get_years(data)
+        pol_years = collect(keys(pol.targets))
+        filter!(in(years), pol_years)
+        caps = collect(values(pol.targets))
+        col = pol.column
+        cons_name = "cons_$(pol.name)"
+        model[Symbol(cons_name)] = @constraint(model, 
+            [y=pol_years], 
+            sum(get_egen_gen(data, model, gen_idx, findfirst(==(y), years))*gen[gen_idx, col] for gen_idx in gen_idxs) <= pol.targets[y]
+        )
+        println( "Made constraint $cons_name")
+    end
+    
+    config_file = joinpath(@__DIR__, "config", "config_3bus_emis_cap.yml")
+    config = load_config(config_file)
+    data = load_data(config)
+    model = setup_model(config, data)
+    
+    @test haskey(model, :cons_co2_cap)
+
+    optimize!(model)
+
+    cap_prices = shadow_price.(model[:cons_co2_cap])
+    @test abs(cap_prices["y2030"]) < 1
+    @test abs(cap_prices["y2035"]) > 1
+    @test abs(cap_prices["y2040"]) > 1
+
+    # TODO: make accessor method that allow year string or year index for constraints, etc
+    
+
+end
+
+# get_gen_result(data, model, PerMWhGen(), :emis_co2, gen_idx, yr_idx, hr_idx)

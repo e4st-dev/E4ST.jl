@@ -9,7 +9,7 @@ function setup_model(config, data)
 
     setup_dcopf!(config, data, model)
 
-    for mod in getmods(config)
+    for (name, mod) in getmods(config)
         apply!(mod, config, data, model)
     end
 
