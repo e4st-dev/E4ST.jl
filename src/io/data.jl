@@ -127,7 +127,7 @@ Load the new generator characteristics/specs table from the `config[:build_gen_f
 """
 function load_build_gen_table!(config, data)
     build_gen = load_table(config[:build_gen_file])
-    force_table_types!(build_gen, :build_gen, summarize_build_gen_table())
+    force_table_types!(build_gen, :build_gen, summarize_build_gen_table()) #change to pairs with all relevant from gen table
     data[:build_gen] = build_gen
     return
 end
@@ -543,6 +543,8 @@ function summarize_gen_table()
     push!(df, 
         (:bus_idx, Int64, "n/a", true, "The index of the `bus` table that the generator corresponds to"),
         (:status, Bool, "n/a", false, "Whether or not the generator is in service"),
+        (:build_status, String, "n/a", true, "Whether the generator is 'built', 'new', or 'unbuilt'"),
+        (:build_type, String, "n/a", true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
         (:genfuel, String, "n/a", true, "The fuel type that the generator uses"),
         (:gentype, String, "n/a", true, "The generation technology type that the generator uses"),
         (:pcap0, Float64, "MW", true, "Starting nameplate power generation capacity for the generator"),
@@ -623,12 +625,16 @@ export summarize_af_table
 function summarize_build_gen_table()
     df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
     push!(df, 
-        #TODO: not sure if I will need area and subarea
-        #(:area, String, "n/a", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
-        #(:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:area, String, "n/a", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:build_status, String, "n/a", true, "Whether the generator is 'built', 'new', or 'unbuilt'. Should always be unbuilt for exog new gens."),
+        (:build_type, String, "n/a", true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built). Should either be exog or endog for buil_gen."),
         (:genfuel, String, "n/a", true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
         (:gentype, String, "n/a", true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
         (:status, Bool, "n/a", false, "Whether or not to use this set of characteristics/specs"),
+        (:pcap0, Float64, "MW", true, "Starting nameplate power generation capacity for the generator. Should be 0 for endog new gens."),
+        (:pcap_min, Float64, "MW", true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
+        (:pcap_max, Float64, "MW", true, "Maximum nameplate power generation capacity of the generator"),
         (:vom, Float64, "\$/MWh", true, "Variable operation and maintenance cost per MWh of generation"),
         (:fuel_cost, Float64, "\$/MWh", false, "Fuel cost per MWh of generation"),
         (:fom, Float64, "\$/MW", true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),

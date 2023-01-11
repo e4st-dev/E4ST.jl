@@ -8,14 +8,8 @@ Creates new generators with zero capacity. Location is determined by build___ co
 function setup_new_gens!(config, data)
 
     newgen = make_newgen_table(config, data)
-    
-    # TODO: pass in newgen to these functions
-    characterize_newgen!(config, data, newgen)
-
-    add_exogenous_gens!(config, data, newgen)
 
     append_newgen_table!(data, newgen)
-    # TODO: newgen shouldn't be a part of data
 
 end
 
@@ -23,44 +17,39 @@ end
 """
     make_newgen_table(config, data) -> 
     
-Create newgen table with zero cap gens at buildable buses. Structure mirrors the existing gen table.
+Create empty newgen table with a structure that mirrors the existing gen table.
 """
 function make_newgen_table(config, data)
     #create table with same columns as gen
-    gen_col_names = names(get_gen_table(data))
-    newgen = DataFrame([name => [] for name in gen_col_names])
-    force_table_types!(newgen, :newgen, summarize_gen_table())
+    gen = get_gen_table(data)
+    newgen = similar(gen, 0) 
 
-    #for each bus, add rows to newgen for each type of buildable gen
-    build_gentypes = get_build_gentypes(config, data)
-    bus = get_bus_table(data)
-    for gentype in build_gentypes
-        colname = Symbol("build"*gentype)
-        gentype_bus_idxs = findall(1, bus[colname])
-        genfuel = get_genfuel(data,gentype)
-        for bus_idx in gentype_bus_idxs
-            newgen_row = make_newgen_row(data, newgen)
-            newgen_row[:bus_idx] = bus_idx
-            newgen_row[:gentype] = gentype
-            newgen_row[:genfuel] = genfuel
-            # newgen_row[:build_status] = "new"
-            push!(newgen, newgen_row)
-        end
-    end
+    # add potential generation capacity and exogenously built generators 
+    make_newgens!(config, data, newgen)
+    
     return newgen
 end
 
 """
-    characterize_newgen!(config, data, newgen) -> 
+    make_newgens!(config, data, newgen) -> 
 
-Assigns new generator characteristics/specs (fuel cost, emis rate, etc) to gens in the newgen table. 
+Create newgen rows for each spec in build_gen. 
+Exogenously specified generators are also added to newgen through the build_gen sheet.
 """
-function characterize_newgen!(config, data, newgen)
+function make_newgens!(config, data, newgen)
     build_gen = get_build_gen_table(data)
-    for spec_idx in 1:nrow(build_gen)
-        newgen_idx = get_filtered_idx(build_gen, spec_idx, newgen)
-        update_gen_spec!(build_gen, spec_idx, newgen, newgen_idx)
+    bus = get_bus_table(data)
+    spec_names = filter!(!=(:bus_idx), propertynames(newgen)) #this would need to be changed if there is more than bus_idx that isn't a spec
+    for spec_row in eachrow(build_gen)
+        area = spec_row.area
+        subarea = spec_row.subarea
+        bus_idxs = table_rows(bus, (area=>subarea))
+        for bus_idx in bus_idxs
+            newgen_row = Dict{}(:bus_idx => bus_idx, :build_status(spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
+            push!(newgen, newgen_row)
+        end
     end
+    return newgen
 end
 
 
@@ -70,18 +59,9 @@ end
 Appends the newgen table to the gen table. 
 """
 function append_newgen_table!(data, newgen)
-    append!(data[:gen], newgen)
+    append!(get_gen_table(data), newgen)
 end
 
-
-"""
-    get_build_gentypes(config, data) ->
-    
-Returns a list of the types of generation in build columns in the bus table. 
-"""
-function get_build_gentypes(config, data)
-    
-end
 
 """
     get_genfuel(data, gentype) -> 
@@ -95,38 +75,4 @@ function get_genfuel(data, gentype::String)
     return genfuel
 end
 
-"""
-    make_newgen_row(data, newgen) -> 
-
-Makes a DataFrameRow for the newgen table with default values for all the columns
-"""
-function make_newgen_row(data, newgen)
-    # maybe use sumamrize_gen_table() but would have to add default values in there somewhere
-    # need to store default values somewhere, they don't have to be meaningful
-    newgen_col_names = name(newgen)
-    newgenrow = DataFrameRow([name => [] for name in newgen_col_names])
-    force_table_types!(newgenrow, :newgenrow, summarize_gen_table())
-    #TODO: add the default or missing values to newgenrow[1,:]
-
-end
-
-"""
-    update_gen_specs!(info_table, info_idx, gen_table, gen_idx) ->
-    
-Updates characterisitcs/specs in gen_table for gen_idx from characteristics in info_table at info_idx. 
-"""
-function update_gen_specs!(info_table, info_idx, gen_table, gen_idx)
-    
-end
-
-#TODO: find a better place for this function to live, it's too general for here
-"""
-    get_filtered_idx(info_table, info_idx, data_table) -> 
-
-Returns the idxs from data_table which meet the filtering parameters from info_table.
-"""
-function get_filtered_idx(info_table, info_idx, data_table)
-    
-end
-export get_filtered_idx
 
