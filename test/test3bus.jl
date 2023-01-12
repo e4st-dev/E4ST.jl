@@ -273,6 +273,8 @@ end
         all_results = run_e4st(config)
         @test length(all_results) > 1
     end
+end
+
 @testset "Test loading/saving data from .jls file" begin
     config = load_config(config_file)
     config[:out_path] = "out/3bus1"
