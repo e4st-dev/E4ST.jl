@@ -11,13 +11,23 @@ Calls the following functions:
 """
 function load_data(config)
     log_header("LOADING DATA")
+
+    # Try loading the data directly
+    if haskey(config, :data_file)
+        @info "Loading data from $(config[:data_file])"
+        data = deserialize(config[:data_file])
+        return data
+    end
     data = OrderedDict{Symbol, Any}()
-    data[:years] = config[:years]
 
     load_data_files!(config, data)
     modify_raw_data!(config, data)
-    setup_data!(config, data)
+    setup_data!(config, data)    
     modify_setup_data!(config, data)
+
+    if get(config, :save_data, true)
+        serialize(joinpath(config[:out_path],"data.jls"), data)
+    end
 
     return data
 end
@@ -31,6 +41,7 @@ Loads in the data files presented in the `config`.  Calls the following function
 * [`load_gen_table!`](@ref) - from `config[:gen_file] -> data[:gen]`
 * [`load_hours_table!`](@ref) - from `config[:hours_file] -> data[:hours_table]`
 * [`load_voll!`](@ref) - from `config[:voll] -> data[:voll]`
+* [`load_years!`](@ref) - from `config[:years] -> data[:years]`
 * [`load_af_table!`](@ref) - from `config[:af_file] -> data[:af_table]`
 * [`load_demand_table!(config, data)`](@ref) - from `config[:demand_file] -> data[:demand_table]`
 * [`load_demand_shape_table!(config, data)`](@ref)  - from `config[:demand_shape_file] -> data[:demand_shape_table]` (if `config[:demand_shape_file]` provided)
@@ -43,6 +54,7 @@ function load_data_files!(config, data)
     load_gen_table!(config, data)
     load_hours_table!(config, data)
     load_voll!(config, data)
+    load_years!(config, data)
     load_af_table!(config, data)
     load_demand_table!(config, data)
     haskey(config, :demand_shape_file) && load_demand_shape_table!(config, data)
@@ -331,6 +343,17 @@ function load_voll!(config, data)
 end
 export load_voll!
 
+"""
+    load_years!(config, data)
+
+Loads the years from config into data
+"""
+function load_years!(config, data)
+    data[:years] = config[:years]
+    return
+end
+export load_years!
+
 # Helper Functions
 ################################################################################
 
@@ -500,6 +523,8 @@ function summarize_gen_table()
         (:fuel_cost, Float64, "\$/MWh", false, "Fuel cost per MWh of generation"),
         (:fom, Float64, "\$/MW", true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, "\$/MW", false, "Hourly capital expenditures for a MW of generation capacity"),
+        (:cf_min, Float64, "ratio", false, "The minimum operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
+        (:cf_max, Float64, "ratio", false, "The maximum operable ratio of power generation to capacity for the generator to operate"),
     )
     return df
 end

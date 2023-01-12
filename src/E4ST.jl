@@ -4,6 +4,7 @@ module E4ST
 using JuMP
 using InteractiveUtils
 using DataFrames
+using Serialization
 using Logging
 using MiniLoggers
 using Pkg
@@ -59,6 +60,7 @@ function run_e4st(config)
     data  = load_data(config)
     model = setup_model(config, data)
 
+
     optimize!(model)
     check(model)
 
@@ -72,8 +74,12 @@ function run_e4st(config)
     while should_iterate(iter, config, data, model, all_results)
         iterate!(iter, config, data, model, all_results)
         data = should_reload_data(iter) ? load_data(config) : data
+
         model = setup_model(config, data)
+
+        # Optimize and save
         optimize!(model)
+
         check(model)
         parse_results!(config, data, model, all_results)
         process!(config, all_results)

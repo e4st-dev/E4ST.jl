@@ -327,3 +327,41 @@ end
         @test length(all_results) > 1
     end
 end
+
+@testset "Test loading/saving data from .jls file" begin
+    config = load_config(config_file)
+    config[:out_path] = "out/3bus1"
+    E4ST.make_out_path!(config)
+    data1 = load_data(config)
+
+    # Check that it is trying to load in the data file
+    config[:data_file] = "out/3bus1/blah.jls"
+    @test_throws Exception load_data(config)
+
+    # Check that data file is loaded in and identical.  Also check that other files aren't touched
+    config[:data_file] = "out/3bus1/data.jls"
+    config[:demand_file] = "blah.csv"
+    data2 = load_data(config)
+    @test data1 == data2
+end
+
+@testset "Test loading/saving model from .jls file" begin
+    config = load_config(config_file)
+    config[:out_path] = "out/3bus1"
+    E4ST.make_paths_absolute!(config, config_file)
+    E4ST.make_out_path!(config)
+    data = load_data(config)
+    model1 = setup_model(config, data)
+
+    # Check that it is trying to load in the model file
+    config[:model_presolve_file] = "bad/path/to/blah.jls"
+    @test_throws Exception setup_model(config)
+
+    # Check that data file is loaded in and identical.  Also check that other files aren't touched
+    config[:model_presolve_file] = "out/3bus1/model_presolve.jls"
+    E4ST.make_paths_absolute!(config, config_file)
+    model2 = setup_model(config, data)
+    optimize!(model1)
+    optimize!(model2)
+    @test value.(model1[:θ_bus]) ≈ value.(model2[:θ_bus])
+end
