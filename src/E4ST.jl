@@ -4,6 +4,7 @@ module E4ST
 using JuMP
 using InteractiveUtils
 using DataFrames
+using Serialization
 using Logging
 using MiniLoggers
 using Pkg
@@ -56,13 +57,16 @@ function run_e4st(config)
     @info "Config saved to: $(config[:out])"
 
     data = load_data(config)
-    initialize_data!(config, data) # or something, could also live inside load_data
 
     iter = true
 
     while iter
+        # Setup the model and save the results
         model = setup_model(config, data)
+
+        # Optimize and save
         optimize!(model)
+
         check(model)
         results = parse_results(config, data, model)  
         process!(config, results)

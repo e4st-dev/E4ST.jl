@@ -4,6 +4,13 @@
 function setup_model(config, data)
     log_header("SETTING UP MODEL")
 
+    if haskey(config, :model_presolve_file)
+        @info "Loading model from $(config[:model_presolve_file])"
+        model = deserialize(config[:model_presolve_file])
+        @info "Model Summary: $(summarize(model))"
+        return model
+    end
+
     optimizer_factory = getoptimizer(config)
     model = JuMP.Model(optimizer_factory)
 
@@ -16,6 +23,10 @@ function setup_model(config, data)
     @objective(model, Min, model[:obj])
 
     @info "Model Summary: $(summarize(model))"
+
+    if get(config, :save_model_presolve, true)
+        serialize(joinpath(config[:out_path],"model_presolve.jls"), model)
+    end
 
     return model
 end
