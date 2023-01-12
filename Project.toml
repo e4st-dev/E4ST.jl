@@ -17,12 +17,15 @@ Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
+
 [compat]
 julia = "1.0"
 
 [extras]
 HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+BasicInterpolators = "26cce99e-4866-4b6d-ab74-862489e035e0"
+
 
 [targets]
-test = ["Test", "HiGHS"]
+test = ["Test", "HiGHS", "BasicInterpolators"]

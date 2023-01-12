@@ -27,6 +27,7 @@ The Config File is a file that fully specifies all the necessary information.  N
 
 ## Optional Fields:
 * `af_file` - The filepath (relative or absolute) to the availability factor table.  See [`load_af_table!`](@ref)
+* `iter` - The [`Iterable`](@ref) object to specify the way the sim should iterate.  If nothing specified, defaults to run a single time.  Specify the `Iterable` type, and all keyword arguments.
 * `demand_shape_file` - a file for specifying the hourly shape of demand elements.  See [`load_demand_shape_table!`](@ref)
 * `demand_match_file` - a file for specifying annual demanded energy to match for sets  See [`load_demand_match_table!`](@ref)
 * `demand_add_file` - a file for specifying additional demanded energy, after matching.  See [`load_demand_add_table!`](@ref)
@@ -34,7 +35,6 @@ The Config File is a file that fully specifies all the necessary information.  N
 * `data_file` - The filepath (relative or absolute) to the data file (a serialized julia object).  If this is provided, it will use this instead of loading data from all the other files.
 * `save_model_presolve` - A boolean specifying whether or not to save the model before solving it, for later use (i.e. by specifying a `model_presolve_file` for future sims). Defaults to `true`
 * `model_presolve_file` - The filepath (relative or absolute) to the unsolved model.  If this is provided, it will use this instead of creating a new model.
-
 
 ## Example Config File
 ```yaml
@@ -51,7 +51,8 @@ function load_config(filename)
     check_required_fields!(config)
     make_paths_absolute!(config, filename)
     make_out_path!(config)
-    convert_types!(config, :mods)
+    convert_mods!(config)
+    convert_iter!(config)
     return config
 end
 
@@ -227,6 +228,10 @@ function getmods(config)
     config[:mods]
 end
 
+function get_iterator(config)
+    return get(config, :iter, RunOnce())
+end
+
 # Helper Functions
 ################################################################################
 function required_fields()
@@ -295,11 +300,17 @@ function make_out_path!(config)
     mkpath(config[:out_path])
 end
 
-function convert_types!(config, sym::Symbol)
-    if isnothing(config[sym])
-        config[sym] = OrderedDict{Symbol, Modification}()
+function convert_mods!(config)
+    if ~haskey(config, :mods) || isnothing(config[:mods])
+        config[:mods] = OrderedDict{Symbol, Modification}()
         return
     end
-    config[sym] = OrderedDict(key=>Modification(key=>val) for (key,val) in config[sym])
+    config[:mods] = OrderedDict(key=>Modification(key=>val) for (key,val) in config[:mods])
+    return
+end
+
+function convert_iter!(config)
+    haskey(config, :iter) || return
+    config[:iter] = Iterable(config[:iter])
     return
 end
