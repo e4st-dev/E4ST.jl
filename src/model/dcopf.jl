@@ -48,9 +48,11 @@ function setup_dcopf!(config, data, model)
     # Curtailed power of a given bus
     @expression(model, pcurt_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pdem(data, bus_idx, year_idx, hour_idx) - pserv_bus[bus_idx, year_idx, hour_idx])
 
-    # Curtailed power of a given bus
+    # Generated power of a given bus
     @expression(model, pgen_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pgen_bus(data, model, bus_idx, year_idx, hour_idx))
 
+    # Generated energy at a given generator
+    @expression(model, egen_gen[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour], get_egen_gen(data, model, gen_idx, year_idx, hour_idx))
 
     ## Constraints
 
@@ -246,7 +248,7 @@ function get_egen_gen(data, model, gen_idx, year_idx)
 end
 
 function get_egen_gen(data, model, gen_idx, year_idx, hour_idx)
-    return model[:pgen_gen][gen_idx, year_idx, hour_idx]
+    return model[:pgen_gen][gen_idx, year_idx, hour_idx] * get_hour_weight(data, hour_idx)
 end
 
 export get_egen_gen

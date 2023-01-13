@@ -2,10 +2,11 @@ out_path:    "../out/3bus"
 gen_file:    "../data/3bus/gen.csv"
 bus_file:    "../data/3bus/bus.csv"
 branch_file: "../data/3bus/branch.csv"
-hours_file:   "../data/3bus/hours.csv"
+hours_file:  "../data/3bus/hours.csv"
 af_file:     "../data/3bus/af.csv"
-demand_file:     "../data/3bus/demand.csv"
-genfuel_gentype_file: "../data/3bus/genfuel_gentype.csv"
+demand_file: "../data/3bus/demand.csv"
+logging:     false
+voll: 100    # Set a bit lower to allow curtailment due to ng fuel price
 years:
   - y2030
   - y2035
@@ -14,20 +15,9 @@ optimizer:
   type: "HiGHS" # See available options here: https://docs.juliahub.com/HiGHS/WFic5/0.3.1/
   dual_feasibility_tolerance: 1e-5
   log_file: HiGHS.log
-  log_to_console: false
   solver: simplex # "ipm" is probably preferred for larger problems, but it logs to console due to an issue
 mods:
-  example_policy:
-    type: "ExamplePolicyType"
-    value: 0
-    some_parameter:
-      - "This makes an "
-      - "array of strings."
-      - "Cool, right?"
-    other_parameter:
-      name: "This makes an OrderedDict"
-  other_mod:
-    type: "OtherModificationType"
-    value: 0
-    custom_parameter: "hello!!!"
-
+iter:
+  type:   "TargetAvgAnnualNGGen"
+  target: 0       # MWh.  First iteration on fuel_price will be 8560 MWh/year.  Set to zero because this example is so small that NG is pretty much all or nothing
+  tol:    100     # MWh

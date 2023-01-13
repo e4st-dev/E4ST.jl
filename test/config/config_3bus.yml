@@ -6,6 +6,8 @@ hours_file:  "../data/3bus/hours.csv"
 af_file:     "../data/3bus/af.csv"
 demand_file: "../data/3bus/demand.csv"
 genfuel_gentype_file: "../data/3bus/genfuel_gentype.csv"
+logging:     false
+voll: 5000000
 years:
   - y2030
   - y2035
@@ -14,5 +16,5 @@ optimizer:
   type: "HiGHS" # See available options here: https://docs.juliahub.com/HiGHS/WFic5/0.3.1/
   dual_feasibility_tolerance: 1e-5
   log_file: HiGHS.log
-  solver: ipm
+  solver: simplex # "ipm" is probably preferred for larger problems, but it logs to console due to an issue
 mods:

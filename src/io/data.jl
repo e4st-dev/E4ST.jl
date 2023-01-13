@@ -11,13 +11,23 @@ Calls the following functions:
 """
 function load_data(config)
     log_header("LOADING DATA")
+
+    # Try loading the data directly
+    if haskey(config, :data_file)
+        @info "Loading data from $(config[:data_file])"
+        data = deserialize(config[:data_file])
+        return data
+    end
     data = OrderedDict{Symbol, Any}()
-    data[:years] = config[:years]
 
     load_data_files!(config, data)
     modify_raw_data!(config, data)
-    setup_data!(config, data)
+    setup_data!(config, data)    
     modify_setup_data!(config, data)
+
+    if get(config, :save_data, true)
+        serialize(joinpath(config[:out_path],"data.jls"), data)
+    end
 
     return data
 end
@@ -31,6 +41,7 @@ Loads in the data files presented in the `config`.  Calls the following function
 * [`load_gen_table!`](@ref) - from `config[:gen_file] -> data[:gen]`
 * [`load_hours_table!`](@ref) - from `config[:hours_file] -> data[:hours_table]`
 * [`load_voll!`](@ref) - from `config[:voll] -> data[:voll]`
+* [`load_years!`](@ref) - from `config[:years] -> data[:years]`
 * [`load_af_table!`](@ref) - from `config[:af_file] -> data[:af_table]`
 * [`load_demand_table!(config, data)`](@ref) - from `config[:demand_file] -> data[:demand_table]`
 * [`load_demand_shape_table!(config, data)`](@ref)  - from `config[:demand_shape_file] -> data[:demand_shape_table]` (if `config[:demand_shape_file]` provided)
@@ -45,6 +56,7 @@ function load_data_files!(config, data)
     load_gen_table!(config, data)
     load_hours_table!(config, data)
     load_voll!(config, data)
+    load_years!(config, data)
     load_af_table!(config, data)
     load_demand_table!(config, data)
     haskey(config, :demand_shape_file) && load_demand_shape_table!(config, data)
@@ -117,6 +129,9 @@ export load_gen_table!
 Sets up the generator table.
 """
 function setup_gen_table!(config, data)
+    bus = get_bus_table(data)
+    gen = get_gen_table(data)
+    leftjoin!(gen, bus, on=:bus_idx)
 end
 export setup_gen_table!
 
@@ -382,6 +397,17 @@ function load_voll!(config, data)
 end
 export load_voll!
 
+"""
+    load_years!(config, data)
+
+Loads the years from config into data
+"""
+function load_years!(config, data)
+    data[:years] = config[:years]
+    return
+end
+export load_years!
+
 # Helper Functions
 ################################################################################
 
@@ -554,6 +580,8 @@ function summarize_gen_table()
         (:fuel_cost, Float64, "\$/MWh", false, "Fuel cost per MWh of generation"),
         (:fom, Float64, "\$/MW", true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, "\$/MW", false, "Hourly capital expenditures for a MW of generation capacity"),
+        (:cf_min, Float64, "ratio", false, "The minimum operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
+        (:cf_max, Float64, "ratio", false, "The maximum operable ratio of power generation to capacity for the generator to operate"),
     )
     return df
 end
@@ -662,28 +690,49 @@ end
 """
     get_gen_table(data)
 
-Returns gen data table
+Returns gen table
+
+    get_gen_table(data, pairs...)
+
+Returns a SubDataFrame of the gen table where each pair represents a filter condition.  See [`filter_view`](@ref) for reference.
 """
 function get_gen_table(data) 
     return data[:gen]::DataFrame
+end
+function get_gen_table(data, args...)
+    return filter_view(get_gen_table(data), args...)
 end
 
 """
     get_branch_table(data)
 
 Returns table of the transmission lines (branches) from data. 
+
+    get_branch_table(data, pairs...)
+
+Returns a SubDataFrame of the branch table where each pair represents a filter condition.  See [`filter_view`](@ref) for reference.
 """
 function get_branch_table(data) 
     return data[:branch]::DataFrame
+end
+function get_branch_table(data, args...)
+    return filter_view(get_branch_table(data), args...)
 end
 
 """
     get_bus_table(data)
 
 Returns the bus data table
+
+    get_bus_table(data, pairs...)
+
+Returns a SubDataFrame of the bus table where each pair represents a filter condition.  See [`filter_view`](@ref) for reference.
 """
 function get_bus_table(data)
     data[:bus]::DataFrame
+end
+function get_bus_table(data, args...)
+    return filter_view(get_bus_table(data), args...)
 end
 
 """
@@ -705,7 +754,7 @@ function get_demand_table(data)
     return data[:demand_table]::DataFrame
 end
 function get_demand_table(data, args...)
-    return filter_view_table(get_demand_table(data), args...)
+    return filter_view(get_demand_table(data), args...)
 end
 export get_demand_table
 
@@ -955,7 +1004,7 @@ end
 Returns the number of hours in a year spent at the `hour_idx` representative hour
 """
 function get_hour_weight(data, hour_idx::Int64)
-    return get_hour_weights(data)[hour_idx, :hours]
+    return get_hour_weights(data)[hour_idx]
 end
 export get_num_hours, get_hour_weights, get_hour_weight
 
@@ -984,9 +1033,9 @@ export get_num_years, get_years
 
     filter_view(table::DataFrame, pairs...) -> v::SubDataFrame
 
-Return a `SubDataFrame` containing each row of `table` such that for each `(field,value)` pair in `pairs`, `row.field==value`.
+Return a `SubDataFrame` containing each row of `table` such that for each `(field,value)` pair in `pairs`, `row[field]==value`.
 """
-function filter_view_table(table::DataFrame, pairs::Pair...)
+function filter_view(table::DataFrame, pairs::Pair...)
     v = view(table,:,:)
     for (field, value) in pairs
         field isa AbstractString && isempty(field) && continue
@@ -994,9 +1043,9 @@ function filter_view_table(table::DataFrame, pairs::Pair...)
         v = filter(field=>==(value), v, view=true)
         isempty(v) && break
     end
-    return v
+    return v::SubDataFrame
 end
-function filter_view_table(table::DataFrame, pairs)
+function filter_view(table::DataFrame, pairs)
     v = view(table,:,:)
     for (field, value) in pairs
         field isa AbstractString && isempty(field) && continue
@@ -1004,7 +1053,7 @@ function filter_view_table(table::DataFrame, pairs)
         v = filter(field=>==(value), v, view=true)
         isempty(v) && break
     end
-    return v
+    return v::SubDataFrame
 end
 
 # Containers
