@@ -238,7 +238,6 @@ end
             [y=pol_years], 
             sum(get_egen_gen(data, model, gen_idx, findfirst(==(y), years))*gen[gen_idx, col] for gen_idx in gen_idxs) <= pol.targets[y]
         )
-        println( "Made constraint $cons_name")
     end
     
     config_file = joinpath(@__DIR__, "config", "config_3bus_emis_cap.yml")
@@ -364,4 +363,62 @@ end
     optimize!(model1)
     optimize!(model2)
     @test value.(model1[:θ_bus]) ≈ value.(model2[:θ_bus])
+end
+
+@testset "Test get_gen_result access" begin
+    config = load_config(config_file)
+    data = load_data(config)
+    model = setup_model(config, data)
+    optimize!(model)
+    
+    @testset "Test gen_idx filters" begin
+        tot = get_gen_result(data, model, PerMWhGen())
+        
+        # Provide a function for filtering
+        @test tot == get_gen_result(data, model, PerMWhGen(), :emis_co2 => <=(0.1)) + get_gen_result(data, model, PerMWhGen(), :emis_co2 => >(0.1))
+
+        # Provide a region for filtering
+        @test tot == get_gen_result(data, model, PerMWhGen(), :country => "narnia") + get_gen_result(data, model, PerMWhGen(), :country => !=("narnia"))
+
+        # Provide a tuple for filtering
+        @test tot == get_gen_result(data, model, PerMWhGen(), :vom => (0,1.1) ) + get_gen_result(data, model, PerMWhGen(), :vom => (1.1,Inf))
+
+        # Provide a set for filtering
+        @test tot == get_gen_result(data, model, PerMWhGen(), :genfuel => in(["ng", "coal"]) ) + get_gen_result(data, model, PerMWhGen(), :genfuel => !in(["ng", "coal"]))
+        
+        # Provide an index(es) for filtering
+        @test tot == get_gen_result(data, model, PerMWhGen(), 1 ) + get_gen_result(data, model, PerMWhGen(), [2])
+    end
+
+    @testset "Test year_idx filters" begin
+        tot = get_gen_result(data, model, PerMWhGen())
+        nyr = get_num_years(data)
+
+        # Year index
+        @test tot == get_gen_result(data, model, PerMWhGen(), :, 1) + get_gen_result(data, model, PerMWhGen(), :, 2:nyr)
+
+        # Year string
+        @test tot == get_gen_result(data, model, PerMWhGen(), :, "y2030") + get_gen_result(data, model, PerMWhGen(), :, ["y2035", "y2040"])
+        
+        # Range of years
+        @test tot == get_gen_result(data, model, PerMWhGen(), :, ("y2020", "y2031")) + get_gen_result(data, model, PerMWhGen(), :, ("y2032","y2045"))
+
+        # Test function of years
+        @test tot == get_gen_result(data, model, PerMWhGen(), :, <=("y2031")) + get_gen_result(data, model, PerMWhGen(), :, >("y2031"))
+    end
+
+    @testset "Test hour_idx filters" begin
+        tot = get_gen_result(data, model, PerMWhGen())
+        nhr = get_num_hours(data)
+
+        # Hour index
+        @test tot == get_gen_result(data, model, PerMWhGen(), :, :, 1) + get_gen_result(data, model, PerMWhGen(), :, :, 2:nhr)
+
+        # Hour table label
+        @test tot == get_gen_result(data, model, PerMWhGen(), :, :, (:time_of_day=>"morning", :season=>"summer")) + 
+            get_gen_result(data, model, PerMWhGen(), :, :, (:time_of_day=>"morning", :season=>!=("summer"))) +
+            get_gen_result(data, model, PerMWhGen(), :, :, :time_of_day=>!=("morning"))
+            
+    end
+
 end

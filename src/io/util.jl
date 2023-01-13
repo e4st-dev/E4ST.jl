@@ -8,9 +8,15 @@ Converts `year_idxs` into a usable set of indices that can index into `get_years
 * `AbstractVector{Int64}`
 * `AbstractString` - Representing the year, i.e. "y2020"
 * `AbstractVector{<:AbstractString}` - a vector of strings representing the year, i.e. "y2020"
+* `Tuple{<:AbstractString, <:AbstractString}`
+* `Function` - a function of the year string that returns a boolean.  I.e. <=("y2030")
 """
 function get_year_idxs(data, year_idxs::Colon)
     1:get_num_years(data)
+end
+function get_year_idxs(data, f::Function)
+    yrs = get_years(data)
+    return [i for i in 1:length(yrs) if f(yrs[i])]
 end
 function get_year_idxs(data, year_idxs::AbstractVector{Int64})
     year_idxs
@@ -24,6 +30,11 @@ end
 function get_year_idxs(data, year_idxs::AbstractVector{<:AbstractString})
     yrs = get_years(data)
     return map(y->findfirst(==(y), yrs), year_idxs)
+end
+function get_year_idxs(data, year_string_range::Tuple{<:AbstractString, <:AbstractString})
+    comp = ys->year_string_range[1]<=ys<=year_string_range[2]
+    yrs = get_years(data)
+    return [i for i in 1:length(yrs) if comp(yrs[i])]
 end
 export get_year_idxs
 
@@ -44,6 +55,9 @@ function get_hour_idxs(data, hour_idxs::AbstractVector{Int64})
 end
 function get_hour_idxs(data, hour_idxs::Int64)
     hour_idxs
+end
+function get_hour_idxs(data, pairs)
+    return table_rows(get_hours_table(data), pairs)
 end
 export get_hour_idxs
 

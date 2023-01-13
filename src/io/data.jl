@@ -125,6 +125,7 @@ function setup_gen_table!(config, data)
     bus = get_bus_table(data)
     gen = get_gen_table(data)
     leftjoin!(gen, bus, on=:bus_idx)
+    disallowmissing!(gen)
 end
 export setup_gen_table!
 
