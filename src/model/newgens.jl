@@ -33,13 +33,14 @@ end
 """
     make_newgens!(config, data, newgen) -> 
 
-Create newgen rows for each spec in build_gen. 
+Create newgen rows for each spec in build_gen. Creates a generator of the given type at all buses in the area/subarea. 
 Exogenously specified generators are also added to newgen through the build_gen sheet.
 """
 function make_newgens!(config, data, newgen)
     build_gen = get_build_gen_table(data)
     bus = get_bus_table(data)
     spec_names = filter!(!=(:bus_idx), propertynames(newgen)) #this would need to be changed if there is more than bus_idx that isn't a spec
+
     for spec_row in eachrow(build_gen)
         area = spec_row.area
         subarea = spec_row.subarea
@@ -63,6 +64,8 @@ function append_newgen_table!(data, newgen)
 end
 
 
+
+# This is unecessary for how the new gen code is current written but might be helpful later. 
 """
     get_genfuel(data, gentype) -> 
 
