@@ -22,7 +22,7 @@ function load_data(config)
 
     load_data_files!(config, data)
     modify_raw_data!(config, data)
-    setup_data!(config, data)    
+    setup_data!(config, data)  
     modify_setup_data!(config, data)
 
     if get(config, :save_data, true)
@@ -48,7 +48,7 @@ Loads in the data files presented in the `config`.  Calls the following function
 * [`load_demand_match_table!(config, data)`](@ref)  - from `config[:demand_match_file] -> data[:demand_match_table]` (if `config[:demand_match_file]` provided)
 * [`load_demand_add_table!(config, data)`](@ref)  - from `config[:demand_add_file] -> data[:demand_add_table]` (if `config[:demand_add_file]` provided)
 * [`load_build_gen_table!(config, data)`](@ref)  - from `config[:build_gen_file] -> data[:build_gen]`
-* [`load_genfuel_table!(config, data)`](@ref)  - from `config[:genfuel_gentype_file] -> data[:genfuel_table]`
+* [`load_genfuel_table!(config, data)`](@ref)  - from `config[:gentype_genfuel_file] -> data[:genfuel_table]`
 """
 function load_data_files!(config, data)
     load_bus_table!(config, data)
@@ -95,16 +95,23 @@ end
     setup_data!(config, data)
 
 Sets up the data, modifying, adding to, or combining the tables as needed.
+New generators built in the `setup_gen_table!` function. 
 """
 function setup_data!(config, data)
+
+    # Note that order matters for these functions because later ones rely on data from earlier tables.
+    setup_build_gen_table!(config, data)
+    setup_genfuel_table!(config, data)    
     setup_bus_table!(config, data)
     setup_branch_table!(config, data)
-    setup_gen_table!(config, data)
     setup_hours_table!(config, data)
-    setup_af!(config, data)
     setup_demand!(config, data)
-    setup_build_gen_table!(config, data)
-    setup_genfuel_table!(config, data)
+
+    setup_gen_table!(config, data) #needs to come after build_gen setup for newgens
+    
+    setup_af!(config, data)
+
+
 end
 export setup_data!
 
@@ -127,11 +134,17 @@ export load_gen_table!
     setup_gen_table!(config, data)
 
 Sets up the generator table.
+Creates potential new generators and exogenously built generators. 
+Calls [`setup_new_gens!`](@ref) 
 """
 function setup_gen_table!(config, data)
+    #create new gens and add to the gen table
+    setup_new_gens!(config, data)  
+    
     bus = get_bus_table(data)
     gen = get_gen_table(data)
     leftjoin!(gen, bus, on=:bus_idx)
+    disallowmissing!(gen)
 end
 export setup_gen_table!
 
@@ -366,8 +379,8 @@ export setup_af!
 Loads in the genfuel table which contains gentypes and their corresponding genfuel.
 """
 function load_genfuel_table!(config, data)
-    @info "Loading the genfuel table from:  $(config[:genfuel_gentype_file])"
-    genfuel = load_table(config[:genfuel_gentype_file])
+    @info "Loading the genfuel table from:  $(config[:gentype_genfuel_file])"
+    genfuel = load_table(config[:gentype_genfuel_file])
     force_table_types!(genfuel, :genfuel, summarize_genfuel_table())
     data[:genfuel_table] = genfuel
     return
@@ -417,7 +430,7 @@ export load_years!
 Loads a table from filename, where filename is a csv.
 """
 function load_table(filename::String)
-    CSV.read(filename, DataFrame, missingstring="NA")
+    CSV.read(filename, DataFrame, missingstring="NA", stripwhitespace=true)
 end
 export load_table
 

@@ -5,7 +5,8 @@ branch_file: "../data/3bus/branch.csv"
 hours_file:  "../data/3bus/hours.csv"
 af_file:     "../data/3bus/af.csv"
 demand_file: "../data/3bus/demand.csv"
-genfuel_gentype_file: "../data/3bus/genfuel_gentype.csv"
+gentype_genfuel_file: "../data/3bus/gentype_genfuel.csv"
+build_gen_file: "../data/3bus/build_gen.csv"
 logging:     false
 voll: 5000000
 years:

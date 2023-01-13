@@ -71,6 +71,7 @@ config = load_config(config_file)
 @testset "Test Loading the Data" begin    
     data = load_data(config)
     @test get_gen_table(data) isa DataFrame
+    @test get_build_gen_table(data) isa DataFrame
     @test get_bus_table(data) isa DataFrame
     @test get_branch_table(data) isa DataFrame
     @test get_hours_table(data) isa DataFrame
@@ -95,10 +96,10 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
     @testset "Test Initializing the Data with a mod" begin
         struct DoubleVOM <: Modification end
         function E4ST.modify_raw_data!(::DoubleVOM, config, data)
-            data[:gen][!, :vom] .*= 2
+            return
         end
         function E4ST.modify_setup_data!(::DoubleVOM, config, data)
-            return
+            data[:gen][!, :vom] .*= 2
         end
         config = load_config(config_file)
         data_0 = load_data(config)
@@ -107,6 +108,9 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         data = load_data(config)
         @test data != data_0
         @test sum(data[:gen].vom) == 2*sum(data_0[:gen].vom)
+
+        #TODO: Create test Mod that applied in modify_raw_data!
+
     end
 
     @testset "Test load_af_table!" begin
@@ -204,7 +208,30 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         @test get_edem_demand(data, :, "y2035", :) ≈ 2.3
         @test get_edem_demand(data, :, "y2040", :) ≈ 2.53 + 0.01*8760
     end
+
+    @testset "Test Adding New Gens" begin
+        config = load_config(config_file)
+        data = load_data(config)
+        gen = get_gen_table(data)
+        build_gen = get_build_gen_table(data)
+
+        @test "endog" in gen.build_type
+        @test "unbuilt" in gen.build_status
+        for gen_row in eachrow(gen)
+            gen_row.build_status == "unbuilt" && @test gen_row.pcap0 == 0
+        end
+
+        "new" in build_gen.build_status && @test "new" in gen.build_status
+
+        #check that all gentypes in build_gen are in gen as well
+        @test 0 ∉ indexin(unique(build_gen.gentype), unique(gen.gentype))
+        
+
+
+    end
 end
+
+
 
 @testset "Test Setting up the model" begin
     config = load_config(config_file)

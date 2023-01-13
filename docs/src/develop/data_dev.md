@@ -15,6 +15,8 @@ In the `data.jl` file:
 
 5. Add the `setup_newdata_table!` function to `setup_data! ` (in the documentation and called in the function).
 
+6. Add the file path path to config file and to `make_paths_absolute()` function in `config.jl`
+
 
 Some nonessential things to do for convenience: 
 

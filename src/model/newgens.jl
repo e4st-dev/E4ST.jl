@@ -12,6 +12,7 @@ function setup_new_gens!(config, data)
     append_newgen_table!(data, newgen)
 
 end
+export setup_new_gens!
 
 
 """
@@ -46,7 +47,7 @@ function make_newgens!(config, data, newgen)
         subarea = spec_row.subarea
         bus_idxs = table_rows(bus, (area=>subarea))
         for bus_idx in bus_idxs
-            newgen_row = Dict{}(:bus_idx => bus_idx, :build_status(spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
+            newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
             push!(newgen, newgen_row)
         end
     end
