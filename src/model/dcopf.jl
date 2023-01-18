@@ -54,6 +54,7 @@ function setup_dcopf!(config, data, model)
     # Generated energy at a given generator
     @expression(model, egen_gen[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour], get_egen_gen(data, model, gen_idx, year_idx, hour_idx))
 
+
     ## Constraints
 
     # Constrain Power Flow / Power Balance

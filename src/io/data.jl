@@ -139,7 +139,9 @@ Calls [`setup_new_gens!`](@ref)
 """
 function setup_gen_table!(config, data)
     #create new gens and add to the gen table
-    setup_new_gens!(config, data)  
+    if haskey(config, :build_gen_file) 
+        setup_new_gens!(config, data)  
+    end  
     
     bus = get_bus_table(data)
     gen = get_gen_table(data)
@@ -154,6 +156,11 @@ export setup_gen_table!
 Load the new generator characteristics/specs table from the `config[:build_gen_file]`.  See [`summarize_build_gen_table()`](@ref).
 """
 function load_build_gen_table!(config, data)
+    # Return if there is no build_gen_file
+    if ~haskey(config, :build_gen_file) 
+        return
+    end
+
     build_gen = load_table(config[:build_gen_file])
     force_table_types!(build_gen, :build_gen, summarize_build_gen_table()) #change to pairs with all relevant from gen table
     data[:build_gen] = build_gen
@@ -167,6 +174,11 @@ export load_build_gen_table!
 Sets up the new generator characteristics/specs table.
 """
 function setup_build_gen_table!(config, data)
+    # Return if there is no build_gen_file
+    if ~haskey(config, :build_gen_file) 
+        return
+    end
+
 end
 export setup_build_gen_table!
 
