@@ -92,6 +92,14 @@ function setup_dcopf!(config, data, model)
     @constraint(model, cons_branch_pflow_neg[branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour], 
             -pflow_branch[branch_idx, year_idx, hour_idx] <= get_pflow_branch_max(data, branch_idx, year_idx, hour_idx))
     
+    # Constrain Capacity to 0 before the start/build year 
+    for gen_idx in 1:nrow(gen)
+        prebuild_year_idxs = get_prebuild_year_idxs(data, gen_idx)
+        # cons_pcap_prebuild
+        @constraint(model, [year_idx in prebuild_year_idxs],
+            pcap_gen[gen_idx, year_idx] == 0) # TODO: Get this to be part of the constraint reference instead of anonymous
+    end
+
 
 
     ## Objective Function 

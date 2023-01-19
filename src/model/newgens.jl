@@ -35,20 +35,32 @@ end
     make_newgens!(config, data, newgen) -> 
 
 Create newgen rows for each spec in build_gen. Creates a generator of the given type at all buses in the area/subarea. 
+Endogenous unbuilt gens are created for each year in years.
 Exogenously specified generators are also added to newgen through the build_gen sheet.
 """
 function make_newgens!(config, data, newgen)
     build_gen = get_build_gen_table(data)
     bus = get_bus_table(data)
     spec_names = filter!(!=(:bus_idx), propertynames(newgen)) #this would need to be changed if there is more than bus_idx that isn't a spec
+    years = get_years(data)
 
     for spec_row in eachrow(build_gen)
         area = spec_row.area
         subarea = spec_row.subarea
         bus_idxs = table_rows(bus, (area=>subarea))
+
         for bus_idx in bus_idxs
-            newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
-            push!(newgen, newgen_row)
+            if spec_row.build_type == "endog"
+                # for endogenous new builds, a new gen is created for each sim year
+                for year in years
+                    newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
+                    newgen_row[:start_year] => year
+                    push!(newgen, newgen_row)
+                end
+            else 
+                # for exogenously specified gens, only one generator is created with the specified start_year
+                newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)          
+            end
         end
     end
     return newgen

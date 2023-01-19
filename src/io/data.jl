@@ -607,6 +607,7 @@ function summarize_gen_table()
         (:capex, Float64, "\$/MW", false, "Hourly capital expenditures for a MW of generation capacity"),
         (:cf_min, Float64, "ratio", false, "The minimum operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
         (:cf_max, Float64, "ratio", false, "The maximum operable ratio of power generation to capacity for the generator to operate"),
+        (:start_year, String, "n/a", true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
     )
     return df
 end
@@ -692,6 +693,7 @@ function summarize_build_gen_table()
         (:fuel_cost, Float64, "\$/MWh", false, "Fuel cost per MWh of generation"),
         (:fom, Float64, "\$/MW", true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, "\$/MW", false, "Hourly capital expenditures for a MW of generation capacity"),
+        (:start_year, String, "n/a", true, "The first year of operation for the generator. (For new gens this is also the year it was built). Endogenous unbuilt generators will specify na"),
     )
     return df
 end
@@ -946,10 +948,14 @@ export get_edem, get_edem_demand
 
 Retrieve the `var` value for generator `gen_idx` in year `year_idx` at hour `hour_idx`
 """
-function get_gen_value(data, name, gen_idx, year_idx, hour_idx)
+function get_gen_value(data, var::Symbol, gen_idx, year_idx, hour_idx)
     gen_table = get_gen_table(data)
-    c = gen_table[gen_idx, name]
+    c = gen_table[gen_idx, var]
     return c[year_idx, hour_idx]::Float64
+end
+function get_gen_value(data, var::Symbol, gen_idx)
+    gen_table = get_gen_table(data)
+    return gen_table[gen_idx,var]
 end
 export get_gen_value
 
@@ -1051,6 +1057,19 @@ function get_num_years(data)
     return length(get_years(data))
 end
 export get_num_years, get_years
+
+
+"""
+    get_prebuild_year_idxs(data, gen_idx) -> prebuild_year_idxs::Array
+
+Returns an array of the year indexes for years in the simulation before the start year of the specified generator. 
+"""
+function get_prebuild_year_idxs(data, gen_idx)
+    years = years_to_int(get_years(data))
+    start_year = years_to_int(get_gen_value(data, :start_year, gen_idx))
+    idxs = findall(x -> years[x] < start_year, 1:length(years))
+    return idxs
+end
 
 
 """
