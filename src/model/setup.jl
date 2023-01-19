@@ -15,6 +15,9 @@ Sets up a JuMP Model for E4ST using `config` and `data`.
 | $g \in G$ | :gen_idx | Generator index |
 | $b \in B$ | :bus_idx | Bus index |
 | $l \in L$ | :branch_idx | Branch index |
+| $y \in Y$ | :year_idx | Year index |
+| $y_{S_g} \in Y$ | :start_year_idx | Starting Year index for generator `g` |
+
 
 # Variables
 These are the decision variables to be optimized over.  Can be accessed by `model[symbol]`
@@ -47,10 +50,12 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 | $C_{PG_{g,y,h}}^{\text{max}}$ | $P_{G_{g,y,h}} \leq P_{C_{b,y}}^{\text{max}}$ | `:cons_pgen_max` | MW | Constrain the generated power to be below min(availability factor, max capacity factor) |
 | $C_{PS_{g,y,h}}^{\text{min}}$ | $P_{S_{b,y,h}} \geq 0$ | `:cons_pserv_min` | MW | Constrain the served power to be greater than zero |
 | $C_{PS_{g,y,h}}^{\text{max}}$ | $P_{S_{b,y,h}} \leq P_{D_{b,y,h}}$ | `:cons_pserv_max` | MW | Constrain the served power to be less than or equal to demanded power. |
-| $C_{PC_{g,y,h}}^{\text{min}}$ | $P_{C_{g,y}} \geq P_{C_{g,y}}^{\text{min}}$ | `:cons_pcap_min` | MW | Constrain the power generation capacity to be less than or equal to its minimum. |
-| $C_{PC_{g,y,h}}^{\text{max}}$ | $P_{C_{g,y}} \leq P_{C_{g,y}}^{\text{max}}$ | `:cons_pcap_max` | MW | Constrain the power generation capacity to be less than or equal to its minimum. |
+| $C_{PC_{g,y}}^{\text{min}}$ | $P_{C_{g,y}} \geq P_{C_{g,y}}^{\text{min}}$ | `:cons_pcap_min` | MW | Constrain the power generation capacity to be less than or equal to its minimum. |
+| $C_{PC_{g}}^{\text{max}}$ | $P_{C_{g,y}} \leq P_{C_{g,y}}^{\text{max}}\quad \forall y = y_{S_g}$ | `:cons_pcap_max` | MW | Constrain the power generation capacity to be less than or equal to its minimum for its starting year. |
 | $C_{PL_{l,y,h}}^{+}$ | $P_{F_{l,y,h}} \leq P_{L_{l,y,h}}^{\text{max}}$ | `:cons_branch_pflow_pos` | MW | Constrain the branch power flow to be less than or equal to its maximum. |
 | $C_{PL_{l,y,h}}^{-}$ | $-P_{F_{l,y,h}} \leq P_{L_{l,y,h}}^{\text{max}}$ | `:cons_branch_pflow_neg` | MW | Constrain the negative branch power flow to be less than or equal to its maximum. |
+| $C_{PCPB_{g,y}}$ | $P_{C_{g,y}} = 0 \quad \forall \left\{ y<y_{S_g} \right\}$ | `:cons_pcap_prebuild` | MW | Constraint the power generation capacity to be zero before the start year. |
+| $C_{PCNA_{g,y}}$ | $P_{C_{g,y+1}} <= P_{C_{g,y}} \quad \forall \left\{ y >= y_{S_g} \right\}$ | `:cons_pcap_noadd` | MW | Constraint the power generation capacity to be non-increasing after the start year. Generation capacity is only added when building new generators in their start year.|
 
 # Objective
 
