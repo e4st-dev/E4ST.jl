@@ -61,30 +61,35 @@ function setup_model(config, data)
     log_header("SETTING UP MODEL")
 
     if haskey(config, :model_presolve_file)
-        @info "Loading model from $(config[:model_presolve_file])"
+        @info "Loading model from:\n$(config[:model_presolve_file])"
         model = deserialize(config[:model_presolve_file])
-        @info "Model Summary: $(summarize(model))"
-        return model
+    else
+        model = JuMP.Model()
+
+        setup_dcopf!(config, data, model)
+
+        for mod in getmods(config)
+            apply!(mod, config, data, model)
+        end
+
+        @objective(model, Min, model[:obj])
+
+        if get(config, :save_model_presolve, true)
+            model_presolve_file = joinpath(config[:out_path],"model_presolve.jls")
+            @info "Saving model to:\n$model_presolve_file"
+            serialize(model_presolve_file, model)
+        end
     end
 
-    optimizer_factory = getoptimizer(config)
-    model = JuMP.Model(optimizer_factory)
+    add_optimizer!(config, data, model)
 
-    setup_dcopf!(config, data, model)
-
-    for mod in getmods(config)
-        apply!(mod, config, data, model)
-    end
-
-    @objective(model, Min, model[:obj])
-
-    @info "Model Summary: $(summarize(model))"
-
-    if get(config, :save_model_presolve, true)
-        serialize(joinpath(config[:out_path],"model_presolve.jls"), model)
-    end
-
+    @info "Model Summary:\n$(summarize(model))"
     return model
+end
+
+function add_optimizer!(config, data, model)
+    optimizer_factory = getoptimizer(config)
+    set_optimizer(model, optimizer_factory)
 end
 
 """
@@ -137,8 +142,8 @@ function optimizer_attributes(config, ::Val{T}; kwargs...) where T
     @warn "No default optimizer attributes defined for type $T"
 end
 function optimizer_attributes(config, ::Val{:HiGHS}; log_file = nothing, kwargs...)
-    if log_file == nothing
-        log_file_full = abspath(config[:out_path], "HiGHS.log")
+    if log_file === nothing
+        log_file_full = ""
     elseif ispath(dirname(log_file))
         log_file_full = log_file
     else
@@ -148,13 +153,21 @@ function optimizer_attributes(config, ::Val{:HiGHS}; log_file = nothing, kwargs.
         dual_feasibility_tolerance   = 1e-7, # Notional, not sure what this should be
         primal_feasibility_tolerance = 1e-7,
         log_to_console = false,
-        # log_file = log_file_full,
+        log_file = log_file_full,
         kwargs...
     )
 end
-function optimizer_attributes(config, ::Val{:Gurobi}; kwargs...)
+function optimizer_attributes(config, ::Val{:Gurobi}; LogFile=nothing, kwargs...)
+    if LogFile === nothing
+        log_file_full = ""
+    elseif ispath(dirname(LogFile))
+        log_file_full = LogFile
+    else
+        log_file_full = abspath(config[:out_path], LogFile)
+    end
     # These defaults came from e4st_core.m
     (;
+        LogToConsole    = false,
         NumericFocus    = 0,
         BarHomogeneous  =-1,
         method          = 2,
@@ -163,6 +176,7 @@ function optimizer_attributes(config, ::Val{:Gurobi}; kwargs...)
         FeasibilityTol  = 1e-2,
         OptimalityTol   = 1e-6,
         BarConvTol      = 1e-6,
+        LogFile         = log_file_full,
         kwargs...
     )
 end

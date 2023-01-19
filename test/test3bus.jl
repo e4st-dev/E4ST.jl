@@ -34,7 +34,7 @@ function test_dcopf(config)
     rep_hours = get_hours_table(data)
     total_pserv = sum(rep_hours.hours[hour_idx].*value.(model[:pserv_bus][bus_idx, year_idx, hour_idx]) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
     total_dl = sum(rep_hours.hours[hour_idx].*get_bus_value(data, :pdem, bus_idx, year_idx, hour_idx) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
-    @test total_pserv == total_dl
+    @test total_pserv ≈ total_dl
     @test all(p->abs(p)<1e-6, value.(model[:pcurt_bus]))
 
     # make sure energy generated is non_zero
