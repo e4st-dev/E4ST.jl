@@ -73,7 +73,7 @@ function setup_model(config, data)
     setup_dcopf!(config, data, model)
 
     for (name, mod) in getmods(config)
-        apply!(mod, config, data, model)
+        modify_model!(mod, config, data, model)
     end
 
     @objective(model, Min, model[:obj])

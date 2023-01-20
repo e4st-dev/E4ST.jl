@@ -224,7 +224,7 @@ end
             return new(Symbol(name), Symbol(column), new_targets)
         end
     end
-    function E4ST.apply!(pol::GenerationCap, config, data, model)
+    function E4ST.modify_model!(pol::GenerationCap, config, data, model)
         gen = get_gen_table(data)
         gen_idxs = 1:nrow(gen)
 
