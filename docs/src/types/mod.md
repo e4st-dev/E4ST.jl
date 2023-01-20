@@ -4,7 +4,7 @@ Modifications
 Modification
 modify_raw_data!
 modify_setup_data!
-apply!
+modify_model!
 results!
 fieldnames_for_yaml
 ```

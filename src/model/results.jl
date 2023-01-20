@@ -56,19 +56,55 @@ end
 export get_all_cons
 
 
-function get_result_bus(data, model, n::Symbol)#, bus_idx, year_idx, hour_idx)
-    v = map(1:nrow(get_bus_table(data))) do bus_idx
-        vcat((round.(value.(model[n][bus_idx, year_idx, :]),digits=2) for year_idx in 1:get_num_years(data))...)
-    end
-    return v
+function get_model_val_by_gen(data, model, name::Symbol, idxs = :, year_idxs = :, hour_idxs = :)
+    _idxs, _year_idxs, _hour_idxs = get_gen_array_idxs(data, idxs, year_idxs, hour_idxs)
+    v = _view_model(model, name, _idxs, _year_idxs, _hour_idxs)
+    isempty(v) && return 0.0
+    return sum(value, v)
 end
-export get_result_bus
+export get_model_val_by_gen
 
-function get_result_branch(data, model, n::Symbol)#, bus_idx, year_idx, hour_idx)
-    v = map(1:nrow(get_branch_table(data))) do br_idx
-        vcat((round.(value.(model[n][br_idx, year_idx, :]),digits=2) for year_idx in 1:get_num_years(data))...)
-    end
-    return v
+function get_gen_result(data, model, ::PerMWhGen, gen_idxs = :, year_idxs = :, hour_idxs = :)
+    _gen_idxs = get_gen_array_idxs(data, gen_idxs)
+    _year_idxs = get_year_idxs(data, year_idxs)
+    _hour_idxs = get_hour_idxs(data, hour_idxs)
+    var = model[:egen_gen]::Array{AffExpr, 3}
+    v = view(var, _gen_idxs, _year_idxs, _hour_idxs)
+    isempty(v) && return 0.0
+    return sum(value, v)
 end
 
-export get_result_branch
+function get_gen_result(data, model, ::PerMWhGen, col_name::Union{Symbol, String}, gen_idxs = :, year_idxs = :, hour_idxs = :)
+    _gen_idxs = get_gen_array_idxs(data, gen_idxs)
+    _year_idxs = get_year_idxs(data, year_idxs)
+    _hour_idxs = get_hour_idxs(data, hour_idxs)
+    var = model[:egen_gen]::Array{AffExpr, 3}
+    # v = view(var, _gen_idxs, _year_idxs, _hour_idxs)
+    # isempty(v) && return 0.0
+
+    isempty(_gen_idxs)  && return 0.0
+    isempty(_year_idxs) && return 0.0
+    isempty(_hour_idxs) && return 0.0
+
+    return sum(value(var[g,y,h]) * get_gen_value(data, col_name, g, y, h) for g in _gen_idxs, y in _year_idxs, h in _hour_idxs)
+end
+export get_gen_result
+
+function _view_model(model, name, idxs, year_idxs, hour_idxs)
+    var = model[name]::Array{<:Any, 3}
+    return view(var, idxs, year_idxs, hour_idxs)
+end
+
+function get_gen_array_idxs(data, idxs, year_idxs, hour_idxs)
+    _idxs = get_gen_array_idxs(data, idxs)
+    _year_idxs = get_year_idxs(data, year_idxs)
+    _hour_idxs = get_hour_idxs(data, hour_idxs)
+    return _idxs, _year_idxs, _hour_idxs
+end
+
+
+function get_gen_array_idxs(data, idxs)
+    return table_rows(get_gen_table(data), idxs)
+end
+
+export get_gen_array_idxs

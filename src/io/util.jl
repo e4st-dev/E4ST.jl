@@ -8,9 +8,15 @@ Converts `year_idxs` into a usable set of indices that can index into `get_years
 * `AbstractVector{Int64}`
 * `AbstractString` - Representing the year, i.e. "y2020"
 * `AbstractVector{<:AbstractString}` - a vector of strings representing the year, i.e. "y2020"
+* `Tuple{<:AbstractString, <:AbstractString}`
+* `Function` - a function of the year string that returns a boolean.  I.e. <=("y2030")
 """
 function get_year_idxs(data, year_idxs::Colon)
-    year_idxs
+    1:get_num_years(data)
+end
+function get_year_idxs(data, f::Function)
+    yrs = get_years(data)
+    return [i for i in 1:length(yrs) if f(yrs[i])]
 end
 function get_year_idxs(data, year_idxs::AbstractVector{Int64})
     year_idxs
@@ -25,6 +31,11 @@ function get_year_idxs(data, year_idxs::AbstractVector{<:AbstractString})
     yrs = get_years(data)
     return map(y->findfirst(==(y), yrs), year_idxs)
 end
+function get_year_idxs(data, year_string_range::Tuple{<:AbstractString, <:AbstractString})
+    comp = ys->year_string_range[1]<=ys<=year_string_range[2]
+    yrs = get_years(data)
+    return [i for i in 1:length(yrs) if comp(yrs[i])]
+end
 export get_year_idxs
 
 
@@ -37,13 +48,16 @@ Converts `hour_idxs` into a usable set of indices that can index into hourly dat
 * `AbstractVector{Int64}`    
 """
 function get_hour_idxs(data, hour_idxs::Colon)
-    hour_idxs
+    1:get_num_hours(data)
 end
 function get_hour_idxs(data, hour_idxs::AbstractVector{Int64})
     hour_idxs
 end
 function get_hour_idxs(data, hour_idxs::Int64)
     hour_idxs
+end
+function get_hour_idxs(data, pairs)
+    return table_rows(get_hours_table(data), pairs)
 end
 export get_hour_idxs
 
@@ -54,13 +68,19 @@ Returns row indices of the passed-in table that correspond to idxs, where `idxs`
 * `::Colon` - all rows
 * `::Int64` - a single row
 * `::AbstractVector{Int64}` - a list of rows
-* `p::Pair` - returns a Vector containing the index of each row for which row[p[1]] == p[2]
+* `p::Pair` - returns a Vector containing the index of each row for which `comparison(p[2], typeof(row[p[1]]))(row[p[1]])` is true.  See [`comparison`](@ref) 
 * `pairs`, an iterator of `Pair`s - returns a Vector containing the indices which satisfy all the pairs as above.
+
+Some possible pairs to filter by:
+* `:country => "narnia"`: checks if the `country` column is equal to the string "narnia"
+* `:emis_co2 => >=(0.1)`: checks if the `emis_co2` column is greater than or equal to 0.1
+* `:age => (2,10)`: checks if the `age` column is between 2, and 10, inclusive.  To be exclusive, use different values like (2.0001, 9.99999) for clarity
+* `:state => in(("alabama", "arkansas"))`: checks if the `state` column is either "alabama" or "arkansas"
 
 See also [`filter_view`](@ref)
 """
 function table_rows(table, idxs::Colon)
-    return idxs
+    return 1:nrow(table)
 end
 
 function table_rows(table, idxs::AbstractVector{Int64})
@@ -99,7 +119,9 @@ Returns the appropriate comparison function for `value` to be compared to each m
 
     comparison(value, ::Type)
 
-Returns the appropriate comparison function for `value` to be compared to the 2nd argument type.
+Returns the appropriate comparison function for `value` to be compared to the 2nd argument type.  Here are a few options:
+* comparison(f::Function, ::Type) -> f
+* comparison(s::String, ::String) -> 
 """
 function comparison(value, v::AbstractVector)
     comparison(value, eltype(v))
@@ -112,6 +134,14 @@ end
 function comparison(value::String, ::Type{<:Integer})
     num = parse(Int, value)
     return ==(num)
+end
+
+function comparison(value::String, ::Type{<:AbstractString})
+    return ==(value)
+end
+
+function comparison(value::String, ::Type)
+    return x->string(x) == value
 end
 
 function comparison(value::Tuple{<:Real, <:Real}, ::Type{<:Real})
