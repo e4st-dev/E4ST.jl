@@ -933,7 +933,7 @@ Returns the number of hours in a year spent at each representative hour
 """ 
 function get_hour_weights(data)
     hours_table = get_table(data, :hours)
-    return hours_table.hours
+    return hours_table.hours::Vector{Float64}
 end
 function get_hour_weights(data, hour_idxs)
     return view(get_hour_weights(data), hour_idxs)

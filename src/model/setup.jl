@@ -69,7 +69,8 @@ function setup_model(config, data)
         @info "Loading model from:\n$(config[:model_presolve_file])"
         model = deserialize(config[:model_presolve_file])
     else
-        model = JuMP.Model()
+        model = JuMP.Model(add_bridges=false)
+        set_string_names_on_creation(model, false)
 
         setup_dcopf!(config, data, model)
     

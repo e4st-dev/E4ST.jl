@@ -5,6 +5,6 @@ Modification
 modify_raw_data!
 modify_setup_data!
 modify_model!
-results!
+modify_results!
 fieldnames_for_yaml
 ```

@@ -304,14 +304,14 @@ end
             avg_ng_egen::Vector{Float64}=Float64[]
         end
         E4ST.fieldnames_for_yaml(::Type{TargetAvgAnnualNGGen}) = (:target, :tol)
-        function E4ST.should_iterate(iter::TargetAvgAnnualNGGen, config, data, model, results)
+        function E4ST.should_iterate(iter::TargetAvgAnnualNGGen, config, data, model, args...)
             tgt = iter.target
             tol = iter.tol
             ng_gen_total = get_model_val_by_gen(data, model, :egen_gen, :genfuel=>"ng")
             ng_gen_ann = ng_gen_total/get_num_years(data)
             return abs(ng_gen_ann-tgt) > tol            
         end
-        function E4ST.iterate!(iter::TargetAvgAnnualNGGen, config, data, model, results)
+        function E4ST.iterate!(iter::TargetAvgAnnualNGGen, config, data, model, args...)
             tgt = iter.target
             ng_gen_total = get_model_val_by_gen(data, model, :egen_gen, :genfuel=>"ng")
             ng_gen_ann = ng_gen_total/get_num_years(data)
@@ -357,6 +357,7 @@ end
 @testset "Test loading/saving data from .jls file" begin
     config = load_config(config_file)
     config[:out_path] = "../out/3bus1"
+    config[:save_model_presolve] = true
     E4ST.make_out_path!(config)
     data1 = load_data(config)
 
@@ -374,6 +375,7 @@ end
 @testset "Test loading/saving model from .jls file" begin
     config = load_config(config_file)
     config[:out_path] = "../out/3bus1"
+    config[:save_model_presolve] = true
     E4ST.make_paths_absolute!(config, config_file)
     E4ST.make_out_path!(config)
     data = load_data(config)
@@ -384,7 +386,7 @@ end
     @test_throws Exception setup_model(config)
 
     # Check that data file is loaded in and identical.  Also check that other files aren't touched
-    config[:model_presolve_file] = "../out/3bus1/model_presolve.jls"
+    config[:model_presolve_file] = out_path(config, "model_presolve.jls")
     E4ST.make_paths_absolute!(config, config_file)
     model2 = setup_model(config, data)
     optimize!(model1)

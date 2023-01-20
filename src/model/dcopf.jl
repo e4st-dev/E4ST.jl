@@ -200,13 +200,13 @@ Returns min power generation for a generator at a time.
 Default is 0 unless specified by the optional gen property `cf_min` (minimum capacity factor).
 """ 
 function get_pgen_min(data, model, gen_idx, year_idx, hour_idx) 
-   if hasproperty(data[:gen], :cf_min)
-    pcap = model[:pcap_gen][gen_idx, year_idx]
-    cf_min = get_gen_value(data, :cf_min, gen_idx, year_idx, hour_idx)
-     return pcap .* cf_min 
-   else
-     return 0.0
-   end
+    if hasproperty(data[:gen], :cf_min)
+        pcap = model[:pcap_gen][gen_idx, year_idx]
+        cf_min = get_gen_value(data, :cf_min, gen_idx, year_idx, hour_idx)
+        return pcap .* cf_min 
+    else
+        return 0.0
+    end
 end
 export get_pgen_min
 

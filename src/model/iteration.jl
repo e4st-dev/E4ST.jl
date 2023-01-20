@@ -33,7 +33,7 @@ function Iterable(d::AbstractDict)
 end
 
 """    
-    should_iterate(iter, config, data, model, results) -> Bool
+    should_iterate(iter, config, data, model, results_raw, results_user) -> Bool
     
 Returns whether or not the model should iterate.
 """
@@ -58,7 +58,7 @@ function should_reload_data end
 export should_reload_data
 
 """
-    iterate!(iter::Iterable, config, data, model, results)
+    iterate!(iter::Iterable, config, data, model, results_raw, results_user)
 
 Make any necessary modifications to the `config` or `data` based on `iter`.
 """

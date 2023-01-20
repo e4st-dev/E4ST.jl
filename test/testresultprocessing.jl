@@ -20,6 +20,7 @@ end
 @testset "Test loading/saving model from .jls file" begin
     config = load_config(config_file)
     config[:out_path] = "../out/3bus1"
+    config[:save_model_presolve] = true
     E4ST.make_paths_absolute!(config, config_file)
     E4ST.make_out_path!(config)
     data = load_data(config)

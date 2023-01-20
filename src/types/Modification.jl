@@ -21,7 +21,7 @@ When defining a concrete `Modification` type, you should know the following.
 * [`modify_raw_data!(mod, config, data)`](@ref) - In the data preparation step, right after [`load_data_files!(config, data)`](@ref) before setting up the data
 * [`modify_setup_data!(mod, config, data)`](@ref) - In the data preparation step, right after [`setup_data!(config, data)`](@ref) before setting up the `Model`
 * [`modify_model!(mod, config, data, model)`](@ref) - In the model setup step, after setting up the DC-OPF but before optimizing
-* [`results!(mod, config, data, model, results)`](@ref) - After optimizing the model, in the results generation step
+* [`modify_results!(mod, config, data, model, results)`](@ref) - After optimizing the model, in the results generation step
 
 Modifications get printed to YAML when the config file is saved at the beginning of a call to `run_e4st`.  If you implement a Modification for which it is undesirable to print every field, you can implement the following interface:
 * [`fieldnames_for_yaml(::Type)`](@ref) - returns the desired fieldnames as a collection of `Symbol`s
@@ -103,7 +103,7 @@ end
 Change the raw data with `mod`.
 """
 function modify_raw_data!(mod::Modification, config, data)
-    @warn "No modify_raw_data! function defined for mod $mod, doing nothing"
+    @warn "No modify_raw_data! function defined for mod type $(typeof(mod)), doing nothing"
 end
 
 """
@@ -112,7 +112,7 @@ end
 Change the setup data with `mod`.
 """
 function modify_setup_data!(mod::Modification, config, data)
-    @warn "No modify_setup_data! function defined for mod $mod, doing nothing"
+    @warn "No modify_setup_data! function defined for mod type $(typeof(mod)), doing nothing"
 end
 
 
@@ -122,16 +122,16 @@ end
 Apply mod to the model, called in `setup_model`
 """
 function modify_model!(mod::Modification, config, data, model)
-    @warn "No modify_model! function defined for mod $mod, doing nothing"
+    @warn "No modify_model! function defined for mod type $(typeof(mod)), doing nothing"
 end
 
 """
-    results!(mod::Modification, config, data, model, results)
+    modify_results!(mod::Modification, config, data, model, results)
 
 Gather the results from `mod` from the solved model, called in `parse_results`
 """
-function results!(mod::Modification, config, data, model, results)
-    @warn "No results! function defined for mod $mod, doing nothing"
+function modify_results!(mod::Modification, config, data, model, results)
+    @warn "No modify_results! function defined for mod type $(typeof(mod)), doing nothing"
 end
 
 """

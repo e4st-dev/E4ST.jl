@@ -18,15 +18,15 @@ import JuMP.MOI.AbstractOptimizer
 using E4STUtil
 
 export save_config, load_config
-export load_data, initialize_data!
+export load_data
 export save_results!, load_results
 
 export setup_model, check
 export setup_dcopf!
-export parse_results, process!
+export parse_results, process_results
 export should_iterate, iterate!
 export Modification, Policy
-export modify_raw_data!, modify_setup_data!, apply!, results!, fieldnames_for_yaml
+export modify_raw_data!, modify_setup_data!, modify_model!, modify_results!, fieldnames_for_yaml
 export run_e4st
 export setup_new_gens!
 
@@ -73,11 +73,11 @@ function run_e4st(config)
     save_config(config)
 
     start_logging!(config)
-    @info "Config saved to: $(config[:out_path])"
+
+    log_start(config)
 
     data  = load_data(config)
     model = setup_model(config, data)
-
     optimize!(model)
     check(model)
 
@@ -87,7 +87,6 @@ function run_e4st(config)
     results_user = process_results(config, data, results_raw)
     push!(all_results, results_user)
     
-
     # Iteration: Check to see if the model should keep iterating.  See the Iteratable interface in model/iteration.jl for more information
     iter = get_iterator(config)
     while should_iterate(iter, config, data, model, results_raw, results_user)

@@ -114,7 +114,6 @@ function start_logging!(config)
     old_logger = Logging.global_logger(logger)
     config[:logger] = logger
     config[:old_logger] = old_logger
-    log_info(config)
     return
 end
 export start_logging!
@@ -134,11 +133,11 @@ end
 export stop_logging!
 
 """
-    log_info(config)
+    log_start(config)
 
 Logs any necessary info at the beginning of a run of E4ST
 """
-function log_info(config)
+function log_start(config)
     @info string(
         header_string("STARTING E4ST"), 
         "\n\n",
@@ -147,7 +146,7 @@ function log_info(config)
         package_status_string(),
     )
 end
-export log_info
+export log_start
 
 """
     log_header(header)
@@ -255,7 +254,7 @@ function check_required_fields!(config)
 end
 
 """
-    make_paths_absolute!(config, filename; path_keys = (:gen_file, :bus_file, :branch_file))
+    make_paths_absolute!(config, filename)
 
 Make all the paths in `config` absolute, corresponding to the keys given in `path_keys`.
 
@@ -304,6 +303,16 @@ function make_out_path!(config)
     end
     mkpath(config[:out_path])
 end
+
+"""
+    out_path(config, filename) -> path
+
+Returns `joinpath(config[:out_path], filename)`
+"""
+function out_path(config, filename::String)
+    joinpath(config[:out_path], filename)
+end
+export out_path
 
 function convert_mods!(config)
     if ~haskey(config, :mods) || isnothing(config[:mods])
