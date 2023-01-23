@@ -6,6 +6,9 @@ using DataFrames
 using Logging
 using BasicInterpolators
 import OrderedCollections: OrderedDict
+
+# Garbage collect any random things that might be locking a resource
+GC.gc()
 rm(joinpath(@__DIR__, "out"), force=true, recursive=true)
 
 original_logger = global_logger(NullLogger())
@@ -42,4 +45,7 @@ original_logger = global_logger(NullLogger())
 end
 
 global_logger(original_logger)
+
+# Garbage collect any random things that might be locking a resource
+GC.gc()
 rm(joinpath(@__DIR__, "out"), force=true, recursive=true)

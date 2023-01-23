@@ -294,6 +294,10 @@ function make_out_path!(config)
         while isdir(backup_path)
             backup_path = string(out_path, "_backup_", time_string())
         end
+        # Call the garbage collector to remove any things that may be locking a resource
+        GC.gc()
+
+        # Now move the out_path to backup
         mv(out_path, backup_path)
         @info "out_path already contains data, moving data from: \n$out_path\nto:\n$backup_path"
     end
