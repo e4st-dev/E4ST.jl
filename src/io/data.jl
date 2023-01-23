@@ -125,6 +125,7 @@ function setup_gen_table!(config, data)
     bus = get_bus_table(data)
     gen = get_gen_table(data)
     leftjoin!(gen, bus, on=:bus_idx)
+    disallowmissing!(gen)
 end
 export setup_gen_table!
 
@@ -808,9 +809,9 @@ export get_edem, get_edem_demand
 
 Retrieve the `var` value for generator `gen_idx` in year `year_idx` at hour `hour_idx`
 """
-function get_gen_value(data, name, gen_idx, year_idx, hour_idx)
+function get_gen_value(data, var, gen_idx, year_idx, hour_idx)
     gen_table = get_gen_table(data)
-    c = gen_table[gen_idx, name]
+    c = gen_table[gen_idx, var]
     return c[year_idx, hour_idx]::Float64
 end
 export get_gen_value
