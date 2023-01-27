@@ -29,7 +29,7 @@ function test_dcopf(config)
 
     @test check(model)
 
-    # No curtailment (just for this test)
+    # No curtailment 
     bus = get_bus_table(data)
     years = get_years(data)
     rep_hours = get_hours_table(data)
@@ -415,7 +415,11 @@ end
         @test tot == get_gen_result(data, model, PerMWhGen(), :genfuel => in(["ng", "coal"]) ) + get_gen_result(data, model, PerMWhGen(), :genfuel => !in(["ng", "coal"]))
         
         # Provide an index(es) for filtering
-        @test tot == get_gen_result(data, model, PerMWhGen(), 1 ) + get_gen_result(data, model, PerMWhGen(), [2])
+        tot_from_idx = 0
+        for gen_idx in 1:nrow(data[:gen])
+            tot_from_idx += get_gen_result(data, model, PerMWhGen(), gen_idx )
+        end
+        @test tot == round(tot_from_idx)
     end
 
     @testset "Test year_idx filters" begin

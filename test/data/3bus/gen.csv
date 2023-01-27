@@ -1,3 +1,3 @@
-bus_idx,status,build_status,build_type,genfuel,gentype,pcap0,pcap_min,pcap_max,vom,fuel_cost,fom,capex,start_year
-3,1,built,exog,ng,ngccccs,0.5,0,0.5,1.5,2.5,5,10,y2020
-1,1,built,exog,solar,solar,0.5,0,0.5,1.0,0,5,5,y2020
+bus_idx,status,build_status,build_type,genfuel,gentype,pcap0,pcap_min,pcap_max,vom,fuel_cost,fom,capex,start_year,emis_co2
+3,1,built,exog,ng,ngccccs,0.5,0,0.5,1.5,2.5,5,10,y2020,0.45
+1,1,built,exog,solar,solar,0.5,0,0.5,1.0,0,5,5,y2020,0
