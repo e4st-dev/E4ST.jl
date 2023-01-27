@@ -138,15 +138,21 @@ Creates potential new generators and exogenously built generators.
 Calls [`setup_new_gens!`](@ref) 
 """
 function setup_gen_table!(config, data)
+    gen = get_gen_table(data)
+    #create capex_obj and set to 0 because capacity expansion isn't considered for existing generators 
+    gen[!,:capex_obj] .= 0.0
+    data[:gen] = gen
+
     #create new gens and add to the gen table
     if haskey(config, :build_gen_file) 
         setup_new_gens!(config, data)  
     end  
     
     bus = get_bus_table(data)
-    gen = get_gen_table(data)
     leftjoin!(gen, bus, on=:bus_idx)
     disallowmissing!(gen)
+
+    data[:gen] = gen
 end
 export setup_gen_table!
 
@@ -946,7 +952,8 @@ export get_edem, get_edem_demand
 """
     get_gen_value(data, var::Symbol, gen_idx, year_idx, hour_idx) -> val
 
-Retrieve the `var` value for generator `gen_idx` in year `year_idx` at hour `hour_idx`
+Retrieves the `var` value for generator `gen_idx` in year `year_idx` at hour `hour_idx`
+Can be called without hour_idx for variables that aren't indexed by hour.
 """
 function get_gen_value(data, var::Symbol, gen_idx, year_idx, hour_idx)
     gen_table = get_gen_table(data)
@@ -958,6 +965,7 @@ function get_gen_value(data, var::Symbol, gen_idx)
     return gen_table[gen_idx,var]
 end
 export get_gen_value
+
 
 """
     get_bus_value(data, var::Symbol, bus_idx, year_idx, hour_idx) -> val

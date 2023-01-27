@@ -41,7 +41,7 @@ Exogenously specified generators are also added to newgen through the build_gen 
 function make_newgens!(config, data, newgen)
     build_gen = get_build_gen_table(data)
     bus = get_bus_table(data)
-    spec_names = filter!(!=(:bus_idx), propertynames(newgen)) #this would need to be changed if there is more than bus_idx that isn't a spec
+    spec_names = filter!(n -> n != :bus_idx && n != :capex_obj, propertynames(newgen)) #this needs to be updated if there is anything else in gen that isn't a spec
     years = get_years(data)
 
     for spec_row in eachrow(build_gen)
@@ -53,13 +53,15 @@ function make_newgens!(config, data, newgen)
             if spec_row.build_type == "endog"
                 # for endogenous new builds, a new gen is created for each sim year
                 for year in years
-                    newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
-                    newgen_row[:start_year] => year
+                    #populate newgen_row with specs, capex_obj for unbuilt gens = capex
+                    newgen_row = Dict{}(:bus_idx => bus_idx, :capex_obj => spec_row[:capex], (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
+                    newgen_row[:start_year] = year
                     push!(newgen, newgen_row)
                 end
             else 
-                # for exogenously specified gens, only one generator is created with the specified start_year
-                newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)          
+                # for exogenously specified gens, only one generator is created with the specified start_year, capex_obj = 0 because no capacity expansion is considered in the optimization
+                newgen_row = Dict{}(:bus_idx => bus_idx, :capex_obj => 0, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)  
+                push!(newgen, newgen_row)        
             end
         end
     end
