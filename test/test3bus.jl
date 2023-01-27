@@ -14,15 +14,7 @@ function test_dcopf(config)
     @test haskey(data[:obj_vars], :curtailment_cost)
     @test model[:obj] == sum(model[:curtailment_cost]) + sum(model[:fom]) + sum(model[:fuel_cost]) + sum(model[:vom]) + sum(model[:capex_obj]) #this won't be a good system level test
 
-    # # the number of constraints matches expected
-    # num_cons = 3*nrow(get_bus_table(data))*length(get_years(data))*nrow(get_hours_table(data))
-    # num_cons += length(get_ref_bus_idxs(data))
-    # num_cons += 2*nrow(get_gen_table(data))*length(get_years(data))*nrow(get_hours_table(data))
-    # num_cons += 2*nrow(get_gen_table(data))*length(get_years(data))
-    # num_cons += 2*nrow(get_branch_table(data))*length(get_years(data))*nrow(get_hours_table(data))
-    
-    # @test num_constraints(model, count_variable_in_set_constraints = false) == num_cons 
-    # this isn't a good test because if we will likely modify the number of constraints at some point ant this needs to be manually updated
+
 
     optimize!(model)
     # solution_summary(model)
@@ -225,7 +217,7 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         "new" in build_gen.build_status && @test "new" in gen.build_status
 
         #check that all gentypes in build_gen are in gen as well
-        @test 0 ∉ indexin(unique(build_gen.gentype), unique(gen.gentype))
+        @test nothing ∉ indexin(unique(build_gen.gentype), unique(gen.gentype))
         
 
 
@@ -415,11 +407,7 @@ end
         @test tot == get_gen_result(data, model, PerMWhGen(), :genfuel => in(["ng", "coal"]) ) + get_gen_result(data, model, PerMWhGen(), :genfuel => !in(["ng", "coal"]))
         
         # Provide an index(es) for filtering
-        tot_from_idx = 0
-        for gen_idx in 1:nrow(data[:gen])
-            tot_from_idx += get_gen_result(data, model, PerMWhGen(), gen_idx )
-        end
-        @test tot == round(tot_from_idx)
+        @test tot == get_gen_result(data, model, PerMWhGen(), 1 ) + get_gen_result(data, model, PerMWhGen(), 2:nrow(data[:gen]))
     end
 
     @testset "Test year_idx filters" begin

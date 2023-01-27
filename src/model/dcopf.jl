@@ -98,7 +98,7 @@ function setup_dcopf!(config, data, model)
             pcap_gen[gen_idx, year_idx] == 0) 
 
     # Constrain existing capacity to only decrease (only retire, not add capacity)
-    @constraint(model, cons_pcap_noadd[gen_idx in 1:ngen, year_idx in 1:(nyear-1)], 
+    @constraint(model, cons_pcap_noadd[gen_idx in 1:ngen, year_idx in get_year_on_sim_idx(data, gen_idx):(nyear-1)], 
             pcap_gen[gen_idx, year_idx+1] <= pcap_gen[gen_idx, year_idx])
 
 

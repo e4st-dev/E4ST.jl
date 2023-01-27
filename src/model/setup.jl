@@ -16,7 +16,7 @@ Sets up a JuMP Model for E4ST using `config` and `data`.
 | $b \in B$ | :bus_idx | Bus index |
 | $l \in L$ | :branch_idx | Branch index |
 | $y \in Y$ | :year_idx | Year index |
-| $y_{S_g} \in Y$ | :start_year_idx | Starting Year index for generator `g` |
+| $y_{S_g} \in Y$ | :year_on_idx | Starting Year index for generator `g` |
 
 
 # Variables

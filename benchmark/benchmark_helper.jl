@@ -32,7 +32,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         fuel_cost = rand(n_gen),
         fom = rand(n_gen),
         capex = rand(n_gen),
-        start_year = years_to_str(rand(2000:2023, n_gen)),
+        year_on = year2str.(rand(2000:2023, n_gen)),
     )
     gt = gentypes()
     gen.gentype = map(gen.genfuel) do gf

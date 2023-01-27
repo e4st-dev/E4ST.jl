@@ -138,16 +138,21 @@ Creates potential new generators and exogenously built generators.
 Calls [`setup_new_gens!`](@ref) 
 """
 function setup_gen_table!(config, data)
-    gen = get_gen_table(data)
-    #create capex_obj and set to 0 because capacity expansion isn't considered for existing generators 
-    gen[!,:capex_obj] .= 0.0
-    data[:gen] = gen
+    #removes capex_obj if loaded in from previous sim
+    :capex_obj in propertynames(data[:gen]) && select!(data[:gen], Not(:capex_obj))
 
     #create new gens and add to the gen table
     if haskey(config, :build_gen_file) 
         setup_new_gens!(config, data)  
     end  
-    
+
+    # create capex_obj (the capex used in the optimization/objective function)
+    # set to capex for unbuilt generators
+    # set to 0 for already built capacity because capacity expansion isn't considered for existing generators
+    gen = get_gen_table(data)
+    gen.capex_obj .= (gen.build_status.=="unbuilt").* gen.capex
+
+    # map bus characteristics to generators
     bus = get_bus_table(data)
     leftjoin!(gen, bus, on=:bus_idx)
     disallowmissing!(gen)
@@ -613,7 +618,7 @@ function summarize_gen_table()
         (:capex, Float64, "\$/MW", false, "Hourly capital expenditures for a MW of generation capacity"),
         (:cf_min, Float64, "ratio", false, "The minimum operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
         (:cf_max, Float64, "ratio", false, "The maximum operable ratio of power generation to capacity for the generator to operate"),
-        (:start_year, String, "n/a", true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
+        (:year_on, String, "n/a", true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
     )
     return df
 end
@@ -699,7 +704,7 @@ function summarize_build_gen_table()
         (:fuel_cost, Float64, "\$/MWh", false, "Fuel cost per MWh of generation"),
         (:fom, Float64, "\$/MW", true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, "\$/MW", false, "Hourly capital expenditures for a MW of generation capacity"),
-        (:start_year, String, "n/a", true, "The first year of operation for the generator. (For new gens this is also the year it was built). Endogenous unbuilt generators will specify na"),
+        (:year_on, String, "n/a", true, "The first year of operation for the generator. (For new gens this is also the year it was built). Endogenous unbuilt generators will specify na"),
     )
     return df
 end
@@ -1073,10 +1078,25 @@ export get_num_years, get_years
 Returns an array of the year indexes for years in the simulation before the start year of the specified generator. 
 """
 function get_prebuild_year_idxs(data, gen_idx)
-    years = years_to_int(get_years(data))
-    start_year = years_to_int(get_gen_value(data, :start_year, gen_idx))
-    idxs = findall(x -> years[x] < start_year, 1:length(years))
+    years = year2int.(get_years(data))
+    year_on = year2int(get_gen_value(data, :year_on, gen_idx))
+    idxs = findall(x -> years[x] < year_on, 1:length(years))
     return idxs
+end
+export get_prebuild_year_idxs
+
+"""
+    get_year_on_sim_idx(data, gen_idx) -> year_on_sim_idx
+
+Gets the index for the generator on year. 
+If the on_year is in the set of sim years, it returns that index. 
+If this year is not part of the set of year, it returns the index of the next closest year. (ie. years = [2020, 2025, 2030], year_on = 2022, year_on_sim = 2025, year_on_sim_idx = 2)
+"""
+function get_year_on_sim_idx(data, gen_idx)
+    years = year2int.(get_years(data))
+    year_on = year2int(get_gen_value(data, :year_on, gen_idx))
+    all_on_years_idxs = findall(x -> years[x] >= year_on, 1:length(years)) #all years where gen is on
+    return minimum(all_on_years_idxs) # first year where gen was on
 end
 
 

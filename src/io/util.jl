@@ -41,45 +41,27 @@ export get_year_idxs
 
 
 """
-    years_to_int(years) -> 
+    year2int(year) -> 
 
-Converts the years given as Strings into Int64s.
-
-years_to_int(years::Array) - For an array of string years.
-years_to_int(year::String) - For a single string year. 
+Converts the year given as a String into a Int64.
 """
-function years_to_int(years::Array)
-    int_years = []
-    for year in years
-        push!(int_years, years_to_int(year))
-    end
-    return int_years
-end
-function years_to_int(year::String)
+function year2int(year::AbstractString)
     year = chop(year, head = 1, tail = 0)
     year = parse(Int64, year)
     return year
 end
-export years_to_int
+export year2int
 
 """
-    years_to_str(years) -> 
+    year2str(year) -> 
 
-Converts the years given as Ints to Strings in the standard "yXXXX" format.
+Converts the year given as an Int to a String in the standard "yXXXX" format.
 """
-function years_to_str(years::Array)
-    str_years = []
-    for year in years
-        push!(str_years, years_to_str(year))
-    end
-    return str_years
-end
-
-function years_to_str(year::Int)
+function year2str(year::Int)
     str_year = "y"*string(year)
     return str_year
 end
-export years_to_str
+export year2str
 
 """
     get_hour_idxs(data, hour_idxs)
