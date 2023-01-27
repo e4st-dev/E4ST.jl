@@ -22,6 +22,8 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
     gen = DataFrame(
         bus_idx = rand(1:n_bus, n_gen),
         status = trues(n_gen),
+        build_status = rand(build_status_opts(), n_gen),
+        build_type = rand(build_type_opts(), n_gen),
         genfuel = rand(genfuels(), n_gen),
         pcap_min = zeros(n_gen),
         pcap0 = ones(n_gen),
@@ -30,6 +32,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         fuel_cost = rand(n_gen),
         fom = rand(n_gen),
         capex = rand(n_gen),
+        start_year = years_to_str(rand(2000:2023, n_gen)),
     )
     gt = gentypes()
     gen.gentype = map(gen.genfuel) do gf
@@ -63,6 +66,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         :bus_file=>abspath(@__DIR__,"data/bus.csv"),
         :branch_file=>abspath(@__DIR__, "data/branch.csv"),
         :hours_file=>abspath(@__DIR__, "data/time.csv"),
+        :gentype_genfuel_file=>abspath(@__DIR__, "data/gentype_genfuel.csv"),
         :years=>years(),
         :save_data=>false,
         :save_model_presolve=>false,
@@ -142,6 +146,14 @@ gentypes() = OrderedDict(
     "wind"=>["wind","wind_new"],
     "geothermal"=>["hydrothermal","deepgeo_new"],
 )
+
+function build_status_opts()
+    ("built", "new", "unbuilt")
+end
+
+function build_type_opts()
+    ("exog", "endog")
+end
 
 function rand_af(;n_hours, n_af)
     af = DataFrame(

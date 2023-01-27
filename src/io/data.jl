@@ -59,11 +59,11 @@ function load_data_files!(config, data)
     load_years!(config, data)
     load_af_table!(config, data)
     load_demand_table!(config, data)
+    load_build_gen_table!(config, data)
     haskey(config, :demand_shape_file) && load_demand_shape_table!(config, data)
     haskey(config, :demand_match_file) && load_demand_match_table!(config, data)
     haskey(config, :demand_add_file) && load_demand_add_table!(config, data)
-    load_build_gen_table!(config, data)
-    load_genfuel_table!(config, data)
+    haskey(config, :gentype_genfuel_file) && load_genfuel_table!(config, data)
 end
 export load_data_files!
 

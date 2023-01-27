@@ -63,6 +63,25 @@ end
 export years_to_int
 
 """
+    years_to_str(years) -> 
+
+Converts the years given as Ints to Strings in the standard "yXXXX" format.
+"""
+function years_to_str(years::Array)
+    str_years = []
+    for year in years
+        push!(str_years, years_to_str(year))
+    end
+    return str_years
+end
+
+function years_to_str(year::Int)
+    str_year = "y"*string(year)
+    return str_year
+end
+export years_to_str
+
+"""
     get_hour_idxs(data, hour_idxs)
 
 Converts `hour_idxs` into a usable set of indices that can index into hourly data.  `hour_idxs` can be any of the following types:
