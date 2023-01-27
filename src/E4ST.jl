@@ -73,6 +73,7 @@ function run_e4st(config)
 
     iter = get_iterator(config)
 
+    # Check to see if the model should keep iterating.  See the Iteratable interface in model/iteration.jl for more information
     while should_iterate(iter, config, data, model, all_results)
         iterate!(iter, config, data, model, all_results)
         data = should_reload_data(iter) ? load_data(config) : data

@@ -955,7 +955,7 @@ export get_edem, get_edem_demand
 Retrieves the `var` value for generator `gen_idx` in year `year_idx` at hour `hour_idx`
 Can be called without hour_idx for variables that aren't indexed by hour.
 """
-function get_gen_value(data, var::Symbol, gen_idx, year_idx, hour_idx)
+function get_gen_value(data, var, gen_idx, year_idx, hour_idx)
     gen_table = get_gen_table(data)
     c = gen_table[gen_idx, var]
     return c[year_idx, hour_idx]::Float64
