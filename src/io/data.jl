@@ -1091,13 +1091,18 @@ export get_prebuild_year_idxs
 Gets the index for the generator on year. 
 If the on_year is in the set of sim years, it returns that index. 
 If this year is not part of the set of year, it returns the index of the next closest year. (ie. years = [2020, 2025, 2030], year_on = 2022, year_on_sim = 2025, year_on_sim_idx = 2)
+If this year is after the simulation years it returns length(years)+1 indicating that it is in the future.
 """
 function get_year_on_sim_idx(data, gen_idx)
     years = year2int.(get_years(data))
     year_on = year2int(get_gen_value(data, :year_on, gen_idx))
-    all_on_years_idxs = findall(x -> years[x] >= year_on, 1:length(years)) #all years where gen is on
-    return minimum(all_on_years_idxs) # first year where gen was on
+    year_on_sim_idx = findfirst(x -> years[x] >= year_on, 1:length(years)) 
+    if year_on_sim_idx === nothing
+        year_on_sim_idx = length(years)+1
+    end
+    return year_on_sim_idx
 end
+export get_year_on_sim_idx
 
 
 """
