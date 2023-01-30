@@ -57,14 +57,14 @@ function get_hour_idxs(data, hour_idxs::Int64)
     hour_idxs
 end
 function get_hour_idxs(data, pairs)
-    return table_rows(get_hours_table(data), pairs)
+    return get_row_idxs(get_table(data, :hours), pairs)
 end
 export get_hour_idxs
 
 """
-    table_rows(table, idxs) -> row_idxs
+    get_row_idxs(table, conditions) -> row_idxs
 
-Returns row indices of the passed-in table that correspond to idxs, where `idxs` can be:
+Returns row indices of the passed-in table that correspond to `conditions`, where `conditions` can be:
 * `::Colon` - all rows
 * `::Int64` - a single row
 * `::AbstractVector{Int64}` - a list of rows
@@ -79,19 +79,19 @@ Some possible pairs to filter by:
 
 See also [`filter_view`](@ref)
 """
-function table_rows(table, idxs::Colon)
+function get_row_idxs(table, idxs::Colon)
     return 1:nrow(table)
 end
 
-function table_rows(table, idxs::AbstractVector{Int64})
+function get_row_idxs(table, idxs::AbstractVector{Int64})
     return idxs
 end
 
-function table_rows(table, idxs::Int64)
+function get_row_idxs(table, idxs::Int64)
     return idxs
 end
 
-function table_rows(table, pairs)
+function get_row_idxs(table, pairs)
     row_idxs = Int64[i for i in 1:nrow(table)]
     for pair in pairs
         key, val = pair
@@ -102,7 +102,18 @@ function table_rows(table, pairs)
 
     return row_idxs
 end
-function table_rows(table, pair::Pair)
+function get_row_idxs(table, pairs::Pair...)
+    row_idxs = Int64[i for i in 1:nrow(table)]
+    for pair in pairs
+        key, val = pair
+        v = table[!,key]
+        comp = comparison(val, v)
+        filter!(row_idx->comp(v[row_idx]), row_idxs)
+    end
+
+    return row_idxs
+end
+function get_row_idxs(table, pair::Pair)
     row_idxs = Int64[i for i in 1:nrow(table)]
     key, val = pair
     v = table[!, key]

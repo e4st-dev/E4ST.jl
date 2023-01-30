@@ -31,6 +31,7 @@ export run_e4st
 
 include("types/Modification.jl")
 include("types/Policy.jl")
+include("types/Unit.jl")
 include("io/config.jl")
 include("io/data.jl")
 include("io/util.jl")
@@ -126,6 +127,10 @@ Loads all types associated with E4ST so that the type will accessible by string 
 function reload_types!()
     reload_types!(Modification)
     reload_types!(Iterable)
+    reload_types!(Unit)
+    reload_types!(AbstractString)
+    reload_types!(AbstractFloat)
+    reload_types!(Integer)
 end
 function reload_types!(::Type{T}) where T
     global STR2TYPE
@@ -140,6 +145,9 @@ function reload_types!(::Type{T}) where T
         end
     end
 end
+
+Core.Type(s::String) = get_type(s)
+Core.Type(s::Symbol) = get_type(s)
 
 """
     get_type(sym::Symbol) -> type (preferred)

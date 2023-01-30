@@ -25,8 +25,8 @@ See also [`summarize_demand_shape_table()`](@ref), [`shape_demand!(config, data)
 """
 function load_demand_shape_table!(config, data)
     demand_shape_table = load_table(config[:demand_shape_file])
-    force_table_types!(demand_shape_table, :demand_shape_table, summarize_demand_shape_table())
-    force_table_types!(demand_shape_table, :demand_shape_table, ("h$n"=>Float64 for n in 2:get_num_hours(data))...)
+    force_table_types!(demand_shape_table, :demand_shape, summarize_demand_shape_table())
+    force_table_types!(demand_shape_table, :demand_shape, ("h$n"=>Float64 for n in 2:get_num_hours(data))...)
     data[:demand_shape] = demand_shape_table
 end
 export load_demand_shape_table!
@@ -40,8 +40,8 @@ See also [`summarize_demand_match_table()`](@ref), [`match_demand!(config, data)
 """
 function load_demand_match_table!(config, data)
     demand_match_table = load_table(config[:demand_match_file])
-    force_table_types!(demand_match_table, :demand_match_table, summarize_demand_match_table())
-    force_table_types!(demand_match_table, :demand_match_table, (y=>Float64 for y in get_years(data))...)
+    force_table_types!(demand_match_table, :demand_match, summarize_demand_match_table())
+    force_table_types!(demand_match_table, :demand_match, (y=>Float64 for y in get_years(data))...)
     data[:demand_match] = demand_match_table
 end
 export load_demand_match_table!
@@ -55,8 +55,8 @@ See also [`summarize_demand_add_table()`](@ref), [`add_demand!(config, data)`](@
 """
 function load_demand_add_table!(config, data)
     demand_add_table = load_table(config[:demand_add_file])
-    force_table_types!(demand_add_table, :demand_add_table, summarize_demand_add_table())
-    force_table_types!(demand_add_table, :demand_add_table, ("h$n"=>Float64 for n in 2:get_num_hours(data))...)
+    force_table_types!(demand_add_table, :demand_add, summarize_demand_add_table())
+    force_table_types!(demand_add_table, :demand_add, ("h$n"=>Float64 for n in 2:get_num_hours(data))...)
     data[:demand_add] = demand_add_table
 end
 export load_demand_add_table!
@@ -72,14 +72,14 @@ Also calls the following:
 * [`add_demand!(config, data)`](@ref) - adds hourly demanded power by arbitrary region
 """
 function setup_demand!(config, data)
-    demand = get_demand_table(data)
+    demand = get_table(data, :demand_table)
     ar = [demand.pdem0[i] for i in 1:nrow(demand), j in 1:get_num_years(data), k in 1:get_num_hours(data)] # ndemand * nyr * nhr
     data[:demand_array] = ar
 
     # Grab views of the demand for the pd column of the bus table
     demand.pdem = map(i->view(ar, i, :, :), 1:nrow(demand))
 
-    bus = get_bus_table(data)
+    bus = get_table(data, :bus)
     bus.pdem = [DemandContainer() for _ in 1:nrow(bus)]
 
     for row in eachrow(demand)
@@ -104,7 +104,7 @@ Demanded power often changes on an hourly basis. The `demand_shape_table` allows
 """
 function shape_demand!(config, data)
     demand_shape_table = data[:demand_shape]
-    bus_table = get_bus_table(data)
+    bus_table = get_table(data, :bus)
     demand_table = data[:demand_table]
     demand_arr = get_demand_array(data)
     
@@ -176,7 +176,7 @@ Often, we want to force the total energy demanded for a set of demand elements o
 """
 function match_demand!(config, data) 
     demand_match_table = data[:demand_match]
-    bus_table = get_bus_table(data)
+    bus_table = get_table(data, :bus)
     demand_table = data[:demand_table]
     demand_arr = get_demand_array(data)
 
@@ -217,7 +217,7 @@ function match_demand!(config, data)
         haskey(row, :load_type) && ~isempty(row.load_type) && push!(filters, :load_type=>row.load_type)
         ~isempty(row.area) && ~isempty(row.subarea) && push!(filters, row.area=>row.subarea)
 
-        demand_table = get_demand_table(data, filters)
+        demand_table = get_table(data, :demand_table, filters)
         
         isempty(demand_table) && continue
 
@@ -240,7 +240,7 @@ We may wish to provide additional demand after the match so that we can compare 
 """
 function add_demand!(config, data)
     demand_add_table = data[:demand_add]
-    bus_table = get_bus_table(data)
+    bus_table = get_table(data, :bus)
     demand_table = data[:demand_table]
     demand_arr = get_demand_array(data)
 
@@ -284,7 +284,7 @@ function add_demand!(config, data)
         haskey(row, :load_type) && ~isempty(row.load_type) && push!(filters, :load_type=>row.load_type)
         ~isempty(row.area) && ~isempty(row.subarea) && push!(filters, row.area=>row.subarea)
 
-        sdf = get_demand_table(data, filters)
+        sdf = get_table(data, :demand_table, filters)
         
         isempty(sdf) && continue
 
@@ -312,11 +312,11 @@ export add_demand!
     summarize_demand_table() -> summary
 """
 function summarize_demand_table()
-    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
     push!(df, 
-        (:bus_idx, Int64, "MW", true, "The demanded power of the load element"),
-        (:pdem0, Float64, "MW", true, "The baseline demanded power of the load element"),
-        (:load_type, String, "n/a", false, "The type of load represented by this load element."),
+        (:bus_idx, Int64, NA, true, "The bus index of the load element"),
+        (:pdem0, Float64, MWDemanded, true, "The baseline demanded power of the load element"),
+        (:load_type, String, NA, false, "The type of load represented by this load element."),
     )
     return df
 end
@@ -326,14 +326,14 @@ export summarize_demand_table
     summarize_demand_shape_table() -> summary
 """
 function summarize_demand_shape_table()
-    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
     push!(df, 
-        (:area, String, "n/a", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
-        (:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
-        (:load_type, String, "n/a", false, "The type of load represented for this load shape.  Leave blank to not filter by type."),
-        (:year, String, "year", true, "The year to apply the demand profile to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
-        (:status, Bool, "n/a", false, "Whether or not to use this shape adjustment"),
-        (:h1, Float64, "ratio", true, "Demand scaling factor of hour 1.  Include a column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
+        (:area, String, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, String, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:load_type, String, NA, false, "The type of load represented for this load shape.  Leave blank to not filter by type."),
+        (:year, String, Year, true, "The year to apply the demand profile to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
+        (:status, Bool, NA, false, "Whether or not to use this shape adjustment"),
+        (:h_, Float64, Ratio, true, "Demand scaling factor of hour 1.  Include a column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
     )
     return df
 end
@@ -343,13 +343,13 @@ export summarize_demand_shape_table
     summarize_demand_match_table() -> summary
 """
 function summarize_demand_match_table()
-    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
     push!(df, 
-        (:area, String, "n/a", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
-        (:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
-        (:load_type, String, "n/a", false, "The type of load represented for this load match.  Leave blank to not filter by type."),
-        (:status, Bool, "n/a", false, "Whether or not to use this match"),
-        (:y2020, Float64, "MWh", false, "The annual demanded energy to match for the weighted demand of all load elements in the loads specified.  Include 1 column for each year being simulated.  I.e. \"y2030\", \"y2035\", ... To not match a specific year, make it -Inf"),
+        (:area, String, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, String, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:load_type, String, NA, false, "The type of load represented for this load match.  Leave blank to not filter by type."),
+        (:status, Bool, NA, false, "Whether or not to use this match"),
+        (:y_, Float64, MWhDemanded, true, "The annual demanded energy to match for the weighted demand of all load elements in the loads specified.  Include 1 column for each year being simulated.  I.e. \"y2030\", \"y2035\", ... To not match a specific year, make it -Inf"),
     )
     return df
 end
@@ -360,14 +360,14 @@ export summarize_demand_match_table
     summarize_demand_add_table() -> summary
 """
 function summarize_demand_add_table()
-    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
     push!(df, 
-        (:area, String, "n/a", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
-        (:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
-        (:load_type, String, "n/a", false, "The type of load represented for this load add.  Leave blank to not filter by type."),
-        (:year, String, "year", true, "The year to apply the demand profile to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
-        (:status, Bool, "n/a", false, "Whether or not to use this addition"),
-        (:h1, Float64, "MW", true, "Amount of demanded power to add in hour 1.  Include a column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
+        (:area, String, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, String, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:load_type, String, NA, false, "The type of load represented for this load add.  Leave blank to not filter by type."),
+        (:year, String, Year, true, "The year to apply the demand profile to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
+        (:status, Bool, NA, false, "Whether or not to use this addition"),
+        (:h_, Float64, MWDemanded, true, "Amount of demanded power to add in hour _.  Include a column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
     )
     return df
 end
