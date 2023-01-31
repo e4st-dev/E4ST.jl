@@ -39,6 +39,30 @@ end
 export get_year_idxs
 
 
+
+"""
+    year2int(year) -> 
+
+Converts the year given as a String into a Int64.
+"""
+function year2int(year::AbstractString)
+    year = chop(year, head = 1, tail = 0)
+    year = parse(Int64, year)
+    return year
+end
+export year2int
+
+"""
+    year2str(year) -> 
+
+Converts the year given as an Int to a String in the standard "yXXXX" format.
+"""
+function year2str(year::Int)
+    str_year = "y"*string(year)
+    return str_year
+end
+export year2str
+
 """
     get_hour_idxs(data, hour_idxs)
 

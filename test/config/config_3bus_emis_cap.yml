@@ -5,6 +5,7 @@ branch_file:     "../data/3bus/branch.csv"
 hours_file:      "../data/3bus/hours.csv"
 af_file:         "../data/3bus/af.csv"
 demand_file:     "../data/3bus/demand.csv"
+gentype_genfuel_file: "../data/3bus/gentype_genfuel.csv"
 years:
   - y2030
   - y2035
@@ -20,5 +21,5 @@ mods:
     column: "emis_co2"
     targets:
       y2030: 3200
-      y2035: 3100
-      y2040: 3000
+      y2035: 1500
+      y2040: 1000

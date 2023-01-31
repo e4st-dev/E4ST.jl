@@ -28,6 +28,7 @@ export should_iterate, iterate!
 export Modification, Policy
 export modify_raw_data!, modify_setup_data!, apply!, results!, fieldnames_for_yaml
 export run_e4st
+export setup_new_gens!
 
 include("types/Modification.jl")
 include("types/Policy.jl")
@@ -41,6 +42,7 @@ include("model/dcopf.jl")
 include("model/check.jl")
 include("model/results.jl")
 include("model/iteration.jl")
+include("model/newgens.jl")
 
 
 """

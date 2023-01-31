@@ -22,7 +22,7 @@ function load_data(config)
 
     load_data_files!(config, data)
     modify_raw_data!(config, data)
-    setup_data!(config, data)    
+    setup_data!(config, data)  
     modify_setup_data!(config, data)
 
     if get(config, :save_data, true)
@@ -47,6 +47,8 @@ Loads in the data files presented in the `config`.  Calls the following function
 * [`load_demand_shape_table!(config, data)`](@ref)  - from `config[:demand_shape_file] -> data[:demand_shape_table]` (if `config[:demand_shape_file]` provided)
 * [`load_demand_match_table!(config, data)`](@ref)  - from `config[:demand_match_file] -> data[:demand_match_table]` (if `config[:demand_match_file]` provided)
 * [`load_demand_add_table!(config, data)`](@ref)  - from `config[:demand_add_file] -> data[:demand_add_table]` (if `config[:demand_add_file]` provided)
+* [`load_build_gen_table!(config, data)`](@ref)  - from `config[:build_gen_file] -> data[:build_gen]`
+* [`load_genfuel_table!(config, data)`](@ref)  - from `config[:gentype_genfuel_file] -> data[:genfuel_table]`
 """
 function load_data_files!(config, data)
     load_bus_table!(config, data)
@@ -57,9 +59,11 @@ function load_data_files!(config, data)
     load_years!(config, data)
     load_af_table!(config, data)
     load_demand_table!(config, data)
+    load_build_gen_table!(config, data)
     haskey(config, :demand_shape_file) && load_demand_shape_table!(config, data)
     haskey(config, :demand_match_file) && load_demand_match_table!(config, data)
     haskey(config, :demand_add_file) && load_demand_add_table!(config, data)
+    haskey(config, :gentype_genfuel_file) && load_genfuel_table!(config, data)
 end
 export load_data_files!
 
@@ -91,14 +95,23 @@ end
     setup_data!(config, data)
 
 Sets up the data, modifying, adding to, or combining the tables as needed.
+New generators built in the `setup_gen_table!` function. 
 """
 function setup_data!(config, data)
+
+    # Note that order matters for these functions because later ones rely on data from earlier tables.
+    setup_build_gen_table!(config, data)
+    setup_genfuel_table!(config, data)    
     setup_bus_table!(config, data)
     setup_branch_table!(config, data)
-    setup_gen_table!(config, data)
     setup_hours_table!(config, data)
-    setup_af!(config, data)
     setup_demand!(config, data)
+
+    setup_gen_table!(config, data) #needs to come after build_gen setup for newgens
+    
+    setup_af!(config, data)
+
+
 end
 export setup_data!
 
@@ -116,18 +129,69 @@ function load_gen_table!(config, data)
 end
 export load_gen_table!
 
+
 """
     setup_gen_table!(config, data)
 
 Sets up the generator table.
+Creates potential new generators and exogenously built generators. 
+Calls [`setup_new_gens!`](@ref) 
 """
 function setup_gen_table!(config, data)
-    bus = get_bus_table(data)
+    #removes capex_obj if loaded in from previous sim
+    :capex_obj in propertynames(data[:gen]) && select!(data[:gen], Not(:capex_obj))
+
+    #create new gens and add to the gen table
+    if haskey(config, :build_gen_file) 
+        setup_new_gens!(config, data)  
+    end  
+
+    # create capex_obj (the capex used in the optimization/objective function)
+    # set to capex for unbuilt generators
+    # set to 0 for already built capacity because capacity expansion isn't considered for existing generators
     gen = get_gen_table(data)
+    gen.capex_obj .= (gen.build_status.=="unbuilt").* gen.capex
+
+    # map bus characteristics to generators
+    bus = get_bus_table(data)
     leftjoin!(gen, bus, on=:bus_idx)
     disallowmissing!(gen)
+
+    data[:gen] = gen
 end
 export setup_gen_table!
+
+"""
+    load_build_gen_table!(config, data)
+
+Load the new generator characteristics/specs table from the `config[:build_gen_file]`.  See [`summarize_build_gen_table()`](@ref).
+"""
+function load_build_gen_table!(config, data)
+    # Return if there is no build_gen_file
+    if ~haskey(config, :build_gen_file) 
+        return
+    end
+
+    build_gen = load_table(config[:build_gen_file])
+    force_table_types!(build_gen, :build_gen, summarize_build_gen_table()) #change to pairs with all relevant from gen table
+    data[:build_gen] = build_gen
+    return
+end
+export load_build_gen_table!
+
+"""
+    setup_build_gen_table!(config, data)
+
+Sets up the new generator characteristics/specs table.
+"""
+function setup_build_gen_table!(config, data)
+    # Return if there is no build_gen_file
+    if ~haskey(config, :build_gen_file) 
+        return
+    end
+
+end
+export setup_build_gen_table!
 
 """
     load_bus_table!(config, data)
@@ -331,6 +395,31 @@ function setup_af!(config, data)
 end
 export setup_af!
 
+
+"""
+    load_genfuel_table!(config, data) -> data[:genfuel_table]
+
+Loads in the genfuel table which contains gentypes and their corresponding genfuel.
+"""
+function load_genfuel_table!(config, data)
+    @info "Loading the genfuel table from:  $(config[:gentype_genfuel_file])"
+    genfuel = load_table(config[:gentype_genfuel_file])
+    force_table_types!(genfuel, :genfuel, summarize_genfuel_table())
+    data[:genfuel_table] = genfuel
+    return
+end
+export load_genfuel_table!
+
+"""
+    setup_genfuel_table!(config, data) -> data[:genfuel_table]
+
+Sets up the genfuel table. (currently doesn't change anything)
+"""
+function setup_genfuel_table!(config, data)
+    
+end
+
+
 """
     load_voll!(config, data)
 
@@ -364,7 +453,7 @@ export load_years!
 Loads a table from filename, where filename is a csv.
 """
 function load_table(filename::String)
-    CSV.read(filename, DataFrame, missingstring="NA")
+    CSV.read(filename, DataFrame, missingstring="NA", stripwhitespace=true)
 end
 export load_table
 
@@ -385,6 +474,7 @@ function force_table_types!(df::DataFrame, name, pairs...; optional=false)
         df[!, col] = T.(df[!,col])
     end
 end
+export force_table_types!
 
 function force_table_types!(df::DataFrame, name, summary::DataFrame; kwargs...) 
     for row in eachrow(summary)
@@ -515,6 +605,8 @@ function summarize_gen_table()
     push!(df, 
         (:bus_idx, Int64, "n/a", true, "The index of the `bus` table that the generator corresponds to"),
         (:status, Bool, "n/a", false, "Whether or not the generator is in service"),
+        (:build_status, String, "n/a", true, "Whether the generator is 'built', 'new', or 'unbuilt'"),
+        (:build_type, String, "n/a", true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
         (:genfuel, String, "n/a", true, "The fuel type that the generator uses"),
         (:gentype, String, "n/a", true, "The generation technology type that the generator uses"),
         (:pcap0, Float64, "MW", true, "Starting nameplate power generation capacity for the generator"),
@@ -526,6 +618,7 @@ function summarize_gen_table()
         (:capex, Float64, "\$/MW", false, "Hourly capital expenditures for a MW of generation capacity"),
         (:cf_min, Float64, "ratio", false, "The minimum operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
         (:cf_max, Float64, "ratio", false, "The maximum operable ratio of power generation to capacity for the generator to operate"),
+        (:year_on, String, "n/a", true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
     )
     return df
 end
@@ -589,6 +682,45 @@ function summarize_af_table()
     return df
 end
 export summarize_af_table
+
+
+"""
+    summarize_build_gen_table() -> summary
+"""
+function summarize_build_gen_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    push!(df, 
+        (:area, String, "n/a", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:build_status, String, "n/a", true, "Whether the generator is 'built', 'new', or 'unbuilt'. Should always be unbuilt for exog new gens."),
+        (:build_type, String, "n/a", true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built). Should either be exog or endog for buil_gen."),
+        (:genfuel, String, "n/a", true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
+        (:gentype, String, "n/a", true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
+        (:status, Bool, "n/a", false, "Whether or not to use this set of characteristics/specs"),
+        (:pcap0, Float64, "MW", true, "Starting nameplate power generation capacity for the generator. Should be 0 for endog new gens."),
+        (:pcap_min, Float64, "MW", true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
+        (:pcap_max, Float64, "MW", true, "Maximum nameplate power generation capacity of the generator"),
+        (:vom, Float64, "\$/MWh", true, "Variable operation and maintenance cost per MWh of generation"),
+        (:fuel_cost, Float64, "\$/MWh", false, "Fuel cost per MWh of generation"),
+        (:fom, Float64, "\$/MW", true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
+        (:capex, Float64, "\$/MW", false, "Hourly capital expenditures for a MW of generation capacity"),
+        (:year_on, String, "n/a", true, "The first year of operation for the generator. (For new gens this is also the year it was built). Endogenous unbuilt generators will specify na"),
+    )
+    return df
+end
+export summarize_build_gen_table
+
+"""
+    summarize_genfuel_table() -> 
+"""
+function summarize_genfuel_table()
+    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
+    push!(df, 
+        (:gentype, String, "n/a", true, "The generator type (ie. ngcc, dist_solar, os_wind)"),
+        (:genfuel, String, "n/a", true, "The corresponding generator fuel or renewable type (ie. ng, solar, wind)"),
+    )
+    return df
+end
 
 # Accessor Functions
 ################################################################################
@@ -683,6 +815,24 @@ function get_af_table(data)
     return data[:af_table]::DataFrame
 end
 export get_af_table
+
+
+"""
+    get_build_gen_table(data) -> build_gen table
+
+Returns table of newgen characteristics/specs. 
+"""
+function get_build_gen_table(data)
+    return data[:build_gen]::DataFrame
+end
+export get_build_gen_table
+
+"""
+    get_genfuel_table(data) -> genfuel_table
+"""
+function get_genfuel_table(data)
+    data[:genfuel]
+end
 
 
 
@@ -807,14 +957,20 @@ export get_edem, get_edem_demand
 """
     get_gen_value(data, var::Symbol, gen_idx, year_idx, hour_idx) -> val
 
-Retrieve the `var` value for generator `gen_idx` in year `year_idx` at hour `hour_idx`
+Retrieves the `var` value for generator `gen_idx` in year `year_idx` at hour `hour_idx`
+Can be called without hour_idx for variables that aren't indexed by hour.
 """
 function get_gen_value(data, var, gen_idx, year_idx, hour_idx)
     gen_table = get_gen_table(data)
     c = gen_table[gen_idx, var]
     return c[year_idx, hour_idx]::Float64
 end
+function get_gen_value(data, var::Symbol, gen_idx)
+    gen_table = get_gen_table(data)
+    return gen_table[gen_idx,var]
+end
 export get_gen_value
+
 
 """
     get_bus_value(data, var::Symbol, bus_idx, year_idx, hour_idx) -> val
@@ -914,6 +1070,39 @@ function get_num_years(data)
     return length(get_years(data))
 end
 export get_num_years, get_years
+
+
+"""
+    get_prebuild_year_idxs(data, gen_idx) -> prebuild_year_idxs::Array
+
+Returns an array of the year indexes for years in the simulation before the start year of the specified generator. 
+"""
+function get_prebuild_year_idxs(data, gen_idx)
+    years = year2int.(get_years(data))
+    year_on = year2int(get_gen_value(data, :year_on, gen_idx))
+    idxs = findall(x -> years[x] < year_on, 1:length(years))
+    return idxs
+end
+export get_prebuild_year_idxs
+
+"""
+    get_year_on_sim_idx(data, gen_idx) -> year_on_sim_idx
+
+Gets the index for the generator on year. 
+If the on_year is in the set of sim years, it returns that index. 
+If this year is not part of the set of year, it returns the index of the next closest year. (ie. years = [2020, 2025, 2030], year_on = 2022, year_on_sim = 2025, year_on_sim_idx = 2)
+If this year is after the simulation years it returns length(years)+1 indicating that it is in the future.
+"""
+function get_year_on_sim_idx(data, gen_idx)
+    years = year2int.(get_years(data))
+    year_on = year2int(get_gen_value(data, :year_on, gen_idx))
+    year_on_sim_idx = findfirst(x -> years[x] >= year_on, 1:length(years)) 
+    if year_on_sim_idx === nothing
+        year_on_sim_idx = length(years)+1
+    end
+    return year_on_sim_idx
+end
+export get_year_on_sim_idx
 
 
 """
