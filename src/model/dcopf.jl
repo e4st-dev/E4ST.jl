@@ -54,6 +54,7 @@ function setup_dcopf!(config, data, model)
     # Generated energy at a given generator
     @expression(model, egen_gen[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour], get_egen_gen(data, model, gen_idx, year_idx, hour_idx))
 
+
     ## Constraints
 
     # Constrain Power Flow / Power Balance
@@ -91,6 +92,14 @@ function setup_dcopf!(config, data, model)
     @constraint(model, cons_branch_pflow_neg[branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour], 
             -pflow_branch[branch_idx, year_idx, hour_idx] <= get_pflow_branch_max(data, branch_idx, year_idx, hour_idx))
     
+    # Constrain Capacity to 0 before the start/build year 
+    prebuild_year_idxs = map(gen_idx -> get_prebuild_year_idxs(data, gen_idx), 1:ngen)
+    @constraint(model, cons_pcap_prebuild[gen_idx in 1:ngen, year_idx in prebuild_year_idxs[gen_idx]],
+            pcap_gen[gen_idx, year_idx] == 0) 
+
+    # Constrain existing capacity to only decrease (only retire, not add capacity)
+    @constraint(model, cons_pcap_noadd[gen_idx in 1:ngen, year_idx in get_year_on_sim_idx(data, gen_idx):(nyear-1)], 
+            pcap_gen[gen_idx, year_idx+1] <= pcap_gen[gen_idx, year_idx])
 
 
     ## Objective Function 
@@ -108,7 +117,7 @@ function setup_dcopf!(config, data, model)
     add_obj_term!(data, model, PerMWhGen(), :fuel_cost, oper = +)
 
     add_obj_term!(data, model, PerMWCap(), :fom, oper = +)
-    add_obj_term!(data, model, PerMWCap(), :capex, oper = +)
+    add_obj_term!(data, model, PerMWCap(), :capex_obj, oper = +) 
 
     # Curtailment Cost
     add_obj_term!(data, model, PerMWhCurtailed(), :curtailment_cost, oper = +)
@@ -309,6 +318,7 @@ function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper)
     add_obj_exp!(data, model, PerMWCap(), s; oper = oper) 
     
 end
+
 
 function add_obj_term!(data, model, ::PerMWhCurtailed, s::Symbol; oper) 
     #Check if s has already been added to obj

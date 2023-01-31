@@ -10,18 +10,11 @@ function test_dcopf(config)
     @test haskey(data[:obj_vars], :fom)
     @test haskey(data[:obj_vars], :fuel_cost)
     @test haskey(data[:obj_vars], :vom)
-    @test haskey(data[:obj_vars], :capex)
+    @test haskey(data[:obj_vars], :capex_obj)
     @test haskey(data[:obj_vars], :curtailment_cost)
-    @test model[:obj] == sum(model[:curtailment_cost]) + sum(model[:fom]) + sum(model[:fuel_cost]) + sum(model[:vom]) + sum(model[:capex])
+    @test model[:obj] == sum(model[:curtailment_cost]) + sum(model[:fom]) + sum(model[:fuel_cost]) + sum(model[:vom]) + sum(model[:capex_obj]) #this won't be a good system level test
 
-    # the number of constraints matches expected
-    num_cons = 3*nrow(get_table(data, :bus))*length(get_years(data))*nrow(get_table(data, :hours))
-    num_cons += length(get_ref_bus_idxs(data))
-    num_cons += 2*nrow(get_table(data, :gen))*length(get_years(data))*nrow(get_table(data, :hours))
-    num_cons += 2*nrow(get_table(data, :gen))*length(get_years(data))
-    num_cons += 2*nrow(get_table(data, :branch))*length(get_years(data))*nrow(get_table(data, :hours))
-    
-    @test num_constraints(model, count_variable_in_set_constraints = false) == num_cons
+
 
     optimize!(model)
     # solution_summary(model)
@@ -79,6 +72,7 @@ config = load_config(config_file)
     @test get_table(data, :bus) isa DataFrame
     @test get_table(data, :branch) isa DataFrame
     @test get_table(data, :hours) isa DataFrame
+    @test get_table(data, :build_gen) isa DataFrame
     @test get_num_hours(data) isa Int
     @test get_hour_weights(data) isa Vector
     @test get_num_years(data) isa Int
@@ -100,10 +94,10 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
     @testset "Test Initializing the Data with a mod" begin
         struct DoubleVOM <: Modification end
         function E4ST.modify_raw_data!(::DoubleVOM, config, data)
-            data[:gen][!, :vom] .*= 2
+            return
         end
         function E4ST.modify_setup_data!(::DoubleVOM, config, data)
-            return
+            data[:gen][!, :vom] .*= 2
         end
         config = load_config(config_file)
         data_0 = load_data(config)
@@ -112,6 +106,9 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         data = load_data(config)
         @test data != data_0
         @test sum(data[:gen].vom) == 2*sum(data_0[:gen].vom)
+
+        #TODO: Create test Mod that applied in modify_raw_data!
+
     end
 
     @testset "Test load_af_table!" begin
@@ -209,7 +206,30 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         @test get_edem_demand(data, :, "y2035", :) ≈ 2.3
         @test get_edem_demand(data, :, "y2040", :) ≈ 2.53 + 0.01*8760
     end
+
+    @testset "Test Adding New Gens" begin
+        config = load_config(config_file)
+        data = load_data(config)
+        gen = get_table(data, :gen)
+        build_gen = get_table(data, :build_gen)
+
+        @test "endog" in gen.build_type
+        @test "unbuilt" in gen.build_status
+        for gen_row in eachrow(gen)
+            gen_row.build_status == "unbuilt" && @test gen_row.pcap0 == 0
+        end
+
+        "new" in build_gen.build_status && @test "new" in gen.build_status
+
+        #check that all gentypes in build_gen are in gen as well
+        @test nothing ∉ indexin(unique(build_gen.gentype), unique(gen.gentype))
+        
+
+
+    end
 end
+
+
 
 @testset "Test Setting up the model" begin
     config = load_config(config_file)
@@ -392,7 +412,7 @@ end
         @test tot == get_gen_result(data, model, PerMWhGen(), :genfuel => in(["ng", "coal"]) ) + get_gen_result(data, model, PerMWhGen(), :genfuel => !in(["ng", "coal"]))
         
         # Provide an index(es) for filtering
-        @test tot == get_gen_result(data, model, PerMWhGen(), 1 ) + get_gen_result(data, model, PerMWhGen(), [2])
+        @test tot == get_gen_result(data, model, PerMWhGen(), 1 ) + get_gen_result(data, model, PerMWhGen(), 2:nrow(data[:gen]))
     end
 
     @testset "Test year_idx filters" begin

@@ -22,7 +22,7 @@ function load_data(config)
 
     load_data_files!(config, data)
     modify_raw_data!(config, data)
-    setup_data!(config, data)    
+    setup_data!(config, data)  
     modify_setup_data!(config, data)
 
     if get(config, :save_data, true)
@@ -47,6 +47,8 @@ Loads in the data files presented in the `config`.  Calls the following function
 * [`load_demand_shape_table!(config, data)`](@ref)  - from `config[:demand_shape_file] -> data[:demand_shape]` (if `config[:demand_shape_file]` provided)
 * [`load_demand_match_table!(config, data)`](@ref)  - from `config[:demand_match_file] -> data[:demand_match]` (if `config[:demand_match_file]` provided)
 * [`load_demand_add_table!(config, data)`](@ref)  - from `config[:demand_add_file] -> data[:demand_add]` (if `config[:demand_add_file]` provided)
+* [`load_build_gen_table!(config, data)`](@ref)  - from `config[:build_gen_file] -> data[:build_gen]`
+* [`load_genfuel_table!(config, data)`](@ref)  - from `config[:gentype_genfuel_file] -> data[:genfuel_table]`
 """
 function load_data_files!(config, data)
     load_summary_table!(config, data)
@@ -61,11 +63,13 @@ function load_data_files!(config, data)
     load_table!(config, data, :hours_file    => :hours)
     load_table!(config, data, :af_file       => :af_table)
     load_table!(config, data, :demand_file   => :demand_table)
-    
+
     # Optional tables
-    haskey(config, :demand_shape_file) && load_table!(config, data, :demand_shape_file=>:demand_shape)
-    haskey(config, :demand_match_file) && load_table!(config, data, :demand_match_file=>:demand_match)
-    haskey(config, :demand_add_file)   && load_table!(config, data, :demand_add_file=>:demand_add)
+    load_table!(config, data, :demand_shape_file=>:demand_shape, optional=true)
+    load_table!(config, data, :demand_match_file=>:demand_match, optional=true)
+    load_table!(config, data, :demand_add_file=>:demand_add, optional=true)
+    load_table!(config, data, :build_gen_file => :build_gen, optional=true)
+    load_table!(config, data, :gentype_genfuel_file => :genfuel, optional=true)
 end
 export load_data_files!
 
@@ -97,14 +101,23 @@ end
     setup_data!(config, data)
 
 Sets up the data, modifying, adding to, or combining the tables as needed.
+New generators built in the `setup_gen_table!` function. 
 """
 function setup_data!(config, data)
+
+    # Note that order matters for these functions because later ones rely on data from earlier tables.
+    setup_build_gen_table!(config, data)
+    setup_genfuel_table!(config, data)    
     setup_bus_table!(config, data)
     setup_branch_table!(config, data)
-    setup_gen_table!(config, data)
     setup_hours_table!(config, data)
-    setup_af!(config, data)
     setup_demand!(config, data)
+
+    setup_gen_table!(config, data) #needs to come after build_gen setup for newgens
+    
+    setup_af!(config, data)
+
+
 end
 export setup_data!
 
@@ -121,6 +134,8 @@ end
 export summarize_table
 
 summarize_table(::Val{:gen}) = summarize_gen_table()
+summarize_table(::Val{:build_gen}) = summarize_build_gen_table()
+summarize_table(::Val{:genfuel}) = summarize_genfuel_table()
 summarize_table(::Val{:bus}) = summarize_bus_table()
 summarize_table(::Val{:branch}) = summarize_branch_table()
 summarize_table(::Val{:af}) = summarize_af_table()
@@ -147,6 +162,8 @@ function load_summary_table!(config, data)
 
     append_to_summary_table!(st, :bus)
     append_to_summary_table!(st, :gen)
+    append_to_summary_table!(st, :build_gen)
+    append_to_summary_table!(st, :genfuel)
     append_to_summary_table!(st, :branch)
     append_to_summary_table!(st, :hours)
     append_to_summary_table!(st, :af)
@@ -200,18 +217,68 @@ function load_gen_table!(config, data)
 end
 export load_gen_table!
 
+
 """
     setup_gen_table!(config, data)
 
 Sets up the generator table.
+Creates potential new generators and exogenously built generators. 
+Calls [`setup_new_gens!`](@ref) 
 """
 function setup_gen_table!(config, data)
     bus = get_table(data, :bus)
     gen = get_table(data, :gen)
+
+    #removes capex_obj if loaded in from previous sim
+    :capex_obj in propertynames(data[:gen]) && select!(data[:gen], Not(:capex_obj))
+
+    #create new gens and add to the gen table
+    if haskey(config, :build_gen_file) 
+        setup_new_gens!(config, data)  
+    end  
+
+    # create capex_obj (the capex used in the optimization/objective function)
+    # set to capex for unbuilt generators
+    # set to 0 for already built capacity because capacity expansion isn't considered for existing generators
+    gen.capex_obj .= (gen.build_status.=="unbuilt").* gen.capex
+
+    # map bus characteristics to generators
     leftjoin!(gen, bus, on=:bus_idx)
     disallowmissing!(gen)
 end
 export setup_gen_table!
+
+"""
+    load_build_gen_table!(config, data)
+
+Load the new generator characteristics/specs table from the `config[:build_gen_file]`.  See [`summarize_build_gen_table()`](@ref).
+"""
+function load_build_gen_table!(config, data)
+    # Return if there is no build_gen_file
+    if ~haskey(config, :build_gen_file) 
+        return
+    end
+
+    build_gen = load_table(config[:build_gen_file])
+    force_table_types!(build_gen, :build_gen, summarize_build_gen_table()) #change to pairs with all relevant from gen table
+    data[:build_gen] = build_gen
+    return
+end
+export load_build_gen_table!
+
+"""
+    setup_build_gen_table!(config, data)
+
+Sets up the new generator characteristics/specs table.
+"""
+function setup_build_gen_table!(config, data)
+    # Return if there is no build_gen_file
+    if ~haskey(config, :build_gen_file) 
+        return
+    end
+
+end
+export setup_build_gen_table!
 
 """
     load_bus_table!(config, data)
@@ -415,6 +482,31 @@ function setup_af!(config, data)
 end
 export setup_af!
 
+
+"""
+    load_genfuel_table!(config, data) -> data[:genfuel_table]
+
+Loads in the genfuel table which contains gentypes and their corresponding genfuel.
+"""
+function load_genfuel_table!(config, data)
+    @info "Loading the genfuel table from:  $(config[:gentype_genfuel_file])"
+    genfuel = load_table(config[:gentype_genfuel_file])
+    force_table_types!(genfuel, :genfuel, summarize_genfuel_table())
+    data[:genfuel_table] = genfuel
+    return
+end
+export load_genfuel_table!
+
+"""
+    setup_genfuel_table!(config, data) -> data[:genfuel_table]
+
+Sets up the genfuel table. (currently doesn't change anything)
+"""
+function setup_genfuel_table!(config, data)
+    
+end
+
+
 """
     load_voll!(config, data)
 
@@ -448,7 +540,7 @@ export load_years!
 Loads a table from filename, where filename is a csv.
 """
 function load_table(filename::String)
-    CSV.read(filename, DataFrame, missingstring="NA")
+    CSV.read(filename, DataFrame, missingstring="NA", stripwhitespace=true)
 end
 export load_table
 
@@ -458,7 +550,9 @@ export load_table
     
 Loads the table from the file in `config[p[1]]` into `data[p[2]]`
 """
-function load_table!(config, data, p::Pair{Symbol, Symbol})
+function load_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
+    optional===true && !haskey(config, first(p)) && return
+    @info "Loading data[$(p[1])] from $(config[first(p)])"
     table_file = config[first(p)]::String
     table_name = last(p)
     table = load_table(table_file)
@@ -508,6 +602,7 @@ function force_table_types!(df::DataFrame, name, pairs...; optional=false)
         df[!, col] = T.(df[!,col])
     end
 end
+export force_table_types!
 
 function force_table_types!(df::DataFrame, name, summary::AbstractDataFrame; kwargs...) 
     for row in eachrow(summary)
@@ -645,8 +740,11 @@ function summarize_gen_table()
     push!(df, 
         (:bus_idx, Int64, NA, true, "The index of the `bus` table that the generator corresponds to"),
         (:status, Bool, NA, false, "Whether or not the generator is in service"),
-        (:genfuel, String, NA, true, "The fuel type that the generator uses"),
-        (:gentype, String, NA, true, "The generation technology type that the generator uses"),
+        (:build_status, AbstractString, NA, true, "Whether the generator is 'built', 'new', or 'unbuilt'"),
+        (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
+        (:year_on, AbstractString, Year, true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
+        (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses"),
+        (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses"),
         (:pcap0, Float64, MWCapacity, true, "Starting nameplate power generation capacity for the generator"),
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power generation capacity of the generator"),
@@ -708,17 +806,56 @@ export summarize_hours_table
 function summarize_af_table()
     df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
     push!(df, 
-        (:area, String, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
-        (:subarea, String, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
-        (:genfuel, String, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
-        (:gentype, String, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
-        (:year, String, Year, true, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
+        (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
+        (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
+        (:year, AbstractString, Year, true, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
         (:status, Bool, NA, false, "Whether or not to use this AF adjustment"),
         (:h_, Float64, MWhGeneratedPerMWhCapacity, true, "Availability factor of hour _.  Include 1 column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
     )
     return df
 end
 export summarize_af_table
+
+
+"""
+    summarize_build_gen_table() -> summary
+"""
+function summarize_build_gen_table()
+    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    push!(df, 
+        (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:build_status, AbstractString, NA, true, "Whether the generator is 'built', 'new', or 'unbuilt'. Should always be unbuilt for exog new gens."),
+        (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built). Should either be exog or endog for buil_gen."),
+        (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
+        (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
+        (:status, Bool, NA, false, "Whether or not to use this set of characteristics/specs"),
+        (:pcap0, Float64, MWCapacity, true, "Starting nameplate power generation capacity for the generator. Should be 0 for endog new gens."),
+        (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
+        (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power generation capacity of the generator"),
+        (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
+        (:fuel_cost, Float64, DollarsPerMWhGenerated, false, "Fuel cost per MWh of generation"),
+        (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
+        (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
+        (:year_on, AbstractString, NA, true, "The first year of operation for the generator. (For new gens this is also the year it was built). Endogenous unbuilt generators will specify na"),
+    )
+    return df
+end
+export summarize_build_gen_table
+
+"""
+    summarize_genfuel_table() -> 
+"""
+function summarize_genfuel_table()
+    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    push!(df, 
+        (:gentype, AbstractString, NA, true, "The generator type (ie. ngcc, dist_solar, os_wind)"),
+        (:genfuel, AbstractString, NA, true, "The corresponding generator fuel or renewable type (ie. ng, solar, wind)"),
+    )
+    return df
+end
 
 # Accessor Functions
 ################################################################################
@@ -805,7 +942,6 @@ function get_demand_array(data)
     return data[:demand_array]::Array{Float64,3}
 end
 export get_demand_array
-
 
 """
     get_generator(data, gen_idx) -> row
@@ -927,14 +1063,20 @@ export get_edem, get_edem_demand
 """
     get_gen_value(data, var::Symbol, gen_idx, year_idx, hour_idx) -> val
 
-Retrieve the `var` value for generator `gen_idx` in year `year_idx` at hour `hour_idx`
+Retrieves the `var` value for generator `gen_idx` in year `year_idx` at hour `hour_idx`
+Can be called without hour_idx for variables that aren't indexed by hour.
 """
 function get_gen_value(data, var, gen_idx, year_idx, hour_idx)
     gen_table = get_table(data, :gen)
     c = gen_table[gen_idx, var]
     return c[year_idx, hour_idx]::Float64
 end
+function get_gen_value(data, var::Symbol, gen_idx)
+    gen_table = get_table(data, :gen)
+    return gen_table[gen_idx,var]
+end
 export get_gen_value
+
 
 """
     get_bus_value(data, var::Symbol, bus_idx, year_idx, hour_idx) -> val
@@ -1034,6 +1176,39 @@ function get_num_years(data)
     return length(get_years(data))
 end
 export get_num_years, get_years
+
+
+"""
+    get_prebuild_year_idxs(data, gen_idx) -> prebuild_year_idxs::Array
+
+Returns an array of the year indexes for years in the simulation before the start year of the specified generator. 
+"""
+function get_prebuild_year_idxs(data, gen_idx)
+    years = year2int.(get_years(data))
+    year_on = year2int(get_gen_value(data, :year_on, gen_idx))
+    idxs = findall(x -> years[x] < year_on, 1:length(years))
+    return idxs
+end
+export get_prebuild_year_idxs
+
+"""
+    get_year_on_sim_idx(data, gen_idx) -> year_on_sim_idx
+
+Gets the index for the generator on year. 
+If the on_year is in the set of sim years, it returns that index. 
+If this year is not part of the set of year, it returns the index of the next closest year. (ie. years = [2020, 2025, 2030], year_on = 2022, year_on_sim = 2025, year_on_sim_idx = 2)
+If this year is after the simulation years it returns length(years)+1 indicating that it is in the future.
+"""
+function get_year_on_sim_idx(data, gen_idx)
+    years = year2int.(get_years(data))
+    year_on = year2int(get_gen_value(data, :year_on, gen_idx))
+    year_on_sim_idx = findfirst(x -> years[x] >= year_on, 1:length(years)) 
+    if year_on_sim_idx === nothing
+        year_on_sim_idx = length(years)+1
+    end
+    return year_on_sim_idx
+end
+export get_year_on_sim_idx
 
 # Containers
 ################################################################################

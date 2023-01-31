@@ -270,7 +270,9 @@ function make_paths_absolute!(config, filename;
         :demand_match_file, 
         :demand_add_file,
         :data_file,
-        :model_presolve_file
+        :model_presolve_file,
+        :build_gen_file,
+        :gentype_genfuel_file
     )
 )
     path = dirname(filename)
