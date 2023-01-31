@@ -63,6 +63,7 @@ function load_data_files!(config, data)
     load_table!(config, data, :hours_file    => :hours)
     load_table!(config, data, :af_file       => :af_table)
     load_table!(config, data, :demand_file   => :demand_table)
+    
 
     # Optional tables
     load_table!(config, data, :demand_shape_file=>:demand_shape, optional=true)
@@ -70,6 +71,8 @@ function load_data_files!(config, data)
     load_table!(config, data, :demand_add_file=>:demand_add, optional=true)
     load_table!(config, data, :build_gen_file => :build_gen, optional=true)
     load_table!(config, data, :gentype_genfuel_file => :genfuel, optional=true)
+    load_table!(config, data, :adjust_yearly_file => :adjust_yearly, optional=true)
+    load_table!(config, data, :adjust_hourly_file => :adjust_hourly, optional=true)
 end
 export load_data_files!
 
@@ -121,7 +124,7 @@ export setup_data!
 """
     setup_table!(config, data, table_name)
 
-Sets up the `data[:table_name]`.
+Sets up the `data[:table_name]`.  Calls `setup_table!(config, data, Val(table_name))`, if defined.
 """
 function setup_table!(config, data, table_name::Symbol)
     if hasmethod(setup_table!, Tuple{typeof(config), typeof(data), Val{table_name}})
@@ -180,17 +183,12 @@ function load_summary_table!(config, data)
         :description => String[],
     )
 
-    append_to_summary_table!(st, :bus)
-    append_to_summary_table!(st, :gen)
-    append_to_summary_table!(st, :build_gen)
-    append_to_summary_table!(st, :genfuel)
-    append_to_summary_table!(st, :branch)
-    append_to_summary_table!(st, :hours)
-    append_to_summary_table!(st, :af)
-    append_to_summary_table!(st, :demand_table)
-    append_to_summary_table!(st, :demand_add)
-    append_to_summary_table!(st, :demand_shape)
-    append_to_summary_table!(st, :demand_match)
+    # Loop through and add all the tables for which summarize_table has been defined
+    for m in methods(summarize_table)
+        if m.sig.parameters[2] <: Val
+            append_to_summary_table!(st, m.sig.parameters[2]())
+        end
+    end
 
     if haskey(config, :summary_table_file)
         gst = groupby(st, (:table_name, :column_name))
@@ -213,16 +211,15 @@ function load_summary_table!(config, data)
 end
 
 """
-    append_to_summary_table!(summary_table::DataFrame, s::Symbol)
+    append_to_summary_table!(summary_table::DataFrame, v::Val)
 
 Appends a summary table, from `summarize_table(s)`, to `summary_table`
 """
-function append_to_summary_table!(summary_table::DataFrame, s::Symbol)
-    st = summarize_table(s)
+function append_to_summary_table!(summary_table::DataFrame, v::V) where {s, V<:Val{s}}
+    st = summarize_table(v)
     st.table_name .= s
     append!(summary_table, st)
 end
-
 
 """
     load_gen_table!(config, data)
