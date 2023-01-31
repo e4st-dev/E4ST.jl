@@ -106,20 +106,40 @@ New generators built in the `setup_gen_table!` function.
 function setup_data!(config, data)
 
     # Note that order matters for these functions because later ones rely on data from earlier tables.
-    setup_build_gen_table!(config, data)
-    setup_genfuel_table!(config, data)    
-    setup_bus_table!(config, data)
-    setup_branch_table!(config, data)
-    setup_hours_table!(config, data)
-    setup_demand!(config, data)
-
-    setup_gen_table!(config, data) #needs to come after build_gen setup for newgens
-    
-    setup_af!(config, data)
-
+    setup_table!(config, data, :build_gen)
+    setup_table!(config, data, :genfuel)
+    setup_table!(config, data, :bus)
+    setup_table!(config, data, :branch)
+    setup_table!(config, data, :hours)
+    setup_table!(config, data, :demand)
+    setup_table!(config, data, :gen) # needs to come after build_gen setup for newgens
+    setup_table!(config, data, :af)
 
 end
 export setup_data!
+
+"""
+    setup_table!(config, data, table_name)
+
+Sets up the `data[:table_name]`.
+"""
+function setup_table!(config, data, table_name::Symbol)
+    if hasmethod(setup_table!, Tuple{typeof(config), typeof(data), Val{table_name}})
+        @info "Setting up data[$(table_name)]"
+        setup_table!(config, data, Val(table_name))
+    end
+    return 
+end
+
+setup_table!(config, data, ::Val{:build_gen}) =     setup_build_gen_table!(config, data)
+setup_table!(config, data, ::Val{:genfuel}) = setup_genfuel_table!(config, data)
+setup_table!(config, data, ::Val{:bus}) = setup_bus_table!(config, data)
+setup_table!(config, data, ::Val{:branch}) = setup_branch_table!(config, data)
+setup_table!(config, data, ::Val{:hours}) = setup_hours_table!(config, data)
+setup_table!(config, data, ::Val{:demand}) = setup_demand!(config, data)
+setup_table!(config, data, ::Val{:gen}) = setup_gen_table!(config, data)
+setup_table!(config, data, ::Val{:af}) = setup_af!(config, data)
+    
 
 """
     summarize_table(s::Symbol) -> summary::DataFrame
