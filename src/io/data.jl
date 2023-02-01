@@ -35,20 +35,7 @@ end
 """
     load_data_files!(config, data)
 
-Loads in the data files presented in the `config`.  Calls the following functions:
-* [`load_bus_table!`](@ref) - from `config[:bus_file] -> data[:bus]`
-* [`load_branch_table!`](@ref) - from `config[:branch_file] -> data[:branch]`
-* [`load_gen_table!`](@ref) - from `config[:gen_file] -> data[:gen]`
-* [`load_hours_table!`](@ref) - from `config[:hours_file] -> data[:hours_table]`
-* [`load_voll!`](@ref) - from `config[:voll] -> data[:voll]`
-* [`load_years!`](@ref) - from `config[:years] -> data[:years]`
-* [`load_af_table!`](@ref) - from `config[:af_file] -> data[:af_table]`
-* [`load_demand_table!(config, data)`](@ref) - from `config[:demand_file] -> data[:demand_table]`
-* [`load_demand_shape_table!(config, data)`](@ref)  - from `config[:demand_shape_file] -> data[:demand_shape]` (if `config[:demand_shape_file]` provided)
-* [`load_demand_match_table!(config, data)`](@ref)  - from `config[:demand_match_file] -> data[:demand_match]` (if `config[:demand_match_file]` provided)
-* [`load_demand_add_table!(config, data)`](@ref)  - from `config[:demand_add_file] -> data[:demand_add]` (if `config[:demand_add_file]` provided)
-* [`load_build_gen_table!(config, data)`](@ref)  - from `config[:build_gen_file] -> data[:build_gen]`
-* [`load_genfuel_table!(config, data)`](@ref)  - from `config[:gentype_genfuel_file] -> data[:genfuel_table]`
+Loads in the data files presented in the `config`.
 """
 function load_data_files!(config, data)
     load_summary_table!(config, data)
@@ -192,11 +179,11 @@ function load_summary_table!(config, data)
     end
 
     if haskey(config, :summary_table_file)
-        gst = groupby(st, (:table_name, :column_name))
+        gst = groupby(st, [:table_name, :column_name])
         df = load_table(config[:summary_table_file])
 
         force_table_types!(df, :summary_table,
-            (cn=>eltype(df[!,cn]) for cn in propertynames(st))...
+            (cn=>eltype(st[!,cn]) for cn in propertynames(st))...
         )
 
         for row in eachrow(df)
@@ -221,20 +208,6 @@ function append_to_summary_table!(summary_table::DataFrame, v::V) where {s, V<:V
     st.table_name .= s
     append!(summary_table, st)
 end
-
-"""
-    load_gen_table!(config, data)
-
-Load the generator from the `config[:gen_file]`.  See [`summarize_gen_table()`](@ref).
-"""
-function load_gen_table!(config, data)
-    gen = load_table(config[:gen_file])
-    force_table_types!(gen, :gen, summarize_gen_table())
-    data[:gen] = gen
-    return
-end
-export load_gen_table!
-
 
 """
     setup_gen_table!(config, data)
@@ -267,24 +240,6 @@ end
 export setup_gen_table!
 
 """
-    load_build_gen_table!(config, data)
-
-Load the new generator characteristics/specs table from the `config[:build_gen_file]`.  See [`summarize_build_gen_table()`](@ref).
-"""
-function load_build_gen_table!(config, data)
-    # Return if there is no build_gen_file
-    if ~haskey(config, :build_gen_file) 
-        return
-    end
-
-    build_gen = load_table(config[:build_gen_file])
-    force_table_types!(build_gen, :build_gen, summarize_build_gen_table()) #change to pairs with all relevant from gen table
-    data[:build_gen] = build_gen
-    return
-end
-export load_build_gen_table!
-
-"""
     setup_build_gen_table!(config, data)
 
 Sets up the new generator characteristics/specs table.
@@ -299,22 +254,6 @@ end
 export setup_build_gen_table!
 
 """
-    load_bus_table!(config, data)
-
-Load the bus table from the `config[:bus_file]` into `data[:bus]`.  See [`summarize_bus_table()`](@ref).
-
-Table representing all existing buses (also sometimes referred to as nodes or subs/substations) to be modeled.
-"""
-function load_bus_table!(config, data)
-    @info "Loading the bus table from:  $(config[:bus_file])"
-    bus = load_table(config[:bus_file])
-    force_table_types!(bus, :bus, summarize_bus_table())
-    data[:bus] = bus
-    return
-end
-export load_bus_table!
-
-"""
     setup_bus_table!(config, data)
 
 Sets up the bus table.  
@@ -326,20 +265,6 @@ function setup_bus_table!(config, data)
     return
 end
 export setup_bus_table!
-
-"""
-    load_branch_table!(config, data)
-
-Load the branch table from `config[:branch_file]` into `data[:branch]`.  See [`summarize_branch_table()`](@ref).
-"""
-function load_branch_table!(config, data)
-    @info "Loading the branch table from:  $(config[:branch_file])"
-    branch = load_table(config[:branch_file])
-    force_table_types!(branch, :branch, summarize_branch_table())
-    data[:branch] = branch
-    return
-end
-export load_branch_table!
 
 """
     setup_branch_table!(config, data)
@@ -364,22 +289,6 @@ end
 export setup_branch_table!
 
 """
-    load_hours_table!(config, data)
-
-Load the hours representation table from `config[:hours_file]` into `data[:hours]`.  See [`summarize_hours_table()`](@ref).
-
-E4ST assumes that each year is broken up into a set of representative hours.  Each representative hour may have different parameters (i.e. load, availability factor, etc.) depending on the time of year, time of day, etc. Thus, we index many of the decision variables by representative hour.  For example, the variable for power generated (`pg`), is indexed by generator, year, and hour, meaning that for each generator, there is a different solved value of generation for each year in each representative hour.  The hours can contain any number of representative hours, but the number of hours spent at each representative hour (the `hours` column) generally should sum to 8760 (the number of hours in a year).
-"""
-function load_hours_table!(config, data)
-    @info "Loading the hours table from:  $(config[:hours_file])"
-    hours = load_table(config[:hours_file])
-    force_table_types!(hours, :rep_time, summarize_hours_table())
-    data[:hours] = hours
-    return
-end
-export load_hours_table!
-
-"""
     setup_hours_table!(config, data)
 
 Doesn't do anything yet.
@@ -388,32 +297,6 @@ function setup_hours_table!(config, data)
     return
 end
 export setup_hours_table!
-
-@doc raw"""
-    load_af_table!(config, data)
-
-Load the hourly availability factors from `config[:af_file]` into `data[:af_table]`, if provided. 
-
-See also [`summarize_af_table()`](@ref), [`setup_af!(config, data)`](@ref)
-"""
-function load_af_table!(config, data)
-    # Return if there is no af_file
-    if ~haskey(config, :af_file) 
-        return
-    end
-
-    @info "Loading the availability factor table from:  $(config[:af_file])"
-
-    # Load in the af file
-    df = load_table(config[:af_file])
-    force_table_types!(df, :af, summarize_af_table())
-    force_table_types!(df, :af, ("h$n"=>Float64 for n in 2:get_num_hours(data))...)
-
-    data[:af_table] = df
-
-    return
-end
-export load_af_table!
 
 @doc raw"""
     setup_af!(config, data)
@@ -461,32 +344,8 @@ function setup_af!(config, data)
             continue
         end
         
-        gens = get_table(data, :gen)
-
-        isempty(gens) && continue
-
-        # Add the area-subarea pair to the condition
-        if ~isempty(row.area) && ~isempty(row.subarea)
-            area = row.area
-            subarea = row.subarea
-            gens = filter(gen->get_gen_subarea(data, gen, area)==subarea, gens, view=true)
-        end
-
-        isempty(gens) && continue
-
-        # Add the genfuel to the condition
-        if ~isempty(row.genfuel)
-            genfuel = row.genfuel
-            gens = filter(:genfuel=>==(genfuel), gens, view=true)
-        end
-
-        isempty(gens) && continue
-
-        # Add the gentype to the condition
-        if ~isempty(row.gentype)
-            gentype = row.gentype
-            gens = filter(:gentype=>==(gentype), gens, view=true)
-        end
+        pairs = parse_comparisons(row)
+        gens = get_table(data, :gen, pairs)
 
         isempty(gens) && continue
         
@@ -623,8 +482,7 @@ function force_table_types!(df::DataFrame, name, pairs...; optional=false)
         end
         ET = eltype(df[!,col])
         ET <: T && continue
-        @show T, ET
-        hasmethod(T, Tuple{ET}) || error("Column $name[$col] cannot be forced into type $T")
+        hasmethod(T, Tuple{ET}) || error("Column $name[$col] cannot be forced into type $T from type $ET")
         df[!, col] = T.(df[!,col])
     end
 end

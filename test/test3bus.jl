@@ -111,7 +111,7 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
 
     end
 
-    @testset "Test load_af_table!" begin
+    @testset "Test loading af table" begin
         config = load_config(config_file)
         data = load_data(config)
 
@@ -137,7 +137,7 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         @test get_af(data, 2, 3, 4) == 0.5
     end
 
-    @testset "Test load_demand_table!" begin
+    @testset "Test loading demand table" begin
         config = load_config(config_file)
         data = load_data(config)
 
@@ -149,7 +149,7 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         @test all(get_pdem(data, 3, yr_idx, hr_idx) ≈ 0.2 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
     end
 
-    @testset "Test load_demand_table! with shaping" begin
+    @testset "Test loading demand table with shaping" begin
         config = load_config(config_file)
         config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
         data = load_data(config)
@@ -173,7 +173,7 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         end
     end
 
-    @testset "Test load_demand_table! with shaping and matching" begin
+    @testset "Test loading demand table with shaping and matching" begin
         config = load_config(config_file)
         config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
         config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")

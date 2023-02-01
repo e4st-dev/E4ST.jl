@@ -250,6 +250,17 @@ function parse_comparisons(row::DataFrameRow)
         pair = parse_comparison(s)
         push!(pairs, pair)
     end
+    
+    # Check for area/subarea
+    if hasproperty(row, :area) && ~isempty(row.area) && hasproperty(row, :subarea) && ~isempty(row.subarea)
+        push!(pairs, row.area=>row.subarea)
+    end
+
+    # Check for genfuel and gentype
+    hasproperty(row, :genfuel) && ~isempty(row.genfuel) && push!(pairs, :genfuel=>row.genfuel)
+    hasproperty(row, :gentype) && ~isempty(row.gentype) && push!(pairs, :gentype=>row.gentype)
+    hasproperty(row, :load_type) && ~isempty(row.load_type) && push!(pairs, :load_type=>row.load_type)
+    
     return pairs
 end
 

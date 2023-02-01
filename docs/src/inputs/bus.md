@@ -2,7 +2,6 @@ Bus Table
 =========
 
 ```@docs
-load_bus_table!
 setup_bus_table!
 summarize_bus_table
 ```

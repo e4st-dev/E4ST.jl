@@ -5,25 +5,31 @@ Represents possible units for table columns in E4ST.
 """
 abstract type Unit end
 
-function Unit(s::String)
+export Unit
+
+function (Type{<:Unit})(s::AbstractString)
     get_type(s)
 end
 
-struct DollarsPerMWhServed <: Unit end
-struct Dollars <: Unit end
-struct ShortTonsPerMWhGenerated <: Unit end
-struct DollarsPerMWCapacity <: Unit end
-struct DollarsPerMWBuiltCapacity <: Unit end
-struct DollarsPerMWhGenerated <: Unit end
-struct MWhGeneratedPerMWhCapacity <: Unit end
-struct NA <: Unit end
-struct PU <: Unit end
-struct MWFlow <: Unit end
-struct MWCapacity <: Unit end
-struct MWDemanded <: Unit end
+function Unit(s::AbstractString)
+    get_type(s)()
+end
 
-struct MWhDemanded <: Unit end
+struct DollarsPerMWhServed <: Unit end; export DollarsPerMWhServed
+struct Dollars <: Unit end; export Dollars
+struct ShortTonsPerMWhGenerated <: Unit end; export ShortTonsPerMWhGenerated
+struct DollarsPerMWCapacity <: Unit end; export DollarsPerMWCapacity
+struct DollarsPerMWBuiltCapacity <: Unit end; export DollarsPerMWBuiltCapacity
+struct DollarsPerMWhGenerated <: Unit end; export DollarsPerMWhGenerated
+struct MWhGeneratedPerMWhCapacity <: Unit end; export MWhGeneratedPerMWhCapacity
+struct NA <: Unit end; export NA
+struct PU <: Unit end; export PU
+struct MWFlow <: Unit end; export MWFlow
+struct MWCapacity <: Unit end; export MWCapacity
+struct MWDemanded <: Unit end; export MWDemanded
 
-struct Hours <: Unit end
-struct Year <: Unit end
-struct Ratio <: Unit end # For general purpose ratios that don't need a fancy Unit
+struct MWhDemanded <: Unit end; export MWhDemanded
+
+struct Hours <: Unit end; export Hours
+struct Year <: Unit end; export Year
+struct Ratio <: Unit end; export Ratio # For general purpose ratios that don't need a fancy Unit

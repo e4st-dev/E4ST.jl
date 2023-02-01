@@ -1,6 +1,5 @@
 # Hours Table
 ```@docs
-load_hours_table!(config, data)
 summarize_hours_table()
 ```
 

@@ -140,9 +140,9 @@ function reload_types!(::Type{T}) where T
     global STR2TYPE
     global SYM2TYPE
     for type in subtypes(T)
-        symtype = Symbol(type)
+        symtype = Base.typename(type).name
         SYM2TYPE[symtype] = type
-        strtype = string(type)
+        strtype = string(symtype)
         STR2TYPE[strtype] = type
         if isabstracttype(type)
             reload_types!(type)
@@ -150,7 +150,7 @@ function reload_types!(::Type{T}) where T
     end
 end
 
-Core.Type(s::String) = get_type(s)
+Core.Type(s::AbstractString) = get_type(String(s))
 Core.Type(s::Symbol) = get_type(s)
 Core.AbstractString(s) = String(s)
 
@@ -182,7 +182,7 @@ function get_type(sym::Symbol)
     end
 end
 
-function get_type(str::String)
+function get_type(str::AbstractString)
     global STR2TYPE
     return get(STR2TYPE, str) do 
         reload_types!()
