@@ -114,9 +114,11 @@ function setup_data!(config, data)
     setup_table!(config, data, :bus)
     setup_table!(config, data, :branch)
     setup_table!(config, data, :hours)
-    setup_table!(config, data, :demand)
+    setup_table!(config, data, :demand_table)
     setup_table!(config, data, :gen) # needs to come after build_gen setup for newgens
-    setup_table!(config, data, :af)
+    setup_table!(config, data, :af_table)
+    setup_table!(config, data, :adjust_hourly)
+    setup_table!(config, data, :adjust_yearly)
 
 end
 export setup_data!
@@ -127,7 +129,7 @@ export setup_data!
 Sets up the `data[:table_name]`.  Calls `setup_table!(config, data, Val(table_name))`, if defined.
 """
 function setup_table!(config, data, table_name::Symbol)
-    if hasmethod(setup_table!, Tuple{typeof(config), typeof(data), Val{table_name}})
+    if hasmethod(setup_table!, Tuple{typeof(config), typeof(data), Val{table_name}}) && has_table(data, table_name)
         @info "Setting up data[$(table_name)]"
         setup_table!(config, data, Val(table_name))
     end
@@ -139,10 +141,9 @@ setup_table!(config, data, ::Val{:genfuel}) = setup_genfuel_table!(config, data)
 setup_table!(config, data, ::Val{:bus}) = setup_bus_table!(config, data)
 setup_table!(config, data, ::Val{:branch}) = setup_branch_table!(config, data)
 setup_table!(config, data, ::Val{:hours}) = setup_hours_table!(config, data)
-setup_table!(config, data, ::Val{:demand}) = setup_demand!(config, data)
+setup_table!(config, data, ::Val{:demand_table}) = setup_demand!(config, data)
 setup_table!(config, data, ::Val{:gen}) = setup_gen_table!(config, data)
-setup_table!(config, data, ::Val{:af}) = setup_af!(config, data)
-    
+setup_table!(config, data, ::Val{:af_table}) = setup_af!(config, data)
 
 """
     summarize_table(s::Symbol) -> summary::DataFrame
@@ -568,7 +569,7 @@ Loads the table from the file in `config[p[1]]` into `data[p[2]]`
 """
 function load_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
     optional===true && !haskey(config, first(p)) && return
-    @info "Loading data[$(p[1])] from $(config[first(p)])"
+    @info "Loading data[:$(last(p))] from $(config[first(p)])"
     table_file = config[first(p)]::String
     table_name = last(p)
     table = load_table(table_file)
@@ -586,7 +587,7 @@ function load_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
                 force_table_types!(table, yr => row.data_type, optional = !(row.required))
             end
         elseif row.column_name == :filter_
-            for i in 1:100 # arbitrarily high limit
+            for i in 1:1000 # arbitrarily high limit
                 col_name = "filter$i"
                 if hasproperty(table, col_name)
                     force_table_types!(table, col_name => row.data_type, optional = !(row.required))
@@ -640,14 +641,16 @@ function force_table_types!(df::DataFrame, name, row::DataFrameRow; kwargs...)
     req = row["required"]
     T = row["data_type"]
     if ~hasproperty(df, col)
+        # Return for special column identifiers - these will get checked inside load_table!
         col === :h_ && return
         col === :y_ && return
+        col === :filter_ && return
         req || return
         error(":$name table missing column :$col")
     end
     ET = eltype(df[!,col])
     if ~(ET <: T)
-        hasmethod(T, Tuple{ET}) || error("Column $name[$col] cannot be forced into type $T")
+        hasmethod(T, Tuple{ET}) || error("Column $name[$col] with eltype $ET cannot be forced into type $T")
         df[!, col] = T.(df[!,col])
     end
     return
@@ -919,6 +922,7 @@ function get_table_row_idxs(data, table_name, conditions...)
     row_idxs = get_row_idxs(table, conditions...)
     return row_idxs
 end
+export get_table_row_idxs
 
 """
     get_table_col(data, table_name, col_name) -> col::Vector
@@ -960,6 +964,19 @@ function get_table_names(data)
     return [k for (k,v) in data if v isa DataFrame]
 end
 export get_table_names
+
+
+"""
+    has_table(data, table_name) -> Bool
+"""
+function has_table(data, table_name::Symbol)
+    return haskey(data, table_name) && data[table_name] isa DataFrame
+end
+
+function has_table(data, table_name::AbstractString)
+    has_table(data, Symbol(table_name))
+end
+export has_table
 
 """
     get_demand_array(data)

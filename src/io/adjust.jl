@@ -36,7 +36,7 @@ end
     setup_table!(config, data, ::Val{:adjust_hourly})
 """
 function setup_table!(config, data, ::Val{:adjust_hourly})
-    adjust_table = get_table(config, :adjust_hourly)
+    adjust_table = get_table(data, :adjust_hourly)
     for row in eachrow(adjust_table)
         adjust_hourly!(config, data, row)
     end
@@ -76,6 +76,10 @@ function adjust_hourly!(config, data, row)
 
     # Perform the adjustment on each row of the table
     vals = [row["h$h"] for h in 1:get_num_hours(data)]
+
+    # Make sure the appropriate column is a Vector{Container}
+    _to_container!(table, variable_name) 
+
     for r in eachrow(table)
         oper == "add"   && (r[variable_name] = add_hourly(r[variable_name], vals, yr_idx; nyr))
         oper == "scale" && (r[variable_name] = scale_hourly(r[variable_name], vals, yr_idx; nyr))

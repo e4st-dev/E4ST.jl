@@ -245,7 +245,9 @@ function parse_comparisons(row::DataFrameRow)
     for i in 1:10000
         name = "filter$i"
         hasproperty(row, name) || break
-        pair = parse_comparison(row[name])
+        s = row[name]
+        isempty(s) && break
+        pair = parse_comparison(s)
         push!(pairs, pair)
     end
     return pairs

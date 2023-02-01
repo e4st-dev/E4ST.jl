@@ -111,7 +111,7 @@ function set_hourly(c::ByHour, v, yr_idx; nyr=nothing, kwargs...)
     if all(in(yr_idx), 1:nyr)
         return set_hourly(c, v, (:); default, kwargs...)
     end
-    vv = fill(v, nyr)
+    vv = [copy(c.v) for i in 1:nyr]
     foreach(i->(vv[i] = v), yr_idx)
     return ByYearAndHour(vv)
 end
@@ -126,6 +126,161 @@ function set_hourly(c::ByYearAndHour, v, yr_idx; kwargs...)
     foreach(i->(c.v[i] = v), yr_idx)
     return c
 end
+
+
+##########################################################################
+# New adjust
+##########################################################################
+"""
+    add_hourly(c::Container, v::Vector{Float64}, yr_idx; nyr)
+
+Adds the hourly values for `c` (creating a new Container of a different type as needed) for `yr_idx` to be `v`.
+
+If `yr_idx::Colon`, sets the hourly values for all years to be `v`.
+
+# keyword arguments
+* `nyr` - the total number of years.
+"""
+function add_hourly(c::ByNothing, v, yr_idx::Colon; kwargs...)
+    return OriginalContainer(c.v, ByHour(c.v .+ v))
+end
+function add_hourly(c::OriginalContainer, args...; kwargs...)
+    return OriginalContainer(c.original, add_hourly(c.v, args...; kwargs...))
+end
+function add_hourly(c::ByNothing, v, yr_idx; nyr=nothing)
+    @assert nyr !== nothing error("Attempting to add hourly values for year index $yr_idx, but no nyr provided!")
+    if all(in(yr_idx), 1:nyr)
+        return add_hourly(c, v, (:); nyr)
+    end
+    default_hourly = fill(c.v, size(v))
+    vv = [fill(c.v, size(v)) for i in 1:nyr]
+    foreach(i->(vv[i] .+= v), yr_idx)
+    return OriginalContainer(c.v, ByYearAndHour(vv))
+end
+
+function add_hourly(c::ByYear, v, yr_idx::Colon; kwargs...)
+    vv = [_v .+ v for _v in c.v]
+    return ByYearAndHour(vv)
+end
+
+function add_hourly(c::ByYear, v, yr_idx; kwargs...)
+    # Check to see if all the years are represented by yr_idx
+    if all(in(yr_idx), 1:length(c.v))
+        return add_hourly(c, v, (:); kwargs...)
+    end
+
+    # Set the default hourly values to be the original values
+    vv = map(c.v) do yr_val
+        fill(yr_val, nyr)
+    end
+    foreach(i->(vv[i] .+= v), yr_idx)
+    return ByYearAndHour(vv)
+end
+
+function add_hourly(c::ByHour, v, yr_idx::Colon; kwargs...)
+    return ByHour(c.v .+ v)
+end
+function add_hourly(c::ByHour, v, yr_idx; nyr=nothing, kwargs...)
+    @assert nyr !== nothing error("Attempting to set hourly values for year index $yr_idx, but no nyr provided!")
+    if all(in(yr_idx), 1:nyr)
+        return add_hourly(c, v, (:); default, kwargs...)
+    end
+    vv = [copy(c.v) for i in 1:nyr]
+    foreach(i->(vv[i] .+= v), yr_idx)
+    return ByYearAndHour(vv)
+end
+
+function add_hourly(c::ByYearAndHour, v, yr_idx::Colon; kwargs...)
+    foreach(_v->_v .+= v, c.v)
+    return c
+end
+function add_hourly(c::ByYearAndHour, v, yr_idx; kwargs...)
+    if all(in(yr_idx), 1:length(c.v))
+        return add_hourly(c, v, (:); default, kwargs...)
+    end
+    foreach(i->(c.v[i] .+= v), yr_idx)
+    return c
+end
+
+
+
+
+
+
+
+"""
+    scale_hourly(c::Container, v::Vector{Float64}, yr_idx; nyr)
+
+Scales the hourly values for `c` (creating a new Container of a different type as needed) for `yr_idx` to be `v`.
+
+If `yr_idx::Colon`, sets the hourly values for all years to be `v`.
+
+# keyword arguments
+* `nyr` - the total number of years.
+"""
+function scale_hourly(c::ByNothing, v, yr_idx::Colon; kwargs...)
+    return OriginalContainer(c.v, ByHour(c.v .* v))
+end
+function scale_hourly(c::OriginalContainer, args...; kwargs...)
+    return OriginalContainer(c.original, scale_hourly(c.v, args...; kwargs...))
+end
+function scale_hourly(c::ByNothing, v, yr_idx; nyr=nothing)
+    @assert nyr !== nothing error("Attempting to scale hourly values for year index $yr_idx, but no nyr provided!")
+    if all(in(yr_idx), 1:nyr)
+        return scale_hourly(c, v, (:); nyr)
+    end
+    default_hourly = fill(c.v, size(v))
+    vv = [fill(c.v, size(v)) for i in 1:nyr]
+    foreach(i->(vv[i] .*= v), yr_idx)
+    return OriginalContainer(c.v, ByYearAndHour(vv))
+end
+
+function scale_hourly(c::ByYear, v, yr_idx::Colon; kwargs...)
+    vv = [_v .* v for _v in c.v]
+    return ByYearAndHour(vv)
+end
+
+function scale_hourly(c::ByYear, v, yr_idx; kwargs...)
+    # Check to see if all the years are represented by yr_idx
+    if all(in(yr_idx), 1:length(c.v))
+        return scale_hourly(c, v, (:); kwargs...)
+    end
+
+    # Set the default hourly values to be the original values
+    vv = map(c.v) do yr_val
+        fill(yr_val, nyr)
+    end
+    foreach(i->(vv[i] .*= v), yr_idx)
+    return ByYearAndHour(vv)
+end
+
+function scale_hourly(c::ByHour, v, yr_idx::Colon; kwargs...)
+    return ByHour(c.v .* v)
+end
+function scale_hourly(c::ByHour, v, yr_idx; nyr=nothing, kwargs...)
+    @assert nyr !== nothing error("Attempting to set hourly values for year index $yr_idx, but no nyr provided!")
+    if all(in(yr_idx), 1:nyr)
+        return scale_hourly(c, v, (:); default, kwargs...)
+    end
+    vv = [copy(c.v) for i in 1:nyr]
+    foreach(i->(vv[i] .*= v), yr_idx)
+    return ByYearAndHour(vv)
+end
+
+function scale_hourly(c::ByYearAndHour, v, yr_idx::Colon; kwargs...)
+    foreach(_v->_v .*= v, c.v)
+    return c
+end
+function scale_hourly(c::ByYearAndHour, v, yr_idx; kwargs...)
+    if all(in(yr_idx), 1:length(c.v))
+        return scale_hourly(c, v, (:); default, kwargs...)
+    end
+    foreach(i->(c.v[i] .*= v), yr_idx)
+    return c
+end
+
+
+
 
 """
     DemandContainer()
@@ -149,5 +304,20 @@ function Base.show(io::IO, c::DemandContainer)
     l,m = size(c.v[1])
     n = length(c.v)
     print(io, "$n-element DemandContainer of $(l)×$m Matrix")
+end
+
+
+function _to_container!(table::DataFrame, col_name)
+    v = _to_container(table[!, col_name])::Vector{Container}
+    table[!, col_name] = v
+end
+function _to_container!(table::SubDataFrame, col_name)
+    _to_container!(getfield(table, :parent), col_name)::Vector{Container}
+end
+function _to_container(v::Vector{Container})
+    v
+end
+function _to_container(v::Vector)
+    Container[ByNothing(x) for x in v]
 end
 
