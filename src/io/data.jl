@@ -433,7 +433,6 @@ function setup_af!(config, data)
     # Fill in gen table with default af of 1.0 for every hour
     gens = get_table(data, :gen)
     default_af = ByNothing(1.0)
-    default_hourly_af = fill(1.0, get_num_hours(data))
     gens.af = Container[default_af for _ in 1:nrow(gens)]
     
     # Return if there is no af_file
@@ -492,7 +491,7 @@ function setup_af!(config, data)
         
         af = [row[i_hr] for i_hr in hr_idx:ncol(af_table)]
         foreach(eachrow(gens)) do gen
-            gen.af = set_hourly(gen.af, af, yr_idx; default=default_hourly_af, nyr)
+            gen.af = set_hourly(gen.af, af, yr_idx; nyr)
         end
     end
     return data
@@ -575,6 +574,8 @@ function load_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
     table = load_table(table_file)
     st = get_table_summary(data, table_name)
     force_table_types!(table, table_name, st)
+    
+    # Force columns that have unknown number of columns.
     for row in eachrow(st)
         if row.column_name == :h_
             for i in 1:get_num_hours(data)
@@ -583,6 +584,13 @@ function load_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
         elseif row.column_name == :y_
             for yr in get_years(data)
                 force_table_types!(table, yr => row.data_type, optional = !(row.required))
+            end
+        elseif row.column_name == :filter_
+            for i in 1:100 # arbitrarily high limit
+                col_name = "filter$i"
+                if hasproperty(table, col_name)
+                    force_table_types!(table, col_name => row.data_type, optional = !(row.required))
+                end
             end
         end
     end
@@ -885,13 +893,16 @@ Retrieves `data[table_name]`, enforcing that it is a DataFrame.  See [`get_table
 function get_table(data, table_name::Symbol)
     return data[table_name]::DataFrame
 end
+function get_table(data, table_name::AbstractString)
+    return get_table(data, Symbol(table_name))
+end
 
 """
-    get_table(data, table_name::Symbol, conditions...) -> subtable::SubDataFrame
+    get_table(data, table_name, conditions...) -> subtable::SubDataFrame
 
 Return a subset of the table `table_name` for which the row passes the `conditions`.  See [``](@ref)
 """
-function get_table(data, table_name::Symbol, conditions...)
+function get_table(data, table_name, conditions...)
     table = get_table(data, table_name)
     row_idxs = get_row_idxs(table, conditions...)
     return view(table, row_idxs, :)
@@ -1226,151 +1237,6 @@ function get_year_on_sim_idx(data, gen_idx)
     return year_on_sim_idx
 end
 export get_year_on_sim_idx
-
-# Containers
-################################################################################
-
-"""
-    abstract type Container
-
-Abstract type for containers that can be indexed by year and time.
-"""
-abstract type Container end
-
-mutable struct ByNothing <: Container 
-    v::Float64
-end
-struct ByYear <: Container
-    v::Vector{Float64}
-end
-struct ByHour <: Container
-    v::Vector{Float64}
-end
-struct ByYearAndHour <: Container
-    v::Vector{Vector{Float64}}
-end
-
-"""
-    Base.getindex(c::Container, year_idx, hour_idx) -> val::Float64
-
-Retrieve the value from `c` at `year_idx` and `hour_idx`
-"""
-function Base.getindex(c::ByNothing, year_idx, hour_idx)
-    c.v::Float64
-end
-function Base.getindex(c::ByYear, year_idx, hour_idx)
-    c.v[year_idx]::Float64
-end
-function Base.getindex(c::ByHour, year_idx, hour_idx)
-    c.v[hour_idx]::Float64
-end
-function Base.getindex(c::ByYearAndHour, year_idx, hour_idx)
-    c.v[year_idx][hour_idx]::Float64
-end
-function Base.getindex(c::ByYearAndHour, year_idx, hour_idx::Colon)
-    c_arr = c.v[year_idx]
-    return c_arr
-end
-function Base.getindex(n::Number, year_idx::Int64, hour_idx::Int64)
-    return n
-end
-function Base.getindex(n::Number, year_idx::Int64, hour_idx::Colon)
-    return n
-end
-
-
-
-"""
-    set_hourly(c::Container, v::Vector{Float64}, yr_idx; default, nyr)
-
-Sets the hourly values for `c` (creating a new Container of a different type as needed) for `yr_idx` to be `v`.
-
-If `yr_idx::Colon`, sets the hourly values for all years to be `v`.
-
-# keyword arguments
-* `default` - the default hourly values for years not specified, if they aren't already set.
-* `nyr` - the total number of years.
-"""
-function set_hourly(c::ByNothing, v, yr_idx::Colon; kwargs...)
-    return ByHour(v)
-end
-function set_hourly(c::ByNothing, v, yr_idx; default=nothing, nyr=nothing)
-    @assert nyr !== nothing error("Attempting to set hourly values for year index $yr_idx, but no nyr provided!")
-    if all(in(yr_idx), 1:nyr)
-        return set_hourly(c, v, (:); default, kwargs...)
-    end
-    @assert default !== nothing error("Attempting to set hourly values for year index $yr_idx, but no default provided!")
-    vv = fill(default, nyr)
-    foreach(i->(vv[i] = v), yr_idx)
-    return ByYearAndHour(vv)
-end
-
-function set_hourly(c::ByYear, v, yr_idx::Colon; kwargs...)
-    return ByHour(v)
-end
-function set_hourly(c::ByYear, v, yr_idx; kwargs...)
-    # Check to see if all the years are represented by yr_idx
-    if all(in(yr_idx), 1:length(c.v))
-        return set_hourly(c, v, (:); default, kwargs...)
-    end
-
-    # Set the default hourly values to be the original values
-    vv = map(c.v) do yr_val
-        fill(yr_val, nyr)
-    end
-    foreach(i->(vv[i] = v), yr_idx)
-    return ByYearAndHour(vv)
-end
-
-function set_hourly(c::ByHour, v, yr_idx::Colon; kwargs...)
-    return ByHour(v)
-end
-function set_hourly(c::ByHour, v, yr_idx; nyr=nothing, kwargs...)
-    @assert nyr !== nothing error("Attempting to set hourly values for year index $yr_idx, but no nyr provided!")
-    if all(in(yr_idx), 1:nyr)
-        return set_hourly(c, v, (:); default, kwargs...)
-    end
-    vv = fill(v, nyr)
-    foreach(i->(vv[i] = v), yr_idx)
-    return ByYearAndHour(vv)
-end
-
-function set_hourly(c::ByYearAndHour, v, yr_idx::Colon; kwargs...)
-    return ByHour(v)
-end
-function set_hourly(c::ByYearAndHour, v, yr_idx; kwargs...)
-    if all(in(yr_idx), 1:length(c.v))
-        return set_hourly(c, v, (:); default, kwargs...)
-    end
-    foreach(i->(c.v[i] = v), yr_idx)
-    return c
-end
-
-"""
-    DemandContainer()
-
-Contains a vector of views of the demand_array, so that it is possible to access by 
-"""
-struct DemandContainer <: Container
-    v::Vector{SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}}
-end
-
-_add_view!(c::DemandContainer, v) = push!(c.v, v)
-
-DemandContainer() = DemandContainer(SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}[])
-function Base.getindex(c::DemandContainer, year_idx, hour_idx)
-    isempty(c.v) && return 0.0
-    return sum(vv->vv[year_idx, hour_idx], c.v)::Float64
-end
-
-function Base.show(io::IO, c::DemandContainer)
-    isempty(c.v) && return print(io, "empty DemandContainer")
-    l,m = size(c.v[1])
-    n = length(c.v)
-    print(io, "$n-element DemandContainer of $(l)×$m Matrix")
-end
-
-
 
 ## Moved from dcopf, will organize later
 

@@ -184,6 +184,70 @@ function comparison(value::Tuple{<:Real, <:Real}, ::Type{<:Real})
     return x -> lo <= x <= hi
 end
 
+function comparison(value::Tuple{<:AbstractString, <:AbstractString}, ::Type{<:AbstractString})
+    lo, hi = value
+    return x -> lo <= x <= hi
+end
+
 function comparison(value, ::Type)
     return ==(value)
 end
+
+"""
+    parse_comparison(table, s) -> comp
+
+Parses the string, `s` for a comparison with which to filter `table`.
+
+Possible examples of strings `s` to parse:
+* `"country=>narnia"` - All rows for which row.country=="narnia"
+* `"bus_idx=>5"` - All rows for which row.bus_idx==5
+* `"year_on=>(y2002,y2030)"` - All rows for which row.year_on is between 2002 and 2030, inclusive.
+* `"emis_co2=>(0.0,4.99)"` - All rows for which row.emis_co2 is between 0.0 and 4.99, inclusive. (Works for integers and negatives too)
+* `"emis_co2=> >(0)"` - All rows for which row.emis_co2 is greater than 0 (Works for integers and negatives too)
+
+"""
+function parse_comparison(_s::AbstractString)
+    s = replace(_s, ' '=>"")
+    # In the form "country=>narnia" or "bus_idx=>5"
+    if (m = match(r"(\w+)=>(\w+)", s)) !== nothing
+        return m.captures[1]=>m.captures[2]
+    end
+
+    # In the form "emis_rate=>(0.0001,4.9999)" (should work for Ints, negatives, and Inf too)
+    if (m=match(r"(\w+)=>\((-?(?:Inf)?[\d.]*),-?(?:Inf)?([\d.]*)\)", s)) !== nothing
+        r1 = parse(Float64, m.captures[2])
+        r2 = parse(Float64, m.captures[3])
+        return m.captures[1]=>(r1, r2)
+    end
+
+    # In the form "year_on=>(y2020, y2030)"
+    if (m=match(r"(\w+)=>\((y[\d]{4}),(y[\d]{4})\)", s)) !== nothing
+        return m.captures[1]=>(m.captures[2], m.captures[3])
+    end
+
+    # In the form "emis_rate=>>(0)" (should work for Ints, negatives)
+    if (m=match(r"(\w+)=>>\(?(-?[\d.]+)\)?", s)) !== nothing
+        r1 = parse(Float64, m.captures[2])
+        return m.captures[1]=>>(r1)
+    end
+
+    # In the form "emis_rate=>>(0)" (should work for Ints, negatives, and Inf too)
+    if (m=match(r"(\w+)=>([><]{1})\(?(-?[\d.]+)\)?", s)) !== nothing
+        r1 = parse(Float64, m.captures[3])
+        comp = m.captures[2]==">" ? >(r1) : <(r1)
+        return m.captures[1]=>comp
+    end
+end
+export parse_comparison
+
+function parse_comparisons(row::DataFrameRow)
+    pairs = []
+    for i in 1:10000
+        name = "filter$i"
+        hasproperty(row, name) || break
+        pair = parse_comparison(row[name])
+        push!(pairs, pair)
+    end
+    return pairs
+end
+

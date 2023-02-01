@@ -33,6 +33,7 @@ export setup_new_gens!
 include("types/Modification.jl")
 include("types/Policy.jl")
 include("types/Unit.jl")
+include("types/Containers.jl")
 include("io/config.jl")
 include("io/data.jl")
 include("io/util.jl")
