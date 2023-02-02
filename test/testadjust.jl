@@ -47,8 +47,15 @@
 
             # Test that vom of narnian solar generators is even higher in 2030
             @test all(gen_idx->(get_table_num(data, :gen, :emis_co2, gen_idx, yr_idx_2030, 5) > get_table_num(data, :gen, :emis_co2, gen_idx, yr_idx_2040, 5)), gen_idxs)
+        end
+        @testset "Test Yearly and Hourly Adjustments" begin
+            # Test that the yearly values for summer NOX damages values are increasing by year
+            hr_idx_summer = get_hour_idxs(data, "season"=>"summer")
+            @test all(hr_idx->all(yr_idx->(get_num(data, :r_dam_nox, yr_idx, hr_idx) < get_num(data, :r_dam_nox, yr_idx+1, hr_idx)) , 1:get_num_years(data)-1), hr_idx_summer)
 
-            # TODO: Test the yearly and hourly NOX damages
+            # Test that all values for winter NOX damages values are zero
+            hr_idx_winter = get_hour_idxs(data, "season"=>"winter")
+            @test all(hr_idx->(all(yr_idx->(get_num(data, :r_dam_nox, yr_idx, hr_idx) == 0.0), get_year_idxs(data, :))), hr_idx_winter)
         end
     end
 end

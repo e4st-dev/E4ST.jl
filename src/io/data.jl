@@ -104,9 +104,8 @@ function setup_data!(config, data)
     setup_table!(config, data, :demand_table)
     setup_table!(config, data, :gen) # needs to come after build_gen setup for newgens
     setup_table!(config, data, :af_table)
-    setup_table!(config, data, :adjust_hourly)
     setup_table!(config, data, :adjust_yearly)
-
+    setup_table!(config, data, :adjust_hourly)
 end
 export setup_data!
 
@@ -178,6 +177,7 @@ function load_summary_table!(config, data)
         end
     end
 
+    rows_to_add = DataFrameRow[]
     if haskey(config, :summary_table_file)
         gst = groupby(st, [:table_name, :column_name])
         df = load_table(config[:summary_table_file])
@@ -190,8 +190,12 @@ function load_summary_table!(config, data)
             if haskey(gst, (row.table_name, row.column_name))
                 continue
             end
-            push!(st, row)
+            push!(rows_to_add, row)
         end        
+    end
+    
+    for row in rows_to_add
+        push!(st, row)
     end
 
     data[:summary_table] = st
@@ -416,7 +420,7 @@ export load_years!
 Loads a table from filename, where filename is a csv.
 """
 function load_table(filename::String)
-    CSV.read(filename, DataFrame, missingstring="NA", stripwhitespace=true)
+    CSV.read(filename, DataFrame, missingstring=nothing, stripwhitespace=true)
 end
 export load_table
 

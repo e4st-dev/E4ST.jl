@@ -26,6 +26,18 @@ struct ByYearAndHour <: Container
 end
 
 """
+    get_original(c::Container) -> original::Float64
+
+Returns the original value of a Container prior to setting, adding, and scaling.
+"""
+function get_original(c::OriginalContainer)
+    return c.original
+end
+function get_original(c::ByNothing)
+    return c.v
+end
+
+"""
     Base.getindex(c::Container, year_idx, hour_idx) -> val::Float64
 
 Retrieve the value from `c` at `year_idx` and `hour_idx`
@@ -62,7 +74,7 @@ end
 """
     set_yearly(c::Container, v::Vector{Float64}) -> Container 
 
-Sets the yearly values for `c`.  This doesn't work for containers that are already hourly.
+Sets the yearly values for `c`.
 """
 function set_yearly(c::ByNothing, v::Vector{Float64})
     return OriginalContainer(c.v, ByYear(v))
@@ -73,11 +85,17 @@ end
 function set_yearly(c::ByYear, v::Vector{Float64})
     return ByYear(v)
 end
+function set_yearly(c::ByHour, v::Vector{Float64})
+    return ByYear(v)
+end
+function set_yearly(c::ByYearAndHour, v::Vector{Float64})
+    return ByYear(v)
+end
 
 """
     add_yearly(c::Container, v::Vector{Float64}) -> Container 
 
-adds the yearly values for `c`.  This doesn't work for containers that are already hourly.
+adds the yearly values for `c`.
 """
 function add_yearly(c::ByNothing, v::Vector{Float64})
     return OriginalContainer(c.v, ByYear(c.v .+ v))
@@ -105,7 +123,7 @@ end
 """
     scale_yearly(c::Container, v::Vector{Float64}) -> Container 
 
-scales the yearly values for `c`.  This doesn't work for containers that are already hourly.
+scales the yearly values for `c`.
 """
 function scale_yearly(c::ByNothing, v::Vector{Float64})
     return OriginalContainer(c.v, ByYear(c.v .* v))
@@ -168,15 +186,15 @@ end
 function set_hourly(c::ByYear, v, yr_idx::Colon; kwargs...)
     return ByHour(v)
 end
-function set_hourly(c::ByYear, v, yr_idx; kwargs...)
+function set_hourly(c::ByYear, v, yr_idx; nyr=nothing)
     # Check to see if all the years are represented by yr_idx
     if all(in(yr_idx), 1:length(c.v))
-        return set_hourly(c, v, (:); kwargs...)
+        return set_hourly(c, v, (:); nyr)
     end
 
     # Set the default hourly values to be the original values
     vv = map(c.v) do yr_val
-        fill(yr_val, nyr)
+        fill(yr_val, size(v))
     end
     foreach(i->(vv[i] = v), yr_idx)
     return ByYearAndHour(vv)
@@ -246,7 +264,7 @@ function add_hourly(c::ByYear, v, yr_idx; kwargs...)
 
     # Set the default hourly values to be the original values
     vv = map(c.v) do yr_val
-        fill(yr_val, nyr)
+        fill(yr_val, size(v))
     end
     foreach(i->(vv[i] .+= v), yr_idx)
     return ByYearAndHour(vv)
@@ -315,15 +333,15 @@ function scale_hourly(c::ByYear, v, yr_idx::Colon; kwargs...)
     return ByYearAndHour(vv)
 end
 
-function scale_hourly(c::ByYear, v, yr_idx; kwargs...)
+function scale_hourly(c::ByYear, v, yr_idx; nyr=nothing)
     # Check to see if all the years are represented by yr_idx
     if all(in(yr_idx), 1:length(c.v))
-        return scale_hourly(c, v, (:); kwargs...)
+        return scale_hourly(c, v, (:); nyr)
     end
 
     # Set the default hourly values to be the original values
     vv = map(c.v) do yr_val
-        fill(yr_val, nyr)
+        fill(yr_val, size(v))
     end
     foreach(i->(vv[i] .*= v), yr_idx)
     return ByYearAndHour(vv)

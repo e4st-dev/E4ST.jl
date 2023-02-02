@@ -61,15 +61,6 @@ function adjust_hourly!(config, data, row)
     table_name = row.table_name::AbstractString
     variable_name = row.variable_name::AbstractString
     oper = row.operation::AbstractString
-    if isempty(table_name)
-        key = Symbol(variable_name)
-        vals = [row["h$h"] for h in 1:get_num_hours(data)]
-        c = get(data, key, ByNothing(0.0))
-        oper == "add"   && (data[key] = add_yearly(c, vals))
-        oper == "scale" && (data[key] = scale_yearly(c, vals))
-        oper == "set"   && (data[key] = set_yearly(c, vals))
-        return
-    end
 
     # Get the year to perform the adjustment on
     all_years = get_years(data)
@@ -79,6 +70,16 @@ function adjust_hourly!(config, data, row)
     elseif row.year ∈ all_years
         yr_idx = findfirst(==(row.year), all_years)
     else
+        return
+    end
+
+    if isempty(table_name)
+        key = Symbol(variable_name)
+        vals = [row["h$h"] for h in 1:get_num_hours(data)]
+        c = get(data, key, ByNothing(0.0))
+        oper == "add"   && (data[key] = add_hourly(c, vals, yr_idx; nyr))
+        oper == "scale" && (data[key] = scale_hourly(c, vals, yr_idx; nyr))
+        oper == "set"   && (data[key] = set_hourly(c, vals, yr_idx; nyr))
         return
     end
 
@@ -120,6 +121,7 @@ end
 Apply an hourly adjustment given `row` from the `adjust_hourly` table.
 """
 function adjust_yearly!(config, data, row)
+    # TODO: make warning if you are trying to modify the same column of the same table hourly and yearly.
     table_name = row.table_name::AbstractString
     variable_name = row.variable_name::AbstractString
     oper = row.operation::AbstractString
