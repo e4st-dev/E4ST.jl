@@ -134,7 +134,7 @@ function table_rows(table, pair::Pair)
     filter!(row_idx->comp(v[row_idx]), row_idxs)
     return row_idxs
 end
-
+export table_rows
 
 """
     comparison(value, v) -> comp

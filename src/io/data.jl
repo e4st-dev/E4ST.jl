@@ -705,6 +705,8 @@ function summarize_build_gen_table()
         (:fom, Float64, "\$/MW", true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, "\$/MW", false, "Hourly capital expenditures for a MW of generation capacity"),
         (:year_on, String, "n/a", true, "The first year of operation for the generator. (For new gens this is also the year it was built). Endogenous unbuilt generators will specify na"),
+        (:year_on_min, String, "n/a", false, "The first year in which the generator(s) can be built (inclusive). Set to na for exogenous generators and if this is unconstrained."),
+        (:year_on_max, String, "n/a", false, "The last year in which the generator(s) can be built (inclusive). Set to na for exogenous generators and if this is unconstrained."),
     )
     return df
 end
