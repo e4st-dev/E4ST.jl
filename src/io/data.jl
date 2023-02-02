@@ -802,6 +802,15 @@ end
 export get_table_num
 
 """
+    get_num(data, variable_name, yr_idx, hr_idx) -> num::Float64
+"""
+function get_num(data, variable_name::Symbol, yr_idx, hr_idx)
+    c = data[variable_name]
+    return c[yr_idx, hr_idx]::Float64
+end
+export get_num
+
+"""
     get_table_val(data, table_name, col_name, row_idx) -> val
 
 Returns the value of the table at column `col_name` and row `row_idx`

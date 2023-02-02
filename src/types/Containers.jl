@@ -56,10 +56,89 @@ function Base.getindex(n::Number, year_idx::Int64, hour_idx::Colon)
     return n
 end
 
+###############################################################################
+# Yearly Adjust
+###############################################################################
+"""
+    set_yearly(c::Container, v::Vector{Float64}) -> Container 
+
+Sets the yearly values for `c`.  This doesn't work for containers that are already hourly.
+"""
+function set_yearly(c::ByNothing, v::Vector{Float64})
+    return OriginalContainer(c.v, ByYear(v))
+end
+function set_yearly(c::OriginalContainer, v::Vector{Float64})
+    return OriginalContainer(c.original, set_yearly(c.v, v))
+end
+function set_yearly(c::ByYear, v::Vector{Float64})
+    return ByYear(v)
+end
+
+"""
+    add_yearly(c::Container, v::Vector{Float64}) -> Container 
+
+adds the yearly values for `c`.  This doesn't work for containers that are already hourly.
+"""
+function add_yearly(c::ByNothing, v::Vector{Float64})
+    return OriginalContainer(c.v, ByYear(c.v .+ v))
+end
+function add_yearly(c::OriginalContainer, v::Vector{Float64})
+    return OriginalContainer(c.original, add_yearly(c.v, v))
+end
+function add_yearly(c::ByYear, v::Vector{Float64})
+    return ByYear(c.v .+ v)
+end
+function add_yearly(c::ByHour, v::Vector{Float64})
+    vv = map(v) do x
+        c.v .+ x
+    end
+    return ByYearAndHour(vv)
+end
+function add_yearly(c::ByYearAndHour, v::Vector{Float64})
+    for _v in c.v
+        _v .+= v
+    end
+    return c
+end
 
 
 """
-    set_hourly(c::Container, v::Vector{Float64}, yr_idx; default, nyr)
+    scale_yearly(c::Container, v::Vector{Float64}) -> Container 
+
+scales the yearly values for `c`.  This doesn't work for containers that are already hourly.
+"""
+function scale_yearly(c::ByNothing, v::Vector{Float64})
+    return OriginalContainer(c.v, ByYear(c.v .* v))
+end
+function scale_yearly(c::OriginalContainer, v::Vector{Float64})
+    return OriginalContainer(c.original, scale_yearly(c.v, v))
+end
+function scale_yearly(c::ByYear, v::Vector{Float64})
+    return ByYear(c.v .* v)
+end
+function scale_yearly(c::ByHour, v::Vector{Float64})
+    vv = map(v) do x
+        c.v .* x
+    end
+    return ByYearAndHour(vv)
+end
+function scale_yearly(c::ByYearAndHour, v::Vector{Float64})
+    for _v in c.v
+        _v .*= v
+    end
+    return c
+end
+
+
+
+
+
+###############################################################################
+# Hourly Adjust
+###############################################################################
+
+"""
+    set_hourly(c::Container, v::Vector{Float64}, yr_idx; default, nyr) -> Container
 
 Sets the hourly values for `c` (creating a new Container of a different type as needed) for `yr_idx` to be `v`.
 
@@ -127,10 +206,6 @@ function set_hourly(c::ByYearAndHour, v, yr_idx; kwargs...)
     return c
 end
 
-
-##########################################################################
-# New adjust
-##########################################################################
 """
     add_hourly(c::Container, v::Vector{Float64}, yr_idx; nyr)
 

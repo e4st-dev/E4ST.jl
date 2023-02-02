@@ -1,3 +1,11 @@
+struct Operation end
+function Operation(s::AbstractString)
+    s == "add" && return s
+    s == "scale" && return s
+    s == "set" && return s
+    error("Operation \"$s\" invalid, please choose from add, scale, and set")
+end
+
 """
     summarize_table(::Val{:adjust_hourly}) -> summary
 """
@@ -6,7 +14,7 @@ function summarize_table(::Val{:adjust_hourly})
     push!(df, 
         (:table_name, AbstractString, NA, true, "The name of the table to adjust.  Leave blank if this adjustment is intended for a variable in `data`"),
         (:variable_name, AbstractString, NA, true, "The name of the variable/column to adjust"),
-        (:operation, String, NA, true, "The operation to perform.  Could be add, scale, or set."),
+        (:operation, Operation, NA, true, "The operation to perform.  Could be add, scale, or set."),
         (:filter_, String, NA, true, "There can be multiple filter conditions - `filter1`, `filter2`, etc.  It denotes a comparison used for selecting the table rows to apply the adjustment to.  See `comparison` for examples"),
         (:year, String, Year, true, "The year to adjust, expressed as a year string prepended with a \"y\".  I.e. \"y2022\".  Leave blank to adjust all years"),
         (:status, Bool, NA, false, "Whether or not to use this adjustment"),
@@ -23,7 +31,7 @@ function summarize_table(::Val{:adjust_yearly})
     push!(df, 
         (:table_name, AbstractString, NA, true, "The name of the table to adjust.  Leave blank if this adjustment is intended for a variable in `data`"),
         (:variable_name, AbstractString, NA, true, "The name of the variable/column to adjust"),
-        (:operation, String, NA, true, "The operation to perform.  Could be add, scale, or set."),
+        (:operation, Operation, NA, true, "The operation to perform.  Could be add, scale, or set."),
         (:filter_, String, NA, true, "There can be multiple filter conditions - `filter1`, `filter2`, etc.  It denotes a comparison used for selecting the table rows to apply the adjustment to.  See `comparison` for examples"),
         (:status, Bool, NA, false, "Whether or not to use this adjustment"),
         (:y_, Float64, Ratio, true, "Value to adjust by for each year.  Include a column for each year in the hours table.  I.e. `:y2020`, `:y2030`, etc"),
@@ -54,7 +62,13 @@ function adjust_hourly!(config, data, row)
     variable_name = row.variable_name::AbstractString
     oper = row.operation::AbstractString
     if isempty(table_name)
-        # TODO: Fill this in
+        key = Symbol(variable_name)
+        vals = [row["h$h"] for h in 1:get_num_hours(data)]
+        c = get(data, key, ByNothing(0.0))
+        oper == "add"   && (data[key] = add_yearly(c, vals))
+        oper == "scale" && (data[key] = scale_yearly(c, vals))
+        oper == "set"   && (data[key] = set_yearly(c, vals))
+        return
     end
 
     # Get the year to perform the adjustment on
@@ -79,8 +93,7 @@ function adjust_hourly!(config, data, row)
     vals = [row["h$h"] for h in 1:get_num_hours(data)]
 
     # Make sure the appropriate column is a Vector{Container}
-    _to_container!(table, variable_name) 
-
+    _to_container!(table, variable_name)
     for r in eachrow(table)
         oper == "add"   && (r[variable_name] = add_hourly(r[variable_name], vals, yr_idx; nyr))
         oper == "scale" && (r[variable_name] = scale_hourly(r[variable_name], vals, yr_idx; nyr))
@@ -111,7 +124,13 @@ function adjust_yearly!(config, data, row)
     variable_name = row.variable_name::AbstractString
     oper = row.operation::AbstractString
     if isempty(table_name)
-        # TODO: Fill this in
+        key = Symbol(variable_name)
+        vals = [row[y] for y in get_years(data)]
+        c = get(data, key, ByNothing(0.0))
+        oper == "add"   && (data[key] = add_yearly(c, vals))
+        oper == "scale" && (data[key] = scale_yearly(c, vals))
+        oper == "set"   && (data[key] = set_yearly(c, vals))
+        return
     end
 
     # Get the filtered table with which to perform the adjustment
@@ -120,17 +139,16 @@ function adjust_yearly!(config, data, row)
     isempty(table) && return
     hasproperty(table, variable_name) || error("Table $table_name has no column $variable_name to adjust in `adjust_hourly!`")
 
-
     # Perform the adjustment on each row of the table
-    vals = [row["h$h"] for h in 1:get_num_hours(data)]
+    vals = [row[y] for y in get_years(data)]
 
     # Make sure the appropriate column is a Vector{Container}
     _to_container!(table, variable_name) 
 
     for r in eachrow(table)
-        oper == "add"   && (r[variable_name] = add_yearly(r[variable_name], vals, yr_idx; nyr))
-        oper == "scale" && (r[variable_name] = scale_yearly(r[variable_name], vals, yr_idx; nyr))
-        oper == "set"   && (r[variable_name] = set_yearly(r[variable_name], vals, yr_idx; nyr))
+        oper == "add"   && (r[variable_name] = add_yearly(r[variable_name], vals))
+        oper == "scale" && (r[variable_name] = scale_yearly(r[variable_name], vals))
+        oper == "set"   && (r[variable_name] = set_yearly(r[variable_name], vals))
     end
     return
 end
