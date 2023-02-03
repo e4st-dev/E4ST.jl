@@ -1,10 +1,21 @@
 """
     abstract type Iterable
 
-Represents how [`run_e4st`](@ref) should iterate through multiple optimizations.  This structure could be used for any number of things, such as:
+Sometimes, it may be desirable to run E4ST back-to-back with very similar sets of inputs, changing small things in the inputs between runs.  In order to do that, we have this custom interface!
+
+The `Iterable` represents how [`run_e4st`](@ref) should iterate through multiple optimizations.  This structure could be used for any number of things, such as:
 * Running a sequence of years
 * Iterating to find the optimal price for natural gas to meet some demand criterion.
 * Running the first simulation for capacity/retirement, then run the next sim to find generation with a higher temporal resolution.
+
+## Adding an Iterable to config
+* Add the `Iterable` to the config, in the same way as you would add a `Modification` to the config file.  I.e.:
+```yaml
+# Inside config.yml
+iter:
+  type: MyIterType
+  myfield: myval
+```
 
 ## Interfaces
 * [`should_iterate(iter, config, data, model, results)`](@ref) - return whether or not the simulation should continue for another iteration.
@@ -13,6 +24,7 @@ Represents how [`run_e4st`](@ref) should iterate through multiple optimizations.
 * [`fieldnames_for_yaml(::Type{I})`](@ref) - (optional) return the fieldnames to print to yaml file in [`save_config`](@ref)
 """
 abstract type Iterable end
+export Iterable
 
 function Iterable(d::AbstractDict)
     T = get_type(d[:type])
@@ -26,6 +38,7 @@ end
 Returns whether or not the model should iterate.
 """
 function should_iterate end
+export should_iterate
 
 """
     fieldnames_for_yaml(::Type{I}) where {I<:Iterable}
@@ -42,7 +55,7 @@ end
 Return whether or not the data should be reloaded when iterating.
 """
 function should_reload_data end
-
+export should_reload_data
 
 """
     iterate!(iter::Iterable, config, data, model, results)
@@ -50,7 +63,7 @@ function should_reload_data end
 Make any necessary modifications to the `config` or `data` based on `iter`.
 """
 function iterate! end
-
+export iterate!
 
 """
     function YAML._print(io::IO, iter::I, level::Int=0, ignore_level::Bool=false) where {I<:Iterable}
@@ -63,7 +76,13 @@ function YAML._print(io::IO, iter::I, level::Int=0, ignore_level::Bool=false) wh
     YAML._print(io::IO, iter_dict, level, ignore_level)
 end
 
-struct RunOnce end
+"""
+    struct RunOnce <: Iterable end
+
+This is the most basic Iterable.  It only allows E4ST to run a single time.
+"""
+struct RunOnce <: Iterable end
+export RunOnce
 
 function should_iterate(::RunOnce, args...)
     return false

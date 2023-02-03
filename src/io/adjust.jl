@@ -15,7 +15,7 @@ function summarize_table(::Val{:adjust_hourly})
         (:table_name, AbstractString, NA, true, "The name of the table to adjust.  Leave blank if this adjustment is intended for a variable in `data`"),
         (:variable_name, AbstractString, NA, true, "The name of the variable/column to adjust"),
         (:operation, Operation, NA, true, "The operation to perform.  Could be add, scale, or set."),
-        (:filter_, String, NA, true, "There can be multiple filter conditions - `filter1`, `filter2`, etc.  It denotes a comparison used for selecting the table rows to apply the adjustment to.  See `comparison` for examples"),
+        (:filter_, String, NA, true, "There can be multiple filter conditions - `filter1`, `filter2`, etc.  It denotes a comparison used for selecting the table rows to apply the adjustment to.  See `parse_comparison` for examples"),
         (:year, String, Year, true, "The year to adjust, expressed as a year string prepended with a \"y\".  I.e. \"y2022\".  Leave blank to adjust all years"),
         (:status, Bool, NA, false, "Whether or not to use this adjustment"),
         (:h_, Float64, Ratio, true, "Value to adjust by for each hour.  Include a column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
@@ -32,7 +32,7 @@ function summarize_table(::Val{:adjust_yearly})
         (:table_name, AbstractString, NA, true, "The name of the table to adjust.  Leave blank if this adjustment is intended for a variable in `data`"),
         (:variable_name, AbstractString, NA, true, "The name of the variable/column to adjust"),
         (:operation, Operation, NA, true, "The operation to perform.  Could be add, scale, or set."),
-        (:filter_, String, NA, true, "There can be multiple filter conditions - `filter1`, `filter2`, etc.  It denotes a comparison used for selecting the table rows to apply the adjustment to.  See `comparison` for examples"),
+        (:filter_, String, NA, true, "There can be multiple filter conditions - `filter1`, `filter2`, etc.  It denotes a comparison used for selecting the table rows to apply the adjustment to.  See `parse_comparison` for examples"),
         (:status, Bool, NA, false, "Whether or not to use this adjustment"),
         (:y_, Float64, Ratio, true, "Value to adjust by for each year.  Include a column for each year in the hours table.  I.e. `:y2020`, `:y2030`, etc"),
     )
@@ -43,6 +43,8 @@ end
 
 """
     setup_table!(config, data, ::Val{:adjust_hourly})
+
+Performs hourly adjustments specified in each row of the `:adjust_hourly` table.  Each row specifies the table to adjust (if any), the variable (or column) to adjust, the year to adjust, the operation to adjust by, and the amount to adjust by for each hour.
 """
 function setup_table!(config, data, ::Val{:adjust_hourly})
     adjust_table = get_table(data, :adjust_hourly)
@@ -106,6 +108,8 @@ end
 
 """
     setup_table!(config, data, ::Val{:adjust_yearly})
+
+Performs yearly adjustments specified in each row of the `:adjust_yearly` table.  Each row specifies the table to adjust (if any), the variable (or column) to adjust, the operation to adjust by, and the amount to adjust by for each year.
 """
 function setup_table!(config, data, ::Val{:adjust_yearly})
     adjust_table = get_table(data, :adjust_yearly)

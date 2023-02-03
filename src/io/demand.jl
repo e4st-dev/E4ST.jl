@@ -1,5 +1,5 @@
 """
-    setup_demand!(config, data)
+    setup_table!(config, data, ::Val{:demand_table})
 
 Set up the demand table.
 
@@ -8,7 +8,7 @@ Also calls the following:
 * [`match_demand!(config, data)`](@ref) - matches annual demanded energy by arbitrary region
 * [`add_demand!(config, data)`](@ref) - adds hourly demanded power by arbitrary region
 """
-function setup_demand!(config, data)
+function setup_table!(config, data, ::Val{:demand_table})
     demand = get_table(data, :demand_table)
     ar = [demand.pdem0[i] for i in 1:nrow(demand), j in 1:get_num_years(data), k in 1:get_num_hours(data)] # ndemand * nyr * nhr
     data[:demand_array] = ar
@@ -240,9 +240,9 @@ export add_demand!
 ################################################################################
 
 """
-    summarize_demand_table() -> summary
+    summarize_table(::Val{:demand_table}) -> summary
 """
-function summarize_demand_table()
+function summarize_table(::Val{:demand_table})
     df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
     push!(df, 
         (:bus_idx, Int64, NA, true, "The bus index of the load element"),
@@ -254,9 +254,9 @@ end
 export summarize_demand_table
 
 """
-    summarize_demand_shape_table() -> summary
+    summarize_table(::Val{:demand_shape}) -> summary
 """
-function summarize_demand_shape_table()
+function summarize_table(::Val{:demand_shape})
     df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
     push!(df, 
         (:area, String, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
@@ -271,9 +271,9 @@ end
 export summarize_demand_shape_table
 
 """
-    summarize_demand_match_table() -> summary
+    summarize_table(::Val{:demand_match}) -> summary
 """
-function summarize_demand_match_table()
+function summarize_table(::Val{:demand_match})
     df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
     push!(df, 
         (:area, String, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
@@ -288,9 +288,9 @@ export summarize_demand_match_table
 
 
 """
-    summarize_demand_add_table() -> summary
+    summarize_table(::Val{:demand_add}) -> summary
 """
-function summarize_demand_add_table()
+function summarize_table(::Val{:demand_add})
     df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
     push!(df, 
         (:area, String, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),

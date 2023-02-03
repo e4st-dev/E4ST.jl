@@ -53,7 +53,21 @@ include("model/newgens.jl")
 
     run_e4st(filename) -> run_e4st(load_config(filename))
 
-Top-level file for running E4ST
+Top-level function for running E4ST.  Here is a general overview of what happens:
+1. Book-keeping
+    * [`load_config(config_file)`](@ref) - loads in the `config` from file, if not passed in directly.  
+    * [`save_config(config)`](@ref) - the config is saved to `config[:out_path]`
+    * [`start_logging!(config)`](@ref) - Logging is started
+    * [`log_info`](@ref) - some information is logged.
+2. Load Input Data
+    * [`load_data(config)`](@ref) - The data is loaded in from files specified in the `config`.
+3. Construct JuMP Model and optimize
+    * [`setup_model(config, data)`](@ref) - The `model` (a JuMP Model) is set up.
+    * [`JuMP.optimize!(model)`](https://jump.dev/JuMP.jl/stable/reference/solutions/#JuMP.optimize!) - The `model` is optimized.
+4. Process Results
+    * TODO: Add more here for the results processing stuff once we get to it
+5. Iterate, running more simulations as needed.
+    * See [`Iterable`](@ref) and [`load_config`](@ref) for more information.
 """
 function run_e4st(config)
     save_config(config)

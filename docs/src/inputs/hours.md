@@ -1,10 +1,10 @@
 # Hours Table
 ```@docs
-summarize_hours_table()
+summarize_table!(::Val{:hours})
 ```
 
 #### Column Summmary
 ```@example
 using E4ST # hide
-summarize_hours_table() # hide
+summarize_table(:hours) # hide
 ```

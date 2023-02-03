@@ -147,6 +147,7 @@ function get_row_idxs(table, pair::Pair)
 end
 
 
+
 """
     comparison(value, v) -> comp
 
@@ -184,6 +185,10 @@ function comparison(value::Tuple{<:Real, <:Real}, ::Type{<:Real})
     return x -> lo <= x <= hi
 end
 
+function comparison(value::Vector, ::Type)
+    return in(value)
+end
+
 function comparison(value::Tuple{<:AbstractString, <:AbstractString}, ::Type{<:AbstractString})
     lo, hi = value
     return x -> lo <= x <= hi
@@ -201,10 +206,11 @@ Parses the string, `s` for a comparison with which to filter `table`.
 Possible examples of strings `s` to parse:
 * `"country=>narnia"` - All rows for which row.country=="narnia"
 * `"bus_idx=>5"` - All rows for which row.bus_idx==5
-* `"year_on=>(y2002,y2030)"` - All rows for which row.year_on is between 2002 and 2030, inclusive.
-* `"emis_co2=>(0.0,4.99)"` - All rows for which row.emis_co2 is between 0.0 and 4.99, inclusive. (Works for integers and negatives too)
-* `"emis_co2=> >(0)"` - All rows for which row.emis_co2 is greater than 0 (Works for integers and negatives too)
-
+* `"year_on=>(y2002,y2030)"` - All rows for which `row.year_on` is between 2002 and 2030, inclusive.
+* `"emis_co2=>(0.0,4.99)"` - All rows for which `row.emis_co2` is between 0.0 and 4.99, inclusive. (Works for integers and negatives too)
+* `"emis_co2=> >(0)"` - All rows for which `row.emis_co2` is greater than 0 (Works for integers and negatives too)
+* `"year_on=> >(y2002)` - All rows for which `row.year_on` is greater than "y2002" (works for fractional years too, such as "y2002.4")
+* `"genfuel=>[ng, wind, solar]"` - All rows for which `row.genfuel` is "ng", "wind", or "solar".  Works for Ints and Floats too.
 """
 function parse_comparison(_s::AbstractString)
     s = replace(_s, ' '=>"")
@@ -232,11 +238,42 @@ function parse_comparison(_s::AbstractString)
     end
 
     # In the form "emis_rate=>>(0)" (should work for Ints, negatives, and Inf too)
-    if (m=match(r"(\w+)=>([><]{1})\(?(-?[\d.]+)\)?", s)) !== nothing
+    if (m=match(r"(\w+)=>([><]{1}=?)\(?(-?[\d.]+)\)?", s)) !== nothing
         r1 = parse(Float64, m.captures[3])
-        comp = m.captures[2]==">" ? >(r1) : <(r1)
+        m.captures[2]==">" && (comp = >(r1))
+        m.captures[2]=="<" && (comp = <(r1))
+        m.captures[2]==">=" && (comp = >=(r1))
+        m.captures[2]=="<=" && (comp = <=(r1))
         return m.captures[1]=>comp
     end
+
+    # In the form "emis_rate=>>(0)" (should work for Ints, negatives, and Inf too)
+    if (m=match(r"(\w+)=>([><]{1}=?)\(?(-?[\d.]+)\)?", s)) !== nothing
+        r1 = parse(Float64, m.captures[3])
+        m.captures[2]==">" && (comp = >(r1))
+        m.captures[2]=="<" && (comp = <(r1))
+        m.captures[2]==">=" && (comp = >=(r1))
+        m.captures[2]=="<=" && (comp = <=(r1))
+        return m.captures[1]=>comp
+    end
+
+    # In the form "year_on=> >(y2020)" (should work decimals)
+    if (m=match(r"(\w+)=>([><]{1}=?)\(?(y[\d.]+)\)?", s)) !== nothing
+        r1 = String(m.captures[3])
+        m.captures[2]==">" && (comp = >(r1))
+        m.captures[2]=="<" && (comp = <(r1))
+        m.captures[2]==">=" && (comp = >=(r1))
+        m.captures[2]=="<=" && (comp = <=(r1))
+        return m.captures[1]=>comp
+    end
+
+    # In the form "genfuel=>[ng,solar,wind]"
+    if (m=match(r"(\w+)=>\[([\w,.]*)\]", s)) !== nothing
+        ar = str2array(m.captures[2])
+        return m.captures[1]=>ar
+    end
+
+
 end
 export parse_comparison
 
@@ -262,5 +299,14 @@ function parse_comparisons(row::DataFrameRow)
     hasproperty(row, :load_type) && ~isempty(row.load_type) && push!(pairs, :load_type=>row.load_type)
     
     return pairs
+end
+
+function str2array(s::AbstractString)
+    v = split(s,',')
+    v_int = tryparse.(Int64, v)
+    v_int isa Vector{Int64} && return v_int
+    v_float = tryparse.(Float64, v)
+    v_float isa Vector{Float64} && return v_float
+    return String.(v)
 end
 
