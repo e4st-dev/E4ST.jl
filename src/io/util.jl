@@ -310,3 +310,102 @@ function str2array(s::AbstractString)
     return String.(v)
 end
 
+"""
+    scale_hourly!(demand_arr, shape, row_idx, yr_idx)
+    
+Scales the hourly demand in `demand_arr` by `shape` for `row_idx` and `yr_idx`.
+"""
+function scale_hourly!(demand_arr, shape, row_idxs, yr_idxs)
+    for yr_idx in yr_idxs, row_idx in row_idxs
+        scale_hourly!(demand_arr, shape, row_idx, yr_idx)
+    end
+    return nothing
+end
+function scale_hourly!(ars::AbstractArray{<:AbstractArray}, shape, yr_idxs)
+    for ar in ars, yr_idx in yr_idxs
+        scale_hourly!(ar, shape, yr_idx)
+    end
+    return nothing
+end
+function scale_hourly!(ar::AbstractArray{Float64}, shape, yr_idxs)
+    for yr_idx in yr_idxs
+        scale_hourly!(ar, shape, yr_idx)
+    end
+    return nothing
+end
+function scale_hourly!(ar::AbstractArray{Float64}, shape::AbstractVector{Float64}, idxs::Int64...)
+    view(ar, idxs..., :) .+= shape
+    return nothing
+end
+
+"""
+    add_hourly!(ar, shape, row_idx, yr_idx)
+
+    add_hourly!(ar, shape, row_idxs, yr_idxs)
+    
+adds to the hourly demand in `ar` by `shape` for `row_idx` and `yr_idx`.
+"""
+function add_hourly!(ar, shape, row_idxs, yr_idxs; kwargs...)
+    for yr_idx in yr_idxs, row_idx in row_idxs
+        add_hourly!(ar, shape, row_idx, yr_idx; kwargs...)
+    end
+    return nothing
+end
+function add_hourly!(ars::AbstractArray{<:AbstractArray}, shape, yr_idxs; kwargs...)
+    for ar in ars, yr_idx in yr_idxs
+        add_hourly!(ar, shape, yr_idx; kwargs...)
+    end
+    return nothing
+end
+function add_hourly!(ar::AbstractArray{Float64}, shape, yr_idxs; kwargs...)
+    for yr_idx in yr_idxs
+        add_hourly!(ar, shape, yr_idx; kwargs...)
+    end
+    return nothing
+end
+function add_hourly!(ar::AbstractArray{Float64}, shape::AbstractVector{Float64}, idxs::Int64...)
+    view(ar, idxs..., :) .+= shape
+    return nothing
+end
+
+"""
+    add_hourly_scaled!(ar, v::AbstractVector{Float64}, s::Float64, idx1, idx2)
+
+Adds `v.*s` to `ar[idx1, idx2, :]`, without allocating.
+"""
+function add_hourly_scaled!(ar::AbstractArray{Float64}, shape::AbstractVector{Float64}, s::Float64, idx1::Int64, idx2::Int64)
+    view(ar, idx1, idx2, :) .+= shape .* s
+    return nothing
+end
+function add_hourly_scaled!(ar, shape, s, idxs1, idxs2)
+    for idx1 in idxs1, idx2 in idxs2
+        add_hourly_scaled!(ar, shape, s, idx1, idx2)
+    end
+    return nothing
+end
+
+"""
+    _match_yearly!(demand_arr, match, row_idxs, yr_idx, hr_weights)
+
+Match the yearly demand represented by `demand_arr[row_idxs, yr_idx, :]` to `match`, with hourly weights `hr_weights`.
+"""
+function _match_yearly!(demand_arr::Array{Float64, 3}, match::Float64, row_idxs, yr_idx::Int64, hr_weights)
+    # Select the portion of the demand_arr to match
+    _match_yearly!(view(demand_arr, row_idxs, yr_idx, :), match, hr_weights)
+end
+function _match_yearly!(demand_mat::SubArray{Float64, 2}, match::Float64, hr_weights)
+    # The demand_mat is now a 2d matrix indexed by [row_idx, hr_idx]
+    s = _sum_product(demand_mat, hr_weights)
+    scale_factor = match / s
+    demand_mat .*= scale_factor
+end
+
+"""
+    _sum_product(M, v) -> s
+
+Computes the sum of M*v
+"""
+function _sum_product(M::AbstractMatrix, v::AbstractVector)
+    @inbounds sum(M[row_idx, hr_idx]*v[hr_idx] for row_idx in 1:size(M,1), hr_idx in 1:size(M,2))
+end
+
