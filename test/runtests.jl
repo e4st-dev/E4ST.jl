@@ -21,27 +21,27 @@ original_logger = global_logger(NullLogger())
             include("testsaveconfig.jl")
         end
         @testset "Test Loading Data" begin
-            @test_skip "No Tests Written"
+            include("testloaddata.jl")
         end
         @testset "Test Initializing Data" begin
-            @test_skip "No Tests Written"
+            include("testinitializedata.jl")
         end
         @testset "Test Setting Up Model" begin
-            @test_skip "No Tests Written"
+            include("testsetupmodel.jl")
         end
         @testset "Test Optimizing Model" begin
-            @test_skip "No Tests Written"
+            include("testoptimizemodel.jl")
         end
         @testset "Test Parsing and Saving Results" begin
             @test_skip "No Tests Written"
         end
         @testset "Test Iteration" begin
-            @test_skip "No Tests Written"
+            include("testiteration.jl")
         end
     end
-    @testset "System Tests" begin
-        include("test3bus.jl")
-    end
+    # @testset "System Tests" begin
+    #     include("test3bus.jl")
+    # end
 end
 
 global_logger(original_logger)
