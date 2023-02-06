@@ -135,5 +135,16 @@ end
         end
     end
     
+    @testset "Test Util Helper Functions" begin
+        str_year = "y2020"
+        str_years = ["y2020", "y2025"]
+        @test year2int(str_year) isa Int
+        @test year2int.(str_years) isa Vector{Int}
+
+        int_year = 2020
+        int_years = [2020, 2025]
+        @test year2str(int_year) isa AbstractString
+        @test year2str.(int_years) isa Vector{String}
+    end
 
 end

@@ -33,7 +33,7 @@ original_logger = global_logger(NullLogger())
             include("testoptimizemodel.jl")
         end
         @testset "Test Parsing and Saving Results" begin
-            @test_skip "No Tests Written"
+            include("testresultprocessing.jl")
         end
         @testset "Test Iteration" begin
             include("testiteration.jl")
