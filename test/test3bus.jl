@@ -217,14 +217,16 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         @test "unbuilt" in gen.build_status
         for gen_row in eachrow(gen)
             gen_row.build_status == "unbuilt" && @test gen_row.pcap0 == 0
+
+            #testing if year_on_min and year_on_max are working
+            gen_row.build_status == "unbuilt" && gen_row.gentype == "coal" && @test gen_row.year_on <= "y2030" #these are specific to how the gen_build is set up for test3bus so may need to be updated 
+            gen_row.build_status == "unbuilt" && gen_row.gentype == "oswind" && @test gen_row.year_on >= "y2035"
         end
 
         "new" in build_gen.build_status && @test "new" in gen.build_status
 
         #check that all gentypes in build_gen are in gen as well
         @test nothing ∉ indexin(unique(build_gen.gentype), unique(gen.gentype))
-        
-
 
     end
 end
