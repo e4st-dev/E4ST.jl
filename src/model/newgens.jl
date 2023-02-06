@@ -49,9 +49,9 @@ function make_newgens!(config, data, newgen)
         subarea = spec_row.subarea
         bus_idxs = get_row_idxs(bus, (area=>subarea))
         
-        #set default min and max for year_on if "na"
-        spec_row.year_on_min == "na" ? year_on_min = "y0" : year_on_min = spec_row.year_on_min
-        spec_row.year_on_max == "na" ? year_on_max = "y9999" : year_on_max = spec_row.year_on_max
+        #set default min and max for year_on if blank
+        spec_row.year_on_min == "" ? year_on_min = "y0" : year_on_min = spec_row.year_on_min
+        spec_row.year_on_max == "" ? year_on_max = "y9999" : year_on_max = spec_row.year_on_max
 
         for bus_idx in bus_idxs
             if spec_row.build_type == "endog"
