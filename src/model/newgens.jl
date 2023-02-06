@@ -48,6 +48,8 @@ function make_newgens!(config, data, newgen)
         area = spec_row.area
         subarea = spec_row.subarea
         bus_idxs = table_rows(bus, (area=>subarea))
+        
+        #set default min and max for year_on if "na"
         spec_row.year_on_min == "na" ? year_on_min = "y0" : year_on_min = spec_row.year_on_min
         spec_row.year_on_max == "na" ? year_on_max = "y9999" : year_on_max = spec_row.year_on_max
 
@@ -55,12 +57,12 @@ function make_newgens!(config, data, newgen)
             if spec_row.build_type == "endog"
                 # for endogenous new builds, a new gen is created for each sim year
                 for year in years
-                    if year_on_min <= year <= year_on_max
-                        #populate newgen_row with specs
-                        newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
-                        newgen_row[:year_on] = year
-                        push!(newgen, newgen_row)
-                    end
+                    year < year_on_min && continue
+                    year > year_on_max && continue
+                    #populate newgen_row with specs
+                    newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
+                    newgen_row[:year_on] = year
+                    push!(newgen, newgen_row)
                 end
             else 
                 # for exogenously specified gens, only one generator is created with the specified year_on
