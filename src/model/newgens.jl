@@ -47,7 +47,7 @@ function make_newgens!(config, data, newgen)
     for spec_row in eachrow(build_gen)
         area = spec_row.area
         subarea = spec_row.subarea
-        bus_idxs = table_rows(bus, (area=>subarea))
+        bus_idxs = get_row_idxs(bus, (area=>subarea))
         
         #set default min and max for year_on if "na"
         spec_row.year_on_min == "na" ? year_on_min = "y0" : year_on_min = spec_row.year_on_min
