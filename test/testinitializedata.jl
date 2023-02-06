@@ -36,6 +36,9 @@ end
 
 end
 
+#Test yearly and hourly adjustment to data
+include("testadjust.jl")
+
 
 @testset "Test load_demand_table! with shaping" begin
     config = load_config(config_file)
