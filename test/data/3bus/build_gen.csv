@@ -1,6 +1,8 @@
-name,source,area,subarea,status,build_status,build_type,genfuel,gentype,pcap0,pcap_min,pcap_max,vom,fuel_cost,fom,capex,year_on,emis_co2
-test_solar_build,none,country,narnia,1,unbuilt,endog,solar,solar,0,0,10,1,0,4,5,na,0
-test_wind_build,none,country,archenland,1,unbuilt,endog,wind,wind,0,0,3,1,0,6,6,na,0
-test_ngcc_build,none,buildngcc,1,1,unbuilt,endog,ng,ngcc,0,0,1,1.5,2.5,5,10,na,0.45
-test_exog_nuc_build,none,bus_idx,1,1,new,exog,nuclear,nuclear,2,0,2,10,5,5,10,y2020,0
-test_exog_solar_build,none,bus_idx,2,1,new,exog,solar,solar,1,0,1,1,0,4,5,y2060,0
+name,source,area,subarea,status,build_status,build_type,genfuel,gentype,pcap0,pcap_min,pcap_max,vom,fuel_cost,fom,capex,year_on,year_on_min,year_on_max,emis_co2
+test_solar_build,none,country,narnia,1,unbuilt,endog,solar,solar,0,0,10,1,0,4,5,na,y2015,na,0
+test_wind_build,none,country,archenland,1,unbuilt,endog,wind,wind,0,0,3,1,0,6,6,na,y2015,na,0
+test_oswind_build,none,country,archenland,1,unbuilt,endog,wind,oswind,0,0,3,1,0,6,6,na,y2035,na,0
+test_coal_build,none,country,narnia,1,unbuilt,endog,coal,coal,0,0,1,2,5,6,10,na,na,y2030,0.6
+test_ngcc_build,none,buildngcc,1,1,unbuilt,endog,ng,ngcc,0,0,1,1.5,2.5,5,10,na,y2015,na,0.45
+test_exog_nuc_build,none,bus_idx,1,1,new,exog,nuclear,nuclear,2,0,2,10,5,5,10,y2020,na,na,0
+test_exog_solar_build,none,bus_idx,2,1,new,exog,solar,solar,1,0,1,1,0,4,5,y2060,na,na,0

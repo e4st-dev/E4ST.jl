@@ -1,3 +1,7 @@
+################################################################################
+# Main Data Interfaces
+################################################################################
+
 """
     load_data(config) -> data
 
@@ -35,35 +39,31 @@ end
 """
     load_data_files!(config, data)
 
-Loads in the data files presented in the `config`.  Calls the following functions:
-* [`load_bus_table!`](@ref) - from `config[:bus_file] -> data[:bus]`
-* [`load_branch_table!`](@ref) - from `config[:branch_file] -> data[:branch]`
-* [`load_gen_table!`](@ref) - from `config[:gen_file] -> data[:gen]`
-* [`load_hours_table!`](@ref) - from `config[:hours_file] -> data[:hours_table]`
-* [`load_voll!`](@ref) - from `config[:voll] -> data[:voll]`
-* [`load_years!`](@ref) - from `config[:years] -> data[:years]`
-* [`load_af_table!`](@ref) - from `config[:af_file] -> data[:af_table]`
-* [`load_demand_table!(config, data)`](@ref) - from `config[:demand_file] -> data[:demand_table]`
-* [`load_demand_shape_table!(config, data)`](@ref)  - from `config[:demand_shape_file] -> data[:demand_shape_table]` (if `config[:demand_shape_file]` provided)
-* [`load_demand_match_table!(config, data)`](@ref)  - from `config[:demand_match_file] -> data[:demand_match_table]` (if `config[:demand_match_file]` provided)
-* [`load_demand_add_table!(config, data)`](@ref)  - from `config[:demand_add_file] -> data[:demand_add_table]` (if `config[:demand_add_file]` provided)
-* [`load_build_gen_table!(config, data)`](@ref)  - from `config[:build_gen_file] -> data[:build_gen]`
-* [`load_genfuel_table!(config, data)`](@ref)  - from `config[:gentype_genfuel_file] -> data[:genfuel_table]`
+Loads in the data files presented in the `config`.
 """
 function load_data_files!(config, data)
-    load_bus_table!(config, data)
-    load_branch_table!(config, data)
-    load_gen_table!(config, data)
-    load_hours_table!(config, data)
+    load_summary_table!(config, data)
+
+    # Other things to load
     load_voll!(config, data)
     load_years!(config, data)
-    load_af_table!(config, data)
-    load_demand_table!(config, data)
-    load_build_gen_table!(config, data)
-    haskey(config, :demand_shape_file) && load_demand_shape_table!(config, data)
-    haskey(config, :demand_match_file) && load_demand_match_table!(config, data)
-    haskey(config, :demand_add_file) && load_demand_add_table!(config, data)
-    haskey(config, :gentype_genfuel_file) && load_genfuel_table!(config, data)
+
+    load_table!(config, data, :bus_file      => :bus)
+    load_table!(config, data, :gen_file      => :gen)
+    load_table!(config, data, :branch_file   => :branch)
+    load_table!(config, data, :hours_file    => :hours)
+    load_table!(config, data, :af_file       => :af_table)
+    load_table!(config, data, :demand_file   => :demand_table)
+    
+
+    # Optional tables
+    load_table!(config, data, :demand_shape_file=>:demand_shape, optional=true)
+    load_table!(config, data, :demand_match_file=>:demand_match, optional=true)
+    load_table!(config, data, :demand_add_file=>:demand_add, optional=true)
+    load_table!(config, data, :build_gen_file => :build_gen, optional=true)
+    load_table!(config, data, :gentype_genfuel_file => :genfuel, optional=true)
+    load_table!(config, data, :adjust_yearly_file => :adjust_yearly, optional=true)
+    load_table!(config, data, :adjust_hourly_file => :adjust_hourly, optional=true)
 end
 export load_data_files!
 
@@ -100,44 +100,252 @@ New generators built in the `setup_gen_table!` function.
 function setup_data!(config, data)
 
     # Note that order matters for these functions because later ones rely on data from earlier tables.
-    setup_build_gen_table!(config, data)
-    setup_genfuel_table!(config, data)    
-    setup_bus_table!(config, data)
-    setup_branch_table!(config, data)
-    setup_hours_table!(config, data)
-    setup_demand!(config, data)
-
-    setup_gen_table!(config, data) #needs to come after build_gen setup for newgens
-    
-    setup_af!(config, data)
-
-
+    setup_table!(config, data, :build_gen)
+    setup_table!(config, data, :genfuel)
+    setup_table!(config, data, :bus)
+    setup_table!(config, data, :branch)
+    setup_table!(config, data, :hours)
+    setup_table!(config, data, :demand_table)
+    setup_table!(config, data, :gen) # needs to come after build_gen setup for newgens
+    setup_table!(config, data, :af_table)
+    setup_table!(config, data, :adjust_yearly)
+    setup_table!(config, data, :adjust_hourly)
 end
 export setup_data!
 
+"""
+    setup_table!(config, data, table_name)
+
+Sets up the `data[:table_name]`.  Calls `setup_table!(config, data, Val(table_name))`, if defined.
+"""
+function setup_table!(config, data, table_name::Symbol)
+    if hasmethod(setup_table!, Tuple{typeof(config), typeof(data), Val{table_name}}) && has_table(data, table_name)
+        @info "Setting up data[$(table_name)]"
+        setup_table!(config, data, Val(table_name))
+    end
+    return 
+end
+export setup_table!
+
 
 """
-    load_gen_table!(config, data)
+    setup_table!(config, data, ::Val{:genfuel}) -> nothing
 
-Load the generator from the `config[:gen_file]`.  See [`summarize_gen_table()`](@ref).
+Currently does nothing
 """
-function load_gen_table!(config, data)
-    gen = load_table(config[:gen_file])
-    force_table_types!(gen, :gen, summarize_gen_table())
-    data[:gen] = gen
+function setup_table!(config, data, ::Val{:genfuel})
+end
+
+
+"""
+    summarize_table(s::Symbol) -> summary::DataFrame
+
+Returns a summary of the table `s`.  Note that more information can be provided in the the `summary_table`, which contains a summary of all tables, including all information from `summarize_table`, plus additional columns specified.
+
+See also [`get_table(data, name)`](@ref), [`load_summary_table!(config, data)`](@ref), [`get_table_summary(data, name)`](@ref)
+"""
+function summarize_table(s::Symbol)
+    return summarize_table(Val(s))
+end
+export summarize_table
+
+
+################################################################################
+# Data Loading
+################################################################################
+
+"""
+    load_table(filename) -> table
+
+Loads a table from filename, where filename is a csv.
+"""
+function load_table(filename::String)
+    CSV.read(filename, DataFrame, missingstring=nothing, stripwhitespace=true)
+end
+export load_table
+
+
+"""
+    load_table!(config, data, p::Pair)
+    
+Loads the table from the file in `config[p[1]]` into `data[p[2]]`
+"""
+function load_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
+    optional===true && !haskey(config, first(p)) && return
+    @info "Loading data[:$(last(p))] from $(config[first(p)])"
+    table_file = config[first(p)]::String
+    table_name = last(p)
+    table = load_table(table_file)
+    st = get_table_summary(data, table_name)
+    force_table_types!(table, table_name, st)
+    
+    # Force columns that have unknown number of columns.
+    for row in eachrow(st)
+        if row.column_name == :h_
+            for i in 1:get_num_hours(data)
+                force_table_types!(table, string("h",i) => row.data_type, optional = !(row.required))
+            end
+        elseif row.column_name == :y_
+            for yr in get_years(data)
+                force_table_types!(table, yr => row.data_type, optional = !(row.required))
+            end
+        elseif row.column_name == :filter_
+            for i in 1:1000 # arbitrarily high limit
+                col_name = "filter$i"
+                if hasproperty(table, col_name)
+                    force_table_types!(table, col_name => row.data_type, optional = !(row.required))
+                end
+            end
+        end
+    end
+    data[table_name] = table
     return
 end
-export load_gen_table!
 
 
 """
-    setup_gen_table!(config, data)
+    load_summary_table!(config, data)
+
+Loads in the summary table for each of the other tables.
+"""
+function load_summary_table!(config, data)
+    st = DataFrame(
+        :table_name => Symbol[],
+        :column_name => Symbol[],
+        :data_type => Type[],
+        :unit => Type{<:Unit}[],
+        :required => Bool[],
+        :description => String[],
+    )
+
+    # Loop through and add all the tables for which summarize_table has been defined
+    for m in methods(summarize_table)
+        if m.sig.parameters[2] <: Val
+            append_to_summary_table!(st, m.sig.parameters[2]())
+        end
+    end
+
+    rows_to_add = DataFrameRow[]
+    if haskey(config, :summary_table_file)
+        gst = groupby(st, [:table_name, :column_name])
+        df = load_table(config[:summary_table_file])
+
+        force_table_types!(df, :summary_table,
+            (cn=>eltype(st[!,cn]) for cn in propertynames(st))...
+        )
+
+        for row in eachrow(df)
+            if haskey(gst, (row.table_name, row.column_name))
+                continue
+            end
+            push!(rows_to_add, row)
+        end        
+    end
+
+    for row in rows_to_add
+        push!(st, row)
+    end
+
+    data[:summary_table] = st
+    return
+end
+export load_summary_table!
+
+"""
+    append_to_summary_table!(summary_table::DataFrame, v::Val)
+
+Appends a summary table, from `summarize_table(s)`, to `summary_table`
+"""
+function append_to_summary_table!(summary_table::DataFrame, v::V) where {s, V<:Val{s}}
+    st = summarize_table(v)
+    st.table_name .= s
+    append!(summary_table, st)
+end
+
+"""
+    load_voll!(config, data)
+
+Return the marginal cost of load curtailment / VOLL as a variable in data
+"""
+function load_voll!(config, data)
+    default_voll = 5000.0;
+    haskey(config, :voll) ? data[:voll] = config[:voll] : data[:voll] = default_voll
+    hasmethod(Float64, Tuple{typeof(data[:voll])}) || error("data[:voll] cannot be converted to a Float64")
+    data[:voll] = Float64.(data[:voll]) 
+end
+export load_voll!
+
+"""
+    load_years!(config, data)
+
+Loads the years from config into data
+"""
+function load_years!(config, data)
+    data[:years] = config[:years]
+    return
+end
+export load_years!
+
+"""
+    force_table_types!(df::DataFrame, name, pairs...)
+
+Forces `df` to have columns associated with column=>Type `pairs`.  The table's `name` is included for descriptive errors.
+"""
+function force_table_types!(df::DataFrame, name, pairs...; optional=false)
+    for (col, T) in pairs
+        if ~hasproperty(df, col)
+            optional ? continue : error(":$name table missing column :$col")
+        end
+        ET = eltype(df[!,col])
+        ET <: T && continue
+        hasmethod(T, Tuple{ET}) || error("Column $name[$col] cannot be forced into type $T from type $ET")
+        df[!, col] = T.(df[!,col])
+    end
+end
+export force_table_types!
+
+function force_table_types!(df::DataFrame, name, summary::AbstractDataFrame; kwargs...) 
+    for row in eachrow(summary)
+        force_table_types!(df, name, row; kwargs...)
+    end
+end
+
+function force_table_types!(df::DataFrame, name, row::DataFrameRow; kwargs...)
+    col = row["column_name"]
+    req = row["required"]
+    T = row["data_type"]
+    if ~hasproperty(df, col)
+        # Return for special column identifiers - these will get checked inside load_table!
+        col === :h_ && return
+        col === :y_ && return
+        col === :filter_ && return
+        req || return
+        error(":$name table missing column :$col")
+    end
+    ET = eltype(df[!,col])
+    if ~(ET <: T)
+        hasmethod(T, Tuple{ET}) || error("Column $name[$col] with eltype $ET cannot be forced into type $T")
+        df[!, col] = T.(df[!,col])
+    end
+    return
+end
+
+
+################################################################################
+# Table Setup
+################################################################################
+
+"""
+    setup_table!(config, data, ::Val{:gen})
 
 Sets up the generator table.
 Creates potential new generators and exogenously built generators. 
 Calls [`setup_new_gens!`](@ref) 
 """
-function setup_gen_table!(config, data)
+function setup_table!(config, data, ::Val{:gen})
+    bus = get_table(data, :bus)
+    gen = get_table(data, :gen)
+
     #removes capex_obj if loaded in from previous sim
     :capex_obj in propertynames(data[:gen]) && select!(data[:gen], Not(:capex_obj))
 
@@ -149,42 +357,20 @@ function setup_gen_table!(config, data)
     # create capex_obj (the capex used in the optimization/objective function)
     # set to capex for unbuilt generators
     # set to 0 for already built capacity because capacity expansion isn't considered for existing generators
-    gen = get_gen_table(data)
     gen.capex_obj .= (gen.build_status.=="unbuilt").* gen.capex
 
     # map bus characteristics to generators
-    bus = get_bus_table(data)
     leftjoin!(gen, bus, on=:bus_idx)
     disallowmissing!(gen)
-
-    data[:gen] = gen
 end
 export setup_gen_table!
 
 """
-    load_build_gen_table!(config, data)
-
-Load the new generator characteristics/specs table from the `config[:build_gen_file]`.  See [`summarize_build_gen_table()`](@ref).
-"""
-function load_build_gen_table!(config, data)
-    # Return if there is no build_gen_file
-    if ~haskey(config, :build_gen_file) 
-        return
-    end
-
-    build_gen = load_table(config[:build_gen_file])
-    force_table_types!(build_gen, :build_gen, summarize_build_gen_table()) #change to pairs with all relevant from gen table
-    data[:build_gen] = build_gen
-    return
-end
-export load_build_gen_table!
-
-"""
-    setup_build_gen_table!(config, data)
+    setup_table!(config, data, ::Val{:build_gen})
 
 Sets up the new generator characteristics/specs table.
 """
-function setup_build_gen_table!(config, data)
+function setup_table!(config, data, ::Val{:build_gen})
     # Return if there is no build_gen_file
     if ~haskey(config, :build_gen_file) 
         return
@@ -194,57 +380,27 @@ end
 export setup_build_gen_table!
 
 """
-    load_bus_table!(config, data)
-
-Load the bus table from the `config[:bus_file]` into `data[:bus]`.  See [`summarize_bus_table()`](@ref).
-
-Table representing all existing buses (also sometimes referred to as nodes or subs/substations) to be modeled.
-"""
-function load_bus_table!(config, data)
-    @info "Loading the bus table from:  $(config[:bus_file])"
-    bus = load_table(config[:bus_file])
-    force_table_types!(bus, :bus, summarize_bus_table())
-    data[:bus] = bus
-    return
-end
-export load_bus_table!
-
-"""
-    setup_bus_table!(config, data)
+    setup_table!(config, data, ::Val{:bus})
 
 Sets up the bus table.  
 * Makes a `:bus_idx` to track row numbers.
 """
-function setup_bus_table!(config, data)
-    bus = get_bus_table(data)
+function setup_table!(config, data, ::Val{:bus})
+    bus = get_table(data, :bus)
     bus.bus_idx = 1:nrow(bus)
     return
 end
 export setup_bus_table!
 
 """
-    load_branch_table!(config, data)
-
-Load the branch table from `config[:branch_file]` into `data[:branch]`.  See [`summarize_branch_table()`](@ref).
-"""
-function load_branch_table!(config, data)
-    @info "Loading the branch table from:  $(config[:branch_file])"
-    branch = load_table(config[:branch_file])
-    force_table_types!(branch, :branch, summarize_branch_table())
-    data[:branch] = branch
-    return
-end
-export load_branch_table!
-
-"""
-    setup_branch_table!(config, data)
+    setup_table!(config, data, ::Val{:branch})
 
 Sets up the branch table.
 * Makes bus[:connected_branch_idxs] which contains a vector of the signed index of each branch leaving that bus. (`+` for `f_bus_idx`, `-` for `to_bus_idx`). 
 """
-function setup_branch_table!(config, data)
-    branch = get_branch_table(data)
-    bus = get_bus_table(data)
+function setup_table!(config, data, ::Val{:branch})
+    branch = get_table(data, :branch)
+    bus = get_table(data, :bus)
 
     # Add connected branches, connected buses.
     bus.connected_branch_idxs = [Int64[] for _ in 1:nrow(bus)]
@@ -259,63 +415,21 @@ end
 export setup_branch_table!
 
 """
-    load_hours_table!(config, data)
-
-Load the hours representation table from `config[:hours_file]` into `data[:hours]`.  See [`summarize_hours_table()`](@ref).
-
-E4ST assumes that each year is broken up into a set of representative hours.  Each representative hour may have different parameters (i.e. load, availability factor, etc.) depending on the time of year, time of day, etc. Thus, we index many of the decision variables by representative hour.  For example, the variable for power generated (`pg`), is indexed by generator, year, and hour, meaning that for each generator, there is a different solved value of generation for each year in each representative hour.  The hours can contain any number of representative hours, but the number of hours spent at each representative hour (the `hours` column) generally should sum to 8760 (the number of hours in a year).
-"""
-function load_hours_table!(config, data)
-    @info "Loading the hours table from:  $(config[:hours_file])"
-    hours = load_table(config[:hours_file])
-    force_table_types!(hours, :rep_time, summarize_hours_table())
-    data[:hours] = hours
-    return
-end
-export load_hours_table!
-
-"""
-    setup_hours_table!(config, data)
+    setup_table!(config, data, ::Val{:hours})
 
 Doesn't do anything yet.
 """
-function setup_hours_table!(config, data)
+function setup_table!(config, data, ::Val{:hours})
     return
 end
 export setup_hours_table!
 
 @doc raw"""
-    load_af_table!(config, data)
-
-Load the hourly availability factors from `config[:af_file]` into `data[:af_table]`, if provided. 
-
-See also [`summarize_af_table()`](@ref), [`setup_af!(config, data)`](@ref)
-"""
-function load_af_table!(config, data)
-    # Return if there is no af_file
-    if ~haskey(config, :af_file) 
-        return
-    end
-
-    @info "Loading the availability factor table from:  $(config[:af_file])"
-
-    # Load in the af file
-    df = load_table(config[:af_file])
-    force_table_types!(df, :af, summarize_af_table())
-    force_table_types!(df, :af, ("h$n"=>Float64 for n in 2:get_num_hours(data))...)
-
-    data[:af_table] = df
-
-    return
-end
-export load_af_table!
-
-@doc raw"""
-    setup_af!(config, data)
+    setup_table!(config, data, ::Val{:af_table})
 
 Populates the `af` column of the `gen_table`.  
 
-Updates the generator table with the availability factors provided.  By default assigns an availability factor of `1.0` for every generator.  See [`summarize_af_table()`](@ref).
+Updates the generator table with the availability factors provided.  By default assigns an availability factor of `1.0` for every generator.  See [`summarize_table(::Val{:af_table})`](@ref).
 
 Often, generators are unable to generate energy at their nameplate capacity over the course of any given representative hour.  This could depend on any number of things, such as how windy it is during a given representative hour, the time of year, the age of the generating unit, etc.  The ratio of available generation capacity to nameplate generation capacity is referred to as the availability factor (AF).
 
@@ -325,11 +439,10 @@ The availability factor table includes availability factors for groups of genera
 P_{G_{g,h,y}} \leq f_{\text{avail}_{g,h,y}} \cdot P_{C{g,y}} \qquad \forall \{g \in \text{generators}, h \in \text{hours}, y \in \text{years} \}
 ```
 """
-function setup_af!(config, data)
+function setup_table!(config, data, ::Val{:af_table})
     # Fill in gen table with default af of 1.0 for every hour
-    gens = get_gen_table(data)
+    gens = get_table(data, :gen)
     default_af = ByNothing(1.0)
-    default_hourly_af = fill(1.0, get_num_hours(data))
     gens.af = Container[default_af for _ in 1:nrow(gens)]
     
     # Return if there is no af_file
@@ -357,444 +470,262 @@ function setup_af!(config, data)
             continue
         end
         
-        gens = get_gen_table(data)
-
-        isempty(gens) && continue
-
-        # Add the area-subarea pair to the condition
-        if ~isempty(row.area) && ~isempty(row.subarea)
-            area = row.area
-            subarea = row.subarea
-            gens = filter(gen->get_gen_subarea(data, gen, area)==subarea, gens, view=true)
-        end
-
-        isempty(gens) && continue
-
-        # Add the genfuel to the condition
-        if ~isempty(row.genfuel)
-            genfuel = row.genfuel
-            gens = filter(:genfuel=>==(genfuel), gens, view=true)
-        end
-
-        isempty(gens) && continue
-
-        # Add the gentype to the condition
-        if ~isempty(row.gentype)
-            gentype = row.gentype
-            gens = filter(:gentype=>==(gentype), gens, view=true)
-        end
+        pairs = parse_comparisons(row)
+        gens = get_table(data, :gen, pairs)
 
         isempty(gens) && continue
         
         af = [row[i_hr] for i_hr in hr_idx:ncol(af_table)]
         foreach(eachrow(gens)) do gen
-            gen.af = set_hourly(gen.af, af, yr_idx; default=default_hourly_af, nyr)
+            gen.af = set_hourly(gen.af, af, yr_idx; nyr)
         end
     end
     return data
 end
 export setup_af!
 
-
-"""
-    load_genfuel_table!(config, data) -> data[:genfuel_table]
-
-Loads in the genfuel table which contains gentypes and their corresponding genfuel.
-"""
-function load_genfuel_table!(config, data)
-    @info "Loading the genfuel table from:  $(config[:gentype_genfuel_file])"
-    genfuel = load_table(config[:gentype_genfuel_file])
-    force_table_types!(genfuel, :genfuel, summarize_genfuel_table())
-    data[:genfuel_table] = genfuel
-    return
-end
-export load_genfuel_table!
-
-"""
-    setup_genfuel_table!(config, data) -> data[:genfuel_table]
-
-Sets up the genfuel table. (currently doesn't change anything)
-"""
-function setup_genfuel_table!(config, data)
-    
-end
-
-
-"""
-    load_voll!(config, data)
-
-Return the marginal cost of load curtailment / VOLL as a variable in data
-"""
-function load_voll!(config, data)
-    default_voll = 5000.0;
-    haskey(config, :voll) ? data[:voll] = config[:voll] : data[:voll] = default_voll
-    hasmethod(Float64, Tuple{typeof(data[:voll])}) || error("data[:voll] cannot be converted to a Float64")
-    data[:voll] = Float64.(data[:voll]) 
-end
-export load_voll!
-
-"""
-    load_years!(config, data)
-
-Loads the years from config into data
-"""
-function load_years!(config, data)
-    data[:years] = config[:years]
-    return
-end
-export load_years!
-
-# Helper Functions
-################################################################################
-
-"""
-    load_table(filename) -> table
-
-Loads a table from filename, where filename is a csv.
-"""
-function load_table(filename::String)
-    CSV.read(filename, DataFrame, missingstring="NA", stripwhitespace=true)
-end
-export load_table
-
-"""
-    force_table_types!(df::DataFrame, name, pairs...)
-
-Forces `df` to have columns associated with column=>Type `pairs`.  The table's `name` is included for descriptive errors.
-"""
-function force_table_types!(df::DataFrame, name, pairs...; optional=false)
-    for (col, T) in pairs
-        if ~hasproperty(df, col)
-            optional ? continue : error(":$name table missing column :$col")
-        end
-        ET = eltype(df[!,col])
-        ET <: T && continue
-        @show T, ET
-        hasmethod(T, Tuple{ET}) || error("Column $name[$col] cannot be forced into type $T")
-        df[!, col] = T.(df[!,col])
-    end
-end
-export force_table_types!
-
-function force_table_types!(df::DataFrame, name, summary::DataFrame; kwargs...) 
-    for row in eachrow(summary)
-        col = row["Column Name"]
-        req = row["Required"]
-        T = row["Data Type"]
-        if ~hasproperty(df, col)
-            req || continue
-            error(":$name table missing column :$col")
-        end
-        ET = eltype(df[!,col])
-        if ~(ET <: T)
-            hasmethod(T, Tuple{ET}) || error("Column $name[$col] cannot be forced into type $T")
-            df[!, col] = T.(df[!,col])
-        end
-    end
-end
-
-"""
-    scale_hourly!(demand_arr, shape, row_idx, yr_idx)
-    
-Scales the hourly demand in `demand_arr` by `shape` for `row_idx` and `yr_idx`.
-"""
-function scale_hourly!(demand_arr, shape, row_idxs, yr_idxs)
-    for yr_idx in yr_idxs, row_idx in row_idxs
-        scale_hourly!(demand_arr, shape, row_idx, yr_idx)
-    end
-    return nothing
-end
-function scale_hourly!(ars::AbstractArray{<:AbstractArray}, shape, yr_idxs)
-    for ar in ars, yr_idx in yr_idxs
-        scale_hourly!(ar, shape, yr_idx)
-    end
-    return nothing
-end
-function scale_hourly!(ar::AbstractArray{Float64}, shape, yr_idxs)
-    for yr_idx in yr_idxs
-        scale_hourly!(ar, shape, yr_idx)
-    end
-    return nothing
-end
-function scale_hourly!(ar::AbstractArray{Float64}, shape::AbstractVector{Float64}, idxs::Int64...)
-    view(ar, idxs..., :) .+= shape
-    return nothing
-end
-
-"""
-    add_hourly!(ar, shape, row_idx, yr_idx)
-
-    add_hourly!(ar, shape, row_idxs, yr_idxs)
-    
-adds to the hourly demand in `ar` by `shape` for `row_idx` and `yr_idx`.
-"""
-function add_hourly!(ar, shape, row_idxs, yr_idxs; kwargs...)
-    for yr_idx in yr_idxs, row_idx in row_idxs
-        add_hourly!(ar, shape, row_idx, yr_idx; kwargs...)
-    end
-    return nothing
-end
-function add_hourly!(ars::AbstractArray{<:AbstractArray}, shape, yr_idxs; kwargs...)
-    for ar in ars, yr_idx in yr_idxs
-        add_hourly!(ar, shape, yr_idx; kwargs...)
-    end
-    return nothing
-end
-function add_hourly!(ar::AbstractArray{Float64}, shape, yr_idxs; kwargs...)
-    for yr_idx in yr_idxs
-        add_hourly!(ar, shape, yr_idx; kwargs...)
-    end
-    return nothing
-end
-function add_hourly!(ar::AbstractArray{Float64}, shape::AbstractVector{Float64}, idxs::Int64...)
-    view(ar, idxs..., :) .+= shape
-    return nothing
-end
-
-"""
-    add_hourly_scaled!(ar, v::AbstractVector{Float64}, s::Float64, idx1, idx2)
-
-Adds `v.*s` to `ar[idx1, idx2, :]`, without allocating.
-"""
-function add_hourly_scaled!(ar::AbstractArray{Float64}, shape::AbstractVector{Float64}, s::Float64, idx1::Int64, idx2::Int64)
-    view(ar, idx1, idx2, :) .+= shape .* s
-    return nothing
-end
-function add_hourly_scaled!(ar, shape, s, idxs1, idxs2)
-    for idx1 in idxs1, idx2 in idxs2
-        add_hourly_scaled!(ar, shape, s, idx1, idx2)
-    end
-    return nothing
-end
-
-"""
-    _match_yearly!(demand_arr, match, row_idxs, yr_idx, hr_weights)
-
-Match the yearly demand represented by `demand_arr[row_idxs, yr_idx, :]` to `match`, with hourly weights `hr_weights`.
-"""
-function _match_yearly!(demand_arr::Array{Float64, 3}, match::Float64, row_idxs, yr_idx::Int64, hr_weights)
-    # Select the portion of the demand_arr to match
-    _match_yearly!(view(demand_arr, row_idxs, yr_idx, :), match, hr_weights)
-end
-function _match_yearly!(demand_mat::SubArray{Float64, 2}, match::Float64, hr_weights)
-    # The demand_mat is now a 2d matrix indexed by [row_idx, hr_idx]
-    s = _sum_product(demand_mat, hr_weights)
-    scale_factor = match / s
-    demand_mat .*= scale_factor
-end
-
-"""
-    _sum_product(M, v) -> s
-
-Computes the sum of M*v
-"""
-function _sum_product(M::AbstractMatrix, v::AbstractVector)
-    @inbounds sum(M[row_idx, hr_idx]*v[hr_idx] for row_idx in 1:size(M,1), hr_idx in 1:size(M,2))
-end
-
-
-
 # Table Summaries
 ################################################################################
-
 """
-    summarize_gen_table() -> summary
+    summarize_table(::Val{:gen}) -> summary
 """
-function summarize_gen_table()
-    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[],  "Required"=>Bool[],"Description"=>String[])
+function summarize_table(::Val{:gen})
+    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[],  "required"=>Bool[],"description"=>String[])
     push!(df, 
-        (:bus_idx, Int64, "n/a", true, "The index of the `bus` table that the generator corresponds to"),
-        (:status, Bool, "n/a", false, "Whether or not the generator is in service"),
-        (:build_status, String, "n/a", true, "Whether the generator is 'built', 'new', or 'unbuilt'"),
-        (:build_type, String, "n/a", true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
-        (:genfuel, String, "n/a", true, "The fuel type that the generator uses"),
-        (:gentype, String, "n/a", true, "The generation technology type that the generator uses"),
-        (:pcap0, Float64, "MW", true, "Starting nameplate power generation capacity for the generator"),
-        (:pcap_min, Float64, "MW", true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
-        (:pcap_max, Float64, "MW", true, "Maximum nameplate power generation capacity of the generator"),
-        (:vom, Float64, "\$/MWh", true, "Variable operation and maintenance cost per MWh of generation"),
-        (:fuel_cost, Float64, "\$/MWh", false, "Fuel cost per MWh of generation"),
-        (:fom, Float64, "\$/MW", true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
-        (:capex, Float64, "\$/MW", false, "Hourly capital expenditures for a MW of generation capacity"),
-        (:cf_min, Float64, "ratio", false, "The minimum operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
-        (:cf_max, Float64, "ratio", false, "The maximum operable ratio of power generation to capacity for the generator to operate"),
-        (:year_on, String, "n/a", true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
-    )
-    return df
-end
-export summarize_gen_table
-
-
-"""
-    summarize_bus_table() -> summary
-"""
-function summarize_bus_table()
-    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
-    push!(df, 
-        (:ref_bus, Bool, "n/a", true, "Whether or not the bus is a reference bus.  There should be a single reference bus for each island."),
-    )
-    return df
-end
-export summarize_bus_table
-
-"""
-    summarize_branch_table() -> summary
-"""
-function summarize_branch_table()
-    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
-    push!(df, 
-        (:f_bus_idx, Int64, "n/a", true, "The index of the `bus` table that the branch originates **f**rom"),
-        (:t_bus_idx, Int64, "n/a", true, "The index of the `bus` table that the branch goes **t**o"),
-        (:status, Bool, "n/a", false, "Whether or not the branch is in service"),
-        (:x, Float64, "p.u.", true, "Per-unit reactance of the line (resistance assumed to be 0 for DC-OPF)"),
-        (:pflow_max, Float64, "MW", true, "Maximum power flowing through the branch")
-    )
-    return df
-end
-export summarize_branch_table
-
-"""
-    summarize_hours_table() -> summary
-"""
-function summarize_hours_table()
-    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
-    push!(df, 
-        (:hours, Float64, "hours", true, "The number of hours spent in each representative hour over the course of a year (must sum to 8760)"),
-    )
-    return df
-end
-export summarize_hours_table
-
-"""
-    summarize_af_table() -> summary
-"""
-function summarize_af_table()
-    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
-    push!(df, 
-        (:area, String, "n/a", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
-        (:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
-        (:genfuel, String, "n/a", true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
-        (:gentype, String, "n/a", true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
-        (:year, String, "year", true, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
-        (:status, Bool, "n/a", false, "Whether or not to use this AF adjustment"),
-        (:h1, Float64, "ratio", true, "Availability factor of hour 1.  Include 1 column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
-    )
-    return df
-end
-export summarize_af_table
-
-
-"""
-    summarize_build_gen_table() -> summary
-"""
-function summarize_build_gen_table()
-    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
-    push!(df, 
-        (:area, String, "n/a", true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
-        (:subarea, String, "n/a", true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
-        (:build_status, String, "n/a", true, "Whether the generator is 'built', 'new', or 'unbuilt'. Should always be unbuilt for exog new gens."),
-        (:build_type, String, "n/a", true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built). Should either be exog or endog for buil_gen."),
-        (:genfuel, String, "n/a", true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
-        (:gentype, String, "n/a", true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
-        (:status, Bool, "n/a", false, "Whether or not to use this set of characteristics/specs"),
-        (:pcap0, Float64, "MW", true, "Starting nameplate power generation capacity for the generator. Should be 0 for endog new gens."),
-        (:pcap_min, Float64, "MW", true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
-        (:pcap_max, Float64, "MW", true, "Maximum nameplate power generation capacity of the generator"),
-        (:vom, Float64, "\$/MWh", true, "Variable operation and maintenance cost per MWh of generation"),
-        (:fuel_cost, Float64, "\$/MWh", false, "Fuel cost per MWh of generation"),
-        (:fom, Float64, "\$/MW", true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
-        (:capex, Float64, "\$/MW", false, "Hourly capital expenditures for a MW of generation capacity"),
-        (:year_on, String, "n/a", true, "The first year of operation for the generator. (For new gens this is also the year it was built). Endogenous unbuilt generators will specify na"),
-    )
-    return df
-end
-export summarize_build_gen_table
-
-"""
-    summarize_genfuel_table() -> 
-"""
-function summarize_genfuel_table()
-    df = DataFrame("Column Name"=>Symbol[], "Data Type"=>Type[], "Unit"=>String[], "Required"=>Bool[], "Description"=>String[])
-    push!(df, 
-        (:gentype, String, "n/a", true, "The generator type (ie. ngcc, dist_solar, os_wind)"),
-        (:genfuel, String, "n/a", true, "The corresponding generator fuel or renewable type (ie. ng, solar, wind)"),
+        (:bus_idx, Int64, NA, true, "The index of the `bus` table that the generator corresponds to"),
+        (:status, Bool, NA, false, "Whether or not the generator is in service"),
+        (:build_status, AbstractString, NA, true, "Whether the generator is 'built', 'new', or 'unbuilt'"),
+        (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
+        (:year_on, AbstractString, Year, true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
+        (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses"),
+        (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses"),
+        (:pcap0, Float64, MWCapacity, true, "Starting nameplate power generation capacity for the generator"),
+        (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
+        (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power generation capacity of the generator"),
+        (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
+        (:fuel_cost, Float64, DollarsPerMWhGenerated, false, "Fuel cost per MWh of generation"),
+        (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
+        (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
+        (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
+        (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum operable ratio of power generation to capacity for the generator to operate"),
     )
     return df
 end
 
-# Accessor Functions
+
+"""
+    summarize_table(::Val{:bus}) -> summary
+"""
+function summarize_table(::Val{:bus})
+    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    push!(df, 
+        (:ref_bus, Bool, NA, true, "Whether or not the bus is a reference bus.  There should be a single reference bus for each island."),
+    )
+    return df
+end
+
+"""
+    summarize_table(::Val{:branch}) -> summary
+"""
+function summarize_table(::Val{:branch})
+    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    push!(df, 
+        (:f_bus_idx, Int64, NA, true, "The index of the `bus` table that the branch originates **f**rom"),
+        (:t_bus_idx, Int64, NA, true, "The index of the `bus` table that the branch goes **t**o"),
+        (:status, Bool, NA, false, "Whether or not the branch is in service"),
+        (:x, Float64, PU, true, "Per-unit reactance of the line (resistance assumed to be 0 for DC-OPF)"),
+        (:pflow_max, Float64, MWFlow, true, "Maximum power flowing through the branch")
+    )
+    return df
+end
+
+"""
+    summarize_table(::Val{:hours}) -> summary
+"""
+function summarize_table(::Val{:hours})
+    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    push!(df, 
+        (:hours, Float64, Hours, true, "The number of hours spent in each representative hour over the course of a year (must sum to 8760)"),
+    )
+    return df
+end
+
+"""
+    summarize_table(::Val{:af_table}) -> summary
+"""
+function summarize_table(::Val{:af_table})
+    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    push!(df, 
+        (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
+        (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
+        (:year, AbstractString, Year, true, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
+        (:status, Bool, NA, false, "Whether or not to use this AF adjustment"),
+        (:h_, Float64, MWhGeneratedPerMWhCapacity, true, "Availability factor of hour _.  Include 1 column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
+    )
+    return df
+end
+
+
+"""
+    summarize_table(::Val{:build_gen}) -> summary
+"""
+function summarize_table(::Val{:build_gen})
+    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    push!(df, 
+        (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:build_status, AbstractString, NA, true, "Whether the generator is 'built', 'new', or 'unbuilt'. Should always be unbuilt for exog new gens."),
+        (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built). Should either be exog or endog for buil_gen."),
+        (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
+        (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
+        (:status, Bool, NA, false, "Whether or not to use this set of characteristics/specs"),
+        (:pcap0, Float64, MWCapacity, true, "Starting nameplate power generation capacity for the generator. Should be 0 for endog new gens."),
+        (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
+        (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power generation capacity of the generator"),
+        (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
+        (:fuel_cost, Float64, DollarsPerMWhGenerated, false, "Fuel cost per MWh of generation"),
+        (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
+        (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
+        (:year_on, AbstractString, NA, true, "The first year of operation for the generator. (For new gens this is also the year it was built). Endogenous unbuilt generators will specify na"),
+        (:year_on_min, AbstractString, NA, true, "The first year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will specify na"),
+        (:year_on_max, AbstractString, NA, true, "The last year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will specify na"),
+    )
+    return df
+end
+
+"""
+    summarize_table(::Val{:genfuel}) -> 
+"""
+function summarize_table(::Val{:genfuel})
+    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    push!(df, 
+        (:gentype, AbstractString, NA, true, "The generator type (ie. ngcc, dist_solar, os_wind)"),
+        (:genfuel, AbstractString, NA, true, "The corresponding generator fuel or renewable type (ie. ng, solar, wind)"),
+    )
+    return df
+end
+
+# Data Accessor Functions
 ################################################################################
 
 """
-    get_gen_table(data)
+    get_table(data, table_name::Symbol) -> table::DataFrame
 
-Returns gen table
-
-    get_gen_table(data, pairs...)
-
-Returns a SubDataFrame of the gen table where each pair represents a filter condition.  See [`filter_view`](@ref) for reference.
+Retrieves `data[table_name]`, enforcing that it is a DataFrame.  See [`get_table_names`](@ref) for a list of available tables.
 """
-function get_gen_table(data) 
-    return data[:gen]::DataFrame
+function get_table(data, table_name::Symbol)
+    return data[table_name]::DataFrame
 end
-function get_gen_table(data, args...)
-    return filter_view(get_gen_table(data), args...)
+
+function get_table(data, table_name::AbstractString)
+    return get_table(data, Symbol(table_name))
 end
 
 """
-    get_branch_table(data)
+    get_table(data, table_name, conditions...) -> subtable::SubDataFrame
 
-Returns table of the transmission lines (branches) from data. 
-
-    get_branch_table(data, pairs...)
-
-Returns a SubDataFrame of the branch table where each pair represents a filter condition.  See [`filter_view`](@ref) for reference.
+Return a subset of the table `table_name` for which the row passes the `conditions`.  Conditions are `Pair`s generally consisting of `<column name> => value`.  Here are some examples of supported conditions:
+* `:genfuel => "ng"` - All rows for which `row.genfuel == "ng"`
+* `"bus_idx" => 1` - All rows for which `row.bus_idx == 1`.  Note that the column name can be String or Symbol
+* `:bus_idx  => "1"` - All rows for which `row.bus_idx == 1`.  Note that this is a String but it will get converted to the eltype of table.bus_idx for the comparison
+* `:year_on  => ("y2022", "y2030")` - All rows for which `row.year_on` is between "y2022" and "y2030", inclusive.  Also works for fractional years.
+* `:genfuel => ["ng", "solar", "wind"]` - All rows for which `row.genfuel` is either "ng", "solar", or "wind"
+* `:emis_co2 => f::Function` - All rows for which f(row.emis_co2) returns `true`.  For example `>(0)`, or `x->(0<x<=0.5)`
 """
-function get_branch_table(data) 
-    return data[:branch]::DataFrame
+function get_table(data, table_name, conditions...)
+    table = get_table(data, table_name)
+    row_idxs = get_row_idxs(table, conditions...)
+    return view(table, row_idxs, :)
 end
-function get_branch_table(data, args...)
-    return filter_view(get_branch_table(data), args...)
-end
-
-"""
-    get_bus_table(data)
-
-Returns the bus data table
-
-    get_bus_table(data, pairs...)
-
-Returns a SubDataFrame of the bus table where each pair represents a filter condition.  See [`filter_view`](@ref) for reference.
-"""
-function get_bus_table(data)
-    data[:bus]::DataFrame
-end
-function get_bus_table(data, args...)
-    return filter_view(get_bus_table(data), args...)
-end
+export get_table
 
 """
-    get_hours_table(data)
+    get_table_row_idxs(data, table_name, conditions...) -> row_idxs::Vector{Int64}
 
-Returns the representative hours data table
+Gets the row indices for `data[table_name]` for which the `conditions` hold true.  See [`get_table`](@ref) for a description of possible conditions
 """
-function get_hours_table(data)
-    data[:hours]::DataFrame
+function get_table_row_idxs(data, table_name, conditions...)
+    table = get_table(data, table_name)
+    row_idxs = get_row_idxs(table, conditions...)
+    return row_idxs
+end
+export get_table_row_idxs
+
+"""
+    get_table_col(data, table_name, col_name) -> col::Vector
+"""
+function get_table_col(data, table_name, col_name)
+    table = get_table(data, table_name)
+    col = table[!, col_name]
+    return col::Vector
 end
 
+"""
+    get_table_num(data, table_name, col_name, row_idx, yr_idx, hr_idx) -> num::Float64
+"""
+function get_table_num(data, table_name, col_name, row_idx, yr_idx, hr_idx)
+    table = get_table(data, table_name)
+    container = table[row_idx, col_name]
+    return container[yr_idx, hr_idx]::Float64
+end
+export get_table_num
 
 """
-    get_demand_table(data)
-
-Returns the demand table
+    get_num(data, variable_name, yr_idx, hr_idx) -> num::Float64
 """
-function get_demand_table(data)
-    return data[:demand_table]::DataFrame
+function get_num(data, variable_name::Symbol, yr_idx, hr_idx)
+    c = data[variable_name]
+    return c[yr_idx, hr_idx]::Float64
 end
-function get_demand_table(data, args...)
-    return filter_view(get_demand_table(data), args...)
+export get_num
+
+"""
+    get_table_val(data, table_name, col_name, row_idx) -> val
+
+Returns the value of the table at column `col_name` and row `row_idx`
+"""
+function get_table_val(data, table_name, col_name, row_idx)
+    table = get_table(data, table_name)
+    val = table[row_idx, col_name]
+    return val
 end
-export get_demand_table
+export get_table_val
+
+"""
+    get_table_names(data) -> table_list
+
+Returns a list of all the tables in `data`.
+"""
+function get_table_names(data)
+    return [k for (k,v) in data if v isa DataFrame]
+end
+export get_table_names
+
+
+"""
+    has_table(data, table_name) -> Bool
+"""
+function has_table(data, table_name::Symbol)
+    return haskey(data, table_name) && data[table_name] isa DataFrame
+end
+
+function has_table(data, table_name::AbstractString)
+    has_table(data, Symbol(table_name))
+end
+export has_table
+
+"""
+    get_table_summary(config, data, table_name) -> summary::SubDataFrame
+
+Returns a summary of `table_name`, loaded in from [`summarize_table`](@ref)` and [`load_summary_table`](@ref).
+"""
+function get_table_summary(data, table_name)
+    st = get_table(data, :summary_table)
+    return filter(:table_name => ==(table_name), st; view=true)
+end
+export get_table_summary
 
 """
     get_demand_array(data)
@@ -807,42 +738,12 @@ end
 export get_demand_array
 
 """
-    get_af_table(data)
-
-Returns the availiability factor table
-"""
-function get_af_table(data)
-    return data[:af_table]::DataFrame
-end
-export get_af_table
-
-
-"""
-    get_build_gen_table(data) -> build_gen table
-
-Returns table of newgen characteristics/specs. 
-"""
-function get_build_gen_table(data)
-    return data[:build_gen]::DataFrame
-end
-export get_build_gen_table
-
-"""
-    get_genfuel_table(data) -> genfuel_table
-"""
-function get_genfuel_table(data)
-    data[:genfuel]
-end
-
-
-
-"""
     get_generator(data, gen_idx) -> row
 
 Returns the row of the gen table corresponding to `gen_idx`
 """
 function get_generator(data, gen_idx)
-    return get_gen_table(data)[gen_idx,:]
+    return get_table(data, :gen)[gen_idx,:]
 end
 
 """
@@ -851,7 +752,7 @@ end
 Returns the row of the bus table corresponding to `bus_idx`
 """
 function get_bus(data, bus_idx)
-    return get_bus_table(data)[bus_idx,:]
+    return get_table(data, :bus)[bus_idx,:]
 end
 
 """
@@ -860,7 +761,7 @@ end
 Returns the row of the branch table corresponding to `branch_idx`
 """
 function get_branch(data, branch_idx)
-    return get_branch_table(data)[branch_idx,:]
+    return get_table(data, :branch)[branch_idx,:]
 end
 
 """
@@ -872,7 +773,6 @@ function get_bus_from_generator_idx(data, gen_idx)
     return get_bus(data, get_generator(data, gen_idx).bus_idx)
 end
 
-export get_gen_table, get_bus_table, get_branch_table, get_hours_table
 export get_generator, get_bus, get_branch
 export get_bus_from_generator_idx
 
@@ -940,12 +840,12 @@ function get_edem_demand(data, ::Colon, year_idx::Int64, hour_idxs)
 end
 
 function get_edem_demand(data, pairs, year_idx::Int64, hour_idxs)
-    demand_table = get_demand_table(data, pairs...)
+    demand_table = get_table(data, :demand_table, pairs...)
     return get_edem_demand(data, getfield(demand_table, :rows), year_idx, hour_idxs)
 end
 
 function get_edem_demand(data, pair::Pair, year_idx::Int64, hour_idxs)
-    demand_table = get_demand_table(data, pair)
+    demand_table = get_table(data, :demand_table, pair)
     return get_edem_demand(data, getfield(demand_table, :rows), year_idx, hour_idxs)
 end
 function get_edem_demand(data, demand_idxs, y::String, hr_idx)
@@ -961,12 +861,12 @@ Retrieves the `var` value for generator `gen_idx` in year `year_idx` at hour `ho
 Can be called without hour_idx for variables that aren't indexed by hour.
 """
 function get_gen_value(data, var, gen_idx, year_idx, hour_idx)
-    gen_table = get_gen_table(data)
+    gen_table = get_table(data, :gen)
     c = gen_table[gen_idx, var]
     return c[year_idx, hour_idx]::Float64
 end
 function get_gen_value(data, var::Symbol, gen_idx)
-    gen_table = get_gen_table(data)
+    gen_table = get_table(data, :gen)
     return gen_table[gen_idx,var]
 end
 export get_gen_value
@@ -978,7 +878,7 @@ export get_gen_value
 Retrieve the `var` value for bus `bus_idx` in year `year_idx` at hour `hour_idx`
 """
 function get_bus_value(data, name, bus_idx, year_idx, hour_idx)
-    bus_table = get_bus_table(data)
+    bus_table = get_table(data, :bus)
     c = bus_table[bus_idx, name]
     return c[year_idx, hour_idx]::Float64
 end
@@ -990,7 +890,7 @@ export get_bus_value
 Retrieve the `var` value for bus `bus_idx` in year `year_idx` at hour `hour_idx`
 """
 function get_branch_value(data, name, branch_idx, year_idx, hour_idx)
-    branch_table = get_branch_table(data)
+    branch_table = get_table(data, :branch)
     c = branch_table[branch_idx, name]
     return c[year_idx, hour_idx]::Float64
 end
@@ -1003,13 +903,13 @@ export get_branch_value
 
 Retrieves the `subarea` of the generator from the `area`
 """
-function get_gen_subarea(data, gen_idx::Int64, area::String)
-    gens = get_gen_table(data)
-    bus = get_bus_table(data)
+function get_gen_subarea(data, gen_idx::Int64, area::AbstractString)
+    gens = get_table(data, :gen)
+    bus = get_table(data, :bus)
     return bus[gens[gen_idx, :bus_idx], area]
 end
-function get_gen_subarea(data, gen::DataFrameRow, area::String)
-    bus = get_bus_table(data)
+function get_gen_subarea(data, gen::DataFrameRow, area::AbstractString)
+    bus = get_table(data, :bus)
     return bus[gen.bus_idx, area]
 end
 export get_gen_subarea
@@ -1021,7 +921,7 @@ export get_gen_subarea
 Returns the number of representative hours in a year
 """
 function get_num_hours(data)
-    return nrow(get_hours_table(data))
+    return nrow(get_table(data, :hours))
 end
 
 """
@@ -1032,7 +932,7 @@ end
 Returns the number of hours in a year spent at each representative hour
 """ 
 function get_hour_weights(data)
-    hours_table = get_hours_table(data)
+    hours_table = get_table(data, :hours)
     return hours_table.hours
 end
 function get_hour_weights(data, hour_idxs)
@@ -1104,180 +1004,6 @@ function get_year_on_sim_idx(data, gen_idx)
 end
 export get_year_on_sim_idx
 
-
-"""
-    filter_view(table::DataFrame, pairs...) -> v::SubDataFrame
-
-    filter_view(table::DataFrame, pairs...) -> v::SubDataFrame
-
-Return a `SubDataFrame` containing each row of `table` such that for each `(field,value)` pair in `pairs`, `row[field]==value`.
-"""
-function filter_view(table::DataFrame, pairs::Pair...)
-    v = view(table,:,:)
-    for (field, value) in pairs
-        field isa AbstractString && isempty(field) && continue
-        isempty(value) && continue
-        v = filter(field=>==(value), v, view=true)
-        isempty(v) && break
-    end
-    return v::SubDataFrame
-end
-function filter_view(table::DataFrame, pairs)
-    v = view(table,:,:)
-    for (field, value) in pairs
-        field isa AbstractString && isempty(field) && continue
-        isempty(value) && continue
-        v = filter(field=>==(value), v, view=true)
-        isempty(v) && break
-    end
-    return v::SubDataFrame
-end
-
-# Containers
-################################################################################
-
-"""
-    abstract type Container
-
-Abstract type for containers that can be indexed by year and time.
-"""
-abstract type Container end
-
-mutable struct ByNothing <: Container 
-    v::Float64
-end
-struct ByYear <: Container
-    v::Vector{Float64}
-end
-struct ByHour <: Container
-    v::Vector{Float64}
-end
-struct ByYearAndHour <: Container
-    v::Vector{Vector{Float64}}
-end
-
-"""
-    Base.getindex(c::Container, year_idx, hour_idx) -> val::Float64
-
-Retrieve the value from `c` at `year_idx` and `hour_idx`
-"""
-function Base.getindex(c::ByNothing, year_idx, hour_idx)
-    c.v::Float64
-end
-function Base.getindex(c::ByYear, year_idx, hour_idx)
-    c.v[year_idx]::Float64
-end
-function Base.getindex(c::ByHour, year_idx, hour_idx)
-    c.v[hour_idx]::Float64
-end
-function Base.getindex(c::ByYearAndHour, year_idx, hour_idx)
-    c.v[year_idx][hour_idx]::Float64
-end
-function Base.getindex(c::ByYearAndHour, year_idx, hour_idx::Colon)
-    c_arr = c.v[year_idx]
-    return c_arr
-end
-function Base.getindex(n::Number, year_idx::Int64, hour_idx::Int64)
-    return n
-end
-function Base.getindex(n::Number, year_idx::Int64, hour_idx::Colon)
-    return n
-end
-
-
-
-"""
-    set_hourly(c::Container, v::Vector{Float64}, yr_idx; default, nyr)
-
-Sets the hourly values for `c` (creating a new Container of a different type as needed) for `yr_idx` to be `v`.
-
-If `yr_idx::Colon`, sets the hourly values for all years to be `v`.
-
-# keyword arguments
-* `default` - the default hourly values for years not specified, if they aren't already set.
-* `nyr` - the total number of years.
-"""
-function set_hourly(c::ByNothing, v, yr_idx::Colon; kwargs...)
-    return ByHour(v)
-end
-function set_hourly(c::ByNothing, v, yr_idx; default=nothing, nyr=nothing)
-    @assert nyr !== nothing error("Attempting to set hourly values for year index $yr_idx, but no nyr provided!")
-    if all(in(yr_idx), 1:nyr)
-        return set_hourly(c, v, (:); default, kwargs...)
-    end
-    @assert default !== nothing error("Attempting to set hourly values for year index $yr_idx, but no default provided!")
-    vv = fill(default, nyr)
-    foreach(i->(vv[i] = v), yr_idx)
-    return ByYearAndHour(vv)
-end
-
-function set_hourly(c::ByYear, v, yr_idx::Colon; kwargs...)
-    return ByHour(v)
-end
-function set_hourly(c::ByYear, v, yr_idx; kwargs...)
-    # Check to see if all the years are represented by yr_idx
-    if all(in(yr_idx), 1:length(c.v))
-        return set_hourly(c, v, (:); default, kwargs...)
-    end
-
-    # Set the default hourly values to be the original values
-    vv = map(c.v) do yr_val
-        fill(yr_val, nyr)
-    end
-    foreach(i->(vv[i] = v), yr_idx)
-    return ByYearAndHour(vv)
-end
-
-function set_hourly(c::ByHour, v, yr_idx::Colon; kwargs...)
-    return ByHour(v)
-end
-function set_hourly(c::ByHour, v, yr_idx; nyr=nothing, kwargs...)
-    @assert nyr !== nothing error("Attempting to set hourly values for year index $yr_idx, but no nyr provided!")
-    if all(in(yr_idx), 1:nyr)
-        return set_hourly(c, v, (:); default, kwargs...)
-    end
-    vv = fill(v, nyr)
-    foreach(i->(vv[i] = v), yr_idx)
-    return ByYearAndHour(vv)
-end
-
-function set_hourly(c::ByYearAndHour, v, yr_idx::Colon; kwargs...)
-    return ByHour(v)
-end
-function set_hourly(c::ByYearAndHour, v, yr_idx; kwargs...)
-    if all(in(yr_idx), 1:length(c.v))
-        return set_hourly(c, v, (:); default, kwargs...)
-    end
-    foreach(i->(c.v[i] = v), yr_idx)
-    return c
-end
-
-"""
-    DemandContainer()
-
-Contains a vector of views of the demand_array, so that it is possible to access by 
-"""
-struct DemandContainer <: Container
-    v::Vector{SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}}
-end
-
-_add_view!(c::DemandContainer, v) = push!(c.v, v)
-
-DemandContainer() = DemandContainer(SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}[])
-function Base.getindex(c::DemandContainer, year_idx, hour_idx)
-    isempty(c.v) && return 0.0
-    return sum(vv->vv[year_idx, hour_idx], c.v)::Float64
-end
-
-function Base.show(io::IO, c::DemandContainer)
-    isempty(c.v) && return print(io, "empty DemandContainer")
-    l,m = size(c.v[1])
-    n = length(c.v)
-    print(io, "$n-element DemandContainer of $(l)×$m Matrix")
-end
-
-
-
 ## Moved from dcopf, will organize later
 
 ### System mapping helper functions
@@ -1288,7 +1014,7 @@ end
 Returns an array of the gen_idx of all the gens at the bus.
 """
 function get_bus_gens(data, bus_idx) 
-    gen = get_gen_table(data)
+    gen = get_table(data, :gen)
     return findall(x -> x == bus_idx, gen.bus_idx)
 end
 export get_bus_gens
@@ -1299,7 +1025,7 @@ export get_bus_gens
 Returns reference bus ids
 """
 function get_ref_bus_idxs(data) 
-    bus = get_bus_table(data)
+    bus = get_table(data, :bus)
     return findall(bus.ref_bus)
 end
 export get_ref_bus_idxs

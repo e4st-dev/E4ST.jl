@@ -2,16 +2,15 @@ Bus Table
 =========
 
 ```@docs
-load_bus_table!
-setup_bus_table!
-summarize_bus_table
+setup_table!(config, data, ::Val{:bus})
+summarize_table(::Val{:bus})
 ```
 
 #### Column Summary
 
 ```@example
 using E4ST # hide
-summarize_bus_table() # hide
+summarize_table(:bus) # hide
 ```
 
 #### Additional Columns:

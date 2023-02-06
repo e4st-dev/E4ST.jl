@@ -10,11 +10,11 @@ Set up a DC OPF problem
 function setup_dcopf!(config, data, model)
     
     # define tables 
-    bus = get_bus_table(data)
+    bus = get_table(data, :bus)
     years = get_years(data)
-    rep_hours = get_hours_table(data) # weight of representative time chunks (hours) 
-    gen = get_gen_table(data)
-    branch = get_branch_table(data)
+    rep_hours = get_table(data, :hours) # weight of representative time chunks (hours) 
+    gen = get_table(data, :gen)
+    branch = get_table(data, :branch)
     nbus = nrow(bus)
     nyear = get_num_years(data)
     nhour = get_num_hours(data)
@@ -164,7 +164,7 @@ Returns net power flow out of the bus
 * To use this to retieve the variable values after the model has been optimized, wrap the function with value() like this: value.(get_pflow_bus).
 """ 
 function get_pflow_bus(data, model, bus_idx, year_idx, hour_idx) 
-    branch_idxs = get_bus_table(data)[bus_idx, :connected_branch_idxs] #vector of the connecting branches with positive values for branches going out (branch f_bus = bus_idx) and negative values for branches coming in (branch t_bus = bus_idx)
+    branch_idxs = get_table(data, :bus)[bus_idx, :connected_branch_idxs] #vector of the connecting branches with positive values for branches going out (branch f_bus = bus_idx) and negative values for branches coming in (branch t_bus = bus_idx)
     isempty(branch_idxs) && return 0.0
     return sum(get_pflow_branch(data, model, branch_idx, year_idx, hour_idx) for branch_idx in branch_idxs)
 end
@@ -246,13 +246,13 @@ Returns the total energy generation from a gen for the given year and hour.  Thi
 * To use this to retieve the variable values after the model has been optimized, wrap the function with `value()` like this: `value.(get_egen_gen(args...))`.
 """
 function get_egen_gen(data, model, gen_idx)
-    rep_hours = get_hours_table(data)
+    rep_hours = get_table(data, :hours)
     years = get_years(data)
     return sum(rep_hours.hours[hour_idx] .* model[:pgen_gen][gen_idx, year_idx, hour_idx] for hour_idx in 1:nrow(rep_hours), year_idx in 1:length(years))
 end
 
 function get_egen_gen(data, model, gen_idx, year_idx)
-    rep_hours = get_hours_table(data)
+    rep_hours = get_table(data, :hours)
     return sum(rep_hours.hours[hour_idx] .* model[:pgen_gen][gen_idx, year_idx, hour_idx] for hour_idx in 1:nrow(rep_hours))
 end
 
@@ -292,7 +292,7 @@ function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper)
     Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
     
     #write expression for the term
-    gen = get_gen_table(data)
+    gen = get_table(data, :gen)
     years = get_years(data)
 
     model[s] = @expression(model, [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
@@ -308,7 +308,7 @@ function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper)
     Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
     
     #write expression for the term
-    gen = get_gen_table(data)
+    gen = get_table(data, :gen)
     years = get_years(data)
 
     model[s] = @expression(model, [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
@@ -325,8 +325,8 @@ function add_obj_term!(data, model, ::PerMWhCurtailed, s::Symbol; oper)
     Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
     
     #write expression for the term
-    bus = get_bus_table(data)
-    rep_hours = get_hours_table(data)
+    bus = get_table(data, :bus)
+    rep_hours = get_table(data, :hours)
     years = get_years(data)
 
     # Use this expression for single VOLL

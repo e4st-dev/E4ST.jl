@@ -5,21 +5,10 @@ If you'd like to add in another standard data file to be loaded into E4ST (ex: d
 
 In the `data.jl` file:
 
-1. Create a `load_newdata_table!(config, data)` function that mirrors other load functions. 
+1. Add the `load_table!(config, data, :new_table_file=>:new_table)` to `load_data_files!` (in the documentation and called in the function). 
 
-2. Add the `load_newdata_table!` function to `load_data_files!` (in the documentation and called in the function). 
+2. Create a `summarize_table(::Val{:new_table})` method that mirrors the other summarize functions. This should list the columns, their type, their unit, whether they are required, and a decription of the column. This is called in `load_table!`
 
-3. Create a `summarize_newdata_table()` function that mirros the other summarize functions. This should list the columns, their type, their unit, whether they are required, and a decription of the column. This is called in `load_newdata_table!`
+3. Create a `setup_table!(config, data, ::Val{:new_table})` function. This is where you can make any changes to your data to get it into the structure needed for the DCOPF. This could include added calculated columns, putting things into containers, etc. This is not for Modifications, only standard processes that will need to happen whenever you load in that data from the csv. This can be an empty function if no setup is required. 
 
-4. Create a `setup_newdata_table!(config, data)` function. This is where you can make any changes to your data to get it into the structure needed for the DCOPF. This could include added calculated columns, putting things into containers, etc. This is not for Modifications, only standard processes that will need to happen whenever you load in that data from the csv. This can be an empty function if no setup is required. 
-
-5. Add the `setup_newdata_table!` function to `setup_data! ` (in the documentation and called in the function).
-
-6. Add the file path path to config file and to `make_paths_absolute()` function in `config.jl`
-
-
-Some nonessential things to do for convenience: 
-
-1. Create a `get_newdata_table(data)` accessor function to easily get that table. 
-
-2. Create accessor functions for commonly used data from that table with the appropriate indices.
+4. Add the `setup_table!(config, data, :new_table)` function to `setup_data! ` (in the documentation and called in the function).  This may be order-specific, so be careful with that.
