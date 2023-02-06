@@ -5,11 +5,11 @@ config = load_config(config_file)
 
 @testset "Test Loading the Data" begin    
     data = load_data(config)
-    @test get_gen_table(data) isa DataFrame
-    @test get_build_gen_table(data) isa DataFrame
-    @test get_bus_table(data) isa DataFrame
-    @test get_branch_table(data) isa DataFrame
-    @test get_hours_table(data) isa DataFrame
+    @test get_table(data, :gen) isa DataFrame
+    @test get_table(data, :build_gen) isa DataFrame
+    @test get_table(data, :bus) isa DataFrame
+    @test get_table(data, :branch) isa DataFrame
+    @test get_table(data, :hours) isa DataFrame
     @test get_num_hours(data) isa Int
     @test get_hour_weights(data) isa Vector
     @test get_num_years(data) isa Int

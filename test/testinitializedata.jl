@@ -99,8 +99,8 @@ end
 @testset "Test Adding New Gens" begin
     config = load_config(config_file)
     data = load_data(config)
-    gen = get_gen_table(data)
-    build_gen = get_build_gen_table(data)
+    gen = get_table(data, :gen)
+    build_gen = get_table(data, :build_gen)
 
     @test "endog" in gen.build_type
     @test "unbuilt" in gen.build_status

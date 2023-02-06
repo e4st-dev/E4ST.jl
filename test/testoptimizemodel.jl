@@ -13,9 +13,9 @@
     @test check(model)
 
     @testset "Test no curtailment" begin
-        bus = get_bus_table(data)
+        bus = get_table(data, :bus)
         years = get_years(data)
-        rep_hours = get_hours_table(data)
+        rep_hours = get_table(data, :hours)
         total_pserv = sum(rep_hours.hours[hour_idx].*value.(model[:pserv_bus][bus_idx, year_idx, hour_idx]) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
         total_dl = sum(rep_hours.hours[hour_idx].*get_bus_value(data, :pdem, bus_idx, year_idx, hour_idx) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
         @test total_pserv ≈ total_dl
@@ -23,7 +23,7 @@
     end
 
     # make sure energy generated is non_zero
-    gen = get_gen_table(data)
+    gen = get_table(data, :gen)
 
     for gen_idx in 1:nrow(gen)
         @test value.(get_egen_gen(data, model, gen_idx)) >= 0

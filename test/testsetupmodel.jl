@@ -33,7 +33,7 @@ end
         end
     end
     function E4ST.modify_model!(pol::GenerationCap, config, data, model)
-        gen = get_gen_table(data)
+        gen = get_table(data, :gen)
         gen_idxs = 1:nrow(gen)
 
         years = get_years(data)
