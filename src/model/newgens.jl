@@ -22,7 +22,7 @@ Create empty newgen table with a structure that mirrors the existing gen table.
 """
 function make_newgen_table(config, data)
     #create table with same columns as gen
-    gen = get_gen_table(data)
+    gen = get_table(data, :gen)
     newgen = similar(gen, 0) 
 
     # add potential generation capacity and exogenously built generators 
@@ -39,8 +39,8 @@ Endogenous unbuilt gens are created for each year in years.
 Exogenously specified generators are also added to newgen through the build_gen sheet.
 """
 function make_newgens!(config, data, newgen)
-    build_gen = get_build_gen_table(data)
-    bus = get_bus_table(data)
+    build_gen = get_table(data, :build_gen)
+    bus = get_table(data, :bus)
     spec_names = filter!(!=(:bus_idx), propertynames(newgen)) #this needs to be updated if there is anything else in gen that isn't a spec
     years = get_years(data)
 
@@ -81,7 +81,7 @@ end
 Appends the newgen table to the gen table. 
 """
 function append_newgen_table!(data, newgen)
-    append!(get_gen_table(data), newgen)
+    append!(get_table(data, :gen), newgen)
 end
 
 
@@ -93,7 +93,7 @@ end
 Returns the corresponding genfuel for the given gentype. 
 """
 function get_genfuel(data, gentype::String)
-    genfuel_table = get_genfuel_table(data) #TODO: update data to load in genfuel table
+    genfuel_table = get_table(data, :genfuel_table)
     genfuel = genfuel_table.genfuel[findall(x -> x == gentype, genfuel_table[!, :gentype])]
     genfuel == String[] && error("There is no corresponding genfuel for this gentype")
     return genfuel

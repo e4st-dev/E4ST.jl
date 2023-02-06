@@ -38,6 +38,8 @@ original_logger = global_logger(NullLogger())
         @testset "Test Iteration" begin
             @test_skip "No Tests Written"
         end
+
+        include("testutil.jl")
     end
     @testset "System Tests" begin
         include("test3bus.jl")

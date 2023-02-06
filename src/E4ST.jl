@@ -32,8 +32,11 @@ export setup_new_gens!
 
 include("types/Modification.jl")
 include("types/Policy.jl")
+include("types/Unit.jl")
+include("types/Containers.jl")
 include("io/config.jl")
 include("io/data.jl")
+include("io/adjust.jl")
 include("io/util.jl")
 include("io/demand.jl")
 include("io/results.jl")
@@ -50,7 +53,21 @@ include("model/newgens.jl")
 
     run_e4st(filename) -> run_e4st(load_config(filename))
 
-Top-level file for running E4ST
+Top-level function for running E4ST.  Here is a general overview of what happens:
+1. Book-keeping
+    * [`load_config(config_file)`](@ref) - loads in the `config` from file, if not passed in directly.  
+    * [`save_config(config)`](@ref) - the config is saved to `config[:out_path]`
+    * [`start_logging!(config)`](@ref) - Logging is started
+    * [`log_info`](@ref) - some information is logged.
+2. Load Input Data
+    * [`load_data(config)`](@ref) - The data is loaded in from files specified in the `config`.
+3. Construct JuMP Model and optimize
+    * [`setup_model(config, data)`](@ref) - The `model` (a JuMP Model) is set up.
+    * [`JuMP.optimize!(model)`](https://jump.dev/JuMP.jl/stable/reference/solutions/#JuMP.optimize!) - The `model` is optimized.
+4. Process Results
+    * TODO: Add more here for the results processing stuff once we get to it
+5. Iterate, running more simulations as needed.
+    * See [`Iterable`](@ref) and [`load_config`](@ref) for more information.
 """
 function run_e4st(config)
     save_config(config)
@@ -128,20 +145,32 @@ Loads all types associated with E4ST so that the type will accessible by string 
 function reload_types!()
     reload_types!(Modification)
     reload_types!(Iterable)
+    reload_types!(Unit)
+    reload_types!(AbstractString)
+    reload_types!(AbstractFloat)
+    reload_types!(Integer)
 end
 function reload_types!(::Type{T}) where T
     global STR2TYPE
     global SYM2TYPE
+    symtype = Base.typename(T).name
+    SYM2TYPE[symtype] = T
+    strtype = string(symtype)
+    STR2TYPE[strtype] = T
     for type in subtypes(T)
-        symtype = Symbol(type)
+        symtype = Base.typename(type).name
         SYM2TYPE[symtype] = type
-        strtype = string(type)
+        strtype = string(symtype)
         STR2TYPE[strtype] = type
         if isabstracttype(type)
             reload_types!(type)
         end
     end
 end
+
+Core.Type(s::AbstractString) = get_type(String(s))
+Core.Type(s::Symbol) = get_type(s)
+Core.AbstractString(s) = String(s)
 
 """
     get_type(sym::Symbol) -> type (preferred)
@@ -171,7 +200,7 @@ function get_type(sym::Symbol)
     end
 end
 
-function get_type(str::String)
+function get_type(str::AbstractString)
     global STR2TYPE
     return get(STR2TYPE, str) do 
         reload_types!()

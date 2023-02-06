@@ -16,21 +16,22 @@ The Config File is a file that fully specifies all the necessary information.  N
 
 ## Required Fields:
 * `out_path` - The path (relative or absolute) to the desired output folder.  This folder doesn't necessarily need to exist.  The code should make it for you if it doesn't exist yet.  If there are already results living in the output path, E4ST will back them up to a folder called `backup_yymmddhhmmss`
-* `gen_file` - The filepath (relative or absolute) to the generator table.  See [`load_gen_table!`](@ref).
-* `bus_file` - The filepath (relative or absolute) to the bus table.  See [`load_bus_table!`](@ref)
-* `branch_file` - The filepath (relative or absolute) to the branch table.  See [`load_branch_table!`](@ref)
+* `gen_file` - The filepath (relative or absolute) to the generator table.  See [`summarize_table(::Val{:gen})`](@ref).
+* `bus_file` - The filepath (relative or absolute) to the bus table.  See [`summarize_table(::Val{:bus})`](@ref)
+* `branch_file` - The filepath (relative or absolute) to the branch table.  See [`summarize_table(::Val{:branch})`](@ref)
 * `hours_file` - The filepath (relative or absolute) to the hours table for the model's time representation.  See [`load_hours_table!`](@ref)
-* `demand_file` - The filepath (relative or absolute) to the time representation.  See [`load_demand_table!`](@ref)
+* `demand_file` - The filepath (relative or absolute) to the time representation.  See [`summarize_table(::Val{:demand_table})`](@ref)
 * `years` - a list of years to run in the simulation specified as a string.  I.e. `"y2030"`
 * `optimizer` - The optimizer type and attributes to use in solving the linear program.  The `type` field should be always be given, (i.e. `type: HiGHS`) as well as each of the solver options you wish to set.  E4ST is a BYOS (Bring Your Own Solver :smile:) library, with default attributes for HiGHS and Gurobi.  For all other solvers, you're on your own to provide a reasonable set of attributes.  To see a full list of solvers with work with JuMP.jl, see [here](https://jump.dev/JuMP.jl/stable/installation/#Supported-solvers).
 * `mods` - A list of `Modification`s specifying changes for how E4ST runs.  See the [`Modification`](@ref) for information on what they are, how to add them to a config file.
 
 ## Optional Fields:
-* `af_file` - The filepath (relative or absolute) to the availability factor table.  See [`load_af_table!`](@ref)
+* `af_file` - The filepath (relative or absolute) to the availability factor table.  See [`summarize_table(::Val{:af_tabls})`](@ref)
 * `iter` - The [`Iterable`](@ref) object to specify the way the sim should iterate.  If nothing specified, defaults to run a single time.  Specify the `Iterable` type, and all keyword arguments.
-* `demand_shape_file` - a file for specifying the hourly shape of demand elements.  See [`load_demand_shape_table!`](@ref)
-* `demand_match_file` - a file for specifying annual demanded energy to match for sets  See [`load_demand_match_table!`](@ref)
-* `demand_add_file` - a file for specifying additional demanded energy, after matching.  See [`load_demand_add_table!`](@ref)
+* `demand_shape_file` - a file for specifying the hourly shape of demand elements.  See [`summarize_table(::Val{:demand_shape})`](@ref)
+* `demand_match_file` - a file for specifying annual demanded energy to match for sets  See [`summarize_table(::Val{:demand_match})`](@ref)
+* `demand_add_file` - a file for specifying additional demanded energy, after matching.  See [`summarize_table(::Val{:demand_add})`](@ref)
+* `summary_table_file` - a file for giving information about additional columns not specified in [`summarize_table`](@ref)
 * `save_data` - A boolean specifying whether or not to save the loaded data to file for later use (i.e. by specifying a `data_file` for future simulations).  Defaults to `true`
 * `data_file` - The filepath (relative or absolute) to the data file (a serialized julia object).  If this is provided, it will use this instead of loading data from all the other files.
 * `save_model_presolve` - A boolean specifying whether or not to save the model before solving it, for later use (i.e. by specifying a `model_presolve_file` for future sims). Defaults to `true`
@@ -272,7 +273,8 @@ function make_paths_absolute!(config, filename;
         :data_file,
         :model_presolve_file,
         :build_gen_file,
-        :gentype_genfuel_file
+        :gentype_genfuel_file,
+        :summary_table_file
     )
 )
     path = dirname(filename)

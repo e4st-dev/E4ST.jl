@@ -21,17 +21,17 @@ function test_dcopf(config)
 
     @test check(model)
 
-    # No curtailment 
-    bus = get_bus_table(data)
+    # No curtailment (just for this test)
+    bus = get_table(data, :bus)
     years = get_years(data)
-    rep_hours = get_hours_table(data)
+    rep_hours = get_table(data, :hours)
     total_pserv = sum(rep_hours.hours[hour_idx].*value.(model[:pserv_bus][bus_idx, year_idx, hour_idx]) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
     total_dl = sum(rep_hours.hours[hour_idx].*get_bus_value(data, :pdem, bus_idx, year_idx, hour_idx) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
     @test total_pserv ≈ total_dl
     @test all(p->abs(p)<1e-6, value.(model[:pcurt_bus]))
 
     # make sure energy generated is non_zero
-    gen = get_gen_table(data)
+    gen = get_table(data, :gen)
 
     for gen_idx in 1:nrow(gen)
         @test value.(get_egen_gen(data, model, gen_idx)) >= 0
@@ -63,11 +63,16 @@ config = load_config(config_file)
 
 @testset "Test Loading the Data" begin    
     data = load_data(config)
-    @test get_gen_table(data) isa DataFrame
-    @test get_build_gen_table(data) isa DataFrame
-    @test get_bus_table(data) isa DataFrame
-    @test get_branch_table(data) isa DataFrame
-    @test get_hours_table(data) isa DataFrame
+    table_names = get_table_names(data)
+    @test :gen in table_names
+    @test :bus in table_names
+    @test :branch in table_names
+    @test :hours in table_names
+    @test get_table(data, :gen) isa DataFrame
+    @test get_table(data, :bus) isa DataFrame
+    @test get_table(data, :branch) isa DataFrame
+    @test get_table(data, :hours) isa DataFrame
+    @test get_table(data, :build_gen) isa DataFrame
     @test get_num_hours(data) isa Int
     @test get_hour_weights(data) isa Vector
     @test get_num_years(data) isa Int
@@ -106,7 +111,7 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
 
     end
 
-    @testset "Test load_af_table!" begin
+    @testset "Test loading af table" begin
         config = load_config(config_file)
         data = load_data(config)
 
@@ -132,7 +137,7 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         @test get_af(data, 2, 3, 4) == 0.5
     end
 
-    @testset "Test load_demand_table!" begin
+    @testset "Test loading demand table" begin
         config = load_config(config_file)
         data = load_data(config)
 
@@ -144,7 +149,7 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         @test all(get_pdem(data, 3, yr_idx, hr_idx) ≈ 0.2 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
     end
 
-    @testset "Test load_demand_table! with shaping" begin
+    @testset "Test loading demand table with shaping" begin
         config = load_config(config_file)
         config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
         data = load_data(config)
@@ -168,7 +173,7 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
         end
     end
 
-    @testset "Test load_demand_table! with shaping and matching" begin
+    @testset "Test loading demand table with shaping and matching" begin
         config = load_config(config_file)
         config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
         config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
@@ -205,8 +210,8 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
     @testset "Test Adding New Gens" begin
         config = load_config(config_file)
         data = load_data(config)
-        gen = get_gen_table(data)
-        build_gen = get_build_gen_table(data)
+        gen = get_table(data, :gen)
+        build_gen = get_table(data, :build_gen)
 
         @test "endog" in gen.build_type
         @test "unbuilt" in gen.build_status
@@ -247,7 +252,7 @@ end
         end
     end
     function E4ST.modify_model!(pol::GenerationCap, config, data, model)
-        gen = get_gen_table(data)
+        gen = get_table(data, :gen)
         gen_idxs = 1:nrow(gen)
 
         years = get_years(data)
@@ -312,7 +317,7 @@ end
             ng_gen_ann = ng_gen_total/get_num_years(data)
             
             diff = ng_gen_ann - tgt
-            gen = get_gen_table(data, :genfuel=>"ng")
+            gen = get_table(data, :gen, :genfuel=>"ng")
             ng_price_avg = sum(gen.fuel_cost)/length(gen.fuel_cost)
             if any(≈(ng_gen_ann), iter.avg_ng_egen)
                 idx = findfirst(≈(ng_gen_ann), iter.avg_ng_egen)
@@ -444,3 +449,5 @@ end
     end
 
 end
+
+include("testadjust.jl")
