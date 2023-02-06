@@ -104,7 +104,7 @@ end
 
 
 function get_gen_array_idxs(data, idxs)
-    return table_rows(get_gen_table(data), idxs)
+    return get_row_idxs(get_table(data, :gen), idxs)
 end
 
 export get_gen_array_idxs

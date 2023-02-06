@@ -81,14 +81,14 @@ function get_hour_idxs(data, hour_idxs::Int64)
     hour_idxs
 end
 function get_hour_idxs(data, pairs)
-    return table_rows(get_hours_table(data), pairs)
+    return get_row_idxs(get_table(data, :hours), pairs)
 end
 export get_hour_idxs
 
 """
-    table_rows(table, idxs) -> row_idxs
+    get_row_idxs(table, conditions) -> row_idxs
 
-Returns row indices of the passed-in table that correspond to idxs, where `idxs` can be:
+Returns row indices of the passed-in table that correspond to `conditions`, where `conditions` can be:
 * `::Colon` - all rows
 * `::Int64` - a single row
 * `::AbstractVector{Int64}` - a list of rows
@@ -103,19 +103,19 @@ Some possible pairs to filter by:
 
 See also [`filter_view`](@ref)
 """
-function table_rows(table, idxs::Colon)
+function get_row_idxs(table, idxs::Colon)
     return 1:nrow(table)
 end
 
-function table_rows(table, idxs::AbstractVector{Int64})
+function get_row_idxs(table, idxs::AbstractVector{Int64})
     return idxs
 end
 
-function table_rows(table, idxs::Int64)
+function get_row_idxs(table, idxs::Int64)
     return idxs
 end
 
-function table_rows(table, pairs)
+function get_row_idxs(table, pairs)
     row_idxs = Int64[i for i in 1:nrow(table)]
     for pair in pairs
         key, val = pair
@@ -126,7 +126,18 @@ function table_rows(table, pairs)
 
     return row_idxs
 end
-function table_rows(table, pair::Pair)
+function get_row_idxs(table, pairs::Pair...)
+    row_idxs = Int64[i for i in 1:nrow(table)]
+    for pair in pairs
+        key, val = pair
+        v = table[!,key]
+        comp = comparison(val, v)
+        filter!(row_idx->comp(v[row_idx]), row_idxs)
+    end
+
+    return row_idxs
+end
+function get_row_idxs(table, pair::Pair)
     row_idxs = Int64[i for i in 1:nrow(table)]
     key, val = pair
     v = table[!, key]
@@ -134,6 +145,7 @@ function table_rows(table, pair::Pair)
     filter!(row_idx->comp(v[row_idx]), row_idxs)
     return row_idxs
 end
+
 
 
 """
@@ -155,16 +167,16 @@ function comparison(value::Function, ::Type)
     return value
 end
 
-function comparison(value::String, ::Type{<:Integer})
+function comparison(value::AbstractString, ::Type{<:Integer})
     num = parse(Int, value)
     return ==(num)
 end
 
-function comparison(value::String, ::Type{<:AbstractString})
+function comparison(value::AbstractString, ::Type{<:AbstractString})
     return ==(value)
 end
 
-function comparison(value::String, ::Type)
+function comparison(value::AbstractString, ::Type)
     return x->string(x) == value
 end
 
@@ -173,6 +185,227 @@ function comparison(value::Tuple{<:Real, <:Real}, ::Type{<:Real})
     return x -> lo <= x <= hi
 end
 
+function comparison(value::Vector, ::Type)
+    return in(value)
+end
+
+function comparison(value::Tuple{<:AbstractString, <:AbstractString}, ::Type{<:AbstractString})
+    lo, hi = value
+    return x -> lo <= x <= hi
+end
+
 function comparison(value, ::Type)
     return ==(value)
 end
+
+"""
+    parse_comparison(table, s) -> comp
+
+Parses the string, `s` for a comparison with which to filter `table`.
+
+Possible examples of strings `s` to parse:
+* `"country=>narnia"` - All rows for which row.country=="narnia"
+* `"bus_idx=>5"` - All rows for which row.bus_idx==5
+* `"year_on=>(y2002,y2030)"` - All rows for which `row.year_on` is between 2002 and 2030, inclusive.
+* `"emis_co2=>(0.0,4.99)"` - All rows for which `row.emis_co2` is between 0.0 and 4.99, inclusive. (Works for integers and negatives too)
+* `"emis_co2=> >(0)"` - All rows for which `row.emis_co2` is greater than 0 (Works for integers and negatives too)
+* `"year_on=> >(y2002)` - All rows for which `row.year_on` is greater than "y2002" (works for fractional years too, such as "y2002.4")
+* `"genfuel=>[ng, wind, solar]"` - All rows for which `row.genfuel` is "ng", "wind", or "solar".  Works for Ints and Floats too.
+"""
+function parse_comparison(_s::AbstractString)
+    s = replace(_s, ' '=>"")
+    # In the form "country=>narnia" or "bus_idx=>5"
+    if (m = match(r"(\w+)=>(\w+)", s)) !== nothing
+        return m.captures[1]=>m.captures[2]
+    end
+
+    # In the form "emis_rate=>(0.0001,4.9999)" (should work for Ints, negatives, and Inf too)
+    if (m=match(r"(\w+)=>\((-?(?:Inf)?[\d.]*),-?(?:Inf)?([\d.]*)\)", s)) !== nothing
+        r1 = parse(Float64, m.captures[2])
+        r2 = parse(Float64, m.captures[3])
+        return m.captures[1]=>(r1, r2)
+    end
+
+    # In the form "year_on=>(y2020, y2030)"
+    if (m=match(r"(\w+)=>\((y[\d]{4}),(y[\d]{4})\)", s)) !== nothing
+        return m.captures[1]=>(m.captures[2], m.captures[3])
+    end
+
+    # In the form "emis_rate=>>(0)" (should work for Ints, negatives)
+    if (m=match(r"(\w+)=>>\(?(-?[\d.]+)\)?", s)) !== nothing
+        r1 = parse(Float64, m.captures[2])
+        return m.captures[1]=>>(r1)
+    end
+
+    # In the form "emis_rate=>>(0)" (should work for Ints, negatives, and Inf too)
+    if (m=match(r"(\w+)=>([><]{1}=?)\(?(-?[\d.]+)\)?", s)) !== nothing
+        r1 = parse(Float64, m.captures[3])
+        m.captures[2]==">" && (comp = >(r1))
+        m.captures[2]=="<" && (comp = <(r1))
+        m.captures[2]==">=" && (comp = >=(r1))
+        m.captures[2]=="<=" && (comp = <=(r1))
+        return m.captures[1]=>comp
+    end
+
+    # In the form "emis_rate=>>(0)" (should work for Ints, negatives, and Inf too)
+    if (m=match(r"(\w+)=>([><]{1}=?)\(?(-?[\d.]+)\)?", s)) !== nothing
+        r1 = parse(Float64, m.captures[3])
+        m.captures[2]==">" && (comp = >(r1))
+        m.captures[2]=="<" && (comp = <(r1))
+        m.captures[2]==">=" && (comp = >=(r1))
+        m.captures[2]=="<=" && (comp = <=(r1))
+        return m.captures[1]=>comp
+    end
+
+    # In the form "year_on=> >(y2020)" (should work decimals)
+    if (m=match(r"(\w+)=>([><]{1}=?)\(?(y[\d.]+)\)?", s)) !== nothing
+        r1 = String(m.captures[3])
+        m.captures[2]==">" && (comp = >(r1))
+        m.captures[2]=="<" && (comp = <(r1))
+        m.captures[2]==">=" && (comp = >=(r1))
+        m.captures[2]=="<=" && (comp = <=(r1))
+        return m.captures[1]=>comp
+    end
+
+    # In the form "genfuel=>[ng,solar,wind]"
+    if (m=match(r"(\w+)=>\[([\w,.]*)\]", s)) !== nothing
+        ar = str2array(m.captures[2])
+        return m.captures[1]=>ar
+    end
+
+
+end
+export parse_comparison
+
+function parse_comparisons(row::DataFrameRow)
+    pairs = []
+    for i in 1:10000
+        name = "filter$i"
+        hasproperty(row, name) || break
+        s = row[name]
+        isempty(s) && break
+        pair = parse_comparison(s)
+        push!(pairs, pair)
+    end
+    
+    # Check for area/subarea
+    if hasproperty(row, :area) && ~isempty(row.area) && hasproperty(row, :subarea) && ~isempty(row.subarea)
+        push!(pairs, row.area=>row.subarea)
+    end
+
+    # Check for genfuel and gentype
+    hasproperty(row, :genfuel) && ~isempty(row.genfuel) && push!(pairs, :genfuel=>row.genfuel)
+    hasproperty(row, :gentype) && ~isempty(row.gentype) && push!(pairs, :gentype=>row.gentype)
+    hasproperty(row, :load_type) && ~isempty(row.load_type) && push!(pairs, :load_type=>row.load_type)
+    
+    return pairs
+end
+
+function str2array(s::AbstractString)
+    v = split(s,',')
+    v_int = tryparse.(Int64, v)
+    v_int isa Vector{Int64} && return v_int
+    v_float = tryparse.(Float64, v)
+    v_float isa Vector{Float64} && return v_float
+    return String.(v)
+end
+
+"""
+    scale_hourly!(demand_arr, shape, row_idx, yr_idx)
+    
+Scales the hourly demand in `demand_arr` by `shape` for `row_idx` and `yr_idx`.
+"""
+function scale_hourly!(demand_arr, shape, row_idxs, yr_idxs)
+    for yr_idx in yr_idxs, row_idx in row_idxs
+        scale_hourly!(demand_arr, shape, row_idx, yr_idx)
+    end
+    return nothing
+end
+function scale_hourly!(ars::AbstractArray{<:AbstractArray}, shape, yr_idxs)
+    for ar in ars, yr_idx in yr_idxs
+        scale_hourly!(ar, shape, yr_idx)
+    end
+    return nothing
+end
+function scale_hourly!(ar::AbstractArray{Float64}, shape, yr_idxs)
+    for yr_idx in yr_idxs
+        scale_hourly!(ar, shape, yr_idx)
+    end
+    return nothing
+end
+function scale_hourly!(ar::AbstractArray{Float64}, shape::AbstractVector{Float64}, idxs::Int64...)
+    view(ar, idxs..., :) .+= shape
+    return nothing
+end
+
+"""
+    add_hourly!(ar, shape, row_idx, yr_idx)
+
+    add_hourly!(ar, shape, row_idxs, yr_idxs)
+    
+adds to the hourly demand in `ar` by `shape` for `row_idx` and `yr_idx`.
+"""
+function add_hourly!(ar, shape, row_idxs, yr_idxs; kwargs...)
+    for yr_idx in yr_idxs, row_idx in row_idxs
+        add_hourly!(ar, shape, row_idx, yr_idx; kwargs...)
+    end
+    return nothing
+end
+function add_hourly!(ars::AbstractArray{<:AbstractArray}, shape, yr_idxs; kwargs...)
+    for ar in ars, yr_idx in yr_idxs
+        add_hourly!(ar, shape, yr_idx; kwargs...)
+    end
+    return nothing
+end
+function add_hourly!(ar::AbstractArray{Float64}, shape, yr_idxs; kwargs...)
+    for yr_idx in yr_idxs
+        add_hourly!(ar, shape, yr_idx; kwargs...)
+    end
+    return nothing
+end
+function add_hourly!(ar::AbstractArray{Float64}, shape::AbstractVector{Float64}, idxs::Int64...)
+    view(ar, idxs..., :) .+= shape
+    return nothing
+end
+
+"""
+    add_hourly_scaled!(ar, v::AbstractVector{Float64}, s::Float64, idx1, idx2)
+
+Adds `v.*s` to `ar[idx1, idx2, :]`, without allocating.
+"""
+function add_hourly_scaled!(ar::AbstractArray{Float64}, shape::AbstractVector{Float64}, s::Float64, idx1::Int64, idx2::Int64)
+    view(ar, idx1, idx2, :) .+= shape .* s
+    return nothing
+end
+function add_hourly_scaled!(ar, shape, s, idxs1, idxs2)
+    for idx1 in idxs1, idx2 in idxs2
+        add_hourly_scaled!(ar, shape, s, idx1, idx2)
+    end
+    return nothing
+end
+
+"""
+    _match_yearly!(demand_arr, match, row_idxs, yr_idx, hr_weights)
+
+Match the yearly demand represented by `demand_arr[row_idxs, yr_idx, :]` to `match`, with hourly weights `hr_weights`.
+"""
+function _match_yearly!(demand_arr::Array{Float64, 3}, match::Float64, row_idxs, yr_idx::Int64, hr_weights)
+    # Select the portion of the demand_arr to match
+    _match_yearly!(view(demand_arr, row_idxs, yr_idx, :), match, hr_weights)
+end
+function _match_yearly!(demand_mat::SubArray{Float64, 2}, match::Float64, hr_weights)
+    # The demand_mat is now a 2d matrix indexed by [row_idx, hr_idx]
+    s = _sum_product(demand_mat, hr_weights)
+    scale_factor = match / s
+    demand_mat .*= scale_factor
+end
+
+"""
+    _sum_product(M, v) -> s
+
+Computes the sum of M*v
+"""
+function _sum_product(M::AbstractMatrix, v::AbstractVector)
+    @inbounds sum(M[row_idx, hr_idx]*v[hr_idx] for row_idx in 1:size(M,1), hr_idx in 1:size(M,2))
+end
+
