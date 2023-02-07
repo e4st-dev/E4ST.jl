@@ -319,7 +319,7 @@ function convert_mods!(config)
         config[:mods] = OrderedDict{Symbol, Modification}()
         return
     end
-    config[:mods] = OrderedDict(key=>Modification(key=>val) for (key,val) in config[:mods])
+    config[:mods] = OrderedDict{Symbol, Modification}(key=>Modification(key=>val) for (key,val) in config[:mods])
     return
 end
 

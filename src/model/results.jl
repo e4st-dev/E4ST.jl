@@ -10,6 +10,9 @@ Retrieves results from the model, including:
 function process_results(config, data, results_raw)
 
     results_user = OrderedDict{Symbol, Any}()
+
+    results_lmp!(config, data, results_raw)
+    results_power!(config, data, results_raw)
     
     for (name, mod) in getmods(config)
         modify_results!(mod, config, data, results_raw, results_user)
@@ -74,42 +77,43 @@ export sum_yearly_and_total
 
 """
     weight_hourly!(data, ar)
+    weight_hourly!(data, ar, sign=+)
 
 Multiplies (inplace) each member of `ar` by its hourly weight, assuming the last index set of `ar` is hour indices.
 """
-function weight_hourly!(data, ar)
+function weight_hourly!(data, ar, s=+)
     weights = get_hour_weights(data)
     for (hr_idx, hr_wgt) in enumerate(weights)
         v = view(ar, :, :, hr_idx)
-        v .*= hr_wgt
+        _hr_wgt = s(hr_wgt)
+        v .*= _hr_wgt
     end
     return
 end
 export weight_hourly!
 
 """
-    weight_hourly(data, ar)
+    weight_hourly(data, ar, sign=+)
 
 Multiplies each member of `ar` by its hourly weight, assuming the last index set of `ar` is hour indices.
 """
-function weight_hourly(data, ar::AbstractArray{<:Any, I}) where I
+function weight_hourly(data, ar::AbstractArray{<:Any, I}, s=+) where I
     w = get_hour_weights(data)
-    return [ar[ci] * w[ci[I]] for ci in CartesianIndices(ar)]
+    return [s(ar[ci]) * w[ci[I]] for ci in CartesianIndices(ar)]
 end
 export weight_hourly
 
 
-
 """
-    unweight_hourly!(data, ar)
+    unweight_hourly!(data, ar, sign=+)
 
 Divides (inplace) each member of `ar` by its hourly weight, assuming the last index set of `ar` is hour indices.
 """
-function unweight_hourly!(data, ar)
+function unweight_hourly!(data, ar, s=+)
     weights = get_hour_weights(data)
     for (hr_idx, hr_wgt) in enumerate(weights)
         v = view(ar, :, :, hr_idx)
-        inv_hr_weight = 1/hr_wgt
+        inv_hr_weight = s(1/hr_wgt)
         v .*= inv_hr_weight
     end
     return
@@ -117,77 +121,97 @@ end
 export unweight_hourly!
 
 """
-    results_egen!(config, data, model, results)
-    
-Adds energy generation to results.  That includes:
-* `results[:egen_gen]` = (ngen × nyr × nhr) matrix of energy generated, in MWh
+    unweight_hourly(data, ar, sign=+)
+
+Multiplies each member of `ar` by its hourly weight, assuming the last index set of `ar` is hour indices.
 """
-function results_egen!(config, data, model, results)
-    egen_gen_hourly = results[:raw][:egen_gen]::Array{Float64,3}
-    egen_gen_yearly, egen_gen_total = sum_yearly_and_total(egen_gen_hourly)
-    results[:egen_gen_hourly] = egen_gen_hourly
-    results[:egen_gen_yearly] = egen_gen_yearly
-    results[:egen_gen_total] = egen_gen_total
-
-    # Compute egen_bus_hourly from pgen_bus and weighting hourly
-    pgen_bus_hourly = results[:raw][:pgen_bus]::Array{Float64,3}
-    egen_bus_hourly = weight_hourly(data, egen_bus_hourly)
-
-    egen_bus_yearly, egen_bus_total = sum_yearly_and_total(egen_bus_hourly)
-    results[:egen_bus_hourly] = egen_bus_hourly
-    results[:egen_bus_yearly] = egen_bus_yearly
-    results[:egen_bus_total] = egen_bus_total
-    return results
+function unweight_hourly(data, ar::AbstractArray{<:Any, I}, s=+) where I
+    w = get_hour_weights(data)
+    return [s(ar[ci]) / w[ci[I]] for ci in CartesianIndices(ar)]
 end
-export results_egen!
+export unweight_hourly
 
 @doc raw"""
-    results_lmp!(config, data, model, results)
+    results_power!(config, data, res_raw)
 
-Adds the locational marginal price of electricity (\$/MWh) for each bus at each year during each hour.  That includes:
-* `results[:lmp_hourly]` = (nbus × nyr × nhr) array of locational marginal prices, in (\$/MWh)
-* `results[:lmp_yearly]` = (nbus × nyr) matrix of locational marginal prices, in (\$/MWh)
-* `results[:lmp_total]`  = (nbus) vector of locational marginal prices, in (\$/MWh)
-* `results[:lmp_table]` = DataFrame with a row for each bus, and a "total" column as well as columns for each year, (i.e. `"y2020"`), and for each year-hour combo (i.e. `"y2020_h1"`)
-* Saves `lmp_table` to `out_path(config, "lmp.csv")`
+Adds power-based results:
+* bus[:pgen]
+* bus[:egen]
+* bus[:pflow]
+* bus[:pserv]
+* bus[:eserv]
+* bus[:pcurt]
+* bus[:ecurt]
+
 """
-function results_lmp!(config, data, model, results)
-    # Get the shadow price of the average power flow constraint
-    lmp_hourly = results[:raw][:cons_pflow]::Array{Float64,3}
+function results_power!(config, data, res_raw)
+    pgen_gen = res_raw[:pgen_gen]::Array{Float64, 3}
+    egen_gen = res_raw[:egen_gen]::Array{Float64, 3}
+    pcap_gen = res_raw[:pcap_gen]::Array{Float64, 2}
 
-    # To convert from price of each marginal average MW of power, we need to divide by the hour weights
-    unweight_hourly!(data, lmp_hourly)
-
+    pflow_branch = res_raw[:pflow_branch]::Array{Float64, 3}
     
-    egen_bus_hourly = results[:egen_bus_hourly]::Array{Float64,3}
-    egen_bus_yearly = results[:egen_bus_yearly]::Array{Float64,2}
-    egen_bus_total = results[:egen_bus_total]::Vector{Float64}
+    pserv_bus = res_raw[:pserv_bus]::Array{Float64, 3}
+    pcurt_bus = res_raw[:pcurt_bus]::Array{Float64, 3}
+    pgen_bus = res_raw[:pgen_bus]::Array{Float64, 3}
+    pflow_bus = res_raw[:pflow_bus]::Array{Float64, 3}
 
-    # Compute total consumer payments from hourly LMP's and energy generated
-    consumer_payments_hourly = lmp_hourly .* egen_bus_hourly
-    consumer_payments_yearly, consumer_payments_total = sum_yearly_and_total(consumer_payments_hourly)
+    # Weight things by hour as needed
+    egen_bus = weight_hourly(data, pgen_bus)
+    eserv_bus = weight_hourly(data, pserv_bus)
+    ecurt_bus = weight_hourly(data, pcurt_bus)
+    
+    # Create new things as needed
+    cf = pgen_gen ./ pcap_gen
 
-    # Compute average yearly and total LMP's
-    lmp_yearly = consumer_payments_yearly ./ egen_bus_yearly
-    lmp_total = consumer_payments_total ./ egen_bus_total
+    # Add things to the bus table
+    add_table_col!(data, :bus, :pgen,  pgen_bus,  MWGenerated,"Average Power Generated at this bus")
+    add_table_col!(data, :bus, :egen,  egen_bus,  MWhGenerated,"Electricity Generated at this bus for the weighted representative hour")   
+    add_table_col!(data, :bus, :pflow, pflow_bus, MWFlow,"Average power flowing out of this bus")
+    add_table_col!(data, :bus, :pserv, pserv_bus, MWServed,"Average power served at this bus")
+    add_table_col!(data, :bus, :eserv, eserv_bus, MWhServed,"Electricity served at this bus for the weighted representative hour")      
+    add_table_col!(data, :bus, :pcurt, pcurt_bus, MWCurtailed,"Average power curtailed at this bus")
+    add_table_col!(data, :bus, :ecurt, ecurt_bus, MWhCurtailed,"Electricity curtailed at this bus for the weighted representative hour")   
 
-    results[:lmp_hourly] = lmp_hourly
-    results[:lmp_yearly] = lmp_yearly
-    results[:lmp_total] = lmp_total
+    # Add things to the gen table
+    add_table_col!(data, :gen, :pgen,  pgen_gen,  MWGenerated,"Average power generated at this generator")
+    add_table_col!(data, :gen, :egen,  egen_gen,  MWhGenerated,"Electricity generated at this generator for the weighted representative hour")
+    add_table_col!(data, :gen, :pcap,  pcap_gen,  MWCapacity,"Power capacity of this generator generated at this generator for the weighted representative hour")
+    add_table_col!(data, :gen, :cf,    cf,        MWhGeneratedPerMWhCapacity, "Capacity Factor, or average power generation/power generation capacity")
 
+    # Add things to the branch table
+    add_table_col!(data, :branch, :pflow, pflow_branch, MWFlow,"Average Power flowing through branch")    
 
-    # years = get_years(data)
-    # lmp_table = DataFrame("total"=>lmp_total)
-    # for (yr_idx, y) in enumerate(years)
-    #     lmp_table[!, y] = lmp_yearly[:, yr_idx]
-    # end
-    # for hr_idx in 1:get_num_hours(data), yr_idx in 1:get_num_years(data)
-    #     lmp_table[!, "$(years[yr_idx])_h$hr_idx"] = lmp_hourly[:,yr_idx, hr_idx] 
-    # end
-    # results[:lmp_hourly] = lmp_hourly
-    # results[:lmp_table] = lmp_table
-    # # CSV.write(joinpath(config[:out_path], "lmp.csv"), lmp_table)
-    return results
+    return
+end
+export results_power!
+
+@doc raw"""
+    results_lmp!(config, data, res_raw)
+
+Adds the locational marginal prices of electricity and power flow.
+* `bus[:lmp_eserv]` 
+* `branch[:lmp_pflow]`
+"""
+function results_lmp!(config, data, res_raw)
+    # Get the shadow price of the average power flow constraint ($/MW flowing)
+    cons_pflow = res_raw[:cons_pflow]::Array{Float64,3}
+    # Divide by number of hours because we want $/MWh, not $/MW
+    lmp_eserv = unweight_hourly(data, cons_pflow, -)
+    
+    # Add the LMP's to the results and to the bus table
+    res_raw[:lmp_eserv_bus] = lmp_eserv
+    add_table_col!(data, :bus, :lmp_eserv, lmp_eserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
+
+    # Get the shadow price of the positive and negative branch power flow constraints ($/(MW incremental transmission))      
+    cons_branch_pflow_neg = res_raw[:cons_branch_pflow_neg]::Array{Float64, 3}
+    cons_branch_pflow_pos = res_raw[:cons_branch_pflow_pos]::Array{Float64, 3}
+    lmp_pflow = -cons_branch_pflow_neg - cons_branch_pflow_pos
+    
+    # Add the LMP's to the results and to the branch table
+    res_raw[:lmp_pflow_branch] = lmp_pflow
+    add_table_col!(data, :branch, :lmp_pflow, lmp_pflow, DollarsPerMWFlow,"Locational Marginal Price of Power Flow")
+    return
 end
 export results_lmp!
 

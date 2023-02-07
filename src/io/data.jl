@@ -247,6 +247,12 @@ function load_summary_table!(config, data)
     end
 
     data[:summary_table] = st
+    
+    # Make a dictionary of units such that d[(:table_name, :column_name)] = unit 
+    data[:unit_lookup] = Dict(
+        (row.table_name, row.column_name)=>row.unit for row in eachrow(st)
+    )
+    
     return
 end
 export load_summary_table!
@@ -663,6 +669,51 @@ function get_table_col(data, table_name, col_name)
 end
 
 """
+    add_table_col!(data, table_name, col_name, col, unit, description)
+
+Adds `col` to `data[table_name][!, col_name]`, also adding the description and unit to the summary table.
+"""
+function add_table_col!(data, table_name, column_name, col::Vector, unit, description)
+    # Add col to table
+    table = get_table(data, table_name)
+    hasproperty(table, column_name) && @warn "Table data[$table_name] already has column $column_name, overwriting"
+    table[!, column_name] = col
+
+    # Document in the summary table
+    summary_table = get_table(data, :summary_table)
+    data_type = _eltype(col)
+    row = (;table_name, column_name, data_type, unit, required=false, description)
+    push!(summary_table, row)
+    data[:unit_lookup][(table_name, column_name)] = unit
+end
+function add_table_col!(data, table_name, column_name, ar::Array{<:Real, 3}, unit, description)
+    v = [view(ar, i, :, :) for i in 1:size(ar, 1)]
+    return add_table_col!(data, table_name, column_name, v, unit, description)
+end
+function add_table_col!(data, table_name, column_name, ar::Matrix{<:Real}, unit, description)
+    # Might need to make this into a container.
+    v = [view(ar, i, :) for i in 1:size(ar, 1)]
+    return add_table_col!(data, table_name, column_name, v, unit, description)
+end
+
+
+"""
+    get_table_col_unit(data, table_name, column_name) -> unit::Type{<:Unit}
+"""
+function get_table_col_unit(data, table_name::Symbol, column_name::Symbol)
+    return data[:unit_lookup][(table_name, column_name)]::Type{<:Unit}
+end
+function get_table_col_unit(data, table_name, column_name)
+    get_table_col_unit(data, Symbol(table_name), Symbol(column_name))
+end
+export get_table_col_unit
+
+
+_eltype(::Vector{<:Container}) = Float64
+_eltype(::Vector{<:AbstractVector{Float64}}) = Float64
+_eltype(v) = eltype(v)
+
+"""
     get_table_num(data, table_name, col_name, row_idx, yr_idx, hr_idx) -> num::Float64
 """
 function get_table_num(data, table_name, col_name, row_idx, yr_idx, hr_idx)
@@ -719,7 +770,7 @@ export has_table
 """
     get_table_summary(config, data, table_name) -> summary::SubDataFrame
 
-Returns a summary of `table_name`, loaded in from [`summarize_table`](@ref)` and [`load_summary_table`](@ref).
+Returns a summary of `table_name`, loaded in from [`summarize_table`](@ref)` and [`load_summary_table!`](@ref).
 """
 function get_table_summary(data, table_name)
     st = get_table(data, :summary_table)
