@@ -426,9 +426,10 @@ export setup_branch_table!
 Doesn't do anything yet.
 """
 function setup_table!(config, data, ::Val{:hours})
+    weights = get_hour_weights(data)
+    data[:hours_container] = HoursContainer(weights)
     return
 end
-export setup_hours_table!
 
 @doc raw"""
     setup_table!(config, data, ::Val{:af_table})
@@ -512,8 +513,9 @@ function summarize_table(::Val{:gen})
         (:fuel_cost, Float64, DollarsPerMWhGenerated, false, "Fuel cost per MWh of generation"),
         (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
-        (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
-        (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum operable ratio of power generation to capacity for the generator to operate"),
+        (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
+        (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
+        (:af, Float64, MWhGeneratedPerMWhCapacity, false, "The availability factor, or maximum available ratio of pewer generation to nameplate capacity for the generator.")
     )
     return df
 end
@@ -667,6 +669,7 @@ function get_table_col(data, table_name, col_name)
     col = table[!, col_name]
     return col::Vector
 end
+export get_table_col
 
 """
     add_table_col!(data, table_name, col_name, col, unit, description)
@@ -695,6 +698,7 @@ function add_table_col!(data, table_name, column_name, ar::Matrix{<:Real}, unit,
     v = [view(ar, i, :) for i in 1:size(ar, 1)]
     return add_table_col!(data, table_name, column_name, v, unit, description)
 end
+export add_table_col!
 
 
 """

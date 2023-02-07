@@ -30,7 +30,7 @@ Saves them to `out_path(config,"results_raw.jls")` unless `config[:save_results_
 """
 function parse_results(config, data, model)
     results_raw = Dict(k => value_or_shadow_price(v) for (k,v) in object_dictionary(model))
-
+    # Don't add anything else here, we want to preserve the purity of these raw results, so that we can get rid of the model.  Add any standard processing to process_results.
     if get(config, :save_results_raw, true)
         serialize(out_path(config,"results_raw.jls"), results_raw)
     end
@@ -163,6 +163,7 @@ function results_power!(config, data, res_raw)
     
     # Create new things as needed
     cf = pgen_gen ./ pcap_gen
+    replace!(cf, NaN=>0.0)
 
     # Add things to the bus table
     add_table_col!(data, :bus, :pgen,  pgen_bus,  MWGenerated,"Average Power Generated at this bus")
@@ -177,7 +178,7 @@ function results_power!(config, data, res_raw)
     add_table_col!(data, :gen, :pgen,  pgen_gen,  MWGenerated,"Average power generated at this generator")
     add_table_col!(data, :gen, :egen,  egen_gen,  MWhGenerated,"Electricity generated at this generator for the weighted representative hour")
     add_table_col!(data, :gen, :pcap,  pcap_gen,  MWCapacity,"Power capacity of this generator generated at this generator for the weighted representative hour")
-    add_table_col!(data, :gen, :cf,    cf,        MWhGeneratedPerMWhCapacity, "Capacity Factor, or average power generation/power generation capacity")
+    add_table_col!(data, :gen, :cf,    cf,        MWhGeneratedPerMWhCapacity, "Capacity Factor, or average power generation/power generation capacity, 0 when no generation")
 
     # Add things to the branch table
     add_table_col!(data, :branch, :pflow, pflow_branch, MWFlow,"Average Power flowing through branch")    
@@ -302,3 +303,106 @@ function get_gen_array_idxs(data, idxs)
 end
 
 export get_gen_array_idxs
+
+"""
+    sum_result(data, table_name, col_name, idxs, yr_idxs, hr_idxs) -> num::Float64
+"""
+function sum_result(data::AbstractDict, res_raw::AbstractDict, table_name, col_name, idxs, yr_idxs, hr_idxs)
+    table = get_table(data, table_name)
+    unit = get_table_col_unit(data, table_name, col_name)
+    _idxs = get_row_idxs(table, idxs)
+    _yr_idxs = get_year_idxs(data, yr_idxs)
+    _hr_idxs = get_hour_idxs(data, hr_idxs)
+    sum_result(unit, data, res_raw, table, col_name, _idxs, _yr_idxs, _hr_idxs)
+end
+export sum_result
+
+function sum_result(::Type{ShortTonsPerMWhGenerated}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    return weighted_sum(table[!, column_name], table[!, :egen], idxs, yr_idxs, hr_idxs)
+end
+
+function sum_result(::Type{DollarsPerMWhServed}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    return weighted_sum(table[!, column_name], table[!, :eserv], idxs, yr_idxs, hr_idxs)
+end
+function sum_result(::Type{MWhServed}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
+end
+function sum_result(::Type{MWhGenerated}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
+end
+
+
+
+
+
+"""
+    avg_result(data, table_name, col_name, idxs, yr_idxs, hr_idxs) -> num::Float64
+"""
+function avg_result(data::AbstractDict, res_raw::AbstractDict, table_name, col_name, idxs, yr_idxs, hr_idxs)
+    table = get_table(data, table_name)
+    unit = get_table_col_unit(data, table_name, col_name)
+    _idxs = get_row_idxs(table, idxs)
+    _yr_idxs = get_year_idxs(data, yr_idxs)
+    _hr_idxs = get_hour_idxs(data, hr_idxs)
+    avg_result(unit, data, res_raw, table, Symbol(col_name), _idxs, _yr_idxs, _hr_idxs)
+end
+export avg_result
+
+
+function avg_result(::Type{ShortTonsPerMWhGenerated}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    return weighted_avg(table[!, column_name], table[!, :egen], idxs, yr_idxs, hr_idxs)
+end
+function avg_result(::Type{DollarsPerMWhServed}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    return weighted_avg(table[!, column_name], table[!, :eserv], idxs, yr_idxs, hr_idxs)
+end
+
+function avg_result(::Type{MWhGeneratedPerMWhCapacity}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    hc = data[:hours_container]::HoursContainer
+    num = weighted_sum(table[!, column_name], table[!, :pcap], hc, idxs, yr_idxs, hr_idxs)
+    den = weighted_sum(table.pcap, hc, idxs, yr_idxs, hr_idxs)
+    return num / den
+end
+
+
+#########################################################################
+# Aggregation utilities
+#########################################################################
+
+"""
+    total_sum(v::Vector, idxs, yr_idxs, hr_idxs)
+
+Compute `sum(v[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)`
+"""
+function total_sum(v, idxs, yr_idxs, hr_idxs)
+    sum(v[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
+end
+
+"""
+    weighted_sum(v1, v2, idxs, yr_idxs, hr_idxs)
+
+Compute the `sum(v1[i,y,h]*v2[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)`
+"""
+function weighted_sum(v1, v2, idxs, yr_idxs, hr_idxs)
+    sum(v1[i,y,h]*v2[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
+end
+
+"""
+    weighted_sum(v1, v2, idxs, yr_idxs, hr_idxs)
+
+Compute the `sum(v1[i,y,h]*v2[i,y,h]*v3[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)`
+"""
+function weighted_sum(v1, v2, v3, idxs, yr_idxs, hr_idxs)
+    sum(v1[i,y,h]*v2[i,y,h]*v3[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
+end
+
+"""
+    weighted_avg(v1, v2, idxs, yr_idxs, hr_idxs)
+
+Compute the `v2`-weighted average of `v1`.  I.e. computed [`weighted_sum`](@ref) divided by the sum of `v2`.
+"""
+function weighted_avg(v1, v2, idxs, yr_idxs, hr_idxs)
+    ws = weighted_sum(v1, v2, idxs, yr_idxs, hr_idxs)
+    s = sum(v2[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
+    return ws/s
+end
+    
