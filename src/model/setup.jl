@@ -69,7 +69,7 @@ function setup_model(config, data)
         @info "Loading model from:\n$(config[:model_presolve_file])"
         model = deserialize(config[:model_presolve_file])
     else
-        model = JuMP.Model(add_bridges=false)
+        model = JuMP.Model()
         set_string_names_on_creation(model, false)
 
         setup_dcopf!(config, data, model)
@@ -95,7 +95,7 @@ end
 
 function add_optimizer!(config, data, model)
     optimizer_factory = getoptimizer(config)
-    set_optimizer(model, optimizer_factory)
+    set_optimizer(model, optimizer_factory; add_bridges=false)
 end
 
 """

@@ -94,8 +94,10 @@ function setup_dcopf!(config, data, model)
     
     # Constrain Capacity to 0 before the start/build year 
     prebuild_year_idxs = map(gen_idx -> get_prebuild_year_idxs(data, gen_idx), 1:ngen)
-    @constraint(model, cons_pcap_prebuild[gen_idx in 1:ngen, year_idx in prebuild_year_idxs[gen_idx]],
+    if any(!isempty, prebuild_year_idxs)
+        @constraint(model, cons_pcap_prebuild[gen_idx in 1:ngen, year_idx in prebuild_year_idxs[gen_idx]],
             pcap_gen[gen_idx, year_idx] == 0) 
+    end
 
     # Constrain existing capacity to only decrease (only retire, not add capacity)
     @constraint(model, cons_pcap_noadd[gen_idx in 1:ngen, year_idx in get_year_on_sim_idx(data, gen_idx):(nyear-1)], 

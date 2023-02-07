@@ -96,4 +96,30 @@ end
             
     end
 
+
+
+
+    # # Here is nthe new stuff - consider removing above.
+    # @testset "Test Aggregation" begin
+
+    #     # Test that summing the co2 emissions for solar in 2030 is zero
+    #     @test sum_result(data, res_raw, :gen, :emis_co2, :gentype=>"solar", "y2030", :) == 0.0
+    
+    #     # Test that the average co2 emissions rate is between the min and max
+    #     all_emis_co2 = get_table_col(data, :gen, :emis_co2)
+    #     emis_co2_min, emis_co2_min = extrema(all_emis_co2)
+    #     @test emis_co2_min <= avg_result(data, res_raw, :gen, :emis_co2, :, "y2030", :) <= emis_co2_max
+
+    #     # Test that the average capacity factor for solar generators is between 0 and 1
+    #     @test 0 <= avg_result(data, res_raw, :cf, :emis_co2, :gentype=>"solar", :, :) <= 1
+
+    #     # Test that the average LMP times energy served equals the sum of LMP
+    #     elec_cost = sum_result(data, res_raw, :bus, :lmp_energy, :, :, :)
+    #     elec_price = avg_result(data, res_raw, :bus, :lmp_energy, :, :, :)
+    #     elec_quantity = sum_result(data, res_raw, :bus, :egen_bus, :, :, :)
+    #     @test elec_cost ≈ elec_price * elec_quantity
+    # end
+
 end
+
+
