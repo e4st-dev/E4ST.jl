@@ -11,8 +11,8 @@ function process_results(config, data, results_raw)
 
     results_user = OrderedDict{Symbol, Any}()
 
-    results_lmp!(config, data, results_raw)
-    results_power!(config, data, results_raw)
+    process_lmp!(config, data, results_raw)
+    process_power!(config, data, results_raw)
     
     for (name, mod) in getmods(config)
         modify_results!(mod, config, data, results_raw, results_user)
@@ -61,36 +61,24 @@ function value_or_shadow_price(x::AbstractJuMPScalar)
 end
 export value_or_shadow_price
 
-"""
-    sum_yearly_and_total(ar) -> (yearly, total)
 
-Sums up 3D array `ar` across hours, then across years.
-"""
-function sum_yearly_and_total(ar::AbstractArray{<:Real, 3})
-    ni, ny, nh = size(ar)
-    yearly = [sum(ar[i,y,h] for h in 1:nh) for i in 1:ni, y in 1:ny]
-    total = [sum(yearly[i,y] for y in 1:ny) for i in 1:ni]
-    return yearly, total
-end
-export sum_yearly_and_total
+# ECR: I don't think we'll ever use the function below, commenting out for now.
+# """
+#     weight_hourly!(data, ar)
+#     weight_hourly!(data, ar, sign=+)
 
-
-"""
-    weight_hourly!(data, ar)
-    weight_hourly!(data, ar, sign=+)
-
-Multiplies (inplace) each member of `ar` by its hourly weight, assuming the last index set of `ar` is hour indices.
-"""
-function weight_hourly!(data, ar, s=+)
-    weights = get_hour_weights(data)
-    for (hr_idx, hr_wgt) in enumerate(weights)
-        v = view(ar, :, :, hr_idx)
-        _hr_wgt = s(hr_wgt)
-        v .*= _hr_wgt
-    end
-    return
-end
-export weight_hourly!
+# Multiplies (inplace) each member of `ar` by its hourly weight, assuming the last index set of `ar` is hour indices.
+# """
+# function weight_hourly!(data, ar, s=+)
+#     weights = get_hour_weights(data)
+#     for (hr_idx, hr_wgt) in enumerate(weights)
+#         v = view(ar, :, :, hr_idx)
+#         _hr_wgt = s(hr_wgt)
+#         v .*= _hr_wgt
+#     end
+#     return
+# end
+# export weight_hourly!
 
 """
     weight_hourly(data, ar, sign=+)
@@ -104,21 +92,22 @@ end
 export weight_hourly
 
 
-"""
-    unweight_hourly!(data, ar, sign=+)
+# ECR: I don't think we'll ever use the function below, commenting out for now.
+# """
+#     unweight_hourly!(data, ar, sign=+)
 
-Divides (inplace) each member of `ar` by its hourly weight, assuming the last index set of `ar` is hour indices.
-"""
-function unweight_hourly!(data, ar, s=+)
-    weights = get_hour_weights(data)
-    for (hr_idx, hr_wgt) in enumerate(weights)
-        v = view(ar, :, :, hr_idx)
-        inv_hr_weight = s(1/hr_wgt)
-        v .*= inv_hr_weight
-    end
-    return
-end
-export unweight_hourly!
+# Divides (inplace) each member of `ar` by its hourly weight, assuming the last index set of `ar` is hour indices.
+# """
+# function unweight_hourly!(data, ar, s=+)
+#     weights = get_hour_weights(data)
+#     for (hr_idx, hr_wgt) in enumerate(weights)
+#         v = view(ar, :, :, hr_idx)
+#         inv_hr_weight = s(1/hr_wgt)
+#         v .*= inv_hr_weight
+#     end
+#     return
+# end
+# export unweight_hourly!
 
 """
     unweight_hourly(data, ar, sign=+)
@@ -132,19 +121,26 @@ end
 export unweight_hourly
 
 @doc raw"""
-    results_power!(config, data, res_raw)
+    process_power!(config, data, res_raw)
 
-Adds power-based results:
-* bus[:pgen]
-* bus[:egen]
-* bus[:pflow]
-* bus[:pserv]
-* bus[:eserv]
-* bus[:pcurt]
-* bus[:ecurt]
+Adds power-based results.  See also [`get_table_summary`](@ref) for the below summaries.
 
+| table_name | col_name | unit | description |
+| :-- | :-- | :-- | :-- |
+| :bus | :pgen | MWGenerated | Average Power Generated at this bus |
+| :bus | :egen | MWhGenerated | Electricity Generated at this bus for the weighted representative hour |
+| :bus | :pflow | MWFlow | Average power flowing out of this bus |
+| :bus | :pserv | MWServed | Average power served at this bus |
+| :bus | :eserv | MWhServed | Electricity served at this bus for the weighted representative hour |
+| :bus | :pcurt | MWCurtailed | Average power curtailed at this bus |
+| :bus | :ecurt | MWhCurtailed | Electricity curtailed at this bus for the weighted representative hour |
+| :gen | :pgen | MWGenerated | Average power generated at this generator |
+| :gen | :egen | MWhGenerated | Electricity generated at this generator for the weighted representative hour |
+| :gen | :pcap | MWCapacity | Power capacity of this generator generated at this generator for the weighted representative hour |
+| :gen | :cf | MWhGeneratedPerMWhCapacity | Capacity Factor, or average power generation/power generation capacity, 0 when no generation |
+| :branch | :pflow | MWFlow | Average Power flowing through branch |
 """
-function results_power!(config, data, res_raw)
+function process_power!(config, data, res_raw)
     pgen_gen = res_raw[:pgen_gen]::Array{Float64, 3}
     egen_gen = res_raw[:egen_gen]::Array{Float64, 3}
     pcap_gen = res_raw[:pcap_gen]::Array{Float64, 2}
@@ -185,16 +181,19 @@ function results_power!(config, data, res_raw)
 
     return
 end
-export results_power!
+export process_power!
 
 @doc raw"""
-    results_lmp!(config, data, res_raw)
+    process_lmp!(config, data, res_raw)
 
 Adds the locational marginal prices of electricity and power flow.
-* `bus[:lmp_eserv]` 
-* `branch[:lmp_pflow]`
+
+| table_name | col_name | unit | description |
+| :-- | :-- | :-- | :-- |
+| :bus | :lmp_eserv | DollarsPerMWhServed | Locational Marginal Price of Energy Served |
+| :branch | :lmp_pflow | DollarsPerMWFlow | Locational Marginal Price of Power Flow |
 """
-function results_lmp!(config, data, res_raw)
+function process_lmp!(config, data, res_raw)
     # Get the shadow price of the average power flow constraint ($/MW flowing)
     cons_pflow = res_raw[:cons_pflow]::Array{Float64,3}
     # Divide by number of hours because we want $/MWh, not $/MW
@@ -214,42 +213,12 @@ function results_lmp!(config, data, res_raw)
     add_table_col!(data, :branch, :lmp_pflow, lmp_pflow, DollarsPerMWFlow,"Locational Marginal Price of Power Flow")
     return
 end
-export results_lmp!
-
-"""
-    process!(config, results)
-
-Process the `results` according to the instructions in `config`
-"""
-function process!(config, results)
-    # TODO: Implement this
-    return nothing
-end
-
-function print_binding_cons(model)
-    df = DataFrame(:constraint=>get_all_cons(model))
-    df.base_name = map(df.constraint) do cons
-        first(split(name(cons),'['))
-    end
-
-    df.is_binding = map(df.constraint) do cons
-        abs(dual(cons)) <= 1e-6
-    end
-    df.lhs = map(value, df.constraint)
-    df.rhs = map(normalized_rhs, df.constraint)
-
-    return df
-
-    gdf = groupby(df, :base_name)
-    return sort!(combine(gdf, :is_binding=>count=>:num_binding, :is_binding=>length=>:num_cons), :base_name)
-end
-export print_binding_cons
+export process_lmp!
 
 function get_all_cons(model)
     return all_constraints(model, include_variable_in_set_constraints=false)
 end
 export get_all_cons
-
 
 function get_model_val_by_gen(data, model, name::Symbol, idxs = :, year_idxs = :, hour_idxs = :)
     _idxs, _year_idxs, _hour_idxs = get_gen_array_idxs(data, idxs, year_idxs, hour_idxs)
@@ -305,64 +274,103 @@ end
 export get_gen_array_idxs
 
 """
-    sum_result(data, table_name, col_name, idxs, yr_idxs, hr_idxs) -> num::Float64
+    aggregate_result(f::Function, data, res_raw, table_name, col_name, idxs=(:), yr_idxs=(:), hr_idxs=(:)) -> x::Float64
 """
-function sum_result(data::AbstractDict, res_raw::AbstractDict, table_name, col_name, idxs, yr_idxs, hr_idxs)
+function aggregate_result(f::Function, data, res_raw, table_name, col_name, idxs=(:), yr_idxs=(:), hr_idxs=(:))
     table = get_table(data, table_name)
     unit = get_table_col_unit(data, table_name, col_name)
     _idxs = get_row_idxs(table, idxs)
     _yr_idxs = get_year_idxs(data, yr_idxs)
     _hr_idxs = get_hour_idxs(data, hr_idxs)
-    sum_result(unit, data, res_raw, table, col_name, _idxs, _yr_idxs, _hr_idxs)
+    f(unit, data, res_raw, table, col_name, _idxs, _yr_idxs, _hr_idxs)
 end
-export sum_result
+export aggregate_result
 
-function sum_result(::Type{ShortTonsPerMWhGenerated}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+export total
+
+function total(::Type{ShortTonsPerMWhGenerated}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :egen], idxs, yr_idxs, hr_idxs)
 end
 
-function sum_result(::Type{DollarsPerMWhServed}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function total(::Type{DollarsPerMWhServed}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :eserv], idxs, yr_idxs, hr_idxs)
 end
-function sum_result(::Type{MWhServed}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function total(::Type{DollarsPerMWCapacity}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    return weighted_sum(table[!, column_name], table[!, :pcap], idxs, yr_idxs, hr_idxs)
+end
+function total(::Type{MWhServed}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
     return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
 end
-function sum_result(::Type{MWhGenerated}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function total(::Type{MWhGenerated}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
+end
+function total(::Type{MWhCurtailed}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
     return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
 end
 
-
-
-
-
 """
-    avg_result(data, table_name, col_name, idxs, yr_idxs, hr_idxs) -> num::Float64
+    total(::Type{MWCapacity}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+
+The total average demanded power of all elements corresponding to `idxs`
 """
-function avg_result(data::AbstractDict, res_raw::AbstractDict, table_name, col_name, idxs, yr_idxs, hr_idxs)
-    table = get_table(data, table_name)
-    unit = get_table_col_unit(data, table_name, col_name)
-    _idxs = get_row_idxs(table, idxs)
-    _yr_idxs = get_year_idxs(data, yr_idxs)
-    _hr_idxs = get_hour_idxs(data, hr_idxs)
-    avg_result(unit, data, res_raw, table, Symbol(col_name), _idxs, _yr_idxs, _hr_idxs)
+function total(::Type{MWCapacity}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    hc = data[:hours_container]::HoursContainer
+    return weighted_sum(table[!, column_name], hc, idxs, yr_idxs, hr_idxs) / total_sum(hc, 1, yr_idxs, hr_idxs)
 end
-export avg_result
+"""
+    total(::Type{MWDemanded}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+
+The total average demanded power of all elements corresponding to `idxs`
+"""
+function total(::Type{MWDemanded}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    hc = data[:hours_container]::HoursContainer
+    return weighted_sum(table[!, column_name], hc, idxs, yr_idxs, hr_idxs) / total_sum(hc, 1, yr_idxs, hr_idxs)
+end
 
 
-function avg_result(::Type{ShortTonsPerMWhGenerated}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function average(::Type{ShortTonsPerMWhGenerated}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_avg(table[!, column_name], table[!, :egen], idxs, yr_idxs, hr_idxs)
 end
-function avg_result(::Type{DollarsPerMWhServed}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+export average
+function average(::Type{DollarsPerMWhServed}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_avg(table[!, column_name], table[!, :eserv], idxs, yr_idxs, hr_idxs)
 end
 
-function avg_result(::Type{MWhGeneratedPerMWhCapacity}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+"""
+    average(::Type{MWDemanded}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+
+The per-bus average demanded power.
+"""
+function average(::Type{MWDemanded}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    hc = data[:hours_container]::HoursContainer
+    return weighted_avg(table[!, column_name], hc, idxs, yr_idxs, hr_idxs)
+end
+
+function average(::Type{MWhGeneratedPerMWhCapacity}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
     hc = data[:hours_container]::HoursContainer
     num = weighted_sum(table[!, column_name], table[!, :pcap], hc, idxs, yr_idxs, hr_idxs)
     den = weighted_sum(table.pcap, hc, idxs, yr_idxs, hr_idxs)
     return num / den
 end
 
+
+function Base.maximum(::Type, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    col = table[!, column_name]
+    return maximum(col, idxs, yr_idxs, hr_idxs)
+end
+
+function Base.maximum(v, idxs, yr_idxs, hr_idxs)
+    return maximum(v[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
+end
+
+function Base.minimum(::Type, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    col = table[!, column_name]
+    return minimum(col, idxs, yr_idxs, hr_idxs)
+end
+
+function Base.minimum(v, idxs, yr_idxs, hr_idxs)
+    return minimum(v[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
+end
 
 #########################################################################
 # Aggregation utilities
