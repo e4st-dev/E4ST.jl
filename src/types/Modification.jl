@@ -126,11 +126,11 @@ function modify_model!(mod::Modification, config, data, model)
 end
 
 """
-    modify_results!(mod::Modification, config, data, model, results)
+    modify_results!(mod::Modification, config, data, res_raw, results)
 
 Gather the results from `mod` from the solved model, called in `parse_results`
 """
-function modify_results!(mod::Modification, config, data, model, results)
+function modify_results!(mod::Modification, config, data, res_raw, results)
     @warn "No modify_results! function defined for mod type $(typeof(mod)), doing nothing"
 end
 

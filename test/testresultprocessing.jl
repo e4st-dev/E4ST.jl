@@ -144,8 +144,18 @@ end
         end
         egen_total = aggregate_result(total, data, res_raw, :gen, :egen)
         @test sum(egen_by_genfuel) ≈ egen_total
+    end
 
-        
+    @testset "Test AggregationTemplate" begin
+        mods = config[:mods]
+        name = :agg_res
+        mods[name] = AggregationTemplate(;file=joinpath(@__DIR__, "data/3bus/aggregate_template.csv"), name)
+        data = load_data(config)
+        model = setup_model(config, data)
+        optimize!(model)
+        res_raw = parse_results(config, data, model)
+        res_user = process_results(config, data, res_raw)
+        @test isfile(out_path(config, "agg_res.csv"))
     end
 
 end

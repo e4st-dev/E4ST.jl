@@ -1,8 +1,7 @@
 """
-    parse_results(config, data, model) -> results
+    parse_results(config, data, results_raw) -> results
 
-Retrieves results from the model, including:
-* Raw results (anything you could possibly need from the model like decision variable values and shadow prices)
+Retrieves results from the results_raw, including:
 * Area/Annual results (?)
 * Raw policy results (?)
 * Welfare 
@@ -294,6 +293,9 @@ end
 
 function total(::Type{DollarsPerMWhServed}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :eserv], idxs, yr_idxs, hr_idxs)
+end
+function total(::Type{DollarsPerMWhGenerated}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    return weighted_sum(table[!, column_name], table[!, :egen], idxs, yr_idxs, hr_idxs)
 end
 function total(::Type{DollarsPerMWCapacity}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :pcap], idxs, yr_idxs, hr_idxs)
