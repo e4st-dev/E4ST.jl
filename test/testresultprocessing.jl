@@ -49,52 +49,52 @@ end
     res_user = process_results(config, data, res_raw)
     
     @testset "Test gen_idx filters" begin
-        tot = get_gen_result(data, model, PerMWhGen())
+        tot = aggregate_result(total, data, model, :gen, :egen)
         
         # Provide a function for filtering
-        @test tot == get_gen_result(data, model, PerMWhGen(), :emis_co2 => <=(0.1)) + get_gen_result(data, model, PerMWhGen(), :emis_co2 => >(0.1))
+        @test tot == aggregate_result(total, data, model, :gen, :egen, :emis_co2 => <=(0.1)) + aggregate_result(total, data, model, :gen, :egen, :emis_co2 => >(0.1))
 
         # Provide a region for filtering
-        @test tot == get_gen_result(data, model, PerMWhGen(), :country => "narnia") + get_gen_result(data, model, PerMWhGen(), :country => !=("narnia"))
+        @test tot == aggregate_result(total, data, model, :gen, :egen, :country => "narnia") + aggregate_result(total, data, model, :gen, :egen, :country => !=("narnia"))
 
         # Provide a tuple for filtering
-        @test tot == get_gen_result(data, model, PerMWhGen(), :vom => (0,1.1) ) + get_gen_result(data, model, PerMWhGen(), :vom => (1.1,Inf))
+        @test tot == aggregate_result(total, data, model, :gen, :egen, :vom => (0,1.1) ) + aggregate_result(total, data, model, :gen, :egen, :vom => (1.1,Inf))
 
         # Provide a set for filtering
-        @test tot == get_gen_result(data, model, PerMWhGen(), :genfuel => in(["ng", "coal"]) ) + get_gen_result(data, model, PerMWhGen(), :genfuel => !in(["ng", "coal"]))
+        @test tot == aggregate_result(total, data, model, :gen, :egen, :genfuel => in(["ng", "coal"]) ) + aggregate_result(total, data, model, :gen, :egen, :genfuel => !in(["ng", "coal"]))
         
         # Provide an index(es) for filtering
-        @test tot == get_gen_result(data, model, PerMWhGen(), 1 ) + get_gen_result(data, model, PerMWhGen(), 2:nrow(data[:gen]))
+        @test tot == aggregate_result(total, data, model, :gen, :egen, 1 ) + aggregate_result(total, data, model, :gen, :egen, 2:nrow(data[:gen]))
     end
 
     @testset "Test year_idx filters" begin
-        tot = get_gen_result(data, model, PerMWhGen())
+        tot = aggregate_result(total, data, model, :gen, :egen)
         nyr = get_num_years(data)
 
         # Year index
-        @test tot == get_gen_result(data, model, PerMWhGen(), :, 1) + get_gen_result(data, model, PerMWhGen(), :, 2:nyr)
+        @test tot == aggregate_result(total, data, model, :gen, :egen, :, 1) + aggregate_result(total, data, model, :gen, :egen, :, 2:nyr)
 
         # Year string
-        @test tot == get_gen_result(data, model, PerMWhGen(), :, "y2030") + get_gen_result(data, model, PerMWhGen(), :, ["y2035", "y2040"])
+        @test tot == aggregate_result(total, data, model, :gen, :egen, :, "y2030") + aggregate_result(total, data, model, :gen, :egen, :, ["y2035", "y2040"])
         
         # Range of years
-        @test tot == get_gen_result(data, model, PerMWhGen(), :, ("y2020", "y2031")) + get_gen_result(data, model, PerMWhGen(), :, ("y2032","y2045"))
+        @test tot == aggregate_result(total, data, model, :gen, :egen, :, ("y2020", "y2031")) + aggregate_result(total, data, model, :gen, :egen, :, ("y2032","y2045"))
 
         # Test function of years
-        @test tot == get_gen_result(data, model, PerMWhGen(), :, <=("y2031")) + get_gen_result(data, model, PerMWhGen(), :, >("y2031"))
+        @test tot == aggregate_result(total, data, model, :gen, :egen, :, <=("y2031")) + aggregate_result(total, data, model, :gen, :egen, :, >("y2031"))
     end
 
     @testset "Test hour_idx filters" begin
-        tot = get_gen_result(data, model, PerMWhGen())
+        tot = aggregate_result(total, data, model, :gen, :egen)
         nhr = get_num_hours(data)
 
         # Hour index
-        @test tot == get_gen_result(data, model, PerMWhGen(), :, :, 1) + get_gen_result(data, model, PerMWhGen(), :, :, 2:nhr)
+        @test tot == aggregate_result(total, data, model, :gen, :egen, :, :, 1) + aggregate_result(total, data, model, :gen, :egen, :, :, 2:nhr)
 
         # Hour table label
-        @test tot == get_gen_result(data, model, PerMWhGen(), :, :, (:time_of_day=>"morning", :season=>"summer")) + 
-            get_gen_result(data, model, PerMWhGen(), :, :, (:time_of_day=>"morning", :season=>!=("summer"))) +
-            get_gen_result(data, model, PerMWhGen(), :, :, :time_of_day=>!=("morning"))
+        @test tot == aggregate_result(total, data, model, :gen, :egen, :, :, (:time_of_day=>"morning", :season=>"summer")) + 
+            aggregate_result(total, data, model, :gen, :egen, :, :, (:time_of_day=>"morning", :season=>!=("summer"))) +
+            aggregate_result(total, data, model, :gen, :egen, :, :, :time_of_day=>!=("morning"))
             
     end
 

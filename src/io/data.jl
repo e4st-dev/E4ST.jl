@@ -705,7 +705,11 @@ export add_table_col!
     get_table_col_unit(data, table_name, column_name) -> unit::Type{<:Unit}
 """
 function get_table_col_unit(data, table_name::Symbol, column_name::Symbol)
-    return data[:unit_lookup][(table_name, column_name)]::Type{<:Unit}
+    ul = data[:unit_lookup]::Dict{Tuple{Symbol, Symbol}, DataType}
+    unit = get(ul, (table_name, column_name)) do
+        error("No unit found for table column $table_name[:$column_name].\nConsider defining the column in the setup_table.")
+    end::Type{<:Unit}
+    return unit
 end
 function get_table_col_unit(data, table_name, column_name)
     get_table_col_unit(data, Symbol(table_name), Symbol(column_name))

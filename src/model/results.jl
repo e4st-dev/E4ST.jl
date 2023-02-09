@@ -84,11 +84,19 @@ export value_or_shadow_price
 
 Multiplies each member of `ar` by its hourly weight, assuming the last index set of `ar` is hour indices.
 """
-function weight_hourly(data, ar::AbstractArray{<:Any, I}, s=+) where I
+function weight_hourly(data, ar::AbstractArray{<:Real, I}, s=+) where I
     w = get_hour_weights(data)
     return [s(ar[ci]) * w[ci[I]] for ci in CartesianIndices(ar)]
 end
+function weight_hourly(data, v::Vector{<:Container}, s=+)
+    w = get_hour_weights(data)
+    ny = get_num_years(data)
+    nh = get_num_hours(data)
+    return [s(v[i][y,h]) * w[h] for i in 1:length(v), y in 1:ny, h in 1:nh]
+end
 export weight_hourly
+
+
 
 
 # ECR: I don't think we'll ever use the function below, commenting out for now.
@@ -117,6 +125,13 @@ function unweight_hourly(data, ar::AbstractArray{<:Any, I}, s=+) where I
     w = get_hour_weights(data)
     return [s(ar[ci]) / w[ci[I]] for ci in CartesianIndices(ar)]
 end
+
+function unweight_hourly(data, v::Vector{<:Container}, s=+)
+    w = get_hour_weights(data)
+    ny = get_num_years(data)
+    nh = get_num_hours(data)
+    return [s(v[i][y,h]) / w[h] for i in 1:length(v), y in 1:ny, h in 1:nh]
+end
 export unweight_hourly
 
 @doc raw"""
@@ -133,6 +148,7 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | :bus | :eserv | MWhServed | Electricity served at this bus for the weighted representative hour |
 | :bus | :pcurt | MWCurtailed | Average power curtailed at this bus |
 | :bus | :ecurt | MWhCurtailed | Electricity curtailed at this bus for the weighted representative hour |
+| :bus | :edem  | MWhDemanded | Electricity demanded at this bus for the weighted representative hour |
 | :gen | :pgen | MWGenerated | Average power generated at this generator |
 | :gen | :egen | MWhGenerated | Electricity generated at this generator for the weighted representative hour |
 | :gen | :pcap | MWCapacity | Power capacity of this generator generated at this generator for the weighted representative hour |
@@ -155,6 +171,7 @@ function process_power!(config, data, res_raw)
     egen_bus = weight_hourly(data, pgen_bus)
     eserv_bus = weight_hourly(data, pserv_bus)
     ecurt_bus = weight_hourly(data, pcurt_bus)
+    edem_bus = weight_hourly(data, get_table_col(data, :bus, :pdem))
     
     # Create new things as needed
     cf = pgen_gen ./ pcap_gen
@@ -168,6 +185,7 @@ function process_power!(config, data, res_raw)
     add_table_col!(data, :bus, :eserv, eserv_bus, MWhServed,"Electricity served at this bus for the weighted representative hour")      
     add_table_col!(data, :bus, :pcurt, pcurt_bus, MWCurtailed,"Average power curtailed at this bus")
     add_table_col!(data, :bus, :ecurt, ecurt_bus, MWhCurtailed,"Electricity curtailed at this bus for the weighted representative hour")   
+    add_table_col!(data, :bus, :edem,  edem_bus,  MWhDemanded,"Electricity demanded at this bus for the weighted representative hour")   
 
     # Add things to the gen table
     add_table_col!(data, :gen, :pgen,  pgen_gen,  MWGenerated,"Average power generated at this generator")
@@ -219,58 +237,58 @@ function get_all_cons(model)
 end
 export get_all_cons
 
-function get_model_val_by_gen(data, model, name::Symbol, idxs = :, year_idxs = :, hour_idxs = :)
-    _idxs, _year_idxs, _hour_idxs = get_gen_array_idxs(data, idxs, year_idxs, hour_idxs)
-    v = _view_model(model, name, _idxs, _year_idxs, _hour_idxs)
-    isempty(v) && return 0.0
-    return sum(value, v)
-end
-export get_model_val_by_gen
+# function get_model_val_by_gen(data, model, name::Symbol, idxs = :, year_idxs = :, hour_idxs = :)
+#     _idxs, _year_idxs, _hour_idxs = get_gen_array_idxs(data, idxs, year_idxs, hour_idxs)
+#     v = _view_model(model, name, _idxs, _year_idxs, _hour_idxs)
+#     isempty(v) && return 0.0
+#     return sum(value, v)
+# end
+# export get_model_val_by_gen
 
-function get_gen_result(data, model, ::PerMWhGen, gen_idxs = :, year_idxs = :, hour_idxs = :)
-    _gen_idxs = get_gen_array_idxs(data, gen_idxs)
-    _year_idxs = get_year_idxs(data, year_idxs)
-    _hour_idxs = get_hour_idxs(data, hour_idxs)
-    var = model[:egen_gen]::Array{AffExpr, 3}
-    v = view(var, _gen_idxs, _year_idxs, _hour_idxs)
-    isempty(v) && return 0.0
-    return sum(value, v)
-end
+# function get_gen_result(data, model, ::PerMWhGen, gen_idxs = :, year_idxs = :, hour_idxs = :)
+#     _gen_idxs = get_gen_array_idxs(data, gen_idxs)
+#     _year_idxs = get_year_idxs(data, year_idxs)
+#     _hour_idxs = get_hour_idxs(data, hour_idxs)
+#     var = model[:egen_gen]::Array{AffExpr, 3}
+#     v = view(var, _gen_idxs, _year_idxs, _hour_idxs)
+#     isempty(v) && return 0.0
+#     return sum(value, v)
+# end
 
-function get_gen_result(data, model, ::PerMWhGen, col_name::Union{Symbol, String}, gen_idxs = :, year_idxs = :, hour_idxs = :)
-    _gen_idxs = get_gen_array_idxs(data, gen_idxs)
-    _year_idxs = get_year_idxs(data, year_idxs)
-    _hour_idxs = get_hour_idxs(data, hour_idxs)
-    var = model[:egen_gen]::Array{AffExpr, 3}
-    # v = view(var, _gen_idxs, _year_idxs, _hour_idxs)
-    # isempty(v) && return 0.0
+# function get_gen_result(data, model, ::PerMWhGen, col_name::Union{Symbol, String}, gen_idxs = :, year_idxs = :, hour_idxs = :)
+#     _gen_idxs = get_gen_array_idxs(data, gen_idxs)
+#     _year_idxs = get_year_idxs(data, year_idxs)
+#     _hour_idxs = get_hour_idxs(data, hour_idxs)
+#     var = model[:egen_gen]::Array{AffExpr, 3}
+#     # v = view(var, _gen_idxs, _year_idxs, _hour_idxs)
+#     # isempty(v) && return 0.0
 
-    isempty(_gen_idxs)  && return 0.0
-    isempty(_year_idxs) && return 0.0
-    isempty(_hour_idxs) && return 0.0
+#     isempty(_gen_idxs)  && return 0.0
+#     isempty(_year_idxs) && return 0.0
+#     isempty(_hour_idxs) && return 0.0
 
-    return sum(value(var[g,y,h]) * get_gen_value(data, col_name, g, y, h) for g in _gen_idxs, y in _year_idxs, h in _hour_idxs)
-end
-export get_gen_result
+#     return sum(value(var[g,y,h]) * get_gen_value(data, col_name, g, y, h) for g in _gen_idxs, y in _year_idxs, h in _hour_idxs)
+# end
+# export get_gen_result
 
 function _view_model(model, name, idxs, year_idxs, hour_idxs)
     var = model[name]::Array{<:Any, 3}
     return view(var, idxs, year_idxs, hour_idxs)
 end
 
-function get_gen_array_idxs(data, idxs, year_idxs, hour_idxs)
-    _idxs = get_gen_array_idxs(data, idxs)
-    _year_idxs = get_year_idxs(data, year_idxs)
-    _hour_idxs = get_hour_idxs(data, hour_idxs)
-    return _idxs, _year_idxs, _hour_idxs
-end
+# function get_gen_array_idxs(data, idxs, year_idxs, hour_idxs)
+#     _idxs = get_gen_array_idxs(data, idxs)
+#     _year_idxs = get_year_idxs(data, year_idxs)
+#     _hour_idxs = get_hour_idxs(data, hour_idxs)
+#     return _idxs, _year_idxs, _hour_idxs
+# end
 
 
-function get_gen_array_idxs(data, idxs)
-    return get_row_idxs(get_table(data, :gen), idxs)
-end
+# function get_gen_array_idxs(data, idxs)
+#     return get_row_idxs(get_table(data, :gen), idxs)
+# end
 
-export get_gen_array_idxs
+# export get_gen_array_idxs
 
 """
     aggregate_result(f::Function, data, res_raw, table_name, col_name, idxs=(:), yr_idxs=(:), hr_idxs=(:)) -> x::Float64
@@ -304,6 +322,9 @@ function total(::Type{MWhServed}, data, res_raw, table, column_name, idxs, yr_id
     return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
 end
 function total(::Type{MWhGenerated}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
+end
+function total(::Type{MWhDemanded}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
     return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
 end
 function total(::Type{MWhCurtailed}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
