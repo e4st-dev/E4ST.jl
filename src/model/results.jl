@@ -418,7 +418,7 @@ function weighted_sum(v1, v2, idxs, yr_idxs, hr_idxs)
 end
 
 """
-    weighted_sum(v1, v2, idxs, yr_idxs, hr_idxs)
+    weighted_sum(v1, v2, v3, idxs, yr_idxs, hr_idxs)
 
 Compute the `sum(v1[i,y,h]*v2[i,y,h]*v3[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)`
 """

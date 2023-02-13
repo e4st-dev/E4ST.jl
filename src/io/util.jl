@@ -303,12 +303,12 @@ end
 
 
 """
-    parse_year_comparisons(s::AbstractString) -> comparisons
+    parse_year_idxs(s::AbstractString) -> comparisons
 
 Parse a year comparison.  Could take the following forms:
 * `"y2020"` - year 2020 only
 * `""` - All years, returns (:)
-* `"1"` - year index 1 # TODO: implement
+* `"1"` - year index 1
 * `"[1,2,3]"`
 """
 function parse_year_idxs(_s::AbstractString)
@@ -330,10 +330,10 @@ end
 
 
 """
-    parse_hour_comparisons(s::AbstractString) -> comparisons
+    parse_hour_idxs(s::AbstractString) -> comparisons
 
 Parse a year comparison.  Could take the following forms:
-* `"1"` - hour 1 only # TODO: implement
+* `"1"` - hour 1 only
 * `""` - All hours, returns (:)
 * `"season=>winter"` - returns "season"=>"winter"
 """

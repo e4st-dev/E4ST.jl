@@ -717,8 +717,8 @@ end
 export get_table_col_unit
 
 
-_eltype(::Vector{<:Container}) = Float64
-_eltype(::Vector{<:AbstractVector{Float64}}) = Float64
+_eltype(::AbstractVector{<:Container}) = Float64
+_eltype(::AbstractVector{<:AbstractVector{Float64}}) = Float64
 _eltype(v) = eltype(v)
 
 """
