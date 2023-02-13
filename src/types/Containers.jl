@@ -24,6 +24,10 @@ end
 struct ByYearAndHour <: Container
     v::Vector{Vector{Float64}}
 end
+struct HoursContainer <: Container
+    v::Vector{Float64}
+end
+
 
 """
     get_original(c::Container) -> original::Float64
@@ -66,6 +70,32 @@ function Base.getindex(n::Number, year_idx::Int64, hour_idx::Int64)
 end
 function Base.getindex(n::Number, year_idx::Int64, hour_idx::Colon)
     return n
+end
+
+function Base.getindex(c::HoursContainer, y::Int64, h::Int64)
+    return c.v[h]
+end
+function Base.getindex(c::HoursContainer, i::Int64, y::Int64, h::Int64)
+    return c.v[h]
+end
+
+# For vector of AbstractMatrixes
+function Base.getindex(v::Vector{<:AbstractMatrix{<:Real}}, i::Int64, y::Int64, h::Int64)
+    return v[i][y,h]
+end
+
+# Assume that if we are trying to index into a vector of vectors, it is for yearly data only
+function Base.getindex(v::Vector{<:AbstractVector{<:Real}}, i::Int64, y::Int64, h::Int64)
+    return v[i][y]
+end
+
+# Assume that if we are trying to index into a vector of vectors, it is for yearly data only
+function Base.getindex(v::Vector{<:Real}, i::Int64, y::Int64, h::Int64)
+    return v[i]
+end
+
+function Base.getindex(v::Vector{<:Container}, i::Int64, y::Int64, h::Int64)
+    return v[i][y,h]
 end
 
 ###############################################################################

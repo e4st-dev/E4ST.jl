@@ -247,6 +247,12 @@ function load_summary_table!(config, data)
     end
 
     data[:summary_table] = st
+    
+    # Make a dictionary of units such that d[(:table_name, :column_name)] = unit 
+    data[:unit_lookup] = Dict(
+        (row.table_name, row.column_name)=>row.unit for row in eachrow(st)
+    )
+    
     return
 end
 export load_summary_table!
@@ -420,9 +426,10 @@ export setup_branch_table!
 Doesn't do anything yet.
 """
 function setup_table!(config, data, ::Val{:hours})
+    weights = get_hour_weights(data)
+    data[:hours_container] = HoursContainer(weights)
     return
 end
-export setup_hours_table!
 
 @doc raw"""
     setup_table!(config, data, ::Val{:af_table})
@@ -506,8 +513,9 @@ function summarize_table(::Val{:gen})
         (:fuel_cost, Float64, DollarsPerMWhGenerated, false, "Fuel cost per MWh of generation"),
         (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
-        (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
-        (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum operable ratio of power generation to capacity for the generator to operate"),
+        (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
+        (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
+        (:af, Float64, MWhGeneratedPerMWhCapacity, false, "The availability factor, or maximum available ratio of pewer generation to nameplate capacity for the generator.")
     )
     return df
 end
@@ -661,6 +669,57 @@ function get_table_col(data, table_name, col_name)
     col = table[!, col_name]
     return col::Vector
 end
+export get_table_col
+
+"""
+    add_table_col!(data, table_name, col_name, col, unit, description)
+
+Adds `col` to `data[table_name][!, col_name]`, also adding the description and unit to the summary table.
+"""
+function add_table_col!(data, table_name, column_name, col::Vector, unit, description)
+    # Add col to table
+    table = get_table(data, table_name)
+    hasproperty(table, column_name) && @warn "Table data[$table_name] already has column $column_name, overwriting"
+    table[!, column_name] = col
+
+    # Document in the summary table
+    summary_table = get_table(data, :summary_table)
+    data_type = _eltype(col)
+    row = (;table_name, column_name, data_type, unit, required=false, description)
+    push!(summary_table, row)
+    data[:unit_lookup][(table_name, column_name)] = unit
+end
+function add_table_col!(data, table_name, column_name, ar::Array{<:Real, 3}, unit, description)
+    v = [view(ar, i, :, :) for i in 1:size(ar, 1)]
+    return add_table_col!(data, table_name, column_name, v, unit, description)
+end
+function add_table_col!(data, table_name, column_name, ar::Matrix{<:Real}, unit, description)
+    # Might need to make this into a container.
+    v = [view(ar, i, :) for i in 1:size(ar, 1)]
+    return add_table_col!(data, table_name, column_name, v, unit, description)
+end
+export add_table_col!
+
+
+"""
+    get_table_col_unit(data, table_name, column_name) -> unit::Type{<:Unit}
+"""
+function get_table_col_unit(data, table_name::Symbol, column_name::Symbol)
+    ul = data[:unit_lookup]::Dict{Tuple{Symbol, Symbol}, DataType}
+    unit = get(ul, (table_name, column_name)) do
+        error("No unit found for table column $table_name[:$column_name].\nConsider defining the column in the setup_table.")
+    end::Type{<:Unit}
+    return unit
+end
+function get_table_col_unit(data, table_name, column_name)
+    get_table_col_unit(data, Symbol(table_name), Symbol(column_name))
+end
+export get_table_col_unit
+
+
+_eltype(::AbstractVector{<:Container}) = Float64
+_eltype(::AbstractVector{<:AbstractVector{Float64}}) = Float64
+_eltype(v) = eltype(v)
 
 """
     get_table_num(data, table_name, col_name, row_idx, yr_idx, hr_idx) -> num::Float64
@@ -719,7 +778,7 @@ export has_table
 """
     get_table_summary(config, data, table_name) -> summary::SubDataFrame
 
-Returns a summary of `table_name`, loaded in from [`summarize_table`](@ref)` and [`load_summary_table`](@ref).
+Returns a summary of `table_name`, loaded in from [`summarize_table`](@ref)` and [`load_summary_table!`](@ref).
 """
 function get_table_summary(data, table_name)
     st = get_table(data, :summary_table)
@@ -933,7 +992,7 @@ Returns the number of hours in a year spent at each representative hour
 """ 
 function get_hour_weights(data)
     hours_table = get_table(data, :hours)
-    return hours_table.hours
+    return hours_table.hours::Vector{Float64}
 end
 function get_hour_weights(data, hour_idxs)
     return view(get_hour_weights(data), hour_idxs)

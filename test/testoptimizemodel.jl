@@ -12,37 +12,43 @@
 
     @test check(model)
 
+    res_raw = parse_results(config, data, model)
+    res_user = process_results(config, data, res_raw)
+
     @testset "Test no curtailment" begin
         bus = get_table(data, :bus)
         years = get_years(data)
         rep_hours = get_table(data, :hours)
-        total_pserv = sum(rep_hours.hours[hour_idx].*value.(model[:pserv_bus][bus_idx, year_idx, hour_idx]) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
-        total_dl = sum(rep_hours.hours[hour_idx].*get_bus_value(data, :pdem, bus_idx, year_idx, hour_idx) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
-        @test total_pserv ≈ total_dl
-        @test all(p->abs(p)<1e-6, value.(model[:pcurt_bus]))
+        total_eserv = aggregate_result(total, data, res_raw, :bus, :eserv)
+        total_edem = aggregate_result(total, data, res_raw, :bus, :edem)
+        # total_pserv = sum(rep_hours.hours[hour_idx].*value.(model[:pserv_bus][bus_idx, year_idx, hour_idx]) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
+        # total_dl = sum(rep_hours.hours[hour_idx].*get_bus_value(data, :pdem, bus_idx, year_idx, hour_idx) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
+        total_ecurt = aggregate_result(total, data, res_raw, :bus, :ecurt)
+        @test total_eserv ≈ total_edem
+        @test all(p->abs(p)<1e-6, total_ecurt)
     end
 
     # make sure energy generated is non_zero
     gen = get_table(data, :gen)
 
     for gen_idx in 1:nrow(gen)
-        @test value.(get_egen_gen(data, model, gen_idx)) >= 0
+        @test aggregate_result(total, data, res_raw, :gen, :egen, gen_idx) >= 0
     end
 
     @testset "Test Accessor methods" begin
-        @test get_model_val_by_gen(data, model, :egen_gen, :genfuel=>"ng", "y2040", 1:3) ≈ 
-            get_model_val_by_gen(data, model, :egen_gen, :genfuel=>"ng", 3, [1,2,3])
+        @test aggregate_result(total, data, model, :gen, :egen, :genfuel=>"ng", "y2040", 1:3) ≈ 
+            aggregate_result(total, data, model, :gen, :egen, :genfuel=>"ng", 3, [1,2,3])
 
-        @test get_model_val_by_gen(data, model, :egen_gen, 1:2, ["y2035","y2040"], 1:3) ≈ 
-            get_model_val_by_gen(data, model, :egen_gen, 1, 2:3, [1,2,3]) + 
-            get_model_val_by_gen(data, model, :egen_gen, 2, 2:3, 1) +
-            get_model_val_by_gen(data, model, :egen_gen, 2, 2:3, 2) +
-            get_model_val_by_gen(data, model, :egen_gen, 2, 2:3, 3)
+        @test aggregate_result(total, data, model, :gen, :egen, 1:2, ["y2035","y2040"], 1:3) ≈ 
+            aggregate_result(total, data, model, :gen, :egen, 1, 2:3, [1,2,3]) + 
+            aggregate_result(total, data, model, :gen, :egen, 2, 2:3, 1) +
+            aggregate_result(total, data, model, :gen, :egen, 2, 2:3, 2) +
+            aggregate_result(total, data, model, :gen, :egen, 2, 2:3, 3)
 
-        @test get_model_val_by_gen(data, model, :egen_gen) ≈ get_model_val_by_gen(data, model, :egen_gen, :)
-        @test get_model_val_by_gen(data, model, :egen_gen, :genfuel=>"ng") ≈
-            get_model_val_by_gen(data, model, :egen_gen, (:genfuel=>"ng", :country=>"narnia")) + 
-            get_model_val_by_gen(data, model, :egen_gen, (:genfuel=>"ng", :country=>"archenland"))
+        @test aggregate_result(total, data, model, :gen, :egen) ≈ aggregate_result(total, data, model, :gen, :egen, :)
+        @test aggregate_result(total, data, model, :gen, :egen, :genfuel=>"ng") ≈
+            aggregate_result(total, data, model, :gen, :egen, (:genfuel=>"ng", :country=>"narnia")) + 
+            aggregate_result(total, data, model, :gen, :egen, (:genfuel=>"ng", :country=>"archenland"))
         
     end
 end

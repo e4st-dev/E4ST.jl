@@ -17,8 +17,9 @@ function setup_table!(config, data, ::Val{:demand_table})
     demand.pdem = map(i->view(ar, i, :, :), 1:nrow(demand))
 
     bus = get_table(data, :bus)
-    bus.pdem = [DemandContainer() for _ in 1:nrow(bus)]
+    pdem_bus = [DemandContainer() for _ in 1:nrow(bus)]
 
+    add_table_col!(data, :bus, :pdem, pdem_bus, MWDemanded, "Average MW of power demanded")
     for row in eachrow(demand)
         bus_idx = row.bus_idx::Int64
         c = bus[bus_idx, :pdem]

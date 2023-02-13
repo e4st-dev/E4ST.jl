@@ -34,8 +34,10 @@ The Config File is a file that fully specifies all the necessary information.  N
 * `summary_table_file` - a file for giving information about additional columns not specified in [`summarize_table`](@ref)
 * `save_data` - A boolean specifying whether or not to save the loaded data to file for later use (i.e. by specifying a `data_file` for future simulations).  Defaults to `true`
 * `data_file` - The filepath (relative or absolute) to the data file (a serialized julia object).  If this is provided, it will use this instead of loading data from all the other files.
-* `save_model_presolve` - A boolean specifying whether or not to save the model before solving it, for later use (i.e. by specifying a `model_presolve_file` for future sims). Defaults to `true`
+* `save_model_presolve` - A boolean specifying whether or not to save the model before solving it, for later use (i.e. by specifying a `model_presolve_file` for future sims). Defaults to `false`
 * `model_presolve_file` - The filepath (relative or absolute) to the unsolved model.  If this is provided, it will use this instead of creating a new model.
+* `save_results_raw` - A boolean specifying whether or not to save the raw results after solving the model.  This could be useful for calling [`process_results(config)`](@ref) in the future.
+* `results_raw_file` - The filepath (relative or absolute) to the raw results.  This is helpful for calling [`process_results(config)`](@ref) to generate user results without having to re-run E4ST.
 
 ## Example Config File
 ```yaml
@@ -131,11 +133,11 @@ end
 export stop_logging!
 
 """
-    log_info(config)
+    log_start(config)
 
 Logs any necessary info at the beginning of a run of E4ST
 """
-function log_info(config)
+function log_start(config)
     @info string(
         header_string("STARTING E4ST"), 
         "\n\n",
@@ -144,7 +146,7 @@ function log_info(config)
         package_status_string(),
     )
 end
-export log_info
+export log_start
 
 """
     log_header(header)
@@ -252,34 +254,18 @@ function check_required_fields!(config)
 end
 
 """
-    make_paths_absolute!(config, filename; path_keys = (:gen_file, :bus_file, :branch_file))
+    make_paths_absolute!(config, filename)
 
 Make all the paths in `config` absolute, corresponding to the keys given in `path_keys`.
 
 Relative paths are relative to the location of the config file at `filename`
 """
-function make_paths_absolute!(config, filename; 
-    path_keys = (
-        :gen_file, 
-        :bus_file, 
-        :branch_file, 
-        :hours_file, 
-        :out_path, 
-        :af_file, 
-        :demand_file,
-        :demand_shape_file, 
-        :demand_match_file, 
-        :demand_add_file,
-        :data_file,
-        :model_presolve_file,
-        :build_gen_file,
-        :gentype_genfuel_file,
-        :summary_table_file
-    )
-)
+function make_paths_absolute!(config, filename)
+    # Get a list of path keys to make absolute
+    path_keys = filter(contains_file_or_path, keys(config))
+
     path = dirname(filename)
     for key in path_keys
-        haskey(config, key) || continue
         fn = config[key]
         if ~isabspath(fn)
             config[key] = abspath(path, fn)
@@ -287,6 +273,16 @@ function make_paths_absolute!(config, filename;
     end
     return config
 end
+
+"""
+    contains_file_or_path(s) -> Bool
+
+Returns true if `s` contains "_file" or "_path".
+"""
+function contains_file_or_path(s::AbstractString)
+    return contains(s, "_file") || contains(s, "_path")
+end
+contains_file_or_path(s::Symbol) = contains_file_or_path(string(s))
 
 function make_out_path!(config)
     out_path = config[:out_path]
@@ -308,12 +304,22 @@ function make_out_path!(config)
     mkpath(config[:out_path])
 end
 
+"""
+    out_path(config, filename) -> path
+
+Returns `joinpath(config[:out_path], filename)`
+"""
+function out_path(config, filename::String)
+    joinpath(config[:out_path], filename)
+end
+export out_path
+
 function convert_mods!(config)
     if ~haskey(config, :mods) || isnothing(config[:mods])
         config[:mods] = OrderedDict{Symbol, Modification}()
         return
     end
-    config[:mods] = OrderedDict(key=>Modification(key=>val) for (key,val) in config[:mods])
+    config[:mods] = OrderedDict{Symbol, Modification}(key=>Modification(key=>val) for (key,val) in config[:mods])
     return
 end
 

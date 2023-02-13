@@ -74,7 +74,7 @@ end
     # Log the info
     config[:logging] = true
     start_logging!(config)
-    log_info(config)
+    log_start(config)
     stop_logging!(config)
     @test length(readlines(log_file)) > 6
 

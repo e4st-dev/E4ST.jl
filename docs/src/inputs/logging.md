@@ -13,5 +13,5 @@ In general, E4ST piggy-backs off of the [Logging.jl](https://docs.julialang.org/
 start_logging!(config)
 stop_logging!(config)
 log_header(s)
-log_info(config)
+log_start(config)
 ```
