@@ -26,8 +26,11 @@ config = load_config(filename)
 @testset "Test Loading Optimizer from Config" begin
     attrib = E4ST.optimizer_attributes(config)
     @test attrib isa NamedTuple
-    @test attrib.dual_feasibility_tolerance   == 1e-5 # From config file, not the default
-    @test attrib.primal_feasibility_tolerance == 1e-7 # From default, not in the config file
+    for (k,v) in config[:optimizer]
+        k == :type && continue
+        @test attrib[k] == v
+    end
+
     @test Model(E4ST.getoptimizer(config)) isa JuMP.Model
 end
 
