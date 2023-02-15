@@ -271,6 +271,11 @@ function make_paths_absolute!(config, filename)
             config[key] = abspath(path, fn)
         end
     end
+    for (k,v) in config
+        if v isa OrderedDict
+            make_paths_absolute!(v, filename)
+        end
+    end
     return config
 end
 
