@@ -1,6 +1,6 @@
 # Hours Table
 ```@docs
-summarize_table!(::Val{:hours})
+summarize_table(::Val{:hours})
 ```
 
 #### Column Summmary

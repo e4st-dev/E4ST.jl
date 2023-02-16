@@ -84,6 +84,7 @@ function setup_model(config, data)
             model_presolve_file = joinpath(config[:out_path],"model_presolve.jls")
             @info "Saving model to:\n$model_presolve_file"
             serialize(model_presolve_file, model)
+            @info "Model Saved."
         end
     end
 

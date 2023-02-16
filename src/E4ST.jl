@@ -79,7 +79,9 @@ function run_e4st(config)
 
     data  = load_data(config)
     model = setup_model(config, data)
+    log_header("OPTIMIZING MODEL!")
     optimize!(model)
+    log_header("MODEL OPTIMIZED!")
     check(model)
 
     all_results = []
@@ -129,7 +131,7 @@ function getoptimizertype(s::String)
     return get(STR2OPT, s) do 
         reload_optimizers!()
         get(STR2OPT, s) do
-            error("There is no AbstractOptimizer defined in $s, or $s has not been imported yet!")
+            error("There is no AbstractOptimizer defined called $s, or $s has not been imported yet!")
         end
     end
 end
@@ -169,7 +171,7 @@ end
 
 Core.Type(s::AbstractString) = get_type(String(s))
 Core.Type(s::Symbol) = get_type(s)
-Core.AbstractString(s) = String(s)
+Core.AbstractString(s) = string(s)
 
 """
     get_type(sym::Symbol) -> type (preferred)

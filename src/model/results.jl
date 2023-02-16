@@ -28,6 +28,7 @@ Simply gathers the values and shadow prices of each variable, expression, and co
 Saves them to `out_path(config,"results_raw.jls")` unless `config[:save_results_raw]` is `false` (true by default).
 """
 function parse_results(config, data, model)
+    log_header("PARSING RESULTS")
     results_raw = Dict(k => value_or_shadow_price(v) for (k,v) in object_dictionary(model))
     # Don't add anything else here, we want to preserve the purity of these raw results, so that we can get rid of the model.  Add any standard processing to process_results.
     if get(config, :save_results_raw, true)

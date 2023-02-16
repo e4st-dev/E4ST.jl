@@ -52,11 +52,11 @@ function load_data_files!(config, data)
     load_table!(config, data, :gen_file      => :gen)
     load_table!(config, data, :branch_file   => :branch)
     load_table!(config, data, :hours_file    => :hours)
-    load_table!(config, data, :af_file       => :af_table)
     load_table!(config, data, :demand_file   => :demand_table)
     
 
     # Optional tables
+    load_table!(config, data, :af_file       => :af_table, optional = true)
     load_table!(config, data, :demand_shape_file=>:demand_shape, optional=true)
     load_table!(config, data, :demand_match_file=>:demand_match, optional=true)
     load_table!(config, data, :demand_add_file=>:demand_add, optional=true)
@@ -120,7 +120,7 @@ Sets up the `data[:table_name]`.  Calls `setup_table!(config, data, Val(table_na
 """
 function setup_table!(config, data, table_name::Symbol)
     if hasmethod(setup_table!, Tuple{typeof(config), typeof(data), Val{table_name}}) && has_table(data, table_name)
-        @info "Setting up data[$(table_name)]"
+        @info "Setting up data[:$(table_name)]"
         setup_table!(config, data, Val(table_name))
     end
     return 
@@ -363,11 +363,17 @@ function setup_table!(config, data, ::Val{:gen})
     # create capex_obj (the capex used in the optimization/objective function)
     # set to capex for unbuilt generators
     # set to 0 for already built capacity because capacity expansion isn't considered for existing generators
-    gen.capex_obj .= (gen.build_status.=="unbuilt").* gen.capex
+    capex_obj = (gen.build_status.=="unbuilt").* gen.capex
+    add_table_col!(data, :gen, :capex_obj, capex_obj, DollarsPerMWBuiltCapacity, "The annual capital expenditures per MW of built capacity seen by the optimizer in the objective function.  Note that this is zero for already-built capacity.")
 
     # map bus characteristics to generators
     leftjoin!(gen, bus, on=:bus_idx)
     disallowmissing!(gen)
+
+    # Add necessary columns if they don't exist.
+    hasproperty(gen, :af) || (gen.af = fill(ByNothing(1.0), nrow(gen)))
+    hasproperty(gen, :fuel_cost) || (gen.fuel_cost = fill(ByNothing(0.0), nrow(gen)))
+    return gen
 end
 export setup_gen_table!
 
@@ -1037,8 +1043,8 @@ export get_num_years, get_years
 Returns an array of the year indexes for years in the simulation before the start year of the specified generator. 
 """
 function get_prebuild_year_idxs(data, gen_idx)
-    years = year2int.(get_years(data))
-    year_on = year2int(get_gen_value(data, :year_on, gen_idx))
+    years = get_years(data)
+    year_on = get_gen_value(data, :year_on, gen_idx)
     idxs = findall(x -> years[x] < year_on, 1:length(years))
     return idxs
 end
@@ -1053,8 +1059,8 @@ If this year is not part of the set of year, it returns the index of the next cl
 If this year is after the simulation years it returns length(years)+1 indicating that it is in the future.
 """
 function get_year_on_sim_idx(data, gen_idx)
-    years = year2int.(get_years(data))
-    year_on = year2int(get_gen_value(data, :year_on, gen_idx))
+    years = get_years(data)
+    year_on = get_gen_value(data, :year_on, gen_idx)
     year_on_sim_idx = findfirst(x -> years[x] >= year_on, 1:length(years)) 
     if year_on_sim_idx === nothing
         year_on_sim_idx = length(years)+1
