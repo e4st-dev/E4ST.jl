@@ -359,6 +359,9 @@ function setup_table!(config, data, ::Val{:gen})
     # set to 0 for already built capacity because capacity expansion isn't considered for existing generators
     gen.capex_obj .= (gen.build_status.=="unbuilt").* gen.capex
 
+
+    #TODO: add age column as by ByYear based on start year
+
     # map bus characteristics to generators
     leftjoin!(gen, bus, on=:bus_idx)
     disallowmissing!(gen)
