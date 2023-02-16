@@ -94,8 +94,10 @@ function setup_dcopf!(config, data, model)
     
     # Constrain Capacity to 0 before the start/build year 
     prebuild_year_idxs = map(gen_idx -> get_prebuild_year_idxs(data, gen_idx), 1:ngen)
-    @constraint(model, cons_pcap_prebuild[gen_idx in 1:ngen, year_idx in prebuild_year_idxs[gen_idx]],
+    if any(!isempty, prebuild_year_idxs)
+        @constraint(model, cons_pcap_prebuild[gen_idx in 1:ngen, year_idx in prebuild_year_idxs[gen_idx]],
             pcap_gen[gen_idx, year_idx] == 0) 
+    end
 
     # Constrain existing capacity to only decrease (only retire, not add capacity)
     @constraint(model, cons_pcap_noadd[gen_idx in 1:ngen, year_idx in get_year_on_sim_idx(data, gen_idx):(nyear-1)], 
@@ -200,13 +202,13 @@ Returns min power generation for a generator at a time.
 Default is 0 unless specified by the optional gen property `cf_min` (minimum capacity factor).
 """ 
 function get_pgen_min(data, model, gen_idx, year_idx, hour_idx) 
-   if hasproperty(data[:gen], :cf_min)
-    pcap = model[:pcap_gen][gen_idx, year_idx]
-    cf_min = get_gen_value(data, :cf_min, gen_idx, year_idx, hour_idx)
-     return pcap .* cf_min 
-   else
-     return 0.0
-   end
+    if hasproperty(data[:gen], :cf_min)
+        pcap = model[:pcap_gen][gen_idx, year_idx]
+        cf_min = get_gen_value(data, :cf_min, gen_idx, year_idx, hour_idx)
+        return pcap .* cf_min 
+    else
+        return 0.0
+    end
 end
 export get_pgen_min
 

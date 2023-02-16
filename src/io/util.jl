@@ -301,6 +301,59 @@ function parse_comparisons(row::DataFrameRow)
     return pairs
 end
 
+
+"""
+    parse_year_idxs(s::AbstractString) -> comparisons
+
+Parse a year comparison.  Could take the following forms:
+* `"y2020"` - year 2020 only
+* `""` - All years, returns (:)
+* `"1"` - year index 1
+* `"[1,2,3]"`
+"""
+function parse_year_idxs(_s::AbstractString)
+    isempty(_s) && return (:)
+    s = replace(_s, ' '=>"")
+    if (m=match(r"y[\d]{4}", s)) !== nothing
+        return m.match
+    end
+    if (m=match(r"\d*", s)) !== nothing
+        return parse(Int64, m.match)
+    end
+    if (m = match(r"(\w+)=>(\w+)", s)) !== nothing
+        return m.captures[1]=>m.captures[2]
+    end
+
+    error("No match found for $s")
+end
+
+
+
+"""
+    parse_hour_idxs(s::AbstractString) -> comparisons
+
+Parse a year comparison.  Could take the following forms:
+* `"1"` - hour 1 only
+* `""` - All hours, returns (:)
+* `"season=>winter"` - returns "season"=>"winter"
+"""
+function parse_hour_idxs(_s::AbstractString)
+    s = replace(_s, ' '=>"")
+    isempty(s) && return (:)
+    
+    # "1"
+    if (m=match(r"\d+", s)) !== nothing
+        return parse(Int64, m.match)
+    end
+    
+    # "season=>winter"
+    if (m = match(r"(\w+)=>(\w+)", s)) !== nothing
+        return m.captures[1]=>m.captures[2]
+    end
+
+    error("No match found for $s")
+end
+
 function str2array(s::AbstractString)
     v = split(s,',')
     v_int = tryparse.(Int64, v)

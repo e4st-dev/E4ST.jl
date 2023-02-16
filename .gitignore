@@ -9,4 +9,5 @@ Manifest.toml
 /benchmark/results
 *.log
 /test/out
-/debug
+/debug*
+/out
