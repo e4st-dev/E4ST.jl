@@ -1,5 +1,0 @@
-save_mpc('t_case_e4st_dac1')
-save_mpc('t_case_e4st_dac2')
-save_mpc('t_case_e4st_storage1')
-save_mpc('t_case_e4st_storage2')
-save_mpc('t_case_e4st_storage3')

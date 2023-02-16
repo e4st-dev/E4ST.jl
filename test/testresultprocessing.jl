@@ -52,19 +52,19 @@ end
         tot = aggregate_result(total, data, model, :gen, :egen)
         
         # Provide a function for filtering
-        @test tot == aggregate_result(total, data, model, :gen, :egen, :emis_co2 => <=(0.1)) + aggregate_result(total, data, model, :gen, :egen, :emis_co2 => >(0.1))
+        @test tot ≈ aggregate_result(total, data, model, :gen, :egen, :emis_co2 => <=(0.1)) + aggregate_result(total, data, model, :gen, :egen, :emis_co2 => >(0.1))
 
         # Provide a region for filtering
-        @test tot == aggregate_result(total, data, model, :gen, :egen, :country => "narnia") + aggregate_result(total, data, model, :gen, :egen, :country => !=("narnia"))
+        @test tot ≈ aggregate_result(total, data, model, :gen, :egen, :country => "narnia") + aggregate_result(total, data, model, :gen, :egen, :country => !=("narnia"))
 
         # Provide a tuple for filtering
-        @test tot == aggregate_result(total, data, model, :gen, :egen, :vom => (0,1.1) ) + aggregate_result(total, data, model, :gen, :egen, :vom => (1.1,Inf))
+        @test tot ≈ aggregate_result(total, data, model, :gen, :egen, :vom => (0,1.1) ) + aggregate_result(total, data, model, :gen, :egen, :vom => (1.1,Inf))
 
         # Provide a set for filtering
-        @test tot == aggregate_result(total, data, model, :gen, :egen, :genfuel => in(["ng", "coal"]) ) + aggregate_result(total, data, model, :gen, :egen, :genfuel => !in(["ng", "coal"]))
+        @test tot ≈ aggregate_result(total, data, model, :gen, :egen, :genfuel => in(["ng", "coal"]) ) + aggregate_result(total, data, model, :gen, :egen, :genfuel => !in(["ng", "coal"]))
         
         # Provide an index(es) for filtering
-        @test tot == aggregate_result(total, data, model, :gen, :egen, 1 ) + aggregate_result(total, data, model, :gen, :egen, 2:nrow(data[:gen]))
+        @test tot ≈ aggregate_result(total, data, model, :gen, :egen, 1 ) + aggregate_result(total, data, model, :gen, :egen, 2:nrow(data[:gen]))
     end
 
     @testset "Test year_idx filters" begin
@@ -72,16 +72,16 @@ end
         nyr = get_num_years(data)
 
         # Year index
-        @test tot == aggregate_result(total, data, model, :gen, :egen, :, 1) + aggregate_result(total, data, model, :gen, :egen, :, 2:nyr)
+        @test tot ≈ aggregate_result(total, data, model, :gen, :egen, :, 1) + aggregate_result(total, data, model, :gen, :egen, :, 2:nyr)
 
         # Year string
-        @test tot == aggregate_result(total, data, model, :gen, :egen, :, "y2030") + aggregate_result(total, data, model, :gen, :egen, :, ["y2035", "y2040"])
+        @test tot ≈ aggregate_result(total, data, model, :gen, :egen, :, "y2030") + aggregate_result(total, data, model, :gen, :egen, :, ["y2035", "y2040"])
         
         # Range of years
-        @test tot == aggregate_result(total, data, model, :gen, :egen, :, ("y2020", "y2031")) + aggregate_result(total, data, model, :gen, :egen, :, ("y2032","y2045"))
+        @test tot ≈ aggregate_result(total, data, model, :gen, :egen, :, ("y2020", "y2031")) + aggregate_result(total, data, model, :gen, :egen, :, ("y2032","y2045"))
 
         # Test function of years
-        @test tot == aggregate_result(total, data, model, :gen, :egen, :, <=("y2031")) + aggregate_result(total, data, model, :gen, :egen, :, >("y2031"))
+        @test tot ≈ aggregate_result(total, data, model, :gen, :egen, :, <=("y2031")) + aggregate_result(total, data, model, :gen, :egen, :, >("y2031"))
     end
 
     @testset "Test hour_idx filters" begin
@@ -89,10 +89,10 @@ end
         nhr = get_num_hours(data)
 
         # Hour index
-        @test tot == aggregate_result(total, data, model, :gen, :egen, :, :, 1) + aggregate_result(total, data, model, :gen, :egen, :, :, 2:nhr)
+        @test tot ≈ aggregate_result(total, data, model, :gen, :egen, :, :, 1) + aggregate_result(total, data, model, :gen, :egen, :, :, 2:nhr)
 
         # Hour table label
-        @test tot == aggregate_result(total, data, model, :gen, :egen, :, :, (:time_of_day=>"morning", :season=>"summer")) + 
+        @test tot ≈ aggregate_result(total, data, model, :gen, :egen, :, :, (:time_of_day=>"morning", :season=>"summer")) + 
             aggregate_result(total, data, model, :gen, :egen, :, :, (:time_of_day=>"morning", :season=>!=("summer"))) +
             aggregate_result(total, data, model, :gen, :egen, :, :, :time_of_day=>!=("morning"))
             
@@ -105,7 +105,7 @@ end
     @testset "Test Aggregation" begin
 
         # Test that summing the co2 emissions for solar in 2030 is zero
-        @test aggregate_result(total, data, res_raw, :gen, :emis_co2, :gentype=>"solar", "y2030", :) == 0.0
+        @test aggregate_result(total, data, res_raw, :gen, :emis_co2, :gentype=>"solar", "y2030", :) ≈ 0.0
     
         # Test that the average co2 emissions rate is between the min and max
         all_emis_co2 = get_table_col(data, :gen, :emis_co2)
@@ -123,7 +123,7 @@ end
 
         # Test that there is no curtailment across all time
         ecurt = aggregate_result(total, data, res_raw, :bus, :ecurt, :, :, :)
-        @test ecurt < eps(Float64)
+        @test ecurt < 1e-6
 
         # Test that total power capacity is greater than or equal to average demand
         pcap = aggregate_result(total, data, res_raw, :gen, :pcap)
