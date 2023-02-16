@@ -31,6 +31,8 @@ The Config File is a file that fully specifies all the necessary information.  N
 * `demand_shape_file` - a file for specifying the hourly shape of demand elements.  See [`summarize_table(::Val{:demand_shape})`](@ref)
 * `demand_match_file` - a file for specifying annual demanded energy to match for sets  See [`summarize_table(::Val{:demand_match})`](@ref)
 * `demand_add_file` - a file for specifying additional demanded energy, after matching.  See [`summarize_table(::Val{:demand_add})`](@ref)
+* `build_gen_file` - a file for specifying generators that could get built.  See [`summarize_table(::Val{:build_gen})`](@ref)
+* `gentype_genfuel_file` - a file for storing gentype-genfuel pairings.  See [`summarize_table(::Val{genfuel})`](@ref)
 * `summary_table_file` - a file for giving information about additional columns not specified in [`summarize_table`](@ref)
 * `save_data` - A boolean specifying whether or not to save the loaded data to file for later use (i.e. by specifying a `data_file` for future simulations).  Defaults to `true`
 * `data_file` - The filepath (relative or absolute) to the data file (a serialized julia object).  If this is provided, it will use this instead of loading data from all the other files.

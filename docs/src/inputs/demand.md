@@ -10,7 +10,7 @@ summarize_table(::Val{:demand_table})
 #### Column Summary
 ```@example demand
 using E4ST # hide
-summarize_table(::Val{:demand_table}) # hide
+summarize_table(:demand_table) # hide
 ```
 
 ## Shaping Hourly Demand

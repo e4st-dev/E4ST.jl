@@ -27,7 +27,11 @@ end
         @test parse_comparison("emis_rate => (-1, 1)") == ("emis_rate" => (-1, 1))
         @test parse_comparison("year_on => (y2020, y2030)") == ("year_on" => ("y2020", "y2030"))
         @test parse_comparison("country=>narnia") == ("country"=>"narnia")
+
+        d = Dict(:emis_co2 => "<= 0.1")
+        @test ("emis_co2" => <=(0.1)) in parse_comparisons(d)
     end
+
 
 
 

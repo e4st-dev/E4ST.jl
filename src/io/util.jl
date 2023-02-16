@@ -272,11 +272,18 @@ function parse_comparison(_s::AbstractString)
         ar = str2array(m.captures[2])
         return m.captures[1]=>ar
     end
-
-
 end
 export parse_comparison
 
+"""
+    parse_comparisons(row::DataFrameRow) -> pairs
+
+Returns a set of pairs to be used in filtering rows of another table.  Looks for the following properties in the row:
+* `filter_` - if the row has any non-empty `filter_` (i.e. `filter1`, `filter2`) values, it will parse the comparison via [`parse_comparison`](@ref)
+* `genfuel` - if the row has a non-empty `genfuel`, it will add an comparion that checks that each row's `genfuel` equals this value
+* `gentype` - if the row has a non-empty `gentype`, it will add an comparion that checks that each row's `gentype` equals this value
+* `load_type` - if the row has a non-empty `load_type`, it will add an comparion that checks that each row's `load_type` equals this value
+"""
 function parse_comparisons(row::DataFrameRow)
     pairs = []
     for i in 1:10000
@@ -294,12 +301,23 @@ function parse_comparisons(row::DataFrameRow)
     end
 
     # Check for genfuel and gentype
-    hasproperty(row, :genfuel) && ~isempty(row.genfuel) && push!(pairs, :genfuel=>row.genfuel)
-    hasproperty(row, :gentype) && ~isempty(row.gentype) && push!(pairs, :gentype=>row.gentype)
-    hasproperty(row, :load_type) && ~isempty(row.load_type) && push!(pairs, :load_type=>row.load_type)
+    hasproperty(row, :genfuel) && ~isempty(row.genfuel) && push!(pairs, parse_comparison("genfuel=>$(row.genfuel)"))
+    hasproperty(row, :gentype) && ~isempty(row.gentype) && push!(pairs, parse_comparison("gentype=>$(row.gentype)"))
+    hasproperty(row, :load_type) && ~isempty(row.load_type) && push!(pairs, parse_comparison("load_type=>$(row.load_type)"))
     
     return pairs
 end
+export parse_comparisons
+
+"""
+    parse_comparisons(d::AbstractDict) -> pairs
+
+Returns a set of pairs to be used in filtering rows of another table, where each value `d`
+"""
+function parse_comparisons(d::AbstractDict)
+    pairs = collect(parse_comparison("$k=>$v") for (k,v) in d)
+end
+export parse_comparisons
 
 
 """
