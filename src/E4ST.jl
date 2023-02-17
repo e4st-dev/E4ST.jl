@@ -78,13 +78,17 @@ function run_e4st(config)
     log_start(config)
 
     data  = load_data(config)
+
     model = setup_model(config, data)
+    
     log_header("OPTIMIZING MODEL!")
     optimize!(model)
     log_header("MODEL OPTIMIZED!")
-    check(model)
 
     all_results = []
+
+    check(model) || return all_results
+
 
     results_raw = parse_results(config, data, model)
     results_user = process_results(config, data, results_raw)
@@ -99,7 +103,7 @@ function run_e4st(config)
         model = setup_model(config, data)
 
         optimize!(model)
-        check(model)
+        check(model) || return all_results
 
         results_raw = parse_results(config, data, model)
         results_user = process_results(config, data, results_raw)

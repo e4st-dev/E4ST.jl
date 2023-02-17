@@ -51,7 +51,7 @@ function load_config(filename)
         config = YAML.load_file(filename, dicttype=OrderedDict{Symbol, Any})
         get!(config, :config_file, filename)
     else
-        error("No support for file $filename")
+        error("Cannot load config from: $filename")
     end
     check_required_fields!(config)
     make_paths_absolute!(config, filename)
@@ -219,7 +219,7 @@ function closestream(logger::SimpleLogger)
     close(logger.stream)
 end
 
-function closestream(logger::NullLogger)
+function closestream(logger::AbstractLogger)
 end
 
 function closestream(logger::MiniLogger)
