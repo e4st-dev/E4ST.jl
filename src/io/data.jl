@@ -23,7 +23,18 @@ function load_data(config)
         return data
     end
     data = OrderedDict{Symbol, Any}()
+    
+    load_data!(config, data)
 
+    return data
+end
+
+"""
+    load_data!(config, data) -> data
+
+Loads data specified by `config` into `data`. `data` can be empty or full.
+"""
+function load_data!(config, data)
     load_data_files!(config, data)
     modify_raw_data!(config, data)
     setup_data!(config, data)  
@@ -32,9 +43,9 @@ function load_data(config)
     if get(config, :save_data, true)
         serialize(joinpath(config[:out_path],"data.jls"), data)
     end
-
     return data
 end
+export load_data!
 
 """
     load_data_files!(config, data)

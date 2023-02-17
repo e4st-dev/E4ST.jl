@@ -79,35 +79,34 @@ function run_e4st(config)
 
     data  = load_data(config)
 
-    model = setup_model(config, data)
-    
-    log_header("OPTIMIZING MODEL!")
-    optimize!(model)
-    log_header("MODEL OPTIMIZED!")
-
     all_results = []
 
-    check(model) || return all_results
-
-
-    results_raw = parse_results(config, data, model)
-    results_user = process_results(config, data, results_raw)
-    push!(all_results, results_user)
-    
-    # Iteration: Check to see if the model should keep iterating.  See the Iteratable interface in model/iteration.jl for more information
+    # Begin iteration loop
     iter = get_iterator(config)
-    while should_iterate(iter, config, data, model, results_raw, results_user)
-        iterate!(iter, config, data, model, results_raw, results_user)
-        data = should_reload_data(iter) ? load_data(config) : data
-
+    while true
         model = setup_model(config, data)
-
+    
+        log_header("OPTIMIZING MODEL!")
         optimize!(model)
+        log_header("MODEL OPTIMIZED!")
+
         check(model) || return all_results
+
 
         results_raw = parse_results(config, data, model)
         results_user = process_results(config, data, results_raw)
         push!(all_results, results_user)
+
+        # ITERATION
+        #############################################################################
+        # First check to see if we even need to iterate
+        should_iterate(iter, config, data, model, results_raw, results_user) || break
+
+        # Now make any changes to things based on the iteration
+        iterate!(iter, config, data, model, results_raw, results_user)
+
+        # Reload data as needed
+        should_reload_data(iter) && load_data!(config, data)
     end
 
     stop_logging!(config)
