@@ -175,15 +175,17 @@ function optimizer_attributes(config, ::Val{:Gurobi}; LogFile=nothing, kwargs...
     # These defaults came from e4st_core.m
     (;
         LogToConsole    = false,
-        NumericFocus    = 0,
-        BarHomogeneous  =-1,
+        NumericFocus    = 3,
+        BarHomogeneous  = 1,
         method          = 2,
         BarIterLimit    = 1000,
-        Crossover       = 0,
+        Crossover       = 1,
         FeasibilityTol  = 1e-2,
         OptimalityTol   = 1e-6,
-        BarConvTol      = 1e-6,
+        BarConvTol      = 1e-8,
         LogFile         = log_file_full,
+        Threads         = 1,
+        DualReductions  = 0,  # This is only to see if infeasible or unbounded.
         kwargs...
     )
 end

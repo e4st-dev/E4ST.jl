@@ -90,7 +90,7 @@ function run_e4st(config)
         optimize!(model)
         log_header("MODEL OPTIMIZED!")
 
-        check(model) || return all_results
+        check(model) || return model # all_results
 
 
         results_raw = parse_results(config, data, model)

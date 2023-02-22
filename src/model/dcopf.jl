@@ -25,16 +25,16 @@ function setup_dcopf!(config, data, model)
     ## Variables
 
     # Voltage Angle
-    @variable(model, θ_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour])
+    @variable(model, θ_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], start=0.0)
 
     # Power Generation
-    @variable(model, pgen_gen[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour])
+    @variable(model, pgen_gen[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour], start=0.0)
 
     # Capacity
-    @variable(model, pcap_gen[gen_idx in 1:ngen, year_idx in 1:nyear])
+    @variable(model, pcap_gen[gen_idx in 1:ngen, year_idx in 1:nyear], start=get_gen_value(data, :pcap0, gen_idx, year_idx, :))
 
     # Load/Power Served
-    @variable(model, pserv_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour] >= 0)
+    @variable(model, pserv_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], start=get_pdem_bus(data, bus_idx, year_idx, hour_idx))
 
 
     ## Expressions to be used later
