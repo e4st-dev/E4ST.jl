@@ -221,14 +221,14 @@ function process_lmp!(config, data, res_raw)
     res_raw[:lmp_eserv_bus] = lmp_eserv
     add_table_col!(data, :bus, :lmp_eserv, lmp_eserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
 
-    # Get the shadow price of the positive and negative branch power flow constraints ($/(MW incremental transmission))      
-    cons_branch_pflow_neg = res_raw[:cons_branch_pflow_neg]::Array{Float64, 3}
-    cons_branch_pflow_pos = res_raw[:cons_branch_pflow_pos]::Array{Float64, 3}
-    lmp_pflow = -cons_branch_pflow_neg - cons_branch_pflow_pos
+    # # Get the shadow price of the positive and negative branch power flow constraints ($/(MW incremental transmission))      
+    # cons_branch_pflow_neg = res_raw[:cons_branch_pflow_neg]::Containers.SparseAxisArray{Float64, 3, Tuple{Int64, Int64, Int64}}
+    # cons_branch_pflow_pos = res_raw[:cons_branch_pflow_pos]::Array{Float64, 3}
+    # lmp_pflow = -cons_branch_pflow_neg - cons_branch_pflow_pos
     
-    # Add the LMP's to the results and to the branch table
-    res_raw[:lmp_pflow_branch] = lmp_pflow
-    add_table_col!(data, :branch, :lmp_pflow, lmp_pflow, DollarsPerMWFlow,"Locational Marginal Price of Power Flow")
+    # # Add the LMP's to the results and to the branch table
+    # res_raw[:lmp_pflow_branch] = lmp_pflow
+    # add_table_col!(data, :branch, :lmp_pflow, lmp_pflow, DollarsPerMWFlow,"Locational Marginal Price of Power Flow")
     return
 end
 export process_lmp!
