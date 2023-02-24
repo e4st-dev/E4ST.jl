@@ -51,8 +51,8 @@ function setup_dcopf!(config, data, model)
 
     # Load/Power Served
     @variable(model, 
-        pserv_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-        start=0.0, #get_pdem_bus(data, bus_idx, year_idx, hour_idx), # Setting to 0.0 for feasibility
+        pcurt_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+        start=get_pdem_bus(data, bus_idx, year_idx, hour_idx), #get_pdem_bus(data, bus_idx, year_idx, hour_idx), # Theoreritically this is feasible.  May want to change to 0.0
         lower_bound = 0.0,
         upper_bound = get_pdem_bus(data, bus_idx, year_idx, hour_idx),
     )
@@ -68,7 +68,7 @@ function setup_dcopf!(config, data, model)
     @expression(model, pflow_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pflow_bus(data, model, bus_idx, year_idx, hour_idx))
 
     # Curtailed power of a given bus
-    @expression(model, pcurt_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pdem(data, bus_idx, year_idx, hour_idx) - pserv_bus[bus_idx, year_idx, hour_idx])
+    @expression(model, pserv_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pdem(data, bus_idx, year_idx, hour_idx) - pcurt_bus[bus_idx, year_idx, hour_idx])
 
     # Generated power of a given bus
     @expression(model, pgen_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pgen_bus(data, model, bus_idx, year_idx, hour_idx))
