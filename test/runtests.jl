@@ -29,6 +29,9 @@ original_logger = global_logger(NullLogger())
         @testset "Test Setting Up Model" begin
             include("testsetupmodel.jl")
         end
+        @testset "Test Basic Policy Types" begin 
+            include("testpoltypes.jl")
+        end
         @testset "Test Optimizing Model" begin
             include("testoptimizemodel.jl")
         end

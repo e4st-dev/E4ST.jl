@@ -305,21 +305,6 @@ function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper)
     
 end
 
-function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper, gen_idxs, year_idxs) 
-    #Check if s has already been added to obj
-    Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
-    
-    #write expression for the term
-    gen = get_table(data, :gen)
-    years = get_years(data)
-
-    model[s] = @expression(model, [gen_idx in gen_idxs, year_idx in year_idxs],
-        get_gen_value(data, s, gen_idx, year_idx, :) .* get_egen_gen(data, model, gen_idx, year_idx))
-
-    # add or subtract the expression from the objective function
-    add_obj_exp!(data, model, PerMWhGen(), s; oper = oper) 
-    
-end
 
 function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper) 
     #Check if s has already been added to obj
@@ -330,22 +315,6 @@ function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper)
     years = get_years(data)
 
     model[s] = @expression(model, [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
-        get_gen_value(data, s, gen_idx, year_idx, :) .* model[:pcap_gen][gen_idx, year_idx])
-
-    # add or subtract the expression from the objective function
-    add_obj_exp!(data, model, PerMWCap(), s; oper = oper) 
-    
-end
-
-function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper, gen_idxs, year_idxs) 
-    #Check if s has already been added to obj
-    Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
-    
-    #write expression for the term
-    gen = get_table(data, :gen)
-    years = get_years(data)
-
-    model[s] = @expression(model, [gen_idx in gen_idxs, year_idx in year_idxs],
         get_gen_value(data, s, gen_idx, year_idx, :) .* model[:pcap_gen][gen_idx, year_idx])
 
     # add or subtract the expression from the objective function

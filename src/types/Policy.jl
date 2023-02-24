@@ -28,9 +28,9 @@ end =#
 """
     struct PTC <: Policy
     
-Production Tax Credit - A $/MWh tax incentive for the generation of specific technology or under specific conditions.
+Production Tax Credit - A \$/MWh tax incentive for the generation of specific technology or under specific conditions.
 """
-struct PTC <: Policy
+Base.@kwdef struct PTC <: Policy
     name::Symbol
     value::OrderedDict
     #start_year::AbstractString
@@ -49,27 +49,31 @@ struct PTC <: Policy
 end
 
 function E4ST.modify_model!(pol::PTC, config, data, model)
+    @show pol.name
+    
     gen = get_table(data, :gen)
-    gen_idxs = get_row_idxs(gen, pol.gen_filters)
+    gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
+    @show gen_idxs
     years = get_years(data)
 
     #create column of PTC values
-    #TODO: how to get this into the table summary with a description
-    gen[:, pol.name] = Container[ByNothing(0.0) for i in 1:nrow(gen)]
+    add_table_col!(data, :gen, pol.name, Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated,
+        "Production tax credit value for $(pol.name)")
 
     #update column for gen_idx 
     sim_values = [get(pol.value, year, 0.0) for year in years] #values for the years in the sim
     for gen_idx in gen_idxs
         g = gen[gen_idx, :]
-        g_qual_year_idxs = findall(age -> pol.gen_age_min <= age <= pol.gen_age_max, g.age.v)
+        g_qual_year_idxs = findall(age -> pol.gen_age_min <= age <= pol.gen_age_max, g.age.v.v)
         vals_tmp = [(i in g_qual_year_idxs) ? sim_values[i] : 0.0  for i in 1:length(years)]
-        g[pol.name] = ByYear(vals_tmp)
+        gen[gen_idx, pol.name] = ByYear(vals_tmp) #TODO: maybe do this with set_yearly?
     end
-
+    data[:gen] = gen
     add_obj_term!(data, model, PerMWhGen(), pol.name, oper = -)
 end
 
 #TODO: something about how to process this in results
+#TODO: log statements
 
 
 struct ITC <: Policy

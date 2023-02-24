@@ -26,7 +26,7 @@ mods:
       y2035: 12
       y2040: 12
     gen_age_min: 0
-    gen_age_max: 10
+    gen_age_max: 30
     gen_filters:
-      
-      gentype: 'solar' 
+      emis_co2: "<= 0.1"
+      country: "narnia"

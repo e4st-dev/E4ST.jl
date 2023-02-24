@@ -363,10 +363,18 @@ function setup_table!(config, data, ::Val{:gen})
     # create capex_obj (the capex used in the optimization/objective function)
     # set to capex for unbuilt generators
     # set to 0 for already built capacity because capacity expansion isn't considered for existing generators
-    gen.capex_obj .= (gen.build_status.=="unbuilt").* gen.capex
+    capex_obj = (gen.build_status.=="unbuilt").* gen.capex
+    add_table_col!(data, :gen, :capex_obj, capex_obj, DollarsPerMWBuiltCapacity, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
 
 
-    #TODO: add age column as by ByYear based on start year
+    #add age column as by ByYear based on year_on
+    gen_age = Container[ByNothing(0.0) for i in 1:nrow(gen)]
+    for idx_g in 1:nrow(gen)
+        g_age = [Float64(year2int(year) - year2int(gen[idx_g, :year_on])) for year in get_years(data)]
+        gen_age[idx_g] = set_yearly(gen_age[idx_g], g_age) #maybe manually make into by ByYear containers instead of usig set_yearly
+    end
+
+    add_table_col!(data, :gen, :age, gen_age, Years, "The age of the generator in each simulation year, given as a byYear container")
 
     # map bus characteristics to generators
     leftjoin!(gen, bus, on=:bus_idx)
