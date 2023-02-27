@@ -423,6 +423,23 @@ Sets up the branch table.
 """
 function setup_table!(config, data, ::Val{:branch})
     branch = get_table(data, :branch)
+    hasproperty(branch, :status) && filter!(:status => ==(true), branch)
+
+    # Handle duplicate lines
+    if ~allunique((row.f_bus_idx,row.t_bus_idx) for row in eachrow(branch))
+        gdf = groupby(branch, [:f_bus_idx, :t_bus_idx])
+        cols_remaining = setdiff(propertynames(branch), [:f_bus_idx, :t_bus_idx, :x, :pflow_max])
+        res = combine(gdf,
+            [:pflow_max, :x] => ((pflow_max, x)->(minimum(prod, zip(pflow_max, x)))/(inv(sum(inv, x)))) => :pflow_max,
+            :x => (x->(inv(sum(inv, x)))) => :x,
+            (col=>first=>col for col in cols_remaining)...
+        )
+        branch = res
+        data[:branch] = res
+    end
+
+
+
     bus = get_table(data, :bus)
 
     # Add connected branches, connected buses.
@@ -889,6 +906,13 @@ end
 function get_edem(data, bus_idx::Int64, year_idx::Int64, hour_idxs::Colon)
     hour_weights = get_hour_weights(data)
     return sum(hour_weights[hour_idx] * get_pdem(data, bus_idx, year_idx, hour_idx) for hour_idx in eachindex(hour_weights))
+end
+function get_edem(data, bus_idx=(:), year_idx=(:), hour_idx=(:))
+    _bus_idxs = get_table_row_idxs(data, :bus, bus_idx)
+    _year_idxs = get_year_idxs(data, year_idx)
+    _hour_idxs = get_hour_idxs(data, hour_idx)
+    hour_weights = get_hour_weights(data)
+    return sum(hour_weights[h] * get_pdem(data, b, y, h) for h in _hour_idxs, y in _year_idxs, b in _bus_idxs)
 end
 
 """

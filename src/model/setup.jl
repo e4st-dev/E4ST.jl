@@ -79,7 +79,7 @@ function setup_model(config, data)
             modify_model!(mod, config, data, model)
         end
 
-        @objective(model, Min, model[:obj])
+        @objective(model, Min, model[:obj]/1e6)
 
         if get(config, :save_model_presolve, true)
             model_presolve_file = joinpath(config[:out_path],"model_presolve.jls")
@@ -175,18 +175,18 @@ function optimizer_attributes(config, ::Val{:Gurobi}; LogFile=nothing, kwargs...
     end
     # These defaults came from e4st_core.m
     (;
+        LogFile         = log_file_full,
         LogToConsole    = false,
         NumericFocus    = 3,
         BarHomogeneous  = 1,
         method          = 2,
-        BarIterLimit    = 1000,
-        Crossover       = 1,
-        FeasibilityTol  = 1e-2,
-        OptimalityTol   = 1e-6,
-        BarConvTol      = 1e-8,
-        LogFile         = log_file_full,
+        # BarIterLimit    = 1000,   # 
+        Crossover       = 0,      # 0 disables crossover
+        # FeasibilityTol  = 1e-2,
+        # OptimalityTol   = 1e-6,
+        # BarConvTol      = 1e-6,
         Threads         = 1,
-        DualReductions  = 0,  # This is only to see if infeasible or unbounded.
+        # DualReductions  = 0,  # This is only to see if infeasible or unbounded.
         kwargs...
     )
 end
