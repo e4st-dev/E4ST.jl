@@ -29,7 +29,7 @@ Saves them to `out_path(config,"results_raw.jls")` unless `config[:save_results_
 """
 function parse_results(config, data, model)
     log_header("PARSING RESULTS")
-    results_raw = Dict(k => value_or_shadow_price(v) for (k,v) in object_dictionary(model))
+    results_raw = Dict(k => (@info "Parsing Result $k"; value_or_shadow_price(v)) for (k,v) in object_dictionary(model))
     # Don't add anything else here, we want to preserve the purity of these raw results, so that we can get rid of the model.  Add any standard processing to process_results.
     if get(config, :save_results_raw, true)
         serialize(out_path(config,"results_raw.jls"), results_raw)
@@ -58,6 +58,12 @@ function value_or_shadow_price(cons::ConstraintRef)
 end
 function value_or_shadow_price(x::AbstractJuMPScalar)
     value(x)
+end
+function value_or_shadow_price(x::Float64)
+    return x
+end
+function value_or_shadow_price(ar::AbstractArray)
+    value_or_shadow_price.(ar)
 end
 export value_or_shadow_price
 
@@ -406,6 +412,10 @@ end
 Compute `sum(v[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)`
 """
 function total_sum(v, idxs, yr_idxs, hr_idxs)
+    isempty(v) && return 0.0
+    isempty(idxs) && return 0.0
+    isempty(yr_idxs) && return 0.0
+    isempty(hr_idxs) && return 0.0
     sum(v[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
 end
 
@@ -415,6 +425,11 @@ end
 Compute the `sum(v1[i,y,h]*v2[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)`
 """
 function weighted_sum(v1, v2, idxs, yr_idxs, hr_idxs)
+    isempty(v1) && return 0.0
+    isempty(v2) && return 0.0
+    isempty(idxs) && return 0.0
+    isempty(yr_idxs) && return 0.0
+    isempty(hr_idxs) && return 0.0
     sum(v1[i,y,h]*v2[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
 end
 
@@ -424,6 +439,12 @@ end
 Compute the `sum(v1[i,y,h]*v2[i,y,h]*v3[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)`
 """
 function weighted_sum(v1, v2, v3, idxs, yr_idxs, hr_idxs)
+    isempty(v1) && return 0.0
+    isempty(v2) && return 0.0
+    isempty(v3) && return 0.0
+    isempty(idxs) && return 0.0
+    isempty(yr_idxs) && return 0.0
+    isempty(hr_idxs) && return 0.0
     sum(v1[i,y,h]*v2[i,y,h]*v3[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
 end
 

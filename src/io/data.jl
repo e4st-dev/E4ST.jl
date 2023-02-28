@@ -427,6 +427,7 @@ function setup_table!(config, data, ::Val{:branch})
 
     # Handle duplicate lines
     if ~allunique((row.f_bus_idx,row.t_bus_idx) for row in eachrow(branch))
+        @warn "Handling Duplicate Lines"
         gdf = groupby(branch, [:f_bus_idx, :t_bus_idx])
         cols_remaining = setdiff(propertynames(branch), [:f_bus_idx, :t_bus_idx, :x, :pflow_max])
         res = combine(gdf,

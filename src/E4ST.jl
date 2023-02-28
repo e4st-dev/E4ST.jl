@@ -92,7 +92,6 @@ function run_e4st(config)
 
         check(model) || return model # all_results
 
-
         results_raw = parse_results(config, data, model)
         results_user = process_results(config, data, results_raw)
         push!(all_results, results_user)
