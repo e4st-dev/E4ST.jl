@@ -33,8 +33,6 @@ Production Tax Credit - A \$/MWh tax incentive for the generation of specific te
 Base.@kwdef struct PTC <: Policy
     name::Symbol
     value::OrderedDict
-    #start_year::AbstractString
-    #end_year::AbstractString
     gen_age_min::Float64
     gen_age_max::Float64
     gen_filters::OrderedDict #Ethan adding a parse comparison that will work for ordered dicts 
@@ -49,11 +47,9 @@ Base.@kwdef struct PTC <: Policy
 end
 
 function E4ST.modify_model!(pol::PTC, config, data, model)
-    @show pol.name
     
     gen = get_table(data, :gen)
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
-    @show gen_idxs
     years = get_years(data)
 
     #create column of PTC values
@@ -61,12 +57,12 @@ function E4ST.modify_model!(pol::PTC, config, data, model)
         "Production tax credit value for $(pol.name)")
 
     #update column for gen_idx 
-    sim_values = [get(pol.value, year, 0.0) for year in years] #values for the years in the sim
+    sim_values = [get(pol.value, Symbol(year), 0.0) for year in years] #values for the years in the sim
     for gen_idx in gen_idxs
         g = gen[gen_idx, :]
-        g_qual_year_idxs = findall(age -> pol.gen_age_min <= age <= pol.gen_age_max, g.age.v.v)
+        g_qual_year_idxs = findall(age -> pol.gen_age_min <= age <= pol.gen_age_max, g.age.v)
         vals_tmp = [(i in g_qual_year_idxs) ? sim_values[i] : 0.0  for i in 1:length(years)]
-        gen[gen_idx, pol.name] = ByYear(vals_tmp) #TODO: maybe do this with set_yearly?
+        gen[gen_idx, pol.name] = ByYear(vals_tmp)
     end
     data[:gen] = gen
     add_obj_term!(data, model, PerMWhGen(), pol.name, oper = -)
@@ -99,17 +95,17 @@ function E4ST.modify_model!(pol::ITC, config, data, model)
     years = get_years(data)
    
     #create column of annualized ITC values
-
-    #TODO: how to get this into the table summary with a description
-    #initialize column as container TODO: update when merge results pull requests
-    gen[:, pol.name] = Container[ByNothing(0.0) for i in 1:nrow(gen)]
+    add_table_col!(data, :gen, pol.name, Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWBuiltCapacity,
+        "Investment tax credit value for $(pol.name)")
 
     #update column for gen_idx 
+    #TODO: do we want the ITC value to apply to all years within econ life? Will get multiplied by capex_obj so will only be non zero for year_on but maybe for accounting? 
     sim_values = [get(pol.value, year, 0.0) for year in years] #values for the years in the sim
+
     for gen_idx in gen_idxs
         g = gen[gen_idx, :]
         g_qual_year_idxs = findall(age -> pol.gen_age_min <= age <= pol.gen_age_max, g.age.v)
-        vals_tmp = [(i in g_qual_year_idxs) ? sim_values[i] : 0.0  for i in 1:length(years)]
+        vals_tmp = [(i in g_qual_year_idxs) ? sim_values[i]* : 0.0  for i in 1:length(years)]
         g[pol.name] = ByYear(g[:capex_obj] .* vals_tmp)
     end
     

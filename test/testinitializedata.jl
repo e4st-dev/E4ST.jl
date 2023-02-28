@@ -121,10 +121,13 @@ end
 @testset "Test Setting Up Gen Table" begin 
     config = load_config(config_file)
     data = load_data(config)
+    gen = get_table(data, :gen)
 
     @test hasproperty(gen, :capex_obj)
     @test hasproperty(gen, :age)
-    @test typeof(gen.age) == Vector{ByYear}
+    @test typeof(gen.age) == Vector{Container}
+    idx = findall(age -> typeof(age) == ByYear, gen.age)
+    @test sum(idx) != 0
 
 end
 
