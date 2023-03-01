@@ -166,37 +166,6 @@ export setup_dcopf!
 # Helper Functions
 ################################################################################
 
-"""
-    dc_lines!(config, data, model) -> nothing
-
-Add dc lines to the model from `data[:dc_lines]`, if available.
-"""
-function dc_lines!(config, data, model)
-    
-    haskey(data, :dc_line) || return
-
-    dc_line = get_table(data, :dc_line)
-    ndc = nrow(dc_line)
-    nyear = get_num_years(data)
-    nhour = get_num_hours(data)
-    @variable(model,
-        pflow_dc[dc_idx in 1:ndc, year_idx in 1:nyear, hour_idx in 1:nhour],
-        start=0.0,
-        lower_bound = -get_table_num(data, :dc_line, :pflow_max, dc_idx, year_idx, hour_idx),
-        upper_bound =  get_table_num(data, :dc_line, :pflow_max, dc_idx, year_idx, hour_idx)
-    )
-
-    for dc_idx in 1:ndc
-        f_bus_idx = dc_line[dc_idx, :f_bus_idx]::Int64
-        t_bus_idx = dc_line[dc_idx, :t_bus_idx]::Int64
-        for year_idx in 1:nyear, hour_idx in 1:nhour
-            add_to_expression!(model[:pbal_bus][f_bus_idx, year_idx, hour_idx], pflow_dc[dc_idx, year_idx, hour_idx], -1)
-            add_to_expression!(model[:pbal_bus][t_bus_idx, year_idx, hour_idx], pflow_dc[dc_idx, year_idx, hour_idx], 1)
-        end
-    end
-end
-export dc_lines!
-
 # Accessor Functions
 ################################################################################
 

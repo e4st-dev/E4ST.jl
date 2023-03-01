@@ -7,9 +7,8 @@ data = load_data(config)
 import E4ST.Container
 Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
 
-@testset "Test Initializing the Data with no mods" begin
+@testset "Test Initializing the Data" begin
     config = load_config(config_file)
-    @test isempty(config[:mods])
     data = load_data(config)
     table_names = get_table_names(data)
     for table_name in table_names

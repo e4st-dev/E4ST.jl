@@ -289,7 +289,7 @@ end
 Returns true if `s` contains "_file" or "_path".
 """
 function contains_file_or_path(s::AbstractString)
-    return contains(s, "_file") || contains(s, "_path")
+    return contains(s, "file") || contains(s, "path")
 end
 contains_file_or_path(s::Symbol) = contains_file_or_path(string(s))
 
