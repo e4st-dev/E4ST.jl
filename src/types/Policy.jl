@@ -72,13 +72,9 @@ end
 #TODO: log statements
 
 
-struct ITC <: Policy
+Base.@kwdef struct ITC <: Policy
     name::Symbol
     value::OrderedDict
-    #start_year::AbstractString
-    #end_year::AbstractString
-    gen_age_min::Float64
-    gen_age_max::Float64
     gen_filters::OrderedDict
 
     # function ITC(name, value, gen_age_min, gen_age_max, gen_filters)
@@ -91,7 +87,7 @@ end
 
 function E4ST.modify_model!(pol::ITC, config, data, model)
     gen = get_table(data, :gen)
-    gen_idxs = get_row_idxs(gen, pol.gen_filters)
+    gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
     years = get_years(data)
    
     #create column of annualized ITC values
@@ -100,15 +96,16 @@ function E4ST.modify_model!(pol::ITC, config, data, model)
 
     #update column for gen_idx 
     #TODO: do we want the ITC value to apply to all years within econ life? Will get multiplied by capex_obj so will only be non zero for year_on but maybe for accounting? 
-    sim_values = [get(pol.value, year, 0.0) for year in years] #values for the years in the sim
+    sim_values = [get(pol.value, Symbol(year), 0.0) for year in years] #values for the years in the sim
 
     for gen_idx in gen_idxs
         g = gen[gen_idx, :]
-        g_qual_year_idxs = findall(age -> pol.gen_age_min <= age <= pol.gen_age_max, g.age.v)
-        vals_tmp = [(i in g_qual_year_idxs) ? sim_values[i]* : 0.0  for i in 1:length(years)]
-        g[pol.name] = ByYear(g[:capex_obj] .* vals_tmp)
+
+        # sim val * capex_obj for that year, capex_obj is only non zero in year_on so ITC should only be non zero in year_on
+        vals_tmp = [sim_values[i]*g.capex_obj.v[i]  for i in 1:length(years)]
+        gen[gen_idx, pol.name] = ByYear(vals_tmp)
     end
-    
+    data[:gen] = gen
     add_obj_term!(data, model, PerMWCap(), pol.name, oper = -)
 end
 
