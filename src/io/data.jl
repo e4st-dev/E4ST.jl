@@ -75,6 +75,7 @@ function load_data_files!(config, data)
 
     # Optional tables
     load_table!(config, data, :af_file       => :af_table, optional = true)
+    load_table!(config, data, :dc_lines_file=>:dc_lines, optional=true)
     load_table!(config, data, :demand_shape_file=>:demand_shape, optional=true)
     load_table!(config, data, :demand_match_file=>:demand_match, optional=true)
     load_table!(config, data, :demand_add_file=>:demand_add, optional=true)
@@ -126,6 +127,7 @@ function setup_data!(config, data)
     setup_table!(config, data, :demand_table)
     setup_table!(config, data, :gen) # needs to come after build_gen setup for newgens
     setup_table!(config, data, :af_table)
+    setup_table!(config, data, :dc_lines)
     setup_table!(config, data, :adjust_yearly)
     setup_table!(config, data, :adjust_hourly)
 end
@@ -144,15 +146,6 @@ function setup_table!(config, data, table_name::Symbol)
     return 
 end
 export setup_table!
-
-
-"""
-    setup_table!(config, data, ::Val{:genfuel}) -> nothing
-
-Currently does nothing
-"""
-function setup_table!(config, data, ::Val{:genfuel})
-end
 
 
 """
@@ -564,6 +557,25 @@ function setup_table!(config, data, ::Val{:af_table})
 end
 export setup_af!
 
+
+"""
+    setup_table!(config, data, ::Val{:genfuel}) -> nothing
+
+Currently does nothing
+"""
+function setup_table!(config, data, ::Val{:genfuel})
+end
+
+
+"""
+    setup_table!(config, data, ::Val{:dc_lines}) -> nothing
+
+Currently does nothing
+"""
+function setup_table!(config, data, ::Val{:dc_lines})
+    # TODO: Fill in
+end
+
 # Table Summaries
 ################################################################################
 """
@@ -616,6 +628,20 @@ function summarize_table(::Val{:branch})
         (:status, Bool, NA, false, "Whether or not the branch is in service"),
         (:x, Float64, PU, true, "Per-unit reactance of the line (resistance assumed to be 0 for DC-OPF)"),
         (:pflow_max, Float64, MWFlow, true, "Maximum power flowing through the branch")
+    )
+    return df
+end
+
+"""
+    summarize_table(::Val{:dc_line}) -> summary
+"""
+function summarize_table(::Val{:dc_line})
+    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    push!(df, 
+        (:f_bus_idx, Int64, NA, true, "The index of the `bus` table that the line originates **f**rom"),
+        (:t_bus_idx, Int64, NA, true, "The index of the `bus` table that the line goes **t**o"),
+        (:status, Bool, NA, false, "Whether or not the dc line is in service"),
+        (:pflow_max, Float64, MWFlow, true, "Maximum power flowing through the dc line")
     )
     return df
 end

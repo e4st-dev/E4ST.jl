@@ -37,6 +37,7 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 | :--- | :--- | :--- | :--- |
 | $P_{F_{l,y,h}}$ | `:pflow_branch` | MW | Hourly avg. power flowing through each branch |
 | $P_{F_{b,y,h}}$ | `:pflow_bus` | MW | Hourly avg. power flowing out of each bus |
+| $P_{F_{b,y,h}}$ | `:pbal_bus` | MW | Hourly avg. power balance of each bus.  (`pgen_bus - pserv_bus - pflow_bus`) |
 | $P_{U_{b,y,h}}$ | `:pcurt_bus` | MW | Hourly avg. power curtailed at each bus |
 | $P_{G_{b,y,h}}$ | `:pgen_bus` | MW | Hourly avg. power generated at each bus |
 
@@ -82,6 +83,14 @@ function setup_model(config, data)
         # Set the objective, scaling down for numerical stability.
         obj_scalar = get(config, :objective_scalar, 1e6)
         @objective(model, Min, model[:obj]/obj_scalar)
+
+        nyear = get_num_years(data)
+        nhour = get_num_hours(data)
+        nbus = nrow(get_table(data, :bus))
+        @constraint(model, 
+            cons_pflow[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+            model[:pbal_bus][bus_idx, year_idx, hour_idx] == 0.0
+        )
 
         if get(config, :save_model_presolve, true)
             model_presolve_file = joinpath(config[:out_path],"model_presolve.jls")

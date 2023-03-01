@@ -56,7 +56,6 @@ function setup_dcopf!(config, data, model)
         upper_bound = get_pdem(data, bus_idx, year_idx, hour_idx),
     )
 
-
     ## Expressions to be used later
     @info "Creating Expressions"
     
@@ -75,14 +74,15 @@ function setup_dcopf!(config, data, model)
     # Generated energy at a given generator
     @expression(model, egen_gen[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour], get_egen_gen(data, model, gen_idx, year_idx, hour_idx))
 
+    # Power Balance
+    @expression(model, 
+        pbal_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+        pgen_bus[bus_idx, year_idx, hour_idx] - pserv_bus[bus_idx, year_idx, hour_idx] - pflow_bus[bus_idx, year_idx, hour_idx]
+    )
 
     ## Constraints
     @info "Creating Constraints"
-    # Constrain Power Flow / Power Balance
-    @constraint(model, cons_pflow[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
-            get_pgen_bus(data, model, bus_idx, year_idx, hour_idx) - pserv_bus[bus_idx, year_idx, hour_idx] == 
-            pflow_bus[bus_idx, year_idx, hour_idx])
-
+    
     # Constrain Power Generation
     if hasproperty(gen, :cf_min)
         @constraint(model, cons_pgen_min[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour],
@@ -166,6 +166,36 @@ export setup_dcopf!
 # Helper Functions
 ################################################################################
 
+"""
+    dc_lines!(config, data, model) -> nothing
+
+Add dc lines to the model from `data[:dc_lines]`, if available.
+"""
+function dc_lines!(config, data, model)
+    
+    haskey(data, :dc_line) || return
+
+    dc_line = get_table(data, :dc_line)
+    ndc = nrow(dc_line)
+    nyear = get_num_years(data)
+    nhour = get_num_hours(data)
+    @variable(model,
+        pflow_dc[dc_idx in 1:ndc, year_idx in 1:nyear, hour_idx in 1:nhour],
+        start=0.0,
+        lower_bound = -get_table_num(data, :dc_line, :pflow_max, dc_idx, year_idx, hour_idx),
+        upper_bound =  get_table_num(data, :dc_line, :pflow_max, dc_idx, year_idx, hour_idx)
+    )
+
+    for dc_idx in 1:ndc
+        f_bus_idx = dc_line[dc_idx, :f_bus_idx]::Int64
+        t_bus_idx = dc_line[dc_idx, :t_bus_idx]::Int64
+        for year_idx in 1:nyear, hour_idx in 1:nhour
+            add_to_expression!(model[:pbal_bus][f_bus_idx, year_idx, hour_idx], pflow_dc[dc_idx, year_idx, hour_idx], -1)
+            add_to_expression!(model[:pbal_bus][t_bus_idx, year_idx, hour_idx], pflow_dc[dc_idx, year_idx, hour_idx], 1)
+        end
+    end
+end
+export dc_lines!
 
 # Accessor Functions
 ################################################################################
