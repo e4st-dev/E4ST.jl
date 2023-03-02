@@ -18,7 +18,6 @@ get_pflow_branch
 ### Constriant/Expression Info Function
 These functions are used in defining the model constraints. 
 ```@docs
-get_pgen_min
 get_pgen_max
 get_egen_gen
 ```

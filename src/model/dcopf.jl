@@ -36,7 +36,7 @@ function setup_dcopf!(config, data, model)
     # Capacity
     @variable(model, 
         pcap_gen[gen_idx in 1:ngen, year_idx in 1:nyear], 
-        start=0.0, #get_gen_value(data, :pcap0, gen_idx, year_idx, :), # Setting to 0.0 for feasibility
+        start=0.0, #get_table_num(data, :gen, :pcap0, gen_idx, year_idx, :), # Setting to 0.0 for feasibility
         lower_bound = get_pcap_min(data, gen_idx, year_idx),
         upper_bound = get_pcap_max(data, gen_idx, year_idx),
     )
@@ -52,15 +52,15 @@ function setup_dcopf!(config, data, model)
     # Load/Power Served
     # @variable(model, 
     #     pcurt_bus_kw[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-    #     start=0.0, #get_pdem_bus(data, bus_idx, year_idx, hour_idx), # Theoretically this is infeasible.  May want to change to 0.0
+    #     start=0.0, #get_pdem(data, bus_idx, year_idx, hour_idx), # Theoretically this is infeasible.  May want to change to 0.0
     #     lower_bound = 0.0,
-    #     upper_bound = 1e4, #get_pdem_bus(data, bus_idx, year_idx, hour_idx), # Limiting curtailment at each bus to be 10MW.  May make it infeasible
+    #     upper_bound = 1e4, #get_pdem(data, bus_idx, year_idx, hour_idx), # Limiting curtailment at each bus to be 10MW.  May make it infeasible
     # )
     @variable(model, 
         pcurt_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-        start=0.0, #get_pdem_bus(data, bus_idx, year_idx, hour_idx), # Theoretically this is infeasible.  May want to change to 0.0
+        start=0.0, #get_pdem(data, bus_idx, year_idx, hour_idx), # Theoretically this is infeasible.  May want to change to 0.0
         lower_bound = 0.0,
-        upper_bound = 1e4, #get_pdem_bus(data, bus_idx, year_idx, hour_idx), # Limiting curtailment at each bus to be 10MW.  May make it infeasible
+        upper_bound = 1e4, #get_pdem(data, bus_idx, year_idx, hour_idx), # Limiting curtailment at each bus to be 10MW.  May make it infeasible
     )
 
 
@@ -225,7 +225,7 @@ function get_pflow_branch(data, model, branch_idx_signed, year_idx, hour_idx)
 
     f_bus_idx = data[:branch].f_bus_idx[branch_idx]
     t_bus_idx = data[:branch].t_bus_idx[branch_idx]
-    x = get_branch_value(data, :x, branch_idx, year_idx, hour_idx)
+    x = get_table_num(data, :branch, :x, branch_idx, year_idx, hour_idx)
     Δθ = direction * (model[:θ_bus][f_bus_idx, year_idx, hour_idx] - model[:θ_bus][t_bus_idx, year_idx, hour_idx]) #positive for power flow out(f_bus to t_bus)
     return Δθ / x
 end
@@ -243,7 +243,8 @@ Default is 0 unless specified by the optional gen property `cf_min` (minimum cap
 function get_pgen_min(data, model, gen_idx, year_idx, hour_idx) 
     if hasproperty(data[:gen], :cf_min)
         pcap = model[:pcap_gen][gen_idx, year_idx]
-        cf_min = get_gen_value(data, :cf_min, gen_idx, year_idx, hour_idx)
+        cf_min = get_table_num(data, :gen, :cf_min, gen_idx, year_idx, hour_idx)
+        isnan(cf_min) && return 0.0
         return pcap .* cf_min 
     else
         return 0.0
@@ -258,10 +259,10 @@ Returns max power generation for a generator at a time.
 It is based on the lower of gen properties `af` (availability factor) and optional `cf_max` (capacity factor).
 """ 
 function get_pgen_max(data, model, gen_idx, year_idx, hour_idx) 
-    af = get_gen_value(data, :af, gen_idx, year_idx, hour_idx)
+    af = get_table_num(data, :gen, :af, gen_idx, year_idx, hour_idx)
     pcap = model[:pcap_gen][gen_idx, year_idx]
     if hasproperty(data[:gen], :cf_max)
-        cf_max = get_gen_value(data, :cf_max, gen_idx, year_idx, hour_idx)
+        cf_max = get_table_num(data, :gen, :cf_max, gen_idx, year_idx, hour_idx)
         cf_max < af ? pgen_max = cf_max .* pcap : pgen_max = af .* pcap
     else 
         pgen_max = af .* pcap
@@ -337,7 +338,7 @@ function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper)
     years = get_years(data)
 
     model[s] = @expression(model, [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
-        get_gen_value(data, s, gen_idx, year_idx, :) .* get_egen_gen(data, model, gen_idx, year_idx))
+        get_table_num(data, :gen, s, gen_idx, year_idx, :) .* get_egen_gen(data, model, gen_idx, year_idx))
 
     # add or subtract the expression from the objective function
     add_obj_exp!(data, model, PerMWhGen(), s; oper = oper) 
@@ -353,7 +354,7 @@ function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper)
     years = get_years(data)
 
     model[s] = @expression(model, [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
-        get_gen_value(data, s, gen_idx, year_idx, :) .* model[:pcap_gen][gen_idx, year_idx])
+        get_table_num(data, :gen, s, gen_idx, year_idx, :) .* model[:pcap_gen][gen_idx, year_idx])
 
     # add or subtract the expression from the objective function
     add_obj_exp!(data, model, PerMWCap(), s; oper = oper) 

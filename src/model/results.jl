@@ -1,5 +1,5 @@
 """
-    parse_results(config, data, results_raw) -> results
+    process_results(config, data, results_raw) -> results
 
 Retrieves results from the results_raw, including:
 * Area/Annual results (?)
@@ -274,14 +274,10 @@ export get_all_cons
 #     isempty(_year_idxs) && return 0.0
 #     isempty(_hour_idxs) && return 0.0
 
-#     return sum(value(var[g,y,h]) * get_gen_value(data, col_name, g, y, h) for g in _gen_idxs, y in _year_idxs, h in _hour_idxs)
+#     return sum(value(var[g,y,h]) * get_table_num(data, :gen, col_name, g, y, h) for g in _gen_idxs, y in _year_idxs, h in _hour_idxs)
 # end
 # export get_gen_result
 
-function _view_model(model, name, idxs, year_idxs, hour_idxs)
-    var = model[name]::Array{<:Any, 3}
-    return view(var, idxs, year_idxs, hour_idxs)
-end
 
 # function get_gen_array_idxs(data, idxs, year_idxs, hour_idxs)
 #     _idxs = get_gen_array_idxs(data, idxs)

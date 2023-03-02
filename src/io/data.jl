@@ -263,6 +263,9 @@ function load_summary_table!(config, data)
     data[:unit_lookup] = Dict(
         (row.table_name, row.column_name)=>row.unit for row in eachrow(st)
     )
+    data[:desc_lookup] = Dict(
+        (row.table_name, row.column_name)=>row.description for row in eachrow(st)
+    )
     
     return
 end
@@ -378,8 +381,15 @@ function setup_table!(config, data, ::Val{:gen})
     add_table_col!(data, :gen, :capex_obj, capex_obj, DollarsPerMWBuiltCapacity, "The annual capital expenditures per MW of built capacity seen by the optimizer in the objective function.  Note that this is zero for already-built capacity.")
 
     # map bus characteristics to generators
+    names_before = propertynames(gen)
     leftjoin!(gen, bus, on=:bus_idx)
     disallowmissing!(gen)
+    names_after = propertynames(gen)
+
+    for name in names_after
+        name in names_before && continue
+        add_table_col!(data, :gen, name, gen[!,name], get_table_col_unit(data, :bus, name), get_table_col_description(data, :bus, name))
+    end
 
     # Add necessary columns if they don't exist.
     hasproperty(gen, :af) || (gen.af = fill(ByNothing(1.0), nrow(gen)))
@@ -410,7 +420,8 @@ Sets up the bus table.
 """
 function setup_table!(config, data, ::Val{:bus})
     bus = get_table(data, :bus)
-    bus.bus_idx = 1:nrow(bus)
+    bus_idx = collect(1:nrow(bus))
+    add_table_col!(data, :bus, :bus_idx, bus_idx, NA, "The bus index of each bus, should correspond to the row number, used for joining.")
     return
 end
 export setup_bus_table!
@@ -444,7 +455,8 @@ function setup_table!(config, data, ::Val{:branch})
     bus = get_table(data, :bus)
 
     # Add connected branches, connected buses.
-    bus.connected_branch_idxs = [Int64[] for _ in 1:nrow(bus)]
+    connected_branch_idxs = [Int64[] for _ in 1:nrow(bus)]
+    add_table_col!(data, :bus, :connected_branch_idxs, connected_branch_idxs, NA, "A vector containing the indices of the branches connected to this bus")
     for (br_idx, br) in enumerate(eachrow(branch))
         f_bus_idx = br.f_bus_idx::Int64
         t_bus_idx = br.t_bus_idx::Int64
@@ -631,6 +643,8 @@ function summarize_table(::Val{:build_gen})
         (:fuel_cost, Float64, DollarsPerMWhGenerated, false, "Fuel cost per MWh of generation"),
         (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
+        (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
+        (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
         (:year_on, AbstractString, NA, true, "The first year of operation for the generator. (For new gens this is also the year it was built). Endogenous unbuilt generators will be left blank"),
         (:year_on_min, AbstractString, NA, true, "The first year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
         (:year_on_max, AbstractString, NA, true, "The last year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
@@ -702,7 +716,7 @@ export get_table_row_idxs
 function get_table_col(data, table_name, col_name)
     table = get_table(data, table_name)
     col = table[!, col_name]
-    return col::Vector
+    return col::AbstractVector
 end
 export get_table_col
 
@@ -723,6 +737,7 @@ function add_table_col!(data, table_name, column_name, col::Vector, unit, descri
     row = (;table_name, column_name, data_type, unit, required=false, description)
     push!(summary_table, row)
     data[:unit_lookup][(table_name, column_name)] = unit
+    data[:desc_lookup][(table_name, column_name)] = description
 end
 function add_table_col!(data, table_name, column_name, ar::Array{<:Real, 3}, unit, description)
     v = [view(ar, i, :, :) for i in 1:size(ar, 1)]
@@ -742,7 +757,13 @@ export add_table_col!
 function get_table_col_unit(data, table_name::Symbol, column_name::Symbol)
     ul = data[:unit_lookup]::Dict{Tuple{Symbol, Symbol}, DataType}
     unit = get(ul, (table_name, column_name)) do
-        error("No unit found for table column $table_name[:$column_name].\nConsider defining the column in the setup_table.")
+        cn = string(column_name)
+        if contains(cn, r"h\d*")
+            haskey(ul, (table_name, :h_)) && return ul[(table_name, :h_)]
+        elseif contains(cn, r"y\d*")
+            haskey(ul, (table_name, :h_)) && return ul[(table_name, :y_)]
+        end
+        error("No unit found for table column $table_name[:$column_name].\nConsider defining the column in the summary_table.")
     end::Type{<:Unit}
     return unit
 end
@@ -750,6 +771,35 @@ function get_table_col_unit(data, table_name, column_name)
     get_table_col_unit(data, Symbol(table_name), Symbol(column_name))
 end
 export get_table_col_unit
+
+"""
+    get_table_col_description(data, table_name, column_name) -> description
+"""
+function get_table_col_description(data, table_name::Symbol, column_name::Symbol)
+    ul = data[:desc_lookup]::Dict{Tuple{Symbol, Symbol}, String}
+    desc = get(ul, (table_name, column_name)) do
+        cn = string(column_name)
+        if contains(cn, r"h\d*")
+            haskey(ul, (table_name, :h_)) && return ul[(table_name, :h_)]
+        elseif contains(cn, r"y\d*")
+            haskey(ul, (table_name, :h_)) && return ul[(table_name, :y_)]
+        end
+        error("No description found for table column $table_name[:$column_name].\nConsider defining the column in the summary_table.")
+    end::String
+    return desc
+end
+function get_table_col_description(data, table_name, column_name)
+    get_table_col_description(data, Symbol(table_name), Symbol(column_name))
+end
+export get_table_col_description
+
+"""
+    get_table_col_type(data, table_name, column_name) -> ::Type
+"""
+function get_table_col_type(data, table_name, column_name)
+    return eltype(get_table_col(data, table_name, column_name))
+end
+export get_table_col_type
 
 
 _eltype(::AbstractVector{<:Container}) = Float64
@@ -858,15 +908,6 @@ function get_branch(data, branch_idx)
     return get_table(data, :branch)[branch_idx,:]
 end
 
-"""
-    get_bus_from_generator_idx(data, gen_idx) -> bus
-
-Returns the bus associated with `gen_idx`
-"""
-function get_bus_from_generator_idx(data, gen_idx)
-    return get_bus(data, get_generator(data, gen_idx).bus_idx)
-end
-
 export get_generator, get_bus, get_branch
 export get_bus_from_generator_idx
 
@@ -876,7 +917,7 @@ export get_bus_from_generator_idx
 Retrieves the availability factor for a generator at a year and a time.
 """
 function get_af(data, gen_idx, year_idx, hour_idx)
-    return get_gen_value(data, :af, gen_idx, year_idx, hour_idx)
+    return get_table_num(data, :gen, :af, gen_idx, year_idx, hour_idx)
 end
 
 export get_af
@@ -886,8 +927,8 @@ export get_af
 
 Retrieves the demanded power for a bus at a year and a time.
 """
-function get_pdem(data, gen_idx, year_idx, hour_idx)
-    return get_bus_value(data, :pdem, gen_idx, year_idx, hour_idx)
+function get_pdem(data, bus_idx, year_idx, hour_idx)
+    return get_table_num(data, :bus, :pdem, bus_idx, year_idx, hour_idx)
 end
 export get_pdem
 
@@ -955,66 +996,6 @@ function get_edem_demand(data, demand_idxs, y::String, hr_idx)
 end
 export get_edem, get_edem_demand
 
-"""
-    get_gen_value(data, var::Symbol, gen_idx, year_idx, hour_idx) -> val
-
-Retrieves the `var` value for generator `gen_idx` in year `year_idx` at hour `hour_idx`
-Can be called without hour_idx for variables that aren't indexed by hour.
-"""
-function get_gen_value(data, var, gen_idx, year_idx, hour_idx)
-    gen_table = get_table(data, :gen)
-    c = gen_table[gen_idx, var]
-    return c[year_idx, hour_idx]::Float64
-end
-function get_gen_value(data, var::Symbol, gen_idx)
-    gen_table = get_table(data, :gen)
-    return gen_table[gen_idx,var]
-end
-export get_gen_value
-
-
-"""
-    get_bus_value(data, var::Symbol, bus_idx, year_idx, hour_idx) -> val
-
-Retrieve the `var` value for bus `bus_idx` in year `year_idx` at hour `hour_idx`
-"""
-function get_bus_value(data, name, bus_idx, year_idx, hour_idx)
-    bus_table = get_table(data, :bus)
-    c = bus_table[bus_idx, name]
-    return c[year_idx, hour_idx]::Float64
-end
-export get_bus_value
-
-"""
-    get_branch_value(data, var::Symbol, branch_idx, year_idx, hour_idx) -> val
-
-Retrieve the `var` value for bus `bus_idx` in year `year_idx` at hour `hour_idx`
-"""
-function get_branch_value(data, name, branch_idx, year_idx, hour_idx)
-    branch_table = get_table(data, :branch)
-    c = branch_table[branch_idx, name]
-    return c[year_idx, hour_idx]::Float64
-end
-export get_branch_value
-
-"""
-    get_gen_subarea(data, gen_idx::Int64, area::String) -> subarea
-
-    get_gen_subarea(data, gen, area) -> subarea
-
-Retrieves the `subarea` of the generator from the `area`
-"""
-function get_gen_subarea(data, gen_idx::Int64, area::AbstractString)
-    gens = get_table(data, :gen)
-    bus = get_table(data, :bus)
-    return bus[gens[gen_idx, :bus_idx], area]
-end
-function get_gen_subarea(data, gen::DataFrameRow, area::AbstractString)
-    bus = get_table(data, :bus)
-    return bus[gen.bus_idx, area]
-end
-export get_gen_subarea
-
 
 """
     get_num_hours(data) -> nhr
@@ -1080,7 +1061,7 @@ Returns an array of the year indexes for years in the simulation before the star
 """
 function get_prebuild_year_idxs(data, gen_idx)
     years = get_years(data)
-    year_on = get_gen_value(data, :year_on, gen_idx)
+    year_on = get_table_val(data, :gen, :year_on, gen_idx)
     idxs = findall(x -> years[x] < year_on, 1:length(years))
     return idxs
 end
@@ -1096,7 +1077,7 @@ If this year is after the simulation years it returns length(years)+1 indicating
 """
 function get_year_on_sim_idx(data, gen_idx)
     years = get_years(data)
-    year_on = get_gen_value(data, :year_on, gen_idx)
+    year_on = get_table_val(data, :gen, :year_on, gen_idx)
     year_on_sim_idx = findfirst(x -> years[x] >= year_on, 1:length(years)) 
     if year_on_sim_idx === nothing
         year_on_sim_idx = length(years)+1
@@ -1139,7 +1120,7 @@ export get_ref_bus_idxs
 Returns min capacity for a generator
 """
 function get_pcap_min(data, gen_idx, year_idx) 
-    return get_gen_value(data, :pcap_min, gen_idx, year_idx, :)
+    return get_table_num(data, :gen, :pcap_min, gen_idx, year_idx, :)
 end
 export get_pcap_min
 
@@ -1150,7 +1131,7 @@ export get_pcap_min
 Returns max capacity for a generator
 """
 function get_pcap_max(data, gen_idx, year_idx) 
-    return get_gen_value(data, :pcap_max, gen_idx, year_idx, :)
+    return get_table_num(data, :gen, :pcap_max, gen_idx, year_idx, :)
 end
 export get_pcap_max
 
@@ -1161,21 +1142,12 @@ export get_pcap_max
 Returns max power flow on a branch at a given time. 
 """
 function get_pflow_branch_max(data, branch_idx, year_idx, hour_idx) 
-    return get_branch_value(data, :pflow_max, branch_idx, year_idx, hour_idx)
+    return get_table_num(data, :branch, :pflow_max, branch_idx, year_idx, hour_idx)
 end
 export get_pflow_branch_max
 
 
 ### Misc
-"""
-    get_pdem_bus(data, bus_idx, year_idx, hour_idx)
-
-Returns the demanded load at a bus at a time. Load served (pserv) can be less than demanded when load is curtailed. 
-"""
-function get_pdem_bus(data, bus_idx, year_idx, hour_idx) 
-    return get_bus_value(data, :pdem, bus_idx, year_idx, hour_idx)
-end
-export get_pdem_bus
 
 """
     get_voll(data, bus_idx, year_idx, hour_idx)

@@ -22,7 +22,6 @@
         total_eserv = aggregate_result(total, data, res_raw, :bus, :eserv)
         total_edem = aggregate_result(total, data, res_raw, :bus, :edem)
         # total_pserv = sum(rep_hours.hours[hour_idx].*value.(model[:pserv_bus][bus_idx, year_idx, hour_idx]) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
-        # total_dl = sum(rep_hours.hours[hour_idx].*get_bus_value(data, :pdem, bus_idx, year_idx, hour_idx) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
         total_ecurt = aggregate_result(total, data, res_raw, :bus, :ecurt)
         @test total_eserv ≈ total_edem
         @test all(p->abs(p)<1e-6, total_ecurt)

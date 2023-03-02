@@ -55,4 +55,14 @@ end
     @test all(get_pdem(data, 3, yr_idx, hr_idx) ≈ 0.2 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
 end
 
+@testset "Test duplicate lines combination" begin
+    config = load_config(config_file)
+    config[:branch] = joinpath(@__DIR__, "data/3bus/branch_dup.csv")
+    data = load_data(config)
+    branch = get_table(data, :branch)
+    @test nrow(branch) == 2
+    @test all(x->x≈0.01, branch.x)
+    @test all(x->x≈10, branch.pflow_max)
+end
+
 
