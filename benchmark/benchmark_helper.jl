@@ -66,6 +66,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         :bus_file=>abspath(@__DIR__,"data/bus.csv"),
         :branch_file=>abspath(@__DIR__, "data/branch.csv"),
         :hours_file=>abspath(@__DIR__, "data/time.csv"),
+        :summary_table_file=>abspath(@__DIR__, "../test/data/3bus/summary_table.csv"),
         :gentype_genfuel_file=>abspath(@__DIR__, "data/gentype_genfuel.csv"),
         :years=>years(),
         :save_data=>false,

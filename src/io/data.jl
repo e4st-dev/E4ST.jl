@@ -725,7 +725,7 @@ export get_table_col
 
 Adds `col` to `data[table_name][!, col_name]`, also adding the description and unit to the summary table.
 """
-function add_table_col!(data, table_name, column_name, col::Vector, unit, description)
+function add_table_col!(data, table_name, column_name, col::AbstractVector, unit, description)
     # Add col to table
     table = get_table(data, table_name)
     hasproperty(table, column_name) && @warn "Table data[$table_name] already has column $column_name, overwriting"
@@ -739,11 +739,11 @@ function add_table_col!(data, table_name, column_name, col::Vector, unit, descri
     data[:unit_lookup][(table_name, column_name)] = unit
     data[:desc_lookup][(table_name, column_name)] = description
 end
-function add_table_col!(data, table_name, column_name, ar::Array{<:Real, 3}, unit, description)
+function add_table_col!(data, table_name, column_name, ar::AbstractArray{<:Real, 3}, unit, description)
     v = [view(ar, i, :, :) for i in 1:size(ar, 1)]
     return add_table_col!(data, table_name, column_name, v, unit, description)
 end
-function add_table_col!(data, table_name, column_name, ar::Matrix{<:Real}, unit, description)
+function add_table_col!(data, table_name, column_name, ar::AbstractMatrix{<:Real}, unit, description)
     # Might need to make this into a container.
     v = [view(ar, i, :) for i in 1:size(ar, 1)]
     return add_table_col!(data, table_name, column_name, v, unit, description)
