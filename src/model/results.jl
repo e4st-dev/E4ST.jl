@@ -222,9 +222,9 @@ Adds the locational marginal prices of electricity and power flow.
 """
 function process_lmp!(config, data, res_raw)
     # Get the shadow price of the average power flow constraint ($/MW flowing)
-    cons_pflow = res_raw[:cons_pflow]::Array{Float64,3}
+    cons_pbal = res_raw[:cons_pbal]::Array{Float64,3}
     # Divide by number of hours because we want $/MWh, not $/MW
-    lmp_eserv = unweight_hourly(data, cons_pflow, -)
+    lmp_eserv = unweight_hourly(data, cons_pbal, -)
     
     # Add the LMP's to the results and to the bus table
     res_raw[:lmp_eserv_bus] = lmp_eserv

@@ -37,7 +37,6 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 | :--- | :--- | :--- | :--- |
 | $P_{F_{l,y,h}}$ | `:pflow_branch` | MW | Hourly avg. power flowing through each branch |
 | $P_{F_{b,y,h}}$ | `:pflow_bus` | MW | Hourly avg. power flowing out of each bus |
-| $P_{F_{b,y,h}}$ | `:pbal_bus` | MW | Hourly avg. power balance of each bus.  (`pgen_bus - pserv_bus - pflow_bus`) |
 | $P_{U_{b,y,h}}$ | `:pcurt_bus` | MW | Hourly avg. power curtailed at each bus |
 | $P_{G_{b,y,h}}$ | `:pgen_bus` | MW | Hourly avg. power generated at each bus |
 
@@ -45,7 +44,7 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 
 | Name | Constraint | Symbol |  Unit | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| $C_{PF_{b,y,h}}$ | $P_{G_{b,y,h}} - P_{S_{b,y,h}} = P_{F_{b,y,h}}$ | `:cons_pflow` | MW | Constrain the power flow at each bus |
+| $C_{PB_{b,y,h}}$ | $P_{G_{b,y,h}} - P_{S_{b,y,h}} = P_{F_{b,y,h}}$ | `:cons_pbal` | MW | Constrain the power flow at each bus |
 | $C_{PG_{g,y,h}}^{\text{min}}$ | $P_{G_{g,y,h}} \geq P_{C_{b,y}}^{\text{min}}$ | `:cons_pgen_min` | MW | Constrain the generated power to be above minimum capacity factor, if given. |
 | $C_{PG_{g,y,h}}^{\text{max}}$ | $P_{G_{g,y,h}} \leq P_{C_{b,y}}^{\text{max}}$ | `:cons_pgen_max` | MW | Constrain the generated power to be below min(availability factor, max capacity factor) |
 | $C_{PS_{g,y,h}}^{\text{min}}$ | $P_{S_{b,y,h}} \geq 0$ | `:cons_pserv_min` | MW | Constrain the served power to be greater than zero |
@@ -84,13 +83,7 @@ function setup_model(config, data)
         obj_scalar = get(config, :objective_scalar, 1e6)
         @objective(model, Min, model[:obj]/obj_scalar)
 
-        nyear = get_num_years(data)
-        nhour = get_num_hours(data)
-        nbus = nrow(get_table(data, :bus))
-        @constraint(model, 
-            cons_pflow[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            model[:pbal_bus][bus_idx, year_idx, hour_idx] == 0.0
-        )
+        constrain_pbal!(config, data, model)
 
         if get(config, :save_model_presolve, true)
             model_presolve_file = joinpath(config[:out_path],"model_presolve.jls")
@@ -105,6 +98,29 @@ function setup_model(config, data)
     @info "Model Summary:\n$(summarize(model))"
     return model
 end
+
+"""
+    constrain_pbal!(config, data, model) -> nothing
+
+Constrain the power balancing equation to equal zero for each bus, at each year and hour.
+
+`pgen_bus - pserv_bus - pflow_bus == 0`
+
+* `pgen_bus` is the power generated at the bus
+* `pserv_bus` is the power served/consumed at the bus
+* `pflow_bus` is the power flowing out of the bus
+"""
+function constrain_pbal!(config, data, model)
+    nyear = get_num_years(data)
+    nhour = get_num_hours(data)
+    nbus = nrow(get_table(data, :bus))
+    @constraint(model, 
+        cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+        model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:pserv_bus][bus_idx, year_idx, hour_idx] - model[:pflow_bus][bus_idx, year_idx, hour_idx] == 0.0
+    )
+    return nothing
+end
+export constrain_pbal!
 
 function add_optimizer!(config, data, model)
     optimizer_factory = getoptimizer(config)

@@ -62,8 +62,8 @@ function modify_model!(mod::DCLine, config, data, model)
         f_bus_idx = dc_line[dc_idx, :f_bus_idx]::Int64
         t_bus_idx = dc_line[dc_idx, :t_bus_idx]::Int64
         for year_idx in 1:nyear, hour_idx in 1:nhour
-            add_to_expression!(model[:pbal_bus][f_bus_idx, year_idx, hour_idx], pflow_dc[dc_idx, year_idx, hour_idx], -1)
-            add_to_expression!(model[:pbal_bus][t_bus_idx, year_idx, hour_idx], pflow_dc[dc_idx, year_idx, hour_idx], 1)
+            add_to_expression!(model[:pflow_bus][f_bus_idx, year_idx, hour_idx], pflow_dc[dc_idx, year_idx, hour_idx], 1)
+            add_to_expression!(model[:pflow_bus][t_bus_idx, year_idx, hour_idx], pflow_dc[dc_idx, year_idx, hour_idx], -1)
         end
     end
     
