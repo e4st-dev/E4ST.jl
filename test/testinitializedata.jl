@@ -126,8 +126,7 @@ end
     @test hasproperty(gen, :capex_obj)
     @test hasproperty(gen, :age)
     @test typeof(gen.age) == Vector{Container}
-    idx = findall(age -> typeof(age) == E4ST.ByYear, gen.age)
-    @test sum(idx) != 0
+    @test all(age->age isa E4ST.ByYear, gen.age)
 
 end
 
