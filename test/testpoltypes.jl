@@ -28,9 +28,7 @@ optimize!(model_ref)
         @test any(ptc -> typeof(ptc) == E4ST.ByYear, gen.example_ptc)
         
         # test that ByYear containers have non zero values
-        for i in idxs
-            @test sum(gen.example_ptc[i].v) != 0
-        end
+        @test sum(ptc->sum(ptc.v), gen.example_ptc) > 0
 
         #TODO: test that only has byYear for qualifying gens 
     end
@@ -71,10 +69,8 @@ end
         
         # test that ByYear containers have non zero values
         tot_itc = 0
-        for i in idxs
-            tot_itc += sum(gen.example_itc[i].v)
-        end
-        @test tot_itc != 0
+
+        @test sum(itc->sum(itc.v), gen.example_itc) > 0
     end
 
     @testset "Adding ITC to the model" begin
