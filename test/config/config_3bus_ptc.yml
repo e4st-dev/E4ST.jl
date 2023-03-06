@@ -20,5 +20,13 @@ optimizer:
   log_file: HiGHS.log
   solver: simplex # "ipm" is probably preferred for larger problems, but it logs to console due to an issue
 mods:
-
-
+  example_ptc:
+    type: "PTC"
+    value: 
+      y2035: 12
+      y2040: 12
+    gen_age_min: 0
+    gen_age_max: 30
+    gen_filters:
+      emis_co2: "<= 0.1"
+      country: "narnia"

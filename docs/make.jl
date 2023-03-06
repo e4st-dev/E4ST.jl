@@ -16,16 +16,17 @@ makedocs(
             "Hours Table" => "inputs/hours.md",
             "Demand" => "inputs/demand.md",
             "Availability Factor Table" => "inputs/af.md",
-            "Arbitrary Hourly/Yearly Adjustments" => "inputs/adjust.md",
+            "Arbitrary Temporal Adjustments" => "inputs/adjust.md",
             "Logging" => "inputs/logging.md"
         ],
         "Types"=>Any[
             "Modication"=>"types/mod.md",
             "Iterable"=>"types/iterable.md",
+            "Policy"=>"types/policy.md",
         ],
         "Model"=>Any[
-            "DC Optimal Power Flow"=>"model/dcopf.md"
-            "Model Formulation"=>"model/formulation.md"
+            "DC Optimal Power Flow"=>"model/dcopf.md",
+            "Model Formulation"=>"model/formulation.md",
         ]
     ],
     # TODO: Comment out format line before deploying, this is only for testing locally

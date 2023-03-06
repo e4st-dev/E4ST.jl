@@ -36,3 +36,5 @@ struct MWhDemanded <: Unit end; export MWhDemanded
 struct Hours <: Unit end; export Hours
 struct Year <: Unit end; export Year
 struct Ratio <: Unit end; export Ratio # For general purpose ratios that don't need a fancy Unit
+
+struct NumYears <: Unit end; export NumYears # For things like age where the unit is in years but it doesn't reference a specific year

@@ -46,11 +46,24 @@ export get_year_idxs
 Converts the year given as a String into a Int64.
 """
 function year2int(year::AbstractString)
-    year = chop(year, head = 1, tail = 0)
-    year = parse(Int64, year)
+    year = year2float(year)
+    year = round(Int, year, RoundNearestTiesUp)
     return year
 end
 export year2int
+
+"""
+    year2float(year) ->
+
+Converts the year given as a String into a Int64
+"""
+function year2float(year::AbstractString)
+    yregex = r"(\d{4}\.?\d*)+"
+    ym = match(yregex, year)
+    year = parse(Float64, ym.match)
+    return year
+end
+export year2float
 
 """
     year2str(year) -> 
