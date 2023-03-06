@@ -79,7 +79,9 @@ function setup_model(config, data)
             modify_model!(mod, config, data, model)
         end
 
-        @objective(model, Min, model[:obj]/1e6)
+        # Set the objective, scaling down for numerical stability.
+        obj_scalar = get(config, :objective_scalar, 1e6)
+        @objective(model, Min, model[:obj]/obj_scalar)
 
         if get(config, :save_model_presolve, true)
             model_presolve_file = joinpath(config[:out_path],"model_presolve.jls")
