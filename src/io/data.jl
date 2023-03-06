@@ -35,13 +35,20 @@ end
 Loads data specified by `config` into `data`. `data` can be empty or full.
 """
 function load_data!(config, data)
+    # Check to see if data is empty
+    if ~isempty(data)
+        @warn "Inside load_data! and `data` is not empty, clearing."
+        empty!(data)
+    end
+
     load_data_files!(config, data)
     modify_raw_data!(config, data)
     setup_data!(config, data)  
     modify_setup_data!(config, data)
 
+    # Save the data to file as specified.
     if get(config, :save_data, true)
-        serialize(joinpath(config[:out_path],"data.jls"), data)
+        serialize(out_path(config, "data.jls"), data)
     end
     return data
 end
