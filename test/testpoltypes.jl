@@ -25,8 +25,7 @@ optimize!(model_ref)
         #test that there are byYear containers 
         @test typeof(gen.example_ptc) == Vector{Container}
 
-        idxs = findall(ptc -> typeof(ptc) == E4ST.ByYear, gen.example_ptc)
-        @test sum(idxs) != 0 #Check that there are ByYear containers
+        @test any(ptc -> typeof(ptc) == E4ST.ByYear, gen.example_ptc)
         
         # test that ByYear containers have non zero values
         for i in idxs
@@ -64,11 +63,11 @@ end
     @testset "Adding ITC to gen table" begin
         @test hasproperty(gen, :example_itc)
 
-        #test that there are byYear containers 
+        # Test that there are byYear containers 
         @test typeof(gen.example_itc) == Vector{Container}
 
-        idxs = findall(itc -> typeof(itc) == E4ST.ByYear, gen.example_itc)
-        @test sum(idxs) != 0 #Check that there are ByYear containers
+        # Check that there are ByYear containers
+        @test any(itc -> typeof(itc) == E4ST.ByYear, gen.example_itc)
         
         # test that ByYear containers have non zero values
         tot_itc = 0

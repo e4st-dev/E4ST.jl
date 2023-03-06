@@ -378,8 +378,9 @@ function setup_table!(config, data, ::Val{:gen})
     years = year2float.(get_years(data))
     gen_age = Container[ByNothing(0.0) for i in 1:nrow(gen)]
     for idx_g in 1:nrow(gen)
-        g_age = [year - year2float(gen[idx_g, :year_on]) for year in years]
-        gen_age[idx_g] = ByYear(g_age) 
+        year_on = year2float(gen[idx_g, :year_on])
+        g_age = [year - year_on for year in years]
+        gen_age[idx_g] = ByYear(g_age)
     end
 
     add_table_col!(data, :gen, :age, gen_age, NumYears, "The age of the generator in each simulation year, given as a byYear container. Negative age is given for gens before their year_on.")

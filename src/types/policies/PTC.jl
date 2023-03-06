@@ -1,22 +1,22 @@
-"""
+@doc raw"""
     struct PTC <: Policy
     
 Production Tax Credit - A \$/MWh tax incentive for the generation of specific technology or under specific conditions.
 
-name: policy name 
-value: \$/MWh value of the PTC, stored as an OrderedDict with years and the value (:y2020=>10), note year is a Symbol
-gen_age_min: minimum generator age to qualifying (inclusive)
-gen_age_max: maximum generator age to qualify (inclusive)
-gen_filters: filters for qualifying generators, stored as an OrderedDict with gen table columns and values (:emis_co2=>"<=0.1" for co2 emission rate less than or equal to 0.1)
+* `name`: policy name 
+* `value`: \$/MWh value of the PTC, stored as an OrderedDict with years and the value `(:y2020=>10)`, note `year` is a `Symbol`
+* `gen_age_min`: minimum generator age to qualifying (inclusive)
+* `gen_age_max`: maximum generator age to qualify (inclusive)
+* `gen_filters`: filters for qualifying generators, stored as an OrderedDict with gen table columns and values (`:emis_co2=>"<=0.1"` for co2 emission rate less than or equal to 0.1)
 """
 Base.@kwdef struct PTC <: Policy
     name::Symbol
     value::OrderedDict
     gen_age_min::Float64
     gen_age_max::Float64
-    gen_filters::OrderedDict #Ethan adding a parse comparison that will work for ordered dicts 
-
+    gen_filters::OrderedDict
 end
+export PTC
 
 """
     function E4ST.modify_model!(pol::PTC, config, data, model)
@@ -28,6 +28,9 @@ function E4ST.modify_model!(pol::PTC, config, data, model)
     
     gen = get_table(data, :gen)
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
+
+    @info "Applying PTC $(pol.name) to $(length(gen_idxs)) generators"
+
     years = get_years(data)
 
     #create column of PTC values
@@ -48,4 +51,3 @@ end
 
 
 #TODO: something about how to process this in results
-#TODO: log statements
