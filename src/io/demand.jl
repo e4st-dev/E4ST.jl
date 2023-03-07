@@ -14,8 +14,9 @@ function setup_table!(config, data, ::Val{:demand_table})
     data[:demand_array] = ar
 
     # Grab views of the demand for the pd column of the bus table
-    demand.pdem = map(i->view(ar, i, :, :), 1:nrow(demand))
+    pdem = map(i->view(ar, i, :, :), 1:nrow(demand))
 
+    add_table_col!(data, :demand_table, :pdem, pdem, MWDemanded, "Demanded power by the demand element")
     bus = get_table(data, :bus)
     pdem_bus = [DemandContainer() for _ in 1:nrow(bus)]
 

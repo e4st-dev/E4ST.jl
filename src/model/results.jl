@@ -1,5 +1,5 @@
 """
-    parse_results(config, data, results_raw) -> results
+    process_results(config, data, results_raw) -> results
 
 Retrieves results from the results_raw, including:
 * Area/Annual results (?)
@@ -28,7 +28,11 @@ Simply gathers the values and shadow prices of each variable, expression, and co
 Saves them to `out_path(config,"results_raw.jls")` unless `config[:save_results_raw]` is `false` (true by default).
 """
 function parse_results(config, data, model)
-    results_raw = Dict(k => value_or_shadow_price(v) for (k,v) in object_dictionary(model))
+    log_header("PARSING RESULTS")
+
+    obj_scalar = get(config, :objective_scalar, 1e6)
+
+    results_raw = Dict(k => (@info "Parsing Result $k"; value_or_shadow_price(v, obj_scalar)) for (k,v) in object_dictionary(model))
     # Don't add anything else here, we want to preserve the purity of these raw results, so that we can get rid of the model.  Add any standard processing to process_results.
     if get(config, :save_results_raw, true)
         serialize(out_path(config,"results_raw.jls"), results_raw)
@@ -38,25 +42,31 @@ function parse_results(config, data, model)
 end
 
 """
-    value_or_shadow_price(constraints) -> shadow_prices
+    value_or_shadow_price(constraints, obj_scalar) -> shadow_prices*obj_scalar
 
-    value_or_shadow_price(variables) -> values
+    value_or_shadow_price(variables, obj_scalar) -> values
 
-    value_or_shadow_price(expressions) -> values
+    value_or_shadow_price(expressions, obj_scalar) -> values
 
-Returns a value or shadow price depending on what is passed in.  Used in [`results_raw!`](@ref)
+Returns a value or shadow price depending on what is passed in.  Used in [`results_raw!`](@ref).  Scales shadow prices by `obj_scalar` to restore to units of dollars (per applicable unit).
 """
-function value_or_shadow_price(ar::AbstractArray{<:ConstraintRef})
-    shadow_price.(ar)    
+function value_or_shadow_price(ar::AbstractArray{<:ConstraintRef}, obj_scalar)
+    map(cons->obj_scalar * shadow_price(cons), ar)
 end
-function value_or_shadow_price(ar::AbstractArray{<:AbstractJuMPScalar})
+function value_or_shadow_price(ar::AbstractArray{<:AbstractJuMPScalar}, obj_scalar)
     value.(ar)
 end
-function value_or_shadow_price(cons::ConstraintRef)
-    shadow_price(cons)
+function value_or_shadow_price(cons::ConstraintRef, obj_scalar)
+    shadow_price(cons) * obj_scalar
 end
-function value_or_shadow_price(x::AbstractJuMPScalar)
+function value_or_shadow_price(x::AbstractJuMPScalar, obj_scalar)
     value(x)
+end
+function value_or_shadow_price(x::Float64)
+    return x
+end
+function value_or_shadow_price(ar::AbstractArray, obj_scalar)
+    value_or_shadow_price.(ar, obj_scalar)
 end
 export value_or_shadow_price
 
@@ -220,14 +230,14 @@ function process_lmp!(config, data, res_raw)
     res_raw[:lmp_eserv_bus] = lmp_eserv
     add_table_col!(data, :bus, :lmp_eserv, lmp_eserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
 
-    # Get the shadow price of the positive and negative branch power flow constraints ($/(MW incremental transmission))      
-    cons_branch_pflow_neg = res_raw[:cons_branch_pflow_neg]::Array{Float64, 3}
-    cons_branch_pflow_pos = res_raw[:cons_branch_pflow_pos]::Array{Float64, 3}
-    lmp_pflow = -cons_branch_pflow_neg - cons_branch_pflow_pos
+    # # Get the shadow price of the positive and negative branch power flow constraints ($/(MW incremental transmission))      
+    # cons_branch_pflow_neg = res_raw[:cons_branch_pflow_neg]::Containers.SparseAxisArray{Float64, 3, Tuple{Int64, Int64, Int64}}
+    # cons_branch_pflow_pos = res_raw[:cons_branch_pflow_pos]::Array{Float64, 3}
+    # lmp_pflow = -cons_branch_pflow_neg - cons_branch_pflow_pos
     
-    # Add the LMP's to the results and to the branch table
-    res_raw[:lmp_pflow_branch] = lmp_pflow
-    add_table_col!(data, :branch, :lmp_pflow, lmp_pflow, DollarsPerMWFlow,"Locational Marginal Price of Power Flow")
+    # # Add the LMP's to the results and to the branch table
+    # res_raw[:lmp_pflow_branch] = lmp_pflow
+    # add_table_col!(data, :branch, :lmp_pflow, lmp_pflow, DollarsPerMWFlow,"Locational Marginal Price of Power Flow")
     return
 end
 export process_lmp!
@@ -267,14 +277,10 @@ export get_all_cons
 #     isempty(_year_idxs) && return 0.0
 #     isempty(_hour_idxs) && return 0.0
 
-#     return sum(value(var[g,y,h]) * get_gen_value(data, col_name, g, y, h) for g in _gen_idxs, y in _year_idxs, h in _hour_idxs)
+#     return sum(value(var[g,y,h]) * get_table_num(data, :gen, col_name, g, y, h) for g in _gen_idxs, y in _year_idxs, h in _hour_idxs)
 # end
 # export get_gen_result
 
-function _view_model(model, name, idxs, year_idxs, hour_idxs)
-    var = model[name]::Array{<:Any, 3}
-    return view(var, idxs, year_idxs, hour_idxs)
-end
 
 # function get_gen_array_idxs(data, idxs, year_idxs, hour_idxs)
 #     _idxs = get_gen_array_idxs(data, idxs)
@@ -405,6 +411,10 @@ end
 Compute `sum(v[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)`
 """
 function total_sum(v, idxs, yr_idxs, hr_idxs)
+    isempty(v) && return 0.0
+    isempty(idxs) && return 0.0
+    isempty(yr_idxs) && return 0.0
+    isempty(hr_idxs) && return 0.0
     sum(v[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
 end
 
@@ -414,6 +424,11 @@ end
 Compute the `sum(v1[i,y,h]*v2[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)`
 """
 function weighted_sum(v1, v2, idxs, yr_idxs, hr_idxs)
+    isempty(v1) && return 0.0
+    isempty(v2) && return 0.0
+    isempty(idxs) && return 0.0
+    isempty(yr_idxs) && return 0.0
+    isempty(hr_idxs) && return 0.0
     sum(v1[i,y,h]*v2[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
 end
 
@@ -423,6 +438,12 @@ end
 Compute the `sum(v1[i,y,h]*v2[i,y,h]*v3[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)`
 """
 function weighted_sum(v1, v2, v3, idxs, yr_idxs, hr_idxs)
+    isempty(v1) && return 0.0
+    isempty(v2) && return 0.0
+    isempty(v3) && return 0.0
+    isempty(idxs) && return 0.0
+    isempty(yr_idxs) && return 0.0
+    isempty(hr_idxs) && return 0.0
     sum(v1[i,y,h]*v2[i,y,h]*v3[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
 end
 

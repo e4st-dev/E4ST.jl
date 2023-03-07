@@ -19,20 +19,20 @@ The Config File is a file that fully specifies all the necessary information.  N
 * `gen_file` - The filepath (relative or absolute) to the generator table.  See [`summarize_table(::Val{:gen})`](@ref).
 * `bus_file` - The filepath (relative or absolute) to the bus table.  See [`summarize_table(::Val{:bus})`](@ref)
 * `branch_file` - The filepath (relative or absolute) to the branch table.  See [`summarize_table(::Val{:branch})`](@ref)
-* `hours_file` - The filepath (relative or absolute) to the hours table for the model's time representation.  See [`load_hours_table!`](@ref)
+* `hours_file` - The filepath (relative or absolute) to the hours table for the model's time representation.  See [`summarize_table(::Val{:hours})`](@ref)
 * `demand_file` - The filepath (relative or absolute) to the time representation.  See [`summarize_table(::Val{:demand_table})`](@ref)
 * `years` - a list of years to run in the simulation specified as a string.  I.e. `"y2030"`
 * `optimizer` - The optimizer type and attributes to use in solving the linear program.  The `type` field should be always be given, (i.e. `type: HiGHS`) as well as each of the solver options you wish to set.  E4ST is a BYOS (Bring Your Own Solver :smile:) library, with default attributes for HiGHS and Gurobi.  For all other solvers, you're on your own to provide a reasonable set of attributes.  To see a full list of solvers with work with JuMP.jl, see [here](https://jump.dev/JuMP.jl/stable/installation/#Supported-solvers).
 * `mods` - A list of `Modification`s specifying changes for how E4ST runs.  See the [`Modification`](@ref) for information on what they are, how to add them to a config file.
 
 ## Optional Fields:
-* `af_file` - The filepath (relative or absolute) to the availability factor table.  See [`summarize_table(::Val{:af_tabls})`](@ref)
+* `af_file` - The filepath (relative or absolute) to the availability factor table.  See [`summarize_table(::Val{:af_table})`](@ref)
 * `iter` - The [`Iterable`](@ref) object to specify the way the sim should iterate.  If nothing specified, defaults to run a single time.  Specify the `Iterable` type, and all keyword arguments.
 * `demand_shape_file` - a file for specifying the hourly shape of demand elements.  See [`summarize_table(::Val{:demand_shape})`](@ref)
 * `demand_match_file` - a file for specifying annual demanded energy to match for sets  See [`summarize_table(::Val{:demand_match})`](@ref)
 * `demand_add_file` - a file for specifying additional demanded energy, after matching.  See [`summarize_table(::Val{:demand_add})`](@ref)
 * `build_gen_file` - a file for specifying generators that could get built.  See [`summarize_table(::Val{:build_gen})`](@ref)
-* `gentype_genfuel_file` - a file for storing gentype-genfuel pairings.  See [`summarize_table(::Val{genfuel})`](@ref)
+* `gentype_genfuel_file` - a file for storing gentype-genfuel pairings.  See [`summarize_table(::Val{:genfuel})`](@ref)
 * `summary_table_file` - a file for giving information about additional columns not specified in [`summarize_table`](@ref)
 * `save_data` - A boolean specifying whether or not to save the loaded data to file for later use (i.e. by specifying a `data_file` for future simulations).  Defaults to `true`
 * `data_file` - The filepath (relative or absolute) to the data file (a serialized julia object).  If this is provided, it will use this instead of loading data from all the other files.
@@ -40,6 +40,7 @@ The Config File is a file that fully specifies all the necessary information.  N
 * `model_presolve_file` - The filepath (relative or absolute) to the unsolved model.  If this is provided, it will use this instead of creating a new model.
 * `save_results_raw` - A boolean specifying whether or not to save the raw results after solving the model.  This could be useful for calling [`process_results(config)`](@ref) in the future.
 * `results_raw_file` - The filepath (relative or absolute) to the raw results.  This is helpful for calling [`process_results(config)`](@ref) to generate user results without having to re-run E4ST.
+* `objective_scalar` - This is specifies how much to scale the objective by for the sake of the solver.  Does not impact any user-created expressions or shadow prices from the raw results, as they get scaled back.  (Defaults to 1e6)
 
 ## Example Config File
 ```yaml
@@ -51,7 +52,7 @@ function load_config(filename)
         config = YAML.load_file(filename, dicttype=OrderedDict{Symbol, Any})
         get!(config, :config_file, filename)
     else
-        error("No support for file $filename")
+        error("Cannot load config from: $filename")
     end
     check_required_fields!(config)
     make_paths_absolute!(config, filename)
@@ -219,7 +220,7 @@ function closestream(logger::SimpleLogger)
     close(logger.stream)
 end
 
-function closestream(logger::NullLogger)
+function closestream(logger::AbstractLogger)
 end
 
 function closestream(logger::MiniLogger)
@@ -274,6 +275,7 @@ function make_paths_absolute!(config, filename)
         end
     end
     for (k,v) in config
+        k === :optimizer && continue
         if v isa OrderedDict
             make_paths_absolute!(v, filename)
         end
@@ -293,7 +295,7 @@ contains_file_or_path(s::Symbol) = contains_file_or_path(string(s))
 
 function make_out_path!(config)
     out_path = config[:out_path]
-    @info "Making output path at $out_path"
+    # @info "Making output path at $out_path"
     if isdir(out_path)
         # Check to see if we need to move the contents to backup
         isempty(readdir(out_path)) && return
@@ -301,12 +303,14 @@ function make_out_path!(config)
         while isdir(backup_path)
             backup_path = string(out_path, "_backup_", time_string())
         end
+        logger = global_logger()
+        closestream(logger)
         # Call the garbage collector to remove any things that may be locking a resource
         GC.gc()
 
         # Now move the out_path to backup
         mv(out_path, backup_path)
-        @info "out_path already contains data, moving data from: \n$out_path\nto:\n$backup_path"
+        # @info "out_path already contains data, moving data from: \n$out_path\nto:\n$backup_path"
     end
     mkpath(config[:out_path])
 end

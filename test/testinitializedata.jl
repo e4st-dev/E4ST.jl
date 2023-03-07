@@ -11,9 +11,19 @@ Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
     config = load_config(config_file)
     @test isempty(config[:mods])
     data = load_data(config)
-    data_0 = deepcopy(data)
-    modify_raw_data!(config, data)
-    @test data == data_0
+    table_names = get_table_names(data)
+    for table_name in table_names
+        @test has_table(data, table_name)
+        table_name == :summary_table && continue
+        @test summarize_table(table_name) isa DataFrame
+        table = get_table(data, table_name)
+        for col_name in names(table)
+            @test get_table_col_unit(data, table_name, col_name) isa Type{<:E4ST.Unit}
+            @test get_table_col_description(data, table_name, col_name) isa String
+            @test get_table_val(data, table_name, col_name, 1) isa get_table_col_type(data, table_name, col_name)
+        end
+    end
+
 end
 
 @testset "Test Initializing the Data with a mod" begin

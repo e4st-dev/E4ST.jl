@@ -23,21 +23,42 @@ function setup_dcopf!(config, data, model)
 
 
     ## Variables
+    @info "Creating Variables"
 
     # Voltage Angle
-    @variable(model, θ_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour])
-
-    # Power Generation
-    @variable(model, pgen_gen[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour])
+    @variable(model, 
+        θ_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
+        start=0.0,
+        lower_bound = -1e6, # Lower value from MATLAB E4ST minimum(res.base.bus(:, VA)) was ~-2.5e5
+        upper_bound =  1e6  # Upper value from MATLAB E4ST maximum(res.base.bus(:, VA)) was ~200
+    )
 
     # Capacity
-    @variable(model, pcap_gen[gen_idx in 1:ngen, year_idx in 1:nyear])
+    @variable(model, 
+        pcap_gen[gen_idx in 1:ngen, year_idx in 1:nyear], 
+        start=0.0, #get_table_num(data, :gen, :pcap0, gen_idx, year_idx, :), # Setting to 0.0 for feasibility
+        lower_bound = get_pcap_min(data, gen_idx, year_idx),
+        upper_bound = get_pcap_max(data, gen_idx, year_idx),
+    )
 
-    # Load/Power Served
-    @variable(model, pserv_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour] >= 0)
+    # Power Generation
+    @variable(model, 
+        pgen_gen[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour], 
+        start=0.0,
+        lower_bound = 0.0,
+        upper_bound = get_pcap_max(data, gen_idx, year_idx),
+    )
+
+    @variable(model, 
+        pcurt_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+        start=0.0,
+        lower_bound = 0.0,
+        upper_bound = get_pdem(data, bus_idx, year_idx, hour_idx),
+    )
 
 
     ## Expressions to be used later
+    @info "Creating Expressions"
     
     # Power flowing through a given branch
     @expression(model, pflow_branch[branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour], get_pflow_branch(data, model, branch_idx, year_idx, hour_idx))
@@ -45,8 +66,8 @@ function setup_dcopf!(config, data, model)
     # Power flowing out of a given bus
     @expression(model, pflow_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pflow_bus(data, model, bus_idx, year_idx, hour_idx))
 
-    # Curtailed power of a given bus
-    @expression(model, pcurt_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pdem(data, bus_idx, year_idx, hour_idx) - pserv_bus[bus_idx, year_idx, hour_idx])
+    # Served power of a given bus
+    @expression(model, pserv_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pdem(data, bus_idx, year_idx, hour_idx) - pcurt_bus[bus_idx, year_idx, hour_idx])
 
     # Generated power of a given bus
     @expression(model, pgen_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pgen_bus(data, model, bus_idx, year_idx, hour_idx))
@@ -56,41 +77,46 @@ function setup_dcopf!(config, data, model)
 
 
     ## Constraints
-
+    @info "Creating Constraints"
     # Constrain Power Flow / Power Balance
     @constraint(model, cons_pflow[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
             get_pgen_bus(data, model, bus_idx, year_idx, hour_idx) - pserv_bus[bus_idx, year_idx, hour_idx] == 
             pflow_bus[bus_idx, year_idx, hour_idx])
 
-    # Constrain Reference Bus 
-    @constraint(model, cons_ref_bus[ref_bus_idx in get_ref_bus_idxs(data)], 
-            model[:θ_bus][ref_bus_idx] == 0)
-
-    # Constrain Power Generation 
-    @constraint(model, cons_pgen_min[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour],
+    # Constrain Power Generation
+    if hasproperty(gen, :cf_min)
+        @constraint(model, cons_pgen_min[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour],
             pgen_gen[gen_idx, year_idx, hour_idx] >= get_pgen_min(data, model, gen_idx, year_idx, hour_idx))
+    end
     @constraint(model, cons_pgen_max[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour],
             pgen_gen[gen_idx, year_idx, hour_idx] <= get_pgen_max(data, model, gen_idx, year_idx, hour_idx)) 
 
-    # Constrain Load Served 
-    @constraint(model, cons_pserv_min[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
-            pserv_bus[bus_idx, year_idx, hour_idx] >= 0)
-    @constraint(model, cons_pserv_max[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
-            pserv_bus[bus_idx, year_idx, hour_idx] <= get_pdem_bus(data, bus_idx, year_idx, hour_idx))
-    
 
-    # Constrain Capacity
-    @constraint(model, cons_pcap_min[gen_idx in 1:ngen, year_idx in 1:nyear], 
-            pcap_gen[gen_idx, year_idx] >= get_pcap_min(data, gen_idx, year_idx))
-    @constraint(model, cons_pcap_max[gen_idx in 1:ngen, year_idx in 1:nyear], 
-            pcap_gen[gen_idx, year_idx] <= get_pcap_max(data, gen_idx, year_idx))
+    # Constrain Reference Bus
+    for ref_bus_idx in get_ref_bus_idxs(data), year_idx in 1:nyear, hour_idx in 1:nhour
+        fix(model[:θ_bus][ref_bus_idx, year_idx, hour_idx], 0.0, force=true)
+    end
 
     # Constrain Transmission Lines 
-    @constraint(model, cons_branch_pflow_pos[branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour], 
-            pflow_branch[branch_idx, year_idx, hour_idx] <= get_pflow_branch_max(data, branch_idx, year_idx, hour_idx))
+    @constraint(model,
+        cons_branch_pflow_pos[
+            branch_idx in 1:nbranch,
+            year_idx in 1:nyear,
+            hour_idx in 1:nhour;
+            get_pflow_branch_max(data, branch_idx, year_idx, hour_idx) > 0 # Only constrain for branches with nonzero pflow_max
+        ], 
+        pflow_branch[branch_idx, year_idx, hour_idx] <= get_pflow_branch_max(data, branch_idx, year_idx, hour_idx)
+    )
 
-    @constraint(model, cons_branch_pflow_neg[branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour], 
-            -pflow_branch[branch_idx, year_idx, hour_idx] <= get_pflow_branch_max(data, branch_idx, year_idx, hour_idx))
+    @constraint(model, 
+        cons_branch_pflow_neg[
+            branch_idx in 1:nbranch, 
+            year_idx in 1:nyear, 
+            hour_idx in 1:nhour;
+            get_pflow_branch_max(data, branch_idx, year_idx, hour_idx) > 0 # Only constrain for branches with nonzero pflow_max
+        ], 
+        -pflow_branch[branch_idx, year_idx, hour_idx] <= get_pflow_branch_max(data, branch_idx, year_idx, hour_idx)
+    )
     
     # Constrain Capacity to 0 before the start/build year 
     prebuild_year_idxs = map(gen_idx -> get_prebuild_year_idxs(data, gen_idx), 1:ngen)
@@ -100,11 +126,14 @@ function setup_dcopf!(config, data, model)
     end
 
     # Constrain existing capacity to only decrease (only retire, not add capacity)
-    @constraint(model, cons_pcap_noadd[gen_idx in 1:ngen, year_idx in get_year_on_sim_idx(data, gen_idx):(nyear-1)], 
-            pcap_gen[gen_idx, year_idx+1] <= pcap_gen[gen_idx, year_idx])
+    if nyear > 1
+        @constraint(model, cons_pcap_noadd[gen_idx in 1:ngen, year_idx in get_year_on_sim_idx(data, gen_idx):(nyear-1)], 
+                pcap_gen[gen_idx, year_idx+1] <= pcap_gen[gen_idx, year_idx])
+    end
 
-
+    
     ## Objective Function 
+    @info "Building Objective"
     @expression(model, obj, 0*model[:θ_bus][1,1,1]) 
     # needed to be defined as an GenericAffExp instead of an Int64 so multiplied by an arbitrary var
 
@@ -186,7 +215,7 @@ function get_pflow_branch(data, model, branch_idx_signed, year_idx, hour_idx)
 
     f_bus_idx = data[:branch].f_bus_idx[branch_idx]
     t_bus_idx = data[:branch].t_bus_idx[branch_idx]
-    x = get_branch_value(data, :x, branch_idx, year_idx, hour_idx)
+    x = get_table_num(data, :branch, :x, branch_idx, year_idx, hour_idx)
     Δθ = direction * (model[:θ_bus][f_bus_idx, year_idx, hour_idx] - model[:θ_bus][t_bus_idx, year_idx, hour_idx]) #positive for power flow out(f_bus to t_bus)
     return Δθ / x
 end
@@ -204,7 +233,8 @@ Default is 0 unless specified by the optional gen property `cf_min` (minimum cap
 function get_pgen_min(data, model, gen_idx, year_idx, hour_idx) 
     if hasproperty(data[:gen], :cf_min)
         pcap = model[:pcap_gen][gen_idx, year_idx]
-        cf_min = get_gen_value(data, :cf_min, gen_idx, year_idx, hour_idx)
+        cf_min = get_table_num(data, :gen, :cf_min, gen_idx, year_idx, hour_idx)
+        isnan(cf_min) && return 0.0
         return pcap .* cf_min 
     else
         return 0.0
@@ -219,10 +249,10 @@ Returns max power generation for a generator at a time.
 It is based on the lower of gen properties `af` (availability factor) and optional `cf_max` (capacity factor).
 """ 
 function get_pgen_max(data, model, gen_idx, year_idx, hour_idx) 
-    af = get_gen_value(data, :af, gen_idx, year_idx, hour_idx)
+    af = get_table_num(data, :gen, :af, gen_idx, year_idx, hour_idx)
     pcap = model[:pcap_gen][gen_idx, year_idx]
     if hasproperty(data[:gen], :cf_max)
-        cf_max = get_gen_value(data, :cf_max, gen_idx, year_idx, hour_idx)
+        cf_max = get_table_num(data, :gen, :cf_max, gen_idx, year_idx, hour_idx)
         cf_max < af ? pgen_max = cf_max .* pcap : pgen_max = af .* pcap
     else 
         pgen_max = af .* pcap
@@ -298,7 +328,7 @@ function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper)
     years = get_years(data)
 
     model[s] = @expression(model, [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
-        get_gen_value(data, s, gen_idx, year_idx, :) .* get_egen_gen(data, model, gen_idx, year_idx))
+        get_table_num(data, :gen, s, gen_idx, year_idx, :) .* get_egen_gen(data, model, gen_idx, year_idx))
 
     # add or subtract the expression from the objective function
     add_obj_exp!(data, model, PerMWhGen(), s; oper = oper) 
@@ -315,7 +345,7 @@ function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper)
     years = get_years(data)
 
     model[s] = @expression(model, [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
-        get_gen_value(data, s, gen_idx, year_idx, :) .* model[:pcap_gen][gen_idx, year_idx])
+        get_table_num(data, :gen, s, gen_idx, year_idx, :) .* model[:pcap_gen][gen_idx, year_idx])
 
     # add or subtract the expression from the objective function
     add_obj_exp!(data, model, PerMWCap(), s; oper = oper) 

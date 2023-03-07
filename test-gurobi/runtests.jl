@@ -14,7 +14,8 @@ mktempdir(@__DIR__) do path
     )
     config_path = joinpath(path, "config")
     for config_file in readdir(config_path, join=true)
-        config = load_config(config_file)
+        contains(config_file, ".yml") || continue
+        config = YAML.load_file(config_file, dicttype=OrderedDict{Symbol, Any})
         config[:optimizer] = gurobi_settings
         YAML.write_file(config_file, config)
     end
