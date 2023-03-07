@@ -49,18 +49,11 @@ function setup_dcopf!(config, data, model)
         upper_bound = get_pcap_max(data, gen_idx, year_idx),
     )
 
-    # Load/Power Served
-    # @variable(model, 
-    #     pcurt_bus_kw[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-    #     start=0.0, #get_pdem(data, bus_idx, year_idx, hour_idx), # Theoretically this is infeasible.  May want to change to 0.0
-    #     lower_bound = 0.0,
-    #     upper_bound = 1e4, #get_pdem(data, bus_idx, year_idx, hour_idx), # Limiting curtailment at each bus to be 10MW.  May make it infeasible
-    # )
     @variable(model, 
         pcurt_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-        start=0.0, #get_pdem(data, bus_idx, year_idx, hour_idx), # Theoretically this is infeasible.  May want to change to 0.0
+        start=0.0,
         lower_bound = 0.0,
-        upper_bound = 1e4, #get_pdem(data, bus_idx, year_idx, hour_idx), # Limiting curtailment at each bus to be 10MW.  May make it infeasible
+        upper_bound = get_pdem(data, bus_idx, year_idx, hour_idx),
     )
 
 
@@ -72,9 +65,6 @@ function setup_dcopf!(config, data, model)
 
     # Power flowing out of a given bus
     @expression(model, pflow_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pflow_bus(data, model, bus_idx, year_idx, hour_idx))
-
-    # # Curtailed power of a given bus
-    # @expression(model, pcurt_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 1e-3*pcurt_bus_kw[bus_idx, year_idx, hour_idx])
 
     # Served power of a given bus
     @expression(model, pserv_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pdem(data, bus_idx, year_idx, hour_idx) - pcurt_bus[bus_idx, year_idx, hour_idx])
