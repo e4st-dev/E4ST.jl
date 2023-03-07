@@ -11,20 +11,26 @@ values: OrderedDict of cap values by year
 gen_filters: OrderedDict of generator filters
 gen_cons: GenerationConstraint Modification created on instantiation of the EmissionCap. It sets the cap values as the max_values of the GenerationConstraint and passes on other fields.
 """
-Base.@kwdef struct EmissionCap <: Policy
+struct EmissionCap <: Policy
     name::Symbol
     emis_col::Symbol
     values::OrderedDict
     gen_filters::OrderedDict
     gen_cons::GenerationConstraint
 
-    function EmissionCap(name, emis_col, values, gen_filters)
+    function EmissionCap(;name, emis_col, values, gen_filters)
         empty_mins = OrderedDict{}()
-        gen_cons = GenerationConstraint(name, emis_col, values, empty_mins, gen_filters)
-        new(name, emis_col, values, gen_filters, gen_cons)
+        gen_cons = GenerationConstraint(Symbol(name), Symbol(emis_col), values, empty_mins, gen_filters)
+        new(Symbol(name), Symbol(emis_col), values, gen_filters, gen_cons)
     end
 
 end
+
+# function EmissionCap(;name, emis_col, values, gen_filters)
+#     empty_mins = OrderedDict{}()
+#     gen_cons = GenerationConstraint(Symbol(name), Symbol(emis_col), values, empty_mins, gen_filters)
+#     EmissionCap(Symbol(name), Symbol(emis_col), values, gen_filters, gen_cons)
+# end
 export EmissionCap
 
 """

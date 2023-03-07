@@ -21,10 +21,12 @@ optimizer:
   solver: simplex # "ipm" is probably preferred for larger problems, but it logs to console due to an issue
 mods:
   example_emiscap:
-    type: "EmisCap"
-    emis_col: 
-    value: 
+    type: "EmissionCap"
+    emis_col: "emis_co2"
+    values: 
       y2035: 1500
       y2040: 1000
+    gen_filters:
+      country: "narnia, archenland"
 
 

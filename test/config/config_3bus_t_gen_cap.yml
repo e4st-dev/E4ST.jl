@@ -18,7 +18,7 @@ optimizer:
   log_to_console: false
 mods:
   co2_cap:
-    type: "GenerationCap"
+    type: "TestGenerationCap"
     column: "emis_co2"
     targets:
       y2030: 3200

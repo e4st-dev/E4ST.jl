@@ -90,14 +90,27 @@ end
 
 
 @testset "Test EmissionCap" begin
-    
+    config_file = joinpath(@__DIR__, "config", "config_3bus_emiscap.yml")
+    config = load_config(config_file)
+
     # Creates GenerationConstraint
+    @test typeof(config[:mods][:example_emiscap][:gen_cons]) == E4ST.GenerationConstraint
+
+
+    data = load_data(config)
+    model = setup_model(config, data)
+
+    gen = get_table(data, :gen)
+
+    # Added to the gen table 
+    @test hasproperty(gen, :example_emiscap)
 
     # read back into config yaml without the gen_cons
 
     # Constraint added to the model
+    @test haskey(model, :cons_example_emiscap)
 
-    # Reduced the emissions (may been to calibrate)
+    # Reduced the emissions (may need to calibrate)
 
 
 end
