@@ -30,17 +30,26 @@ export modify_raw_data!, modify_setup_data!, modify_model!, modify_results!, fie
 export run_e4st
 export setup_new_gens!
 
+#Include types
 include("types/Modification.jl")
 include("types/Policy.jl")
 include("types/Unit.jl")
 include("types/Containers.jl")
 include("types/AggregationTemplate.jl")
+
+#Include policies
+include("types/policies/ITC.jl")
+include("types/policies/PTC.jl")
+
+#Include IO
 include("io/config.jl")
 include("io/data.jl")
 include("io/adjust.jl")
 include("io/util.jl")
 include("io/demand.jl")
 include("io/results.jl")
+
+#Include model
 include("model/setup.jl")
 include("model/dcopf.jl")
 include("model/check.jl")

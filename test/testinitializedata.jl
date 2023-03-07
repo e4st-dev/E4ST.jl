@@ -125,7 +125,18 @@ end
 
     #check that all gentypes in build_gen are in gen as well
     @test nothing ∉ indexin(unique(build_gen.gentype), unique(gen.gentype))
-    
-
 
 end
+
+@testset "Test Setting Up Gen Table" begin 
+    config = load_config(config_file)
+    data = load_data(config)
+    gen = get_table(data, :gen)
+
+    @test hasproperty(gen, :capex_obj)
+    @test hasproperty(gen, :age)
+    @test typeof(gen.age) == Vector{Container}
+    @test all(age->age isa E4ST.ByYear, gen.age)
+
+end
+

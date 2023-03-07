@@ -345,6 +345,7 @@ function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper)
     
 end
 
+
 function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper) 
     #Check if s has already been added to obj
     Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"

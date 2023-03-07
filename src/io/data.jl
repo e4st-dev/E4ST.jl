@@ -367,7 +367,9 @@ end
 
 Sets up the generator table.
 Creates potential new generators and exogenously built generators. 
-Calls [`setup_new_gens!`](@ref) 
+Calls [`setup_new_gens!`](@ref)
+Creates capex_obj column which is the capex cost seen in the objective function. It is a ByYear column that is only non zero for year_on.
+Creates age column which is a ByYear column. Unbuilt generators have a negative age before year_on.
 """
 function setup_table!(config, data, ::Val{:gen})
     bus = get_table(data, :bus)
@@ -376,18 +378,35 @@ function setup_table!(config, data, ::Val{:gen})
     #removes capex_obj if loaded in from previous sim
     :capex_obj in propertynames(data[:gen]) && select!(data[:gen], Not(:capex_obj))
 
-    #create new gens and add to the gen table
+    ### Create new gens and add to the gen table
     if haskey(config, :build_gen_file) 
         setup_new_gens!(config, data)  
     end  
 
-    # create capex_obj (the capex used in the optimization/objective function)
-    # set to capex for unbuilt generators
+    ### Create capex_obj (the capex used in the optimization/objective function)
+    # set to capex for unbuilt generators in the year_on
     # set to 0 for already built capacity because capacity expansion isn't considered for existing generators
-    capex_obj = (gen.build_status.=="unbuilt").* gen.capex
-    add_table_col!(data, :gen, :capex_obj, capex_obj, DollarsPerMWBuiltCapacity, "The annual capital expenditures per MW of built capacity seen by the optimizer in the objective function.  Note that this is zero for already-built capacity.")
+    capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
+    for idx_g in 1:nrow(gen)
+        g = gen[idx_g,:]
+        g_capex_obj = [(g.build_status=="unbuilt")* g.capex*(g.year_on==year) for year in get_years(data)]
+        capex_obj[idx_g] = ByYear(g_capex_obj) 
+    end
+    add_table_col!(data, :gen, :capex_obj, capex_obj, DollarsPerMWBuiltCapacity, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
 
-    # map bus characteristics to generators
+    
+    ### Add age column as by ByYear based on year_on
+    years = year2float.(get_years(data))
+    gen_age = Container[ByNothing(0.0) for i in 1:nrow(gen)]
+    for idx_g in 1:nrow(gen)
+        year_on = year2float(gen[idx_g, :year_on])
+        g_age = [year - year_on for year in years]
+        gen_age[idx_g] = ByYear(g_age)
+    end
+
+    add_table_col!(data, :gen, :age, gen_age, NumYears, "The age of the generator in each simulation year, given as a byYear container. Negative age is given for gens before their year_on.")
+
+    ### Map bus characteristics to generators
     names_before = propertynames(gen)
     leftjoin!(gen, bus, on=:bus_idx)
     disallowmissing!(gen)
@@ -403,7 +422,7 @@ function setup_table!(config, data, ::Val{:gen})
     hasproperty(gen, :fuel_cost) || (gen.fuel_cost = fill(ByNothing(0.0), nrow(gen)))
     return gen
 end
-export setup_gen_table!
+export setup_table!
 
 """
     setup_table!(config, data, ::Val{:build_gen})
@@ -417,7 +436,7 @@ function setup_table!(config, data, ::Val{:build_gen})
     end
 
 end
-export setup_build_gen_table!
+export setup_table!
 
 """
     setup_table!(config, data, ::Val{:bus})
@@ -431,7 +450,7 @@ function setup_table!(config, data, ::Val{:bus})
     add_table_col!(data, :bus, :bus_idx, bus_idx, NA, "The bus index of each bus, should correspond to the row number, used for joining.")
     return
 end
-export setup_bus_table!
+export setup_table!
 
 """
     setup_table!(config, data, ::Val{:branch})
@@ -472,7 +491,7 @@ function setup_table!(config, data, ::Val{:branch})
     end
     return
 end
-export setup_branch_table!
+export setup_table!
 
 """
     setup_table!(config, data, ::Val{:hours})
