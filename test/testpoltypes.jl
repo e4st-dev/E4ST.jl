@@ -87,3 +87,17 @@ end
 
     end
 end
+
+
+@testset "Test EmissionCap" begin
+    
+    # Creates GenerationConstraint
+
+    # read back into config yaml without the gen_cons
+
+    # Constraint added to the model
+
+    # Reduced the emissions (may been to calibrate)
+
+
+end

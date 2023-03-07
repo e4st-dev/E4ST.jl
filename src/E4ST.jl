@@ -36,12 +36,13 @@ include("types/Policy.jl")
 include("types/Unit.jl")
 include("types/Containers.jl")
 include("types/AggregationTemplate.jl")
+include("types/GenerationConstraint.jl")
 
 ##Include policies
 include("types/policies/ITC.jl")
 include("types/policies/PTC.jl")
 #include("types/policies/RPS.jl")
-include("types/policies/EmisCap.jl")
+include("types/policies/EmissionCap.jl")
 
 ##Include IO
 include("io/config.jl")

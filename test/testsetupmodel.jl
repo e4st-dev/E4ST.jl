@@ -23,16 +23,16 @@ end
     """
 
     """
-    struct GenerationCap <: Policy
+    struct TestGenerationCap <: Policy
         name::Symbol
         column::Symbol
         targets::OrderedDict{String, Float64}
-        function GenerationCap(;name, column, targets)
+        function TestGenerationCap(;name, column, targets)
             new_targets = OrderedDict(String(k)=>v for (k,v) in targets)
             return new(Symbol(name), Symbol(column), new_targets)
         end
     end
-    function E4ST.modify_model!(pol::GenerationCap, config, data, model)
+    function E4ST.modify_model!(pol::TestGenerationCap, config, data, model)
         gen = get_table(data, :gen)
         gen_idxs = 1:nrow(gen)
 
@@ -48,7 +48,7 @@ end
         )
     end
     
-    config_file = joinpath(@__DIR__, "config", "config_3bus_emis_cap.yml")
+    config_file = joinpath(@__DIR__, "config", "config_3bus_t_gen_cap.yml")
     config = load_config(config_file)
     data = load_data(config)
     model = setup_model(config, data)
