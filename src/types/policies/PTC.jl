@@ -3,6 +3,8 @@
     
 Production Tax Credit - A \$/MWh tax incentive for the generation of specific technology or under specific conditions.
 
+# Keyword Arguments
+
 * `name`: policy name 
 * `value`: \$/MWh value of the PTC, stored as an OrderedDict with years and the value `(:y2020=>10)`, note `year` is a `Symbol`
 * `gen_age_min`: minimum generator age to qualifying (inclusive)

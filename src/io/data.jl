@@ -75,7 +75,6 @@ function load_data_files!(config, data)
 
     # Optional tables
     load_table!(config, data, :af_file       => :af_table, optional = true)
-    load_table!(config, data, :dc_lines_file=>:dc_lines, optional=true)
     load_table!(config, data, :demand_shape_file=>:demand_shape, optional=true)
     load_table!(config, data, :demand_match_file=>:demand_match, optional=true)
     load_table!(config, data, :demand_add_file=>:demand_add, optional=true)
@@ -127,7 +126,6 @@ function setup_data!(config, data)
     setup_table!(config, data, :demand_table)
     setup_table!(config, data, :gen) # needs to come after build_gen setup for newgens
     setup_table!(config, data, :af_table)
-    setup_table!(config, data, :dc_lines)
     setup_table!(config, data, :adjust_yearly)
     setup_table!(config, data, :adjust_hourly)
 end
@@ -566,15 +564,6 @@ Currently does nothing
 function setup_table!(config, data, ::Val{:genfuel})
 end
 
-
-"""
-    setup_table!(config, data, ::Val{:dc_lines}) -> nothing
-
-Currently does nothing
-"""
-function setup_table!(config, data, ::Val{:dc_lines})
-    # TODO: Fill in
-end
 
 # Table Summaries
 ################################################################################

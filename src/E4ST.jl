@@ -58,7 +58,7 @@ include("model/iteration.jl")
 include("model/newgens.jl")
 
 # Commonly Modifications/Policies
-include("types/StandardMods/DCLine.jl")
+include("types/modifications/DCLine.jl")
 
 
 """
