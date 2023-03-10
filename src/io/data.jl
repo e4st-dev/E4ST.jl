@@ -147,15 +147,6 @@ export setup_table!
 
 
 """
-    setup_table!(config, data, ::Val{:genfuel}) -> nothing
-
-Currently does nothing
-"""
-function setup_table!(config, data, ::Val{:genfuel})
-end
-
-
-"""
     summarize_table(s::Symbol) -> summary::DataFrame
 
 Returns a summary of the table `s`.  Note that more information can be provided in the the `summary_table`, which contains a summary of all tables, including all information from `summarize_table`, plus additional columns specified.
@@ -563,6 +554,16 @@ function setup_table!(config, data, ::Val{:af_table})
     return data
 end
 export setup_af!
+
+
+"""
+    setup_table!(config, data, ::Val{:genfuel}) -> nothing
+
+Currently does nothing
+"""
+function setup_table!(config, data, ::Val{:genfuel})
+end
+
 
 # Table Summaries
 ################################################################################

@@ -27,6 +27,12 @@
         @test all(p->abs(p)<1e-6, total_ecurt)
     end
 
+    @testset "Test DC lines" begin
+        @test haskey(data, :dc_line)
+        @test haskey(res_raw, :pflow_dc)
+        @test 0 < maximum(abs, res_raw[:pflow_dc]) <= maximum(get_table(data, :dc_line).pflow_max)
+    end
+
     # make sure energy generated is non_zero
     gen = get_table(data, :gen)
 

@@ -57,6 +57,9 @@ include("model/results.jl")
 include("model/iteration.jl")
 include("model/newgens.jl")
 
+# Commonly Modifications/Policies
+include("types/modifications/DCLine.jl")
+
 
 """
     run_e4st(config) -> results

@@ -49,13 +49,13 @@ function setup_dcopf!(config, data, model)
         upper_bound = get_pcap_max(data, gen_idx, year_idx),
     )
 
+    # Power Curtailed
     @variable(model, 
         pcurt_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
         start=0.0,
         lower_bound = 0.0,
         upper_bound = get_pdem(data, bus_idx, year_idx, hour_idx),
     )
-
 
     ## Expressions to be used later
     @info "Creating Expressions"
@@ -75,14 +75,9 @@ function setup_dcopf!(config, data, model)
     # Generated energy at a given generator
     @expression(model, egen_gen[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour], get_egen_gen(data, model, gen_idx, year_idx, hour_idx))
 
-
     ## Constraints
     @info "Creating Constraints"
-    # Constrain Power Flow / Power Balance
-    @constraint(model, cons_pflow[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
-            get_pgen_bus(data, model, bus_idx, year_idx, hour_idx) - pserv_bus[bus_idx, year_idx, hour_idx] == 
-            pflow_bus[bus_idx, year_idx, hour_idx])
-
+    
     # Constrain Power Generation
     if hasproperty(gen, :cf_min)
         @constraint(model, cons_pgen_min[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour],
@@ -90,7 +85,6 @@ function setup_dcopf!(config, data, model)
     end
     @constraint(model, cons_pgen_max[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour],
             pgen_gen[gen_idx, year_idx, hour_idx] <= get_pgen_max(data, model, gen_idx, year_idx, hour_idx)) 
-
 
     # Constrain Reference Bus
     for ref_bus_idx in get_ref_bus_idxs(data), year_idx in 1:nyear, hour_idx in 1:nhour
@@ -165,7 +159,6 @@ export setup_dcopf!
 ################################################################################
 # Helper Functions
 ################################################################################
-
 
 # Accessor Functions
 ################################################################################
