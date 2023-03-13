@@ -15,7 +15,7 @@ Load the config file from `filename`, inferring any necessary settings as needed
 The Config File is a file that fully specifies all the necessary information.  Note that when filenames are given as a relative path, they are assumed to be relative to the location of the config file.
 
 ## Required Fields:
-* `out_path` - The path (relative or absolute) to the desired output folder.  This folder doesn't necessarily need to exist.  The code should make it for you if it doesn't exist yet.  If there are already results living in the output path, E4ST will back them up to a folder called `backup_yymmddhhmmss`
+* `base_out_path` - The path (relative or absolute) to the desired output folder.  This folder doesn't necessarily need to exist.  The code will make it for you if it doesn't exist yet.  E4ST will make a timestamped folder within `base_out_path`, and store that new path into `config[out_path]`.  This is to prevent processes from overwriting one another.
 * `gen_file` - The filepath (relative or absolute) to the generator table.  See [`summarize_table(::Val{:gen})`](@ref).
 * `bus_file` - The filepath (relative or absolute) to the bus table.  See [`summarize_table(::Val{:bus})`](@ref)
 * `branch_file` - The filepath (relative or absolute) to the branch table.  See [`summarize_table(::Val{:branch})`](@ref)
@@ -69,20 +69,15 @@ saves the config to the output folder specified inside the config file
 """
 function save_config(config)
 
-    # create output folder
+    # create output folder, though this should be done already.
     mkpath(config[:out_path])
-
-    # create out path 
-    io = open(joinpath(config[:out_path],basename(config[:config_file])), "w")
     
     # remove config filepath 
     config_file = pop!(config, :config_file)
 
-    YAML.write(io, config)
+    YAML.write_file(out_path(config, basename(config_file)), config)
 
     config[:config_file] = config_file
-
-    close(io)
 end
 
 
@@ -109,7 +104,7 @@ function start_logging!(config)
             minlevel = Logging.Info
         end
         # logger = Base.SimpleLogger(open(abspath(config[:out_path], "E4ST.log"),"w"), log_level)
-        io = open(abspath(config[:out_path], "E4ST.log"),"w")
+        io = open(out_path(config, "E4ST.log"),"w")
         format = "{[{timestamp}] - {level} - :func}{@ {module} {filepath}:{line:cyan}:light_green}\n{message}"
         logger = MiniLogger(;io, minlevel, format, message_mode=:notransformations)
     end
@@ -176,7 +171,7 @@ end
 Returns a time string in the format "yymmdd_HHMMSS"
 """
 function time_string()
-    format(now(), dateformat"yymmdd_HHMMSS")
+    format(now(), dateformat"yymmdd_HHMMSSsss")
 end
 
 """
@@ -246,7 +241,7 @@ function required_fields()
         :branch_file,
         :bus_file,
         :hours_file,
-        :out_path,
+        :base_out_path,
         :optimizer,
         :mods
     )
@@ -293,26 +288,36 @@ function contains_file_or_path(s::AbstractString)
 end
 contains_file_or_path(s::Symbol) = contains_file_or_path(string(s))
 
-function make_out_path!(config)
-    out_path = config[:out_path]
-    # @info "Making output path at $out_path"
-    if isdir(out_path)
-        # Check to see if we need to move the contents to backup
-        isempty(readdir(out_path)) && return
-        backup_path = string(out_path, "_backup_", time_string())
-        while isdir(backup_path)
-            backup_path = string(out_path, "_backup_", time_string())
-        end
-        logger = global_logger()
-        closestream(logger)
-        # Call the garbage collector to remove any things that may be locking a resource
-        GC.gc()
+"""
+    latest_out_path(base_out_path) -> out_path
 
-        # Now move the out_path to backup
-        mv(out_path, backup_path)
-        # @info "out_path already contains data, moving data from: \n$out_path\nto:\n$backup_path"
+Returns the most recently created `out_path` from within `base_out_path`.
+"""
+function latest_out_path(base_out_path)
+    return last(readdir(base_out_path, join=true, sort=true))
+end
+export latest_out_path
+
+"""
+    make_out_path!(config) -> nothing
+
+Makes sure `config[:base_out_path]` exists, making it as needed.  Creates a new time-stamped folder via [`time_string`](@ref), stores it into `config[:out_path]`.  See [`out_path`](@ref) to create paths for output files. 
+"""
+function make_out_path!(config)
+    base_out_path = config[:base_out_path]
+
+    # Make out_path as necessary
+    ~isdir(base_out_path) && mkpath(base_out_path)  
+    
+    out_path = joinpath(base_out_path, time_string())
+    while isdir(out_path)
+        out_path = joinpath(base_out_path, time_string())
     end
-    mkpath(config[:out_path])
+    
+    mkpath(out_path)
+    config[:out_path] = out_path
+
+    return nothing
 end
 
 """

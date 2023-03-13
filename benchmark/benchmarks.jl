@@ -12,8 +12,15 @@ include("benchmark_helper.jl")
 const SUITE = BenchmarkGroup()
 Base.global_logger(Base.NullLogger())
 Base.disable_logging(Base.CoreLogging.Warn)
-# config = make_random_inputs(demand_shape_file=true, demand_match_file=true, demand_add_file=true)
-# data = load_data(config)
+
+function warmup()
+    config = make_random_inputs()
+    data = load_data(config)
+    model = setup_model(config, data)
+    return nothing
+end
+
+warmup()
 
 SUITE["get_generator"] = @benchmarkable get_generator(data, 1) setup=(config=make_random_inputs(); data = load_data(config)) evals=1000
 SUITE["get_af"] = @benchmarkable get_af(data, 50, 3, 50) setup=(config=make_random_inputs(); data = load_data(config)) evals=1000
