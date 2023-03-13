@@ -10,7 +10,9 @@ end
 @doc """
     load_config(filename) -> config::OrderedDict{Symbol,Any}
 
-Load the config file from `filename`, inferring any necessary settings as needed.  See [`load_data`](@ref) to see how the `config` is used.
+    load_config(filenames) -> config::OrderedDict{Symbol,Any}
+
+Load the config file from `filename`, inferring any necessary settings as needed.  See [`load_data`](@ref) to see how the `config` is used.  If multiple filenames given, (in a vector, or separated by commas) merges them, preserving the settings found in the last file, when there are conflicts, appending the list of [`Modification`](@ref)s.
 
 The Config File is a file that fully specifies all the necessary information.  Note that when filenames are given as a relative path, they are assumed to be relative to the location of the config file.
 
@@ -47,20 +49,45 @@ The Config File is a file that fully specifies all the necessary information.  N
 $(read_sample_config_file())
 ```
 """
-function load_config(filename)
+function load_config(filenames...)
+    config = _load_config(filenames)
+    check_required_fields!(config)
+    make_paths_absolute!(config)
+    make_out_path!(config)
+    convert_mods!(config)
+    convert_iter!(config)
+    return config
+end
+
+function _load_config(filename::AbstractString)
     if contains(filename, ".yml")
         config = YAML.load_file(filename, dicttype=OrderedDict{Symbol, Any})
         get!(config, :config_file, filename)
     else
         error("Cannot load config from: $filename")
     end
-    check_required_fields!(config)
-    make_paths_absolute!(config, filename)
-    make_out_path!(config)
-    convert_mods!(config)
-    convert_iter!(config)
     return config
 end
+
+function _load_config(filenames)
+    config = _load_config(first(filenames))
+    for i in 2:length(filenames)
+        _load_config!(config, filenames[i])
+    end
+    return config
+end
+
+function _load_config!(config::OrderedDict, filename::AbstractString)
+    config_new = _load_config(filename)
+    config_file = config[:config_file]
+    mods = config[:mods]
+    merge!(mods, config_new[:mods])
+    merge!(config, config_new)
+    config[:config_file] = config_file
+    config[:mods] = mods
+    return nothing
+end
+
 
 """
     save_config(config) -> nothing
@@ -277,6 +304,7 @@ function make_paths_absolute!(config, filename)
     end
     return config
 end
+make_paths_absolute!(config) = make_paths_absolute!(config, config[:config_file])
 
 """
     contains_file_or_path(s) -> Bool
