@@ -3,7 +3,7 @@
 
 # Setup reference case 
 ####################################################################
-config_file_ref = joinpath(@__DIR__, "config", "config_3bus.yml")
+config_file_ref = joinpath(@__DIR__, "config", "config_3bus_pol_ref.yml")
 config_ref = load_config(config_file_ref)
 
 data_ref = load_data(config_ref)
@@ -132,6 +132,9 @@ end
 
         # Added to the gen table 
         @test hasproperty(gen, :example_emiscap)
+        for i in 1:nrow(gen)
+            @test gen[i, :example_emiscap] == true
+        end
 
 
         # Constraint added to the model

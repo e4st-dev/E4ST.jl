@@ -19,6 +19,9 @@ optimizer:
   dual_feasibility_tolerance: 1e-5
   solver: simplex # "ipm" is probably preferred for larger problems, but it logs to console due to an issue
 mods:
+  dc_line:
+    type: DCLine
+    file: "../data/3bus/dc_line.csv"
   example_itc:
     type: "ITC"
     value:

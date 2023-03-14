@@ -1,5 +1,5 @@
 name,source,area,subarea,status,build_status,build_type,genfuel,gentype,pcap0,pcap_min,pcap_max,cf_min,vom,fuel_cost,fom,capex,year_on,year_on_min,year_on_max,emis_co2
-test_solar_build,none,country,narnia,1,unbuilt,endog,solar,solar,0,0,10,0,2,0,2,5,,y2015,,0
+test_solar_build,none,country,narnia,1,unbuilt,endog,solar,solar,0,0,5,0,2,0,2,5,,y2015,,0
 test_wind_build,none,country,archenland,1,unbuilt,endog,wind,wind,0,0,3,0,2,0,6,6,,y2015,,0
 test_oswind_build,none,country,archenland,1,unbuilt,endog,wind,oswind,0,0,3,0,5,0,6,6,,y2035,,0
 test_coal_build,none,country,narnia,1,unbuilt,endog,coal,coal,0,0,1,0.6,2,5,6,7,,,y2030,0.6
