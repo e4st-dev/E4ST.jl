@@ -2,6 +2,7 @@
 # Includes PTC, ITC, ...
 
 # Setup reference case 
+###################################################################
 config_file_ref = joinpath(@__DIR__, "config", "config_3bus.yml")
 config_ref = load_config(config_file_ref)
 
@@ -10,9 +11,20 @@ model_ref = setup_model(config_ref, data_ref)
 
 optimize!(model_ref)
 
+all_results_ref = []
+
+results_raw_ref = parse_results(config_ref, data_ref, model_ref)
+results_user_ref = process_results(config_ref, data_ref, results_raw_ref)
+push!(all_results_ref, results_user_ref)
+
+
+# Policy tests
+#####################################################################
+
 @testset "Test PTC" begin 
     config_file = joinpath(@__DIR__, "config", "config_3bus_ptc.yml")
     config = load_config(config_file)
+    save_config(config)
 
     data = load_data(config)
     model = setup_model(config, data)
@@ -52,6 +64,7 @@ end
 @testset "Test ITC" begin
     config_file = joinpath(@__DIR__, "config", "config_3bus_itc.yml")
     config = load_config(config_file)
+    save_config(config)
 
     data = load_data(config)
     model = setup_model(config, data)
@@ -93,24 +106,61 @@ end
     config_file = joinpath(@__DIR__, "config", "config_3bus_emiscap.yml")
     config = load_config(config_file)
 
-    # Creates GenerationConstraint
-    @test typeof(config[:mods][:example_emiscap][:gen_cons]) == E4ST.GenerationConstraint
-
-
     data = load_data(config)
     model = setup_model(config, data)
 
     gen = get_table(data, :gen)
 
-    # Added to the gen table 
-    @test hasproperty(gen, :example_emiscap)
+    @testset "Saving correctly to the config" begin
+        # read back into config yaml without the gen_cons
+        save_config(config)
 
-    # read back into config yaml without the gen_cons
+        outfile = joinpath(config[:out_path],basename(config[:config_file]))
+        savedconfig = YAML.load_file(outfile, dicttype=OrderedDict{Symbol, Any})
+        savedmods = savedconfig[:mods]
 
-    # Constraint added to the model
-    @test haskey(model, :cons_example_emiscap)
+        @test haskey(savedmods, :example_emiscap)
 
-    # Reduced the emissions (may need to calibrate)
+        emiscap = savedmods[:example_emiscap]
+        @test ~haskey(emiscap, :gen_cons)
+    end
+
+    @testset "Add constraint to model" begin
+        # Creates GenerationConstraint
+        @test typeof(config[:mods][:example_emiscap][:gen_cons]) == E4ST.GenerationConstraint
 
 
+        # Added to the gen table 
+        @test hasproperty(gen, :example_emiscap)
+
+
+        # Constraint added to the model
+        @test haskey(model, :cons_example_emiscap)
+
+    end
+
+    @testset "Model optimizes correctly" begin
+        ## make sure model still optimizes 
+        optimize!(model)
+        @test check(model)
+
+        # process results
+        all_results = []
+
+        results_raw = parse_results(config, data, model)
+        results_user = process_results(config, data, results_raw)
+        push!(all_results, results_user)
+         
+
+
+        ## Check that emissions are reduced
+        gen = get_table(data, :gen)
+        gen_emis_co2 = [gen[idx_gen,:emis_co2] * aggregate_result(total, data, results_raw, :gen, :egen, idx_gen) for idx_gen in 1:nrow(gen)]
+        emis_co2_total = sum(gen_emis_co2)
+
+        gen_ref = get_table(data_ref, :gen)
+        gen_emis_co2_ref = [gen_ref[idx_gen,:emis_co2] * aggregate_result(total, data_ref, results_raw_ref, :gen, :egen, idx_gen) for idx_gen in 1:nrow(gen_ref)]
+        emis_co2_total_ref = sum(gen_emis_co2_ref)
+        @test emis_co2_total < emis_co2_total_ref
+    end
 end

@@ -13,9 +13,9 @@ gen_filters: OrderedDict of the generator filters
 Base.@kwdef struct GenerationConstraint <: Modification
     name::Symbol
     col::Symbol
-    max_values::OrderedDict
-    min_values::OrderedDict
-    gen_filters::OrderedDict
+    max_values::OrderedDict = OrderedDict()
+    min_values::OrderedDict = OrderedDict()
+    gen_filters::OrderedDict = OrderedDict()
 
 end
 export GenerationConstraint
@@ -27,8 +27,10 @@ function E4ST.modify_model!(cons::GenerationConstraint, config, data, model)
     #get qualifying gen idxs
     gen_idxs = get_row_idxs(gen, parse_comparisons(cons.gen_filters))
 
-    add_table_col!(data, :gen, cons.name, [in(g, gen_idxs) for g in 1:nrow(gen)], NA,
+    v = zeros(Bool, nrow(gen))
+    add_table_col!(data, :gen, cons.name, v, NA,
         "Boolean value for whether a gen is constrained by $(cons.name)") #This isn't necessary and might make the gen table unnecessarily large but I think it would be good documentation.
+    gen[gen_idxs, cons.name] .= 1 
 
     # get only years from cons.values that are in the sim
     max_years = collect(keys(cons.max_values))

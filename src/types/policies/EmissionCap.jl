@@ -18,7 +18,7 @@ struct EmissionCap <: Policy
     gen_filters::OrderedDict
     gen_cons::GenerationConstraint
 
-    function EmissionCap(;name, emis_col, values, gen_filters)
+    function EmissionCap(;name, emis_col, values, gen_filters=OrderedDict())
         empty_mins = OrderedDict{}()
         gen_cons = GenerationConstraint(Symbol(name), Symbol(emis_col), values, empty_mins, gen_filters)
         new(Symbol(name), Symbol(emis_col), values, gen_filters, gen_cons)
@@ -66,6 +66,7 @@ end
 
 returns the fieldnames in a yaml, used for printing, modified for different types of mods 
 """
-function fieldnames_for_yaml(::EmissionCap)
-    return setdiff(fieldnames(M), (:name, :gen_cons,))
+function fieldnames_for_yaml(T::Type{M}) where {M<:EmissionCap}
+    return setdiff(fieldnames(T), (:name, :gen_cons,))
 end
+export fieldnames_for_yaml
