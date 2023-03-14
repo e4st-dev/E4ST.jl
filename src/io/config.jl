@@ -43,6 +43,7 @@ The Config File is a file that fully specifies all the necessary information.  N
 * `save_results_raw` - A boolean specifying whether or not to save the raw results after solving the model.  This could be useful for calling [`process_results(config)`](@ref) in the future.
 * `results_raw_file` - The filepath (relative or absolute) to the raw results.  This is helpful for calling [`process_results(config)`](@ref) to generate user results without having to re-run E4ST.
 * `objective_scalar` - This is specifies how much to scale the objective by for the sake of the solver.  Does not impact any user-created expressions or shadow prices from the raw results, as they get scaled back.  (Defaults to 1e6)
+* `gen_pcap_threshold` - This is the `pcap` threshold for new generators to be kept.  Defaults to `eps()`.  See also [`save_new_gen_table`](@ref)
 
 ## Example Config File
 ```yaml
@@ -81,8 +82,10 @@ end
 function _load_config!(config::OrderedDict, filename::AbstractString)
     config_new = _load_config(filename)
     config_file = config[:config_file]
+
     mods = config[:mods]
-    merge!(mods, config_new[:mods])
+    haskey(config_new, :mods) && merge!(mods, config_new[:mods])
+
     merge!(config, config_new)
     config[:config_file] = config_file
     config[:mods] = mods
@@ -355,7 +358,9 @@ contains_file_or_path(s::Symbol) = contains_file_or_path(string(s))
 Returns the most recently created `out_path` from within `base_out_path`.
 """
 function latest_out_path(base_out_path)
-    return last(readdir(base_out_path, join=true, sort=true))
+    dirs = readdir(base_out_path, join=true, sort=true)
+    filter!(isdir, dirs)
+    return last(dirs)
 end
 export latest_out_path
 

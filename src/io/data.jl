@@ -366,6 +366,8 @@ function setup_table!(config, data, ::Val{:gen})
     bus = get_table(data, :bus)
     gen = get_table(data, :gen)
 
+    data[:gen_table_original_cols] = propertynames(gen)
+
     #removes capex_obj if loaded in from previous sim
     :capex_obj in propertynames(data[:gen]) && select!(data[:gen], Not(:capex_obj))
 

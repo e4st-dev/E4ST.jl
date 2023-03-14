@@ -12,6 +12,7 @@ function process_results(config, data, results_raw)
 
     process_lmp!(config, data, results_raw)
     process_power!(config, data, results_raw)
+    save_new_gen_table(config, data)
     
     for (name, mod) in getmods(config)
         modify_results!(mod, config, data, results_raw, results_user)
@@ -241,6 +242,40 @@ function process_lmp!(config, data, res_raw)
     return
 end
 export process_lmp!
+
+"""
+    save_new_gen_table(config, data) -> nothing
+
+Save the `gen` table to `out_path(config, "gen.csv")`
+"""
+function save_new_gen_table(config, data)
+    gen = get_table(data, :gen)
+    original_cols = data[:gen_table_original_cols]
+
+    # Grab only the original columns, and return to their original values for any that may have been modified.
+    gen_tmp = gen[:, original_cols]
+    for col_name in original_cols
+        col = gen_tmp[!, col_name]
+        if eltype(col) <: Container
+            gen_tmp[!, col_name] = get_original.(gen_tmp[!, col_name])
+        end
+    end
+
+    # Update pcap0 to be the last value of pcap
+    gen_tmp.pcap0 = last.(gen.pcap)
+
+    # Filter anything with capacity below the threshold
+    thresh = get(config, :gen_pcap_threshold, eps())
+    filter!(:pcap0 => >(thresh), gen_tmp)
+
+    # Update build status
+    gen_tmp.build_status .= "built"
+
+    CSV.write(out_path(config, "gen.csv"), gen_tmp)
+    return nothing
+end
+export save_new_gen_table
+
 
 function get_all_cons(model)
     return all_constraints(model, include_variable_in_set_constraints=false)

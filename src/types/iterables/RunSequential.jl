@@ -69,6 +69,7 @@ function iterate!(iter::RunSequential, config, data, model, results_raw, results
     # Update config[:out_path]
     iter_str_length = ceil(Int, log10(length(iter.years)))
     out_path_tmp = abspath(config[:out_path], "..", string("iter", lpad(iter.state, iter_str_length, "0")))
+    mkpath(out_path_tmp)
     @info "Setting config[:out_path] to be $out_path_tmp"
     config[:out_path] = out_path_tmp
 
