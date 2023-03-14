@@ -158,12 +158,26 @@ end
 
         ## Check that emissions are reduced
         gen = get_table(data, :gen)
+        years = get_years(data)
         gen_emis_co2 = [gen[idx_gen,:emis_co2] * aggregate_result(total, data, results_raw, :gen, :egen, idx_gen) for idx_gen in 1:nrow(gen)]
         emis_co2_total = sum(gen_emis_co2)
 
         gen_ref = get_table(data_ref, :gen)
         gen_emis_co2_ref = [gen_ref[idx_gen,:emis_co2] * aggregate_result(total, data_ref, results_raw_ref, :gen, :egen, idx_gen) for idx_gen in 1:nrow(gen_ref)]
         emis_co2_total_ref = sum(gen_emis_co2_ref)
+
         @test emis_co2_total < emis_co2_total_ref
+
+        idx_2035 = get_year_idxs(data, "y2035")
+        gen_emis_co2_2035 = [gen[idx_gen,:emis_co2] * aggregate_result(total, data, results_raw, :gen, :egen, idx_gen, idx_2035) for idx_gen in 1:nrow(gen)]
+        emis_co2_total_2035 = sum(gen_emis_co2_2035)
+
+        @test emis_co2_total_2035 <= 1500.001
+
+        idx_2040 = get_year_idxs(data, "y2040")
+        gen_emis_co2_2040 = [gen[idx_gen,:emis_co2] * aggregate_result(total, data, results_raw, :gen, :egen, idx_gen, idx_2040) for idx_gen in 1:nrow(gen)]
+        emis_co2_total_2040 = sum(gen_emis_co2_2040)
+
+        @test emis_co2_total_2040 <= 1000.001
     end
 end
