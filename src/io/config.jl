@@ -52,6 +52,7 @@ $(read_sample_config_file())
 function load_config(filenames...)
     config = _load_config(filenames)
     check_required_fields!(config)
+    check_years!(config)
     make_paths_absolute!(config)
     make_out_path!(config)
     convert_mods!(config)
@@ -139,6 +140,7 @@ function start_logging!(config)
     old_logger = Logging.global_logger(logger)
     config[:logger] = logger
     config[:old_logger] = old_logger
+    log_start(config)
     return
 end
 export start_logging!
@@ -273,6 +275,35 @@ function required_fields()
         :mods
     )
 end
+
+"""
+    check_years!(config::OrderedDict)
+
+Enforces that `config[:years]` is a vector of year strings.
+"""
+function check_years!(config)
+    config[:years] = check_years(config[:years])
+end
+"""
+    check_years(years) -> years_corrected
+
+Returns a vector of year strings.  I.e. `["y2020", "y2025"]`
+"""
+function check_years(years)
+    _vec(_check_years(years))
+end
+function _check_years(y::Int)
+    return "y$y"
+end
+function _check_years(y::String)
+    return y
+end
+function _check_years(v::AbstractVector)
+    _check_years.(v)
+end
+_vec(v::AbstractVector) = v
+_vec(s::AbstractString) = [s]
+
 
 function check_required_fields!(config)
     return all(f->haskey(config, f), required_fields())
