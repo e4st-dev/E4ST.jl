@@ -257,10 +257,12 @@ end
 function getmods(config)
     config[:mods]
 end
+export get_mods
 
 function get_iterator(config)
     return get(config, :iter, RunOnce())
 end
+export get_iterator
 
 # Helper Functions
 ################################################################################

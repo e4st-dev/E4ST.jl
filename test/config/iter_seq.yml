@@ -1,0 +1,7 @@
+iter:
+  type: "RunSequential"
+  years:
+    -
+      - "y2020"
+      - "y2025"
+    - "y2030"

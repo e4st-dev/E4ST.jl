@@ -62,4 +62,16 @@
         all_results = run_e4st(config)
         @test length(all_results) > 1
     end
+    @testset "Test Sequential Iteration" begin
+        config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
+        iter_file = joinpath(@__DIR__, "config", "iter_seq.yml")
+
+        config = load_config(config_file, iter_file)
+
+        @test get_iterator(config) isa RunSequential
+
+        # run_e4st(config)
+
+        # Test that there are appropriate folders for each iteration.
+    end
 end
