@@ -8,6 +8,8 @@ Abstract type for containers that can be indexed by year and time.
 """
 abstract type Container end
 
+Base.isempty(c::Container) = false
+
 mutable struct OriginalContainer{C} <: Container where {C<:Container}
     original::Float64
     v::C

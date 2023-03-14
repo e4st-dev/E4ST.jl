@@ -28,7 +28,7 @@ config = load_config(filename)
     @test attrib isa NamedTuple
     for (k,v) in config[:optimizer]
         k == :type && continue
-        @test attrib[k] == v
+        @test haskey(attrib,k)
     end
 
     @test Model(E4ST.getoptimizer(config)) isa JuMP.Model

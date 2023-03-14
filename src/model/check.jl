@@ -1,9 +1,7 @@
 """
-    check(model) -> error if model didn't solve right
+    check(model) -> ::Bool
 
-Should check the following:
-* Optimal termination
-* That no constraints artificially limited things they weren't supposed to like carbon capture and storage
+Logs the termination status, and returns true if OPTIMAL.
 """
 function check(model)
     ts = termination_status(model)

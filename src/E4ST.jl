@@ -60,6 +60,9 @@ include("model/results.jl")
 include("model/iteration.jl")
 include("model/newgens.jl")
 
+# Commonly Modifications/Policies
+include("types/modifications/DCLine.jl")
+
 
 """
     run_e4st(config) -> results
@@ -90,30 +93,34 @@ function run_e4st(config)
     log_start(config)
 
     data  = load_data(config)
-    model = setup_model(config, data)
-    optimize!(model)
-    check(model)
 
     all_results = []
 
-    results_raw = parse_results(config, data, model)
-    results_user = process_results(config, data, results_raw)
-    push!(all_results, results_user)
-    
-    # Iteration: Check to see if the model should keep iterating.  See the Iteratable interface in model/iteration.jl for more information
+    # Begin iteration loop
     iter = get_iterator(config)
-    while should_iterate(iter, config, data, model, results_raw, results_user)
-        iterate!(iter, config, data, model, results_raw, results_user)
-        data = should_reload_data(iter) ? load_data(config) : data
-
+    while true
         model = setup_model(config, data)
-
+    
+        log_header("OPTIMIZING MODEL!")
         optimize!(model)
-        check(model)
+        log_header("MODEL OPTIMIZED!")
+
+        check(model) || return model # all_results
 
         results_raw = parse_results(config, data, model)
         results_user = process_results(config, data, results_raw)
         push!(all_results, results_user)
+
+        # ITERATION
+        #############################################################################
+        # First check to see if we even need to iterate
+        should_iterate(iter, config, data, model, results_raw, results_user) || break
+
+        # Now make any changes to things based on the iteration
+        iterate!(iter, config, data, model, results_raw, results_user)
+
+        # Reload data as needed
+        should_reload_data(iter) && load_data!(config, data)
     end
 
     stop_logging!(config)
@@ -141,7 +148,7 @@ function getoptimizertype(s::String)
     return get(STR2OPT, s) do 
         reload_optimizers!()
         get(STR2OPT, s) do
-            error("There is no AbstractOptimizer defined in $s, or $s has not been imported yet!")
+            error("There is no AbstractOptimizer defined called $s, or $s has not been imported yet!")
         end
     end
 end
@@ -181,7 +188,7 @@ end
 
 Core.Type(s::AbstractString) = get_type(String(s))
 Core.Type(s::Symbol) = get_type(s)
-Core.AbstractString(s) = String(s)
+Core.AbstractString(s) = string(s)
 
 """
     get_type(sym::Symbol) -> type (preferred)

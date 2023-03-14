@@ -142,6 +142,7 @@ returns the fieldnames in a yaml, used for printing, modified for different type
 function fieldnames_for_yaml(::Type{M}) where {M<:Modification}
     return setdiff(fieldnames(M), (:name,))
 end
+export fieldnames_for_yaml
 
 
 """

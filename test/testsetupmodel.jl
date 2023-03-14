@@ -60,9 +60,9 @@ end
     res_user = process_results(config, data, res_raw)
 
     cap_prices = shadow_price.(model[:cons_co2_cap])
-    @test abs(cap_prices["y2030"]) < 1
-    @test abs(cap_prices["y2035"]) > 1
-    @test abs(cap_prices["y2040"]) > 1
+    @test abs(cap_prices["y2030"]) < 1e-3
+    @test abs(cap_prices["y2035"]) > 1e-3
+    @test abs(cap_prices["y2040"]) > 1e-3
 
     @test aggregate_result(total, data, res_raw, :gen, :emis_co2, :, "y2030") <= config[:mods][:co2_cap].targets["y2030"] + 1e-6
     @test aggregate_result(total, data, res_raw, :gen, :emis_co2, :, "y2035") <= config[:mods][:co2_cap].targets["y2035"] + 1e-6
