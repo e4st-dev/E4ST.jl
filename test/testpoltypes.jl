@@ -136,7 +136,7 @@ end
 
 
         # Constraint added to the model
-        @test haskey(model, :cons_example_emiscap)
+        @test haskey(model, :cons_example_emiscap_max)
 
     end
 
@@ -167,14 +167,12 @@ end
         @test emis_co2_total < emis_co2_total_ref
 
         idx_2035 = get_year_idxs(data, "y2035")
-        gen_emis_co2_2035 = [gen[idx_gen,:emis_co2] * aggregate_result(total, data, results_raw, :gen, :egen, idx_gen, idx_2035) for idx_gen in 1:nrow(gen)]
-        emis_co2_total_2035 = sum(gen_emis_co2_2035)
+        emis_co2_total_2035 = aggregate_result(total, data, results_raw, :gen, :emis_co2, :, idx_2035)
 
         @test emis_co2_total_2035 <= config[:mods][:example_emiscap][:values][:y2035] + 0.001
 
         idx_2040 = get_year_idxs(data, "y2040")
-        gen_emis_co2_2040 = [gen[idx_gen,:emis_co2] * aggregate_result(total, data, results_raw, :gen, :egen, idx_gen, idx_2040) for idx_gen in 1:nrow(gen)]
-        emis_co2_total_2040 = sum(gen_emis_co2_2040)
+        emis_co2_total_2040 = aggregate_result(total, data, results_raw, :gen, :emis_co2, :, idx_2040)
 
         @test emis_co2_total_2040 <= config[:mods][:example_emiscap][:values][:y2040] + 0.001
     end
