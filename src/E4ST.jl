@@ -35,13 +35,17 @@ include("types/Modification.jl")
 include("types/Policy.jl")
 include("types/Unit.jl")
 include("types/Containers.jl")
-include("types/AggregationTemplate.jl")
 include("types/Iterable.jl")
 
+# Include Modifications
+include("types/modifications/DCLine.jl")
+include("types/modifications/AggregationTemplate.jl")
 
-#Include policies
+#Include Policies
 include("types/policies/ITC.jl")
 include("types/policies/PTC.jl")
+
+# Include Iterables
 include("types/iterables/RunOnce.jl")
 include("types/iterables/RunSequential.jl")
 
@@ -60,8 +64,6 @@ include("model/check.jl")
 include("model/results.jl")
 include("model/newgens.jl")
 
-# Commonly Modifications/Policies
-include("types/modifications/DCLine.jl")
 
 
 """
