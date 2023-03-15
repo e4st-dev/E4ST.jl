@@ -12,7 +12,7 @@ optimize!(model_ref)
 
 @testset "Test PTC" begin 
     config_file = joinpath(@__DIR__, "config", "config_3bus_ptc.yml")
-    config = load_config(config_file)
+    config = load_config(config_file_ref, config_file)
 
     data = load_data(config)
     model = setup_model(config, data)
@@ -51,7 +51,7 @@ end
 
 @testset "Test ITC" begin
     config_file = joinpath(@__DIR__, "config", "config_3bus_itc.yml")
-    config = load_config(config_file)
+    config = load_config(config_file_ref, config_file)
 
     data = load_data(config)
     model = setup_model(config, data)

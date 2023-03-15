@@ -1,5 +1,5 @@
 data_path: "L:/Project-Gurobi/Workspace3/E4ST/Data/mpc_210711_allTech"
-out_path: "../out/gurobi"
+base_out_path: "../out/gurobi"
 years:
   - "y2030"
 mods: []
