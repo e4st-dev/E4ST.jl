@@ -1,23 +1,4 @@
-out_path:    "../out/3bus"
-gen_file:    "../data/3bus/gen.csv"
-bus_file:    "../data/3bus/bus.csv"
-branch_file: "../data/3bus/branch.csv"
-hours_file:  "../data/3bus/hours.csv"
-af_file:     "../data/3bus/af.csv"
-demand_file: "../data/3bus/demand.csv"
-gentype_genfuel_file: "../data/3bus/gentype_genfuel.csv"
-build_gen_file: "../data/3bus/build_gen.csv"
-summary_table_file: '../data/3bus/summary_table.csv'
-logging:     false
-voll: 5000
-years:
-  - y2030
-  - y2035
-  - y2040
-optimizer:
-  type: "HiGHS" # See available options here: https://docs.juliahub.com/HiGHS/WFic5/0.3.1/
-  dual_feasibility_tolerance: 1e-5
-  solver: simplex # "ipm" is probably preferred for larger problems, but it logs to console due to an issue
+base_out_path:    "../out/3bus_ptc"
 mods:
   dc_line:
     type: DCLine

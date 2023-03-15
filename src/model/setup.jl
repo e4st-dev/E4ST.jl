@@ -86,7 +86,7 @@ function setup_model(config, data)
         constrain_pbal!(config, data, model)
 
         if get(config, :save_model_presolve, true)
-            model_presolve_file = joinpath(config[:out_path],"model_presolve.jls")
+            model_presolve_file = out_path(config,"model_presolve.jls")
             @info "Saving model to:\n$model_presolve_file"
             serialize(model_presolve_file, model)
             @info "Model Saved."
@@ -182,7 +182,7 @@ function optimizer_attributes(config, ::Val{:HiGHS}; log_file = nothing, kwargs.
     elseif ispath(dirname(log_file))
         log_file_full = log_file
     else
-        log_file_full = abspath(config[:out_path], log_file)
+        log_file_full = out_path(config, log_file)
     end
     (;
         dual_feasibility_tolerance   = 1e-7, # Notional, not sure what this should be
@@ -198,7 +198,7 @@ function optimizer_attributes(config, ::Val{:Gurobi}; LogFile=nothing, kwargs...
     elseif ispath(dirname(LogFile))
         log_file_full = LogFile
     else
-        log_file_full = abspath(config[:out_path], LogFile)
+        log_file_full = out_path(config, LogFile)
     end
     # These defaults came from e4st_core.m
     (;

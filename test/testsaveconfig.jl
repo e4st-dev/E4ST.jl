@@ -16,7 +16,7 @@ config = load_config(filename)
 save_config(config)
 
 # test if there is a config 
-outfilename  = joinpath(config[:out_path],basename(config[:config_file]))
+outfilename  = out_path(config, basename(config[:config_file]))
 
 @test ispath(outfilename)
 
@@ -41,6 +41,8 @@ function dictcompare(dict1::OrderedDict, dict2::OrderedDict)
             dictcompare(dict1[i], dict2[i])
         elseif i == :config_file
             continue
+        elseif i == :out_path
+            continue # out_path should be different.
         else
             @test dict2[i] == j
         end
