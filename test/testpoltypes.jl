@@ -154,18 +154,18 @@ end
          
 
 
-        ## Check that emissions are reduced
+        ## Check that policy impacts results 
         gen = get_table(data, :gen)
         years = get_years(data)
-        gen_emis_co2 = [gen[idx_gen,:emis_co2] * aggregate_result(total, data, results_raw, :gen, :egen, idx_gen) for idx_gen in 1:nrow(gen)]
-        emis_co2_total = sum(gen_emis_co2)
+        emis_co2_total = aggregate_result(total, data, results_raw, :gen, :emis_co2)
 
         gen_ref = get_table(data_ref, :gen)
-        gen_emis_co2_ref = [gen_ref[idx_gen,:emis_co2] * aggregate_result(total, data_ref, results_raw_ref, :gen, :egen, idx_gen) for idx_gen in 1:nrow(gen_ref)]
-        emis_co2_total_ref = sum(gen_emis_co2_ref)
+        emis_co2_total_ref = aggregate_result(total, data_ref, results_raw_ref, :gen, :emis_co2)
 
+        # check that emissions are reduced
         @test emis_co2_total < emis_co2_total_ref
 
+        # check that yearly cap values are actually followed
         idx_2035 = get_year_idxs(data, "y2035")
         emis_co2_total_2035 = aggregate_result(total, data, results_raw, :gen, :emis_co2, :, idx_2035)
 
@@ -175,5 +175,13 @@ end
         emis_co2_total_2040 = aggregate_result(total, data, results_raw, :gen, :emis_co2, :, idx_2040)
 
         @test emis_co2_total_2040 <= config[:mods][:example_emiscap][:values][:y2040] + 0.001
+
+        #check that policy is binding 
+        cap_prices = shadow_price.(model[:cons_example_emiscap_max])
+        @test abs(cap_prices[:y2035]) > 1e-6
+        @test abs(cap_prices[:y2040]) > 1e-6 #TODO: Not sure what this tolerance should be
+
+
+
     end
 end
