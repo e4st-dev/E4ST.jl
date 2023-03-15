@@ -5,11 +5,11 @@
 
 Emission Cap - A limit on a certain emission for a given set of generators.
 
-name: name of the policy (Symbol)
-emis_col: name of the emission rate column in the gen table (ie. emis_co2) (Symbol)
-values: OrderedDict of cap values by year
-gen_filters: OrderedDict of generator filters
-gen_cons: GenerationConstraint Modification created on instantiation of the EmissionCap. It sets the cap values as the max_values of the GenerationConstraint and passes on other fields.
+*`name`: name of the policy (Symbol)
+*`emis_col`: name of the emission rate column in the gen table (ie. emis_co2) (Symbol)
+*`values`: OrderedDict of cap values by year
+*`gen_filters`: OrderedDict of generator filters
+*`gen_cons`: GenerationConstraint Modification created on instantiation of the EmissionCap (not specified in config). It sets the cap values as the max_values of the GenerationConstraint and passes on other fields.
 """
 struct EmissionCap <: Policy
     name::Symbol

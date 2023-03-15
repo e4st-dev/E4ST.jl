@@ -113,7 +113,7 @@ end
         # read back into config yaml without the gen_cons
         save_config(config)
 
-        outfile = joinpath(config[:out_path],basename(config[:config_file]))
+        outfile = out_path(config,basename(config[:config_file]))
         savedconfig = YAML.load_file(outfile, dicttype=OrderedDict{Symbol, Any})
         savedmods = savedconfig[:mods]
 
@@ -170,12 +170,12 @@ end
         gen_emis_co2_2035 = [gen[idx_gen,:emis_co2] * aggregate_result(total, data, results_raw, :gen, :egen, idx_gen, idx_2035) for idx_gen in 1:nrow(gen)]
         emis_co2_total_2035 = sum(gen_emis_co2_2035)
 
-        @test emis_co2_total_2035 <= 1500.001
+        @test emis_co2_total_2035 <= config[:mods][:example_emiscap][:values][:y2035] + 0.001
 
         idx_2040 = get_year_idxs(data, "y2040")
         gen_emis_co2_2040 = [gen[idx_gen,:emis_co2] * aggregate_result(total, data, results_raw, :gen, :egen, idx_gen, idx_2040) for idx_gen in 1:nrow(gen)]
         emis_co2_total_2040 = sum(gen_emis_co2_2040)
 
-        @test emis_co2_total_2040 <= 1000.001
+        @test emis_co2_total_2040 <= config[:mods][:example_emiscap][:values][:y2040] + 0.001
     end
 end
