@@ -7,6 +7,7 @@ import OrderedCollections: OrderedDict
 function fieldnames_for_yaml(::Type{ExamplePolicyType})
     (:type, :some_parameter, :other_parameter)
 end
+export fieldnames_for_yaml
 
 filename = joinpath(@__DIR__, "config/config_3bus_examplepol.yml")
 

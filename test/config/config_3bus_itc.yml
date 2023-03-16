@@ -1,10 +1,13 @@
 base_out_path:    "../out/3bus_itc"
 mods:
+  dc_line:
+    type: DCLine
+    file: "../data/3bus/dc_line.csv"
   example_itc:
     type: "ITC"
-    value: 
-      y2035: 0.3
-      y2040: 0.2
+    value:
+      y2035: 0.7
+      y2040: 0.6
     gen_filters:
       emis_co2: "<= 0.1"
     
