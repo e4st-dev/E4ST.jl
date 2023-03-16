@@ -30,7 +30,7 @@ export modify_raw_data!, modify_setup_data!, modify_model!, modify_results!, fie
 export run_e4st
 export setup_new_gens!
 
-#Include types
+##Include types
 include("types/Modification.jl")
 include("types/Policy.jl")
 include("types/Unit.jl")
@@ -40,10 +40,13 @@ include("types/Iterable.jl")
 # Include Modifications
 include("types/modifications/DCLine.jl")
 include("types/modifications/AggregationTemplate.jl")
+include("types/modifications/GenerationConstraint.jl")
 
 #Include Policies
 include("types/policies/ITC.jl")
 include("types/policies/PTC.jl")
+#include("types/policies/RPS.jl")
+include("types/policies/EmissionCap.jl")
 
 # Include Iterables
 include("types/iterables/RunOnce.jl")
@@ -57,7 +60,7 @@ include("io/util.jl")
 include("io/demand.jl")
 include("io/results.jl")
 
-#Include model
+##Include model
 include("model/setup.jl")
 include("model/dcopf.jl")
 include("model/check.jl")

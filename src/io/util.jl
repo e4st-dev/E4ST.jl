@@ -158,7 +158,7 @@ function get_row_idxs(table, pair::Pair)
     filter!(row_idx->comp(v[row_idx]), row_idxs)
     return row_idxs
 end
-export table_rows
+export get_row_idxs
 
 
 """
