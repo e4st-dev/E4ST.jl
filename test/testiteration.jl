@@ -14,16 +14,16 @@
             avg_ng_egen::Vector{Float64}=Float64[]
         end
         E4ST.fieldnames_for_yaml(::Type{TargetAvgAnnualNGGen}) = (:target, :tol)
-        function E4ST.should_iterate(iter::TargetAvgAnnualNGGen, config, data, model, args...)
+        function E4ST.should_iterate(iter::TargetAvgAnnualNGGen, config, data)
             tgt = iter.target
             tol = iter.tol
-            ng_gen_total = aggregate_result(total, data, model, :gen, :egen, :genfuel=>"ng")
+            ng_gen_total = aggregate_result(total, data, :gen, :egen, :genfuel=>"ng")
             ng_gen_ann = ng_gen_total/get_num_years(data)
             return abs(ng_gen_ann-tgt) > tol            
         end
-        function E4ST.iterate!(iter::TargetAvgAnnualNGGen, config, data, model, args...)
+        function E4ST.iterate!(iter::TargetAvgAnnualNGGen, config, data)
             tgt = iter.target
-            ng_gen_total = aggregate_result(total, data, model, :gen, :egen, :genfuel=>"ng")
+            ng_gen_total = aggregate_result(total, data, :gen, :egen, :genfuel=>"ng")
             ng_gen_ann = ng_gen_total/get_num_years(data)
             
             diff = ng_gen_ann - tgt

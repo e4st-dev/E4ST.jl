@@ -1,32 +1,9 @@
 """
-    process_results(config, data, results_raw) -> results
-
-Retrieves results from the results_raw, including:
-* Area/Annual results (?)
-* Raw policy results (?)
-* Welfare 
-"""
-function process_results(config, data, results_raw)
-
-    results_user = OrderedDict{Symbol, Any}()
-
-    process_lmp!(config, data, results_raw)
-    process_power!(config, data, results_raw)
-    save_updated_gen_table(config, data)
-    
-    for (name, mod) in getmods(config)
-        modify_results!(mod, config, data, results_raw, results_user)
-    end
-
-    return results_user
-end
-
-"""
-    parse_results(config, data, model) -> results_raw
+    parse_results(config, data, model) -> data
     
 Simply gathers the values and shadow prices of each variable, expression, and constraint stored in the model and dumps them into `results_raw::Dict`.
 
-Saves them to `out_path(config,"results_raw.jls")` unless `config[:save_results_raw]` is `false` (true by default).
+Saves them to `out_path(config,"data_parsed.jls")` unless `config[:save_data_parsed]` is `false` (true by default).
 """
 function parse_results(config, data, model)
     log_header("PARSING RESULTS")
@@ -34,13 +11,84 @@ function parse_results(config, data, model)
     obj_scalar = get(config, :objective_scalar, 1e6)
 
     results_raw = Dict(k => (@info "Parsing Result $k"; value_or_shadow_price(v, obj_scalar)) for (k,v) in object_dictionary(model))
+    
+    results = OrderedDict{Symbol, Any}()
+    data[:results] = results
+    results[:raw] = results_raw
+
+    process_lmp!(config, data)
+    process_power!(config, data)
+    save_new_gen_table(config, data)
+
     # Don't add anything else here, we want to preserve the purity of these raw results, so that we can get rid of the model.  Add any standard processing to process_results.
-    if get(config, :save_results_raw, true)
-        serialize(out_path(config,"results_raw.jls"), results_raw)
+    if get(config, :save_data_parsed, true)
+        serialize(out_path(config, "data_parsed.jls"), data)
     end
 
     return results_raw
 end
+
+
+"""
+    process_results(config, data) -> data
+
+Calls [`modify_results!(mod, config, data)`](@ref) for each `Modification` in `config`.  Stores the results into `out_path(config, "data_processed.jls")` if `config[:save_data_processed]` is `true` (default).
+"""
+function process_results(config, data)
+    log_header("PROCESSING RESULTS")
+
+    for (name, mod) in getmods(config)
+        modify_results!(mod, config, data)
+    end
+
+    if get(config, :save_data_processed, true)
+        serialize(out_path(config,"data_processed.jls"), data)
+    end
+
+    return data
+end
+
+"""
+    process_results(config) -> data
+
+This loads `data` in from `out_path(config, "data_parsed.jls")`, then calls [`process_results(config, data)`](@ref).  See also [`load_parsed_data`](@ref)
+"""
+function process_results(config)
+    data = load_parsed_data(config)
+    process_results(config, data)
+end
+export process_results
+
+
+"""
+    load_parsed_data(config) -> data
+
+Loads `data` in from `out_path(config, "data_parsed.jls")`.
+"""
+function load_parsed_data(config)
+    file = out_path(config, "data_parsed.jls")
+    isfile(file) || error("No parsed data file found at $file")
+    return deserialize(file)
+end
+export load_parsed_data
+
+"""
+    get_results_raw(data) -> raw::Dict{Symbol, Any}
+"""
+function get_results_raw(data)
+    results = get_results(data)
+    return results[:raw]::Dict{Symbol, Any}
+end
+export get_results_raw
+
+"""
+    get_results(data) -> results::OrderedDict{Symbol, Any}
+"""
+function get_results(data)
+    return data[:results]::OrderedDict{Symbol, Any}
+end
+export get_results
+
 
 """
     value_or_shadow_price(constraints, obj_scalar) -> shadow_prices*obj_scalar
@@ -166,7 +214,9 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | :gen | :cf | MWhGeneratedPerMWhCapacity | Capacity Factor, or average power generation/power generation capacity, 0 when no generation |
 | :branch | :pflow | MWFlow | Average Power flowing through branch |
 """
-function process_power!(config, data, res_raw)
+function process_power!(config, data)
+    res_raw = get_results_raw(data)
+
     pgen_gen = res_raw[:pgen_gen]::Array{Float64, 3}
     egen_gen = res_raw[:egen_gen]::Array{Float64, 3}
     pcap_gen = res_raw[:pcap_gen]::Array{Float64, 2}
@@ -221,9 +271,12 @@ Adds the locational marginal prices of electricity and power flow.
 | :bus | :lmp_eserv | DollarsPerMWhServed | Locational Marginal Price of Energy Served |
 | :branch | :lmp_pflow | DollarsPerMWFlow | Locational Marginal Price of Power Flow |
 """
-function process_lmp!(config, data, res_raw)
+function process_lmp!(config, data)
+    res_raw = get_results_raw(data)
+    
     # Get the shadow price of the average power flow constraint ($/MW flowing)
     cons_pbal = res_raw[:cons_pbal]::Array{Float64,3}
+
     # Divide by number of hours because we want $/MWh, not $/MW
     lmp_eserv = unweight_hourly(data, cons_pbal, -)
     
@@ -332,85 +385,85 @@ export get_all_cons
 # export get_gen_array_idxs
 
 """
-    aggregate_result(f::Function, data, res_raw, table_name, col_name, idxs=(:), yr_idxs=(:), hr_idxs=(:)) -> x::Float64
+    aggregate_result(f::Function, data, table_name, col_name, idxs=(:), yr_idxs=(:), hr_idxs=(:)) -> x::Float64
 """
-function aggregate_result(f::Function, data, res_raw, table_name, col_name, idxs=(:), yr_idxs=(:), hr_idxs=(:))
+function aggregate_result(f::Function, data, table_name, col_name, idxs=(:), yr_idxs=(:), hr_idxs=(:))
     table = get_table(data, table_name)
     unit = get_table_col_unit(data, table_name, col_name)
     _idxs = get_row_idxs(table, idxs)
     _yr_idxs = get_year_idxs(data, yr_idxs)
     _hr_idxs = get_hour_idxs(data, hr_idxs)
-    f(unit, data, res_raw, table, col_name, _idxs, _yr_idxs, _hr_idxs)
+    f(unit, data, table, col_name, _idxs, _yr_idxs, _hr_idxs)
 end
 export aggregate_result
 
 export total
 
-function total(::Type{ShortTonsPerMWhGenerated}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function total(::Type{ShortTonsPerMWhGenerated}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :egen], idxs, yr_idxs, hr_idxs)
 end
 
-function total(::Type{DollarsPerMWhServed}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function total(::Type{DollarsPerMWhServed}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :eserv], idxs, yr_idxs, hr_idxs)
 end
-function total(::Type{DollarsPerMWhGenerated}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function total(::Type{DollarsPerMWhGenerated}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :egen], idxs, yr_idxs, hr_idxs)
 end
-function total(::Type{DollarsPerMWCapacity}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function total(::Type{DollarsPerMWCapacity}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :pcap], idxs, yr_idxs, hr_idxs)
 end
-function total(::Type{MWhServed}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function total(::Type{MWhServed}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
 end
-function total(::Type{MWhGenerated}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function total(::Type{MWhGenerated}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
 end
-function total(::Type{MWhDemanded}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function total(::Type{MWhDemanded}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
 end
-function total(::Type{MWhCurtailed}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function total(::Type{MWhCurtailed}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
 end
 
 """
-    total(::Type{MWCapacity}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    total(::Type{MWCapacity}, data, table, column_name, idxs, yr_idxs, hr_idxs)
 
 The total average demanded power of all elements corresponding to `idxs`
 """
-function total(::Type{MWCapacity}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function total(::Type{MWCapacity}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     hc = data[:hours_container]::HoursContainer
     return weighted_sum(table[!, column_name], hc, idxs, yr_idxs, hr_idxs) / total_sum(hc, 1, yr_idxs, hr_idxs)
 end
 """
-    total(::Type{MWDemanded}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    total(::Type{MWDemanded}, data, table, column_name, idxs, yr_idxs, hr_idxs)
 
 The total average demanded power of all elements corresponding to `idxs`
 """
-function total(::Type{MWDemanded}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function total(::Type{MWDemanded}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     hc = data[:hours_container]::HoursContainer
     return weighted_sum(table[!, column_name], hc, idxs, yr_idxs, hr_idxs) / total_sum(hc, 1, yr_idxs, hr_idxs)
 end
 
 
-function average(::Type{ShortTonsPerMWhGenerated}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function average(::Type{ShortTonsPerMWhGenerated}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_avg(table[!, column_name], table[!, :egen], idxs, yr_idxs, hr_idxs)
 end
 export average
-function average(::Type{DollarsPerMWhServed}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function average(::Type{DollarsPerMWhServed}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_avg(table[!, column_name], table[!, :eserv], idxs, yr_idxs, hr_idxs)
 end
 
 """
-    average(::Type{MWDemanded}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+    average(::Type{MWDemanded}, data, table, column_name, idxs, yr_idxs, hr_idxs)
 
 The per-bus average demanded power.
 """
-function average(::Type{MWDemanded}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function average(::Type{MWDemanded}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     hc = data[:hours_container]::HoursContainer
     return weighted_avg(table[!, column_name], hc, idxs, yr_idxs, hr_idxs)
 end
 
-function average(::Type{MWhGeneratedPerMWhCapacity}, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function average(::Type{MWhGeneratedPerMWhCapacity}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     hc = data[:hours_container]::HoursContainer
     num = weighted_sum(table[!, column_name], table[!, :pcap], hc, idxs, yr_idxs, hr_idxs)
     den = weighted_sum(table.pcap, hc, idxs, yr_idxs, hr_idxs)
@@ -418,7 +471,7 @@ function average(::Type{MWhGeneratedPerMWhCapacity}, data, res_raw, table, colum
 end
 
 
-function Base.maximum(::Type, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function Base.maximum(::Type, data, table, column_name, idxs, yr_idxs, hr_idxs)
     col = table[!, column_name]
     return maximum(col, idxs, yr_idxs, hr_idxs)
 end
@@ -427,7 +480,7 @@ function Base.maximum(v, idxs, yr_idxs, hr_idxs)
     return maximum(v[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
 end
 
-function Base.minimum(::Type, data, res_raw, table, column_name, idxs, yr_idxs, hr_idxs)
+function Base.minimum(::Type, data, table, column_name, idxs, yr_idxs, hr_idxs)
     col = table[!, column_name]
     return minimum(col, idxs, yr_idxs, hr_idxs)
 end

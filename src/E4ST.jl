@@ -107,7 +107,7 @@ function run_e4st(config)
     # Initialize the results
     all_results = []
 
-    # Begin iteration loop
+    ### Begin iteration loop
     while true
         model = setup_model(config, data)
     
@@ -117,17 +117,18 @@ function run_e4st(config)
 
         check(model) || return model # all_results
 
-        results_raw = parse_results(config, data, model)
-        results_user = process_results(config, data, results_raw)
-        push!(all_results, results_user)
+        ### Results
+        parse_results(config, data, model)
+        process_results(config, data)
+        results = get_results(data)
+        push!(all_results, results)
 
-        # ITERATION
-        #############################################################################
+        ### Iteration
         # First check to see if we even need to iterate
-        should_iterate(iter, config, data, model, results_raw, results_user) || break
+        should_iterate(iter, config, data) || break
 
         # Now make any changes to things based on the iteration
-        iterate!(iter, config, data, model, results_raw, results_user)
+        iterate!(iter, config, data)
 
         # Reload data as needed
         should_reload_data(iter) && load_data!(config, data)
