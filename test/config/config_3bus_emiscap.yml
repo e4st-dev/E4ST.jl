@@ -1,4 +1,4 @@
-base_out_path:    "../out/3bus_ptc"
+base_out_path:    "../out/3bus_emiscap"
 mods:
   dc_line:
     type: DCLine
