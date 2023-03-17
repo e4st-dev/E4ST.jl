@@ -40,6 +40,7 @@ include("types/Iterable.jl")
 include("types/modifications/DCLine.jl")
 include("types/modifications/AggregationTemplate.jl")
 include("types/modifications/GenerationConstraint.jl")
+include("types/modifications/YearlyTable.jl")
 
 #Include Policies
 include("types/policies/ITC.jl")
