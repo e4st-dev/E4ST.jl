@@ -35,7 +35,7 @@ config = load_config(filename)
 end
 
 @testset "Test Logging" begin
-    log_file = out_path(config, "E4ST.log")
+    log_file = get_out_path(config, "E4ST.log")
     
     isfile(log_file) && rm(log_file, force=true)
 

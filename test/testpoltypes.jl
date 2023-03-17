@@ -111,7 +111,7 @@ end
         # read back into config yaml without the gen_cons
         save_config(config)
 
-        outfile = out_path(config,basename(config[:config_file]))
+        outfile = get_out_path(config,"config.yml")
         savedconfig = YAML.load_file(outfile, dicttype=OrderedDict{Symbol, Any})
         savedmods = savedconfig[:mods]
 

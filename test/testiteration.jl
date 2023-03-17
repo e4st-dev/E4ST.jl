@@ -2,7 +2,7 @@
 
 @testset "Test Iteration" begin
     @testset "Test Default Iteration" begin
-        results = run_e4st(config_file)
+        out_path, results = run_e4st(config_file)
         @test results isa AbstractVector
         @test length(results) == 1
     end

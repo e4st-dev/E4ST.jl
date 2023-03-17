@@ -3,7 +3,7 @@
     
 Simply gathers the values and shadow prices of each variable, expression, and constraint stored in the model and dumps them into `results_raw::Dict`.
 
-Saves them to `out_path(config,"data_parsed.jls")` unless `config[:save_data_parsed]` is `false` (true by default).
+Saves them to `get_out_path(config,"data_parsed.jls")` unless `config[:save_data_parsed]` is `false` (true by default).
 """
 function parse_results(config, data, model)
     log_header("PARSING RESULTS")
@@ -22,7 +22,7 @@ function parse_results(config, data, model)
 
     # Don't add anything else here, we want to preserve the purity of these raw results, so that we can get rid of the model.  Add any standard processing to process_results.
     if get(config, :save_data_parsed, true)
-        serialize(out_path(config, "data_parsed.jls"), data)
+        serialize(get_out_path(config, "data_parsed.jls"), data)
     end
 
     return results_raw
@@ -30,47 +30,100 @@ end
 
 
 """
-    process_results(config, data) -> data
+    process_results(config::OrderedDict, data::OrderedDict) -> data
 
-Calls [`modify_results!(mod, config, data)`](@ref) for each `Modification` in `config`.  Stores the results into `out_path(config, "data_processed.jls")` if `config[:save_data_processed]` is `true` (default).
+Calls [`modify_results!(mod, config, data)`](@ref) for each `Modification` in `config`.  Stores the results into `get_out_path(config, "data_processed.jls")` if `config[:save_data_processed]` is `true` (default).
 """
-function process_results(config, data)
+function process_results(config::OrderedDict, data::OrderedDict)
     log_header("PROCESSING RESULTS")
 
-    for (name, mod) in getmods(config)
+    for (name, mod) in get_mods(config)
         modify_results!(mod, config, data)
     end
 
     if get(config, :save_data_processed, true)
-        serialize(out_path(config,"data_processed.jls"), data)
+        serialize(get_out_path(config,"data_processed.jls"), data)
     end
 
     return data
 end
 
 """
-    process_results(config) -> data
+    process_results(config; processed=true) -> data
 
-This loads `data` in from `out_path(config, "data_parsed.jls")`, then calls [`process_results(config, data)`](@ref).  See also [`load_parsed_data`](@ref)
+This loads `data` in, then calls [`process_results(config, data)`](@ref).  
+* `processed=false` - loads in `data` via [`load_parsed_results`](@ref)
+* `processed=true` - loads in `data` via [`load_processed_results`](@ref)
 """
-function process_results(config)
-    data = load_parsed_data(config)
-    process_results(config, data)
+function process_results(config; processed=true)
+    if processed
+        data = load_processed_results(config)
+    else
+        data = load_parsed_results(config)
+    end
+    return process_results(config, data)
+end
+export process_results
+
+"""
+    process_results(mod_file::String, out_path::String; processed=true) -> data
+
+Processes the results the [`Modification`](@ref)s found in `mod_file`, a .yml file similar to a `config` file (see [`load_config`](@ref)), only requiring the `mods` field.
+* `processed=false` - loads in `data` via [`load_parsed_results`](@ref)
+* `processed=true` - loads in `data` via [`load_processed_results`](@ref)
+"""
+function process_results(mod_file::String, out_path::String; processed=true)
+
+    # Load the config, and the modifications
+    config = load_config(out_path)
+    mods = _load_config(mod_file)
+    convert_mods!(mods)
+
+    # Merge the mods into config, overwriting anything in config
+    merge!(config, mods)
+
+    # Make sure we are using the right out_path.
+    config[:out_path] = out_path
+
+    # Now call process_results
+    process_results(config; processed)
 end
 export process_results
 
 
 """
-    load_parsed_data(config) -> data
+    load_parsed_results(config) -> data
 
-Loads `data` in from `out_path(config, "data_parsed.jls")`.
+    load_parsed_results(out_path) -> data
+
+Loads `data` in from `get_out_path(config, "data_parsed.jls")`.
 """
-function load_parsed_data(config)
-    file = out_path(config, "data_parsed.jls")
+function load_parsed_results(config::OrderedDict)
+    load_parsed_results(get_out_path(config))
+end
+function load_parsed_results(out_path::AbstractString)
+    file = joinpath(out_path, "data_parsed.jls")
     isfile(file) || error("No parsed data file found at $file")
     return deserialize(file)
 end
-export load_parsed_data
+export load_parsed_results
+
+"""
+    load_processed_results(config) -> data
+
+    load_processed_results(out_path) -> data
+
+Loads `data` in from `data_processed.jls`.
+"""
+function load_processed_results(config::OrderedDict)
+    return load_processed_results(get_out_path(config))
+end
+function load_processed_results(out_path::AbstractString)
+    file = joinpath(out_path, "data_processed.jls")
+    isfile(file) || error("No parsed data file found at $file")
+    return deserialize(file)
+end
+export load_processed_results
 
 """
     get_results_raw(data) -> raw::Dict{Symbol, Any}
@@ -299,7 +352,7 @@ export process_lmp!
 """
     save_updated_gen_table(config, data) -> nothing
 
-Save the `gen` table to `out_path(config, "gen.csv")`
+Save the `gen` table to `get_out_path(config, "gen.csv")`
 """
 function save_updated_gen_table(config, data)
     gen = get_table(data, :gen)
@@ -324,7 +377,7 @@ function save_updated_gen_table(config, data)
     # Update build status
     gen_tmp.build_status .= "built"
 
-    CSV.write(out_path(config, "gen.csv"), gen_tmp)
+    CSV.write(get_out_path(config, "gen.csv"), gen_tmp)
     return nothing
 end
 export save_updated_gen_table

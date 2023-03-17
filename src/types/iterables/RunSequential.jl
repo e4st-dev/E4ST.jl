@@ -61,7 +61,7 @@ Iterates by:
 """
 function iterate!(iter::RunSequential, config, data)
     # Update config[:gen_file] to be from the current out_path
-    config[:gen_file] = out_path(config, "gen.csv")
+    config[:gen_file] = get_out_path(config, "gen.csv")
 
     # Increment iter.state
     iter.state += 1

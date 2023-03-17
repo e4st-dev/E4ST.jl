@@ -16,7 +16,7 @@ config = load_config(filename)
 save_config(config)
 
 # test if there is a config 
-outfilename  = out_path(config, basename(config[:config_file]))
+outfilename  = get_out_path(config, "config.yml")
 
 @test ispath(outfilename)
 

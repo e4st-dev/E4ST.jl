@@ -71,9 +71,9 @@ include("model/newgens.jl")
 
 
 """
-    run_e4st(config) -> results
+    run_e4st(config) -> out_path, results
 
-    run_e4st(filename) -> run_e4st(load_config(filename))
+    run_e4st(filename(s)) -> out_path, results
 
 Top-level function for running E4ST.  Here is a general overview of what happens:
 1. Book-keeping
@@ -87,11 +87,12 @@ Top-level function for running E4ST.  Here is a general overview of what happens
     * [`setup_model(config, data)`](@ref) - The `model` (a JuMP Model) is set up.
     * [`JuMP.optimize!(model)`](https://jump.dev/JuMP.jl/stable/reference/solutions/#JuMP.optimize!) - The `model` is optimized.
 4. Process Results
-    * TODO: Add more here for the results processing stuff once we get to it
+    * [`parse_results(config, data, model)`](@ref) - Retrieves all necessary values and shadow prices from `model`, storing them into data[:results][:raw], (see [`get_results_raw`](@ref) and [`get_results`](@ref)) and saves `data` if `config[:save_data_parsed]` is `true` (default is `true`)
+    * [`process_results(config, data)`](@ref) - Calls [`modify_results(mod, config, data)`](@ref) for each `mod` in the `config`. Saves `data` if `config[:save_data_processeded]` is `true` (default is `true`)
 5. Iterate, running more simulations as needed.
     * See [`Iterable`](@ref) and [`load_config`](@ref) for more information.
 """
-function run_e4st(config)
+function run_e4st(config::OrderedDict)
 
     # Initial config setup
     save_config(config)
@@ -135,10 +136,10 @@ function run_e4st(config)
     end
 
     stop_logging!(config)
-    return all_results
+    return get_out_path(config), all_results
 end
 
-run_e4st(path::String) = run_e4st(load_config(path))
+run_e4st(path...) = run_e4st(load_config(path...))
 
 global STR2TYPE = Dict{String, Type}()
 global SYM2TYPE = Dict{Symbol, Type}()

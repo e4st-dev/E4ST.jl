@@ -49,7 +49,7 @@ function modify_results!(mod::AggregationTemplate, config, data)
         hr_idxs = parse_hour_idxs(row.filter_hours)
         return aggregate_result(op, data, table_name, col_name, idxs, yr_idxs, hr_idxs)
     end    
-    CSV.write(out_path(config, string(mod.name, ".csv")), table)
+    CSV.write(get_out_path(config, string(mod.name, ".csv")), table)
     results = get_results(data)
     results[mod.name] = table
     return
