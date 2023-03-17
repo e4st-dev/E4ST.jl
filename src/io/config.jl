@@ -204,6 +204,7 @@ Returns a 3-line header string
 function header_string(header)
     string("#"^80, "\n",header,"\n","#"^80)
 end
+export header_string
 
 """
     time_string() -> s
@@ -213,6 +214,7 @@ Returns a time string in the format "yymmdd_HHMMSS"
 function time_string()
     format(now(), dateformat"yymmdd_HHMMSSsss")
 end
+export time_string
 
 """
     date_string() -> s
@@ -394,6 +396,7 @@ function make_out_path!(config)
 
     return nothing
 end
+export make_out_path!
 
 """
     get_out_path(config, filename) -> path

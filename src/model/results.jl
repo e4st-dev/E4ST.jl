@@ -1,9 +1,10 @@
 """
     parse_results(config, data, model) -> data
     
-Simply gathers the values and shadow prices of each variable, expression, and constraint stored in the model and dumps them into `results_raw::Dict`.
-
-Saves them to `get_out_path(config,"data_parsed.jls")` unless `config[:save_data_parsed]` is `false` (true by default).
+* Gathers the values and shadow prices of each variable, expression, and constraint stored in the model and dumps them into `data[:results][:raw]` (see [`get_results_raw`](@ref) and [`get_results`](@ref)).  
+* Adds relevant info to `gen`, `bus`, and `branch` tables.  See [`parse_lmp!`](@ref) and [`process_power!`](@ref) for more information.
+* Saves updated `gen` table via [`save_new_gen_table`](@ref)
+* Saves `data` to `get_out_path(config,"data_parsed.jls")` unless `config[:save_data_parsed]` is `false` (true by default).
 """
 function parse_results(config, data, model)
     log_header("PARSING RESULTS")
@@ -16,11 +17,10 @@ function parse_results(config, data, model)
     data[:results] = results
     results[:raw] = results_raw
 
-    process_lmp!(config, data)
+    parse_lmp!(config, data)
     process_power!(config, data)
     save_new_gen_table(config, data)
 
-    # Don't add anything else here, we want to preserve the purity of these raw results, so that we can get rid of the model.  Add any standard processing to process_results.
     if get(config, :save_data_parsed, true)
         serialize(get_out_path(config, "data_parsed.jls"), data)
     end
@@ -315,7 +315,7 @@ end
 export process_power!
 
 @doc raw"""
-    process_lmp!(config, data, res_raw)
+    parse_lmp!(config, data, res_raw)
 
 Adds the locational marginal prices of electricity and power flow.
 
@@ -324,7 +324,7 @@ Adds the locational marginal prices of electricity and power flow.
 | :bus | :lmp_eserv | DollarsPerMWhServed | Locational Marginal Price of Energy Served |
 | :branch | :lmp_pflow | DollarsPerMWFlow | Locational Marginal Price of Power Flow |
 """
-function process_lmp!(config, data)
+function parse_lmp!(config, data)
     res_raw = get_results_raw(data)
     
     # Get the shadow price of the average power flow constraint ($/MW flowing)
@@ -347,7 +347,7 @@ function process_lmp!(config, data)
     # add_table_col!(data, :branch, :lmp_pflow, lmp_pflow, DollarsPerMWFlow,"Locational Marginal Price of Power Flow")
     return
 end
-export process_lmp!
+export parse_lmp!
 
 """
     save_updated_gen_table(config, data) -> nothing
@@ -439,6 +439,16 @@ export get_all_cons
 
 """
     aggregate_result(f::Function, data, table_name, col_name, idxs=(:), yr_idxs=(:), hr_idxs=(:)) -> x::Float64
+
+Aggregate a result from `data`, via function `f`.  Aggregates differently depending on the [`Unit`](@ref) of the `col_name` provided, accessible via [`get_table_col_unit`](@ref).  `idxs`, `yr_idxs` and `hr_idxs` can be flexible (see [`get_row_idxs`](@ref), [`get_year_idxs`](@ref), and [`get_hour_idxs`](@ref)).
+
+# Functions to choose from:
+* [`total`](@ref) - compute the total of the thing.  If the column is a price or rate, computes the total spent.
+* [`average`](@ref) - compute the average of the thing.
+* `minimum` - find the minimum value in the range
+* `maximum` - find the maximum value in the range
+
+Note that some [`Unit`](@ref)s don't make sense for all of the functions above.  For example, it doesn't really make sense to have a `total` capacity factor, whereas an `average` capacity factor makes perfect sense.  If you define a new [`Unit`](@ref) and want it to work with one of the functions above, feel free to define a new method (it is probably only a couple of lines of code!)
 """
 function aggregate_result(f::Function, data, table_name, col_name, idxs=(:), yr_idxs=(:), hr_idxs=(:))
     table = get_table(data, table_name)
