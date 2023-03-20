@@ -79,8 +79,6 @@ end
         @test any(itc -> typeof(itc) == E4ST.ByYear, gen.example_itc)
         
         # test that ByYear containers have non zero values
-        tot_itc = 0
-
         @test sum(itc->sum(itc.v), gen.example_itc) > 0
     end
 
@@ -177,11 +175,62 @@ end
         @test emis_co2_total_2040 <= config[:mods][:example_emiscap][:values][:y2040] + 0.001
 
         #check that policy is binding 
-        cap_prices = shadow_price.(model[:cons_example_emiscap_max])
-        @test abs(cap_prices[:y2035]) > 1e-6
-        @test abs(cap_prices[:y2040]) > 1e-6 #TODO: Not sure what this tolerance should be
+        cap_prices = results_raw[:cons_example_emiscap_max]
+        @test abs(cap_prices[:y2035]) > 1e-3
+        @test abs(cap_prices[:y2040]) > 1e-3
 
 
+    end
+end
 
+@testset "Emission Price" begin
+    config_file = joinpath(@__DIR__, "config", "config_3bus_emisprc.yml")
+    config = load_config(config_file_ref, config_file)
+
+    data = load_data(config)
+    model = setup_model(config, data)
+
+    gen = get_table(data, :gen)
+
+    @testset "Adding Emis Prc to gen table" begin
+        @test hasproperty(gen, :example_emisprc)
+
+        # Test that there are byYear containers 
+        @test typeof(gen.example_emisprc) == Vector{Container}
+
+        # Check that there are ByYear containers
+        @test any(emisprc -> typeof(emisprc) == E4ST.ByYear, gen.example_emisprc)
+        
+        # test that ByYear containers have non zero values
+        @test sum(emisprc->sum(emisprc.v), gen.example_emisprc) > 0
+    end
+
+    @testset "Adding Emis Prc to the model" begin
+        #test that emis prc is added to the obj 
+        @test haskey(data[:obj_vars], :example_emisprc)
+        @test haskey(model, :example_emisprc) 
+
+        #make sure model still optimizes 
+        optimize!(model)
+        @test check(model)
+
+        # process results
+        all_results = []
+
+        results_raw = parse_results(config, data, model)
+        results_user = process_results(config, data, results_raw)
+        push!(all_results, results_user)
+
+        ## Check that policy impacts results 
+        gen = get_table(data, :gen)
+        years = get_years(data)
+        emis_prc_mod = config[:mods][:example_emisprc]
+        emis_co2_total = aggregate_result(total, data, results_raw, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
+
+        gen_ref = get_table(data_ref, :gen)
+        emis_co2_total_ref = aggregate_result(total, data_ref, results_raw_ref, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
+
+        # check that emissions are reduced for qualifying gens
+        @test emis_co2_total < emis_co2_total_ref
     end
 end

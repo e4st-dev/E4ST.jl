@@ -178,7 +178,9 @@ function scale_yearly(c::ByYearAndHour, v::Vector{Float64})
     end
     return c
 end
-
+function scale_yearly(c::Number, v::Vector{Float64})
+    return ByYear(c .* v)
+end
 
 
 
