@@ -49,9 +49,8 @@ end
     @debug "debug!!!" # SHOULD NOT LOG BY DEFAULT
     @warn "warning!!!"
     @test isfile(log_file)
-    
     stop_logging!(config)
-    @test length(readlines(log_file)) == 4
+    l1 = length(readlines(log_file))
 
     ## Debug Mode
     config[:logging] = "debug"
@@ -62,7 +61,10 @@ end
     @test isfile(log_file)
     
     stop_logging!(config)
-    @test length(readlines(log_file)) == 6
+    l2 = length(readlines(log_file))
+
+    # Test that the debug line created an extra 2 lines
+    @test l2 == l1 + 2
 
     # Logging off
     rm(log_file, force=true)

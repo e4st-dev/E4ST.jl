@@ -35,17 +35,25 @@ include("types/Modification.jl")
 include("types/Policy.jl")
 include("types/Unit.jl")
 include("types/Containers.jl")
-include("types/AggregationTemplate.jl")
-include("types/GenerationConstraint.jl")
+include("types/Iterable.jl")
 
-##Include policies
+# Include Modifications
+include("types/modifications/DCLine.jl")
+include("types/modifications/AggregationTemplate.jl")
+include("types/modifications/GenerationConstraint.jl")
+
+#Include Policies
 include("types/policies/ITC.jl")
 include("types/policies/PTC.jl")
 #include("types/policies/RPS.jl")
 include("types/policies/EmissionCap.jl")
 include("types/policies/EmissionPrice.jl")
 
-##Include IO
+# Include Iterables
+include("types/iterables/RunOnce.jl")
+include("types/iterables/RunSequential.jl")
+
+#Include IO
 include("io/config.jl")
 include("io/data.jl")
 include("io/adjust.jl")
@@ -58,11 +66,8 @@ include("model/setup.jl")
 include("model/dcopf.jl")
 include("model/check.jl")
 include("model/results.jl")
-include("model/iteration.jl")
 include("model/newgens.jl")
 
-# Commonly Modifications/Policies
-include("types/modifications/DCLine.jl")
 
 
 """
@@ -87,18 +92,22 @@ Top-level function for running E4ST.  Here is a general overview of what happens
     * See [`Iterable`](@ref) and [`load_config`](@ref) for more information.
 """
 function run_e4st(config)
-    save_config(config)
 
+    # Initial config setup
+    save_config(config)
     start_logging!(config)
 
-    log_start(config)
+    # Initialize the iterator
+    iter = get_iterator(config)
+    init!(iter, config)
 
+    # Load in all the data
     data  = load_data(config)
 
+    # Initialize the results
     all_results = []
 
     # Begin iteration loop
-    iter = get_iterator(config)
     while true
         model = setup_model(config, data)
     

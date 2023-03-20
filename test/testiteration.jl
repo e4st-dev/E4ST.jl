@@ -62,4 +62,25 @@
         all_results = run_e4st(config)
         @test length(all_results) > 1
     end
+
+    @testset "Test Sequential Iteration" begin
+        config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
+        iter_file = joinpath(@__DIR__, "config", "iter_seq.yml")
+
+        config = load_config(config_file, iter_file)
+
+        @test get_iterator(config) isa RunSequential
+
+        run_e4st(config)
+
+        op = latest_out_path(config[:base_out_path])
+        
+        @test isdir(joinpath(op, "iter1"))
+        @test isdir(joinpath(op, "iter2"))
+        @test isfile(joinpath(op, "E4ST.log"))
+        @test isfile(joinpath(op, "iter1", "gen.csv"))
+        @test isfile(joinpath(op, "iter2", "gen.csv"))
+
+        # TODO: think of any tests here that would better check the functionality
+    end
 end

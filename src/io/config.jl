@@ -43,6 +43,7 @@ The Config File is a file that fully specifies all the necessary information.  N
 * `save_results_raw` - A boolean specifying whether or not to save the raw results after solving the model.  This could be useful for calling [`process_results(config)`](@ref) in the future.
 * `results_raw_file` - The filepath (relative or absolute) to the raw results.  This is helpful for calling [`process_results(config)`](@ref) to generate user results without having to re-run E4ST.
 * `objective_scalar` - This is specifies how much to scale the objective by for the sake of the solver.  Does not impact any user-created expressions or shadow prices from the raw results, as they get scaled back.  (Defaults to 1e6)
+* `gen_pcap_threshold` - This is the `pcap` threshold for new generators to be kept.  Defaults to `eps()`.  See also [`save_updated_gen_table`](@ref)
 
 ## Example Config File
 ```yaml
@@ -52,6 +53,7 @@ $(read_sample_config_file())
 function load_config(filenames...)
     config = _load_config(filenames)
     check_required_fields!(config)
+    check_years!(config)
     make_paths_absolute!(config)
     make_out_path!(config)
     convert_mods!(config)
@@ -80,8 +82,10 @@ end
 function _load_config!(config::OrderedDict, filename::AbstractString)
     config_new = _load_config(filename)
     config_file = config[:config_file]
+
     mods = config[:mods]
-    merge!(mods, config_new[:mods])
+    haskey(config_new, :mods) && merge!(mods, config_new[:mods])
+
     merge!(config, config_new)
     config[:config_file] = config_file
     config[:mods] = mods
@@ -139,6 +143,7 @@ function start_logging!(config)
     old_logger = Logging.global_logger(logger)
     config[:logger] = logger
     config[:old_logger] = old_logger
+    log_start(config)
     return
 end
 export start_logging!
@@ -255,10 +260,12 @@ end
 function getmods(config)
     config[:mods]
 end
+export get_mods
 
 function get_iterator(config)
     return get(config, :iter, RunOnce())
 end
+export get_iterator
 
 # Helper Functions
 ################################################################################
@@ -273,6 +280,35 @@ function required_fields()
         :mods
     )
 end
+
+"""
+    check_years!(config::OrderedDict)
+
+Enforces that `config[:years]` is a vector of year strings.
+"""
+function check_years!(config)
+    config[:years] = check_years(config[:years])
+end
+"""
+    check_years(years) -> years_corrected
+
+Returns a vector of year strings.  I.e. `["y2020", "y2025"]`
+"""
+function check_years(years)
+    _vec(_check_years(years))
+end
+function _check_years(y::Int)
+    return "y$y"
+end
+function _check_years(y::String)
+    return y
+end
+function _check_years(v::AbstractVector)
+    _check_years.(v)
+end
+_vec(v::AbstractVector) = v
+_vec(s::AbstractString) = [s]
+
 
 function check_required_fields!(config)
     return all(f->haskey(config, f), required_fields())
@@ -322,7 +358,9 @@ contains_file_or_path(s::Symbol) = contains_file_or_path(string(s))
 Returns the most recently created `out_path` from within `base_out_path`.
 """
 function latest_out_path(base_out_path)
-    return last(readdir(base_out_path, join=true, sort=true))
+    dirs = readdir(base_out_path, join=true, sort=true)
+    filter!(isdir, dirs)
+    return last(dirs)
 end
 export latest_out_path
 
