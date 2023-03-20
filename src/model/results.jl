@@ -12,7 +12,7 @@ function process_results(config, data, results_raw)
 
     process_lmp!(config, data, results_raw)
     process_power!(config, data, results_raw)
-    save_new_gen_table(config, data)
+    save_updated_gen_table(config, data)
     
     for (name, mod) in getmods(config)
         modify_results!(mod, config, data, results_raw, results_user)
@@ -244,11 +244,11 @@ end
 export process_lmp!
 
 """
-    save_new_gen_table(config, data) -> nothing
+    save_updated_gen_table(config, data) -> nothing
 
 Save the `gen` table to `out_path(config, "gen.csv")`
 """
-function save_new_gen_table(config, data)
+function save_updated_gen_table(config, data)
     gen = get_table(data, :gen)
     original_cols = data[:gen_table_original_cols]
 
@@ -274,7 +274,7 @@ function save_new_gen_table(config, data)
     CSV.write(out_path(config, "gen.csv"), gen_tmp)
     return nothing
 end
-export save_new_gen_table
+export save_updated_gen_table
 
 
 function get_all_cons(model)
