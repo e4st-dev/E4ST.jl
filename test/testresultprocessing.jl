@@ -143,18 +143,93 @@ end
 
 end
 
-@testset "Test AggregationTemplate" begin
+@testset "Test Results Mods" begin
+    # Setup
     config = load_config(config_file)
-    agg_file=joinpath(@__DIR__, "data/3bus/aggregate_template.csv")
-    name = :agg_res
-    mods = get_mods(config)
-    mods[name] = AggregationTemplate(;file=agg_file, name)
     data = load_data(config)
     model = setup_model(config, data)
     optimize!(model)
     parse_results(config, data, model)
-    process_results(config, data)
-    @test isfile(get_out_path(config, "agg_res.csv"))
+
+    @testset "Test AggregationTemplate" begin
+        # Make new mod
+        agg_file=joinpath(@__DIR__, "data/3bus/aggregate_template.csv")
+        name = :agg_res
+        mod = AggregationTemplate(;file=agg_file, name)
+
+        mods = get_mods(config)
+        empty!(mods)
+        mods[name] = mod
+        
+        process_results(config, data)
+        @test isfile(get_out_path(config, "$name.csv"))
+        results = get_results(data)
+        @test haskey(results, name)
+    end
+
+    @testset "Test YearlyTable" begin
+        @testset "Test yearly bus table grouped by country, season, and time of day" begin
+            # Make new mod
+            name = :bus_res_season_time_of_day
+            mod = YearlyTable(;
+                name,
+                table_name = :bus,
+                groupby = "country",
+                group_hours_by = [:season, :time_of_day]
+            )
+
+            mods = get_mods(config)
+            empty!(mods)
+            mods[name] = mod
+            
+            process_results(config, data)
+            results = get_results(data)
+
+            table = get_table(data, mod.table_name)
+            hours = get_table(data, :hours)
+            len = length(groupby(table, mod.groupby)) * length(groupby(hours,mod.group_hours_by))
+
+            for year in get_years(data)
+                table_name = Symbol("$(name)_$year")
+                @test isfile(get_out_path(config, "$table_name.csv"))
+                @test haskey(results, table_name)
+                df = results[table_name]
+                @test hasproperty(df, :country)
+                @test hasproperty(df, :season)
+                @test hasproperty(df, :time_of_day)
+                @test nrow(df) == len
+            end
+        end
+        @testset "Test yearly gen table" begin
+            # Make new mod
+            name = :bus_res_season_time_of_day
+            mod = YearlyTable(;
+                name,
+                table_name = :gen,
+                groupby = ":"
+            )
+
+            mods = get_mods(config)
+            empty!(mods)
+            mods[name] = mod
+            
+            process_results(config, data)
+            results = get_results(data)
+
+            table = get_table(data, mod.table_name)
+            hours = get_table(data, :hours)
+            len = length(groupby(table, mod.groupby)) * length(groupby(hours,mod.group_hours_by))
+
+            for year in get_years(data)
+                table_name = Symbol("$(name)_$year")
+                @test isfile(get_out_path(config, "$table_name.csv"))
+                @test haskey(results, table_name)
+                df = results[table_name]
+                @test nrow(df) == len
+            end
+        end
+
+    end
 end
 
 @testset "Test results processing from already-saved results" begin
