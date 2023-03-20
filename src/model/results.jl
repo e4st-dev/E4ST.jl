@@ -3,7 +3,7 @@
     
 * Gathers the values and shadow prices of each variable, expression, and constraint stored in the model and dumps them into `data[:results][:raw]` (see [`get_results_raw`](@ref) and [`get_results`](@ref)).  
 * Adds relevant info to `gen`, `bus`, and `branch` tables.  See [`parse_lmp!`](@ref) and [`process_power!`](@ref) for more information.
-* Saves updated `gen` table via [`save_new_gen_table`](@ref)
+* Saves updated `gen` table via [`save_updated_gen_table`](@ref)
 * Saves `data` to `get_out_path(config,"data_parsed.jls")` unless `config[:save_data_parsed]` is `false` (true by default).
 """
 function parse_results(config, data, model)
@@ -19,7 +19,7 @@ function parse_results(config, data, model)
 
     parse_lmp!(config, data)
     process_power!(config, data)
-    save_new_gen_table(config, data)
+    save_updated_gen_table(config, data)
 
     if get(config, :save_data_parsed, true)
         serialize(get_out_path(config, "data_parsed.jls"), data)

@@ -8,7 +8,7 @@ parse_lmp!
 process_power!
 get_results_raw
 get_results
-save_new_gen_table
+save_updated_gen_table
 load_parsed_results
 load_processed_results
 ```

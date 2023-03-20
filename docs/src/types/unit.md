@@ -8,5 +8,5 @@ Unit
 
 ```@example
 using E4ST # hide
-E4ST.subtypes(Unit) # hide
+foreach(println, E4ST.subtypes(Unit)) # hide
 ```

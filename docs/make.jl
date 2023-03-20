@@ -32,6 +32,7 @@ makedocs(
             "Modication"=>"types/mod.md",
             "Iterable"=>"types/iterable.md",
             "Policy"=>"types/policy.md",
+            "Unit"=>"types/unit.md",
         ],
         
     ],

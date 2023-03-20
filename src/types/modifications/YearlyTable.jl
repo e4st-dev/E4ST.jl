@@ -20,6 +20,9 @@ struct YearlyTable{G,H} <: Modification
 end
 export YearlyTable
 function YearlyTable(;name, table_name, groupby = Symbol[], group_hours_by = Symbol[])
+    if groupby == ":"
+        groupby = (:)
+    end
     return YearlyTable(Symbol(name), Symbol(table_name), groupby, group_hours_by)
 end
 
@@ -31,7 +34,9 @@ end
 function modify_results!(mod::YearlyTable, config, data)
 
     # Retrieve the table and group it
-    table = get_table(data, mod.table_name)
+    results = get_results(data)
+    table_name = mod.table_name
+    table = get_table(data, table_name)
     gdf = groupby(table, mod.groupby)
     idx_sets = [getfield(sdf, :rows) for sdf in gdf]
 
@@ -40,21 +45,145 @@ function modify_results!(mod::YearlyTable, config, data)
     gdf_hours = groupby(hours_table, mod.group_hours_by)
     hour_idx_sets = [getfield(sdf, :rows) for sdf in gdf_hours]
 
+    # Compute the columns of the yearly_table.
+    new_cols = get_new_cols_for_yearly_table(data, table_name, gdf, idx_sets, hour_idx_sets) 
+
+    # Loop over each year in data
     for (yr_idx, yr) in enumerate(get_years(data))
-        out_file = "$(mod.name)_$yr.csv"
-        # TODO: some very fancy combine operation, or some custom for loop iteration
+        out_name = "$(mod.name)_$yr"
+        out_file = get_out_path(config, "$out_name.csv")
 
-        for (i, idxs) in enumerate(idx_sets)
-            for (i, hr_idxs) in enumerate(hour_idx_sets)
-
-
-            end
+        # Compose the table
+        df = DataFrame()
+        for (col_name, col_fn) in new_cols
+            df[!, col_name] = [col_fn(group_idx, yr_idx, hr_group_idx)
+                for group_idx in 1:length(idx_sets) for hr_group_idx in 1:length(hour_idx_sets)
+            ]
         end
 
+        # Add columns for hours in group_hours_by
+        hours_cols = add_hours_columns!(mod, df, gdf, gdf_hours) 
 
+        # Reorder columns based on the grouping columns
+        mod.groupby == (:) || select!(df, mod.groupby, Not(mod.groupby))
+
+        # compose the set of grouping columns by which to sort by.
+        grouping_cols = Symbol[]
+        mod.groupby == (:) || append!(grouping_cols, tosymvec(mod.groupby))
+        append!(grouping_cols, hours_cols)
+
+        # Sort the dataframe
+        isempty(grouping_cols) || sort!(df, grouping_cols)
         
-        
+        results[Symbol(out_name)] = df
+        CSV.write(out_file, df)
     end
 end
 export modify_results!
+
+
+"""
+    get_new_cols_for_yearly_table(data, table_name, gdf, group_idx_sets, hour_idx_sets) -> new_cols
+
+Computes the columns to add to the YearlyTable.  Returns `new_cols`, a dictionary mapping `col_name::String` to `col_fn::Function`.
+* `col_name` is either the original table's column name, or appended with `total` or `average`.
+* `col_fn` is a function mapping (idxs, hr_idxs, yr_idxs) to the aggregated result.
+"""
+function get_new_cols_for_yearly_table(data, table_name, gdf, group_idx_sets, hour_idx_sets)
+    table = get_table(data, table_name)
+
+    # Begin composing the new_cols OrderedDict by looping through each column in the table
+    new_cols = OrderedDict{String, Function}()
+    for name in propertynames(table)
+
+        # Pull out the unit and type of the column
+        unit = get_table_col_unit(data, table_name, name)
+        type = get_table_col_type(data, table_name, name)
+
+        # Check to see if the column is numeric
+        if type <: Float64 || type <: Container || type <: AbstractArray{Float64}
+
+            # Check if total or average has methods for the unit type
+            check = false
+            if hasmethod(total, Tuple{Type{unit}, Any, Any, Any, Any, Any, Any})
+                # Add this to the combine arguments
+                new_cols["$(name)_total"] = (group_idx, yr_idxs, hr_group_idx) -> aggregate_result(total, data, table_name, name, group_idx_sets[group_idx], yr_idxs, hour_idx_sets[hr_group_idx])
+                check = true
+            end
+            if hasmethod(average, Tuple{Type{unit}, Any, Any, Any, Any, Any, Any})
+                # Add this to the combine arguments
+                new_cols["$(name)_average"] = (group_idx, yr_idxs, hr_group_idx) -> aggregate_result(average, data, table_name, name, group_idx_sets[group_idx], yr_idxs, hour_idx_sets[hr_group_idx])
+                check = true
+            end
+
+            # Throw a warning if neither method is implemented.
+            check || @warn "$table_name[:$name] is numeric but has no `total` or `average` method defined for Unit type $unit"
+
+        else
+            # If not numeric check to see if each group has the same value for this column.
+            if all(allequal(sdf[!, name]) for sdf in gdf)
+                push!(new_cols,
+                    string(name) => (group_idx, yr_idx, hr_group_idx) -> gdf[group_idx][1, name]
+                )
+            end
+        end
+    end
+    return new_cols
+end
+
+"""
+    add_hours_columns!(mod::YearlyTable, df, gdf, gdf_hours) -> cols::Vector{Symbol}
+
+Add hours columns
+"""
+function add_hours_columns!(mod::YearlyTable{<:Any, Colon}, df, gdf, gdf_hours)
+    new_cols = [:hour_idx]
+    df[!, :hour_idx] = repeat(collect(getfield(sdf, :rows)[1] for sdf in gdf_hours), outer=length(gdf))
+    for col in propertynames(gdf_hours)
+        df[!, col] = repeat(collect(sdf[1, col] for sdf in gdf_hours), outer=length(gdf))
+        push!(new_cols, col)
+    end
+    select!(df, new_cols, Not(new_cols))
+    return new_cols
+end
+function add_hours_columns!(mod::YearlyTable{<:Any, <:Any}, df, gdf, gdf_hours)
+    df[!, mod.group_hours_by] = repeat([first(k) for k in keys(gdf_hours)], outer=length(gdf))
+    select!(df, mod.group_hours_by, Not(mod.group_hours_by))
+    return Symbol(mod.group_hours_by)
+end
+function add_hours_columns!(mod::YearlyTable{<:Any, <:AbstractVector}, df, gdf, gdf_hours)
+    isempty(mod.group_hours_by) && return Symbol[]
+    new_cols = Symbol.(mod.group_hours_by)
+    for (i, col) in enumerate(mod.group_hours_by)
+        df[!, col] = repeat([k[i] for k in keys(gdf_hours)], outer=length(gdf))
+    end
+    df[!, :hours] = repeat([sum(sdf.hours) for sdf in gdf_hours], outer=length(gdf))
+    push!(new_cols, :hours)
+    select!(df, new_cols, Not(new_cols))
+    return new_cols
+end
+export add_hours_columns!
+
+@inline function allequal(x)
+    length(x) < 2 && return true
+    e1 = x[1]
+    i = 2
+    @inbounds for i=2:length(x)
+        x[i] == e1 || return false
+    end
+    return true
+end
+
+"""
+    tosymvec(x) -> v::Vector{Symbol}
+"""
+function tosymvec(v::Vector{Symbol})
+    v
+end
+function tosymvec(v::Vector)
+    Symbol.(v)
+end
+function tosymvec(v)
+    [Symbol(v)]
+end
 
