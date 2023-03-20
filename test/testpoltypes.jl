@@ -225,12 +225,10 @@ end
         gen = get_table(data, :gen)
         years = get_years(data)
         emis_prc_mod = config[:mods][:example_emisprc]
-        gen_idxs = get_row_idxs(gen, parse_comparisons(emis_prc_mod.gen_filters))
-        emis_co2_total = aggregate_result(total, data, results_raw, :gen, :emis_co2, gen_idxs)
+        emis_co2_total = aggregate_result(total, data, results_raw, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
 
         gen_ref = get_table(data_ref, :gen)
-        gen_idxs_ref = get_row_idxs(gen_ref, parse_comparisons(emis_prc_mod.gen_filters))
-        emis_co2_total_ref = aggregate_result(total, data_ref, results_raw_ref, :gen, :emis_co2, gen_idxs)
+        emis_co2_total_ref = aggregate_result(total, data_ref, results_raw_ref, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
 
         # check that emissions are reduced for qualifying gens
         @test emis_co2_total < emis_co2_total_ref

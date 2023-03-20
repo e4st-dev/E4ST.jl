@@ -1,8 +1,5 @@
 base_out_path:    "../out/3bus_emisprc"
 mods:
-  dc_line:
-    type: DCLine
-    file: "../data/3bus/dc_line.csv"
   example_emisprc:
     type: "EmissionPrice"
     emis_col: "emis_co2"

@@ -6,7 +6,7 @@ Emission Price - A price on a certain emission for a given set of generators.
 
 *`name`: name of the policy (Symbol)
 *`emis_col`: name of the emission rate column in the gen table (ie. emis_co2) (Symbol)
-*`values`: OrderedDict of cap values by year
+*`values`: OrderedDict of price values by year
 *`gen_filters`: OrderedDict of generator filters
 """
 struct EmissionPrice <: Policy
@@ -39,7 +39,6 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
     for gen_idx in gen_idxs
         gen[gen_idx, pol.name] = scale_yearly(gen[gen_idx, pol.emis_col], price_yearly)
     end
-
-    data[:gen] = gen
+    
     add_obj_term!(data, model, PerMWhGen(), pol.name, oper = +)
 end
