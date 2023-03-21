@@ -75,7 +75,7 @@ function modify_results!(mod::YearlyTable, config, data)
         # Sort the dataframe
         isempty(grouping_cols) || sort!(df, grouping_cols)
         
-        results[Symbol(out_name)] = df
+        add_result!(data, Symbol(out_name), df)
         CSV.write(out_file, df)
     end
 end

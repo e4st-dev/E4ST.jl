@@ -22,14 +22,14 @@ export load_data
 
 export setup_model, check
 export setup_dcopf!
-export parse_results, process_results
+export parse_results!, process_results!
 export should_iterate, iterate!
 export Modification, Policy
 export modify_raw_data!, modify_setup_data!, modify_model!, modify_results!, fieldnames_for_yaml
 export run_e4st
 export setup_new_gens!
 
-##Include types
+# Include types
 include("types/Modification.jl")
 include("types/Policy.jl")
 include("types/Unit.jl")
@@ -42,7 +42,7 @@ include("types/modifications/AggregationTemplate.jl")
 include("types/modifications/GenerationConstraint.jl")
 include("types/modifications/YearlyTable.jl")
 
-#Include Policies
+# Include Policies
 include("types/policies/ITC.jl")
 include("types/policies/PTC.jl")
 #include("types/policies/RPS.jl")
@@ -60,13 +60,17 @@ include("io/adjust.jl")
 include("io/util.jl")
 include("io/demand.jl")
 
-##Include model
+# Include model
 include("model/setup.jl")
 include("model/dcopf.jl")
 include("model/check.jl")
-include("model/results.jl")
 include("model/newgens.jl")
 
+# Include Results
+include("results/parse.jl")
+include("results/process.jl")
+include("results/aggregate.jl")
+include("results/util.jl")
 
 
 """
@@ -85,8 +89,8 @@ Top-level function for running E4ST.  Here is a general overview of what happens
     * [`setup_model(config, data)`](@ref) - The `model` (a JuMP Model) is set up.
     * [`JuMP.optimize!(model)`](https://jump.dev/JuMP.jl/stable/reference/solutions/#JuMP.optimize!) - The `model` is optimized.
 4. Process Results
-    * [`parse_results(config, data, model)`](@ref) - Retrieves all necessary values and shadow prices from `model`, storing them into data[:results][:raw], (see [`get_results_raw`](@ref) and [`get_results`](@ref)) and saves `data` if `config[:save_data_parsed]` is `true` (default is `true`).  This is mostly stored in case the results processing throws an error before completion.  That way, there is no need to re-run the model.
-    * [`process_results(config, data)`](@ref) - Calls [`modify_results!(mod, config, data)`](@ref) for each `mod` in the `config`. Saves `data` if `config[:save_data_processeded]` is `true` (default is `true`)
+    * [`parse_results!(config, data, model)`](@ref) - Retrieves all necessary values and shadow prices from `model`, storing them into data[:results][:raw], (see [`get_raw_results`](@ref) and [`get_results`](@ref)) and saves `data` if `config[:save_data_parsed]` is `true` (default is `true`).  This is mostly stored in case the results processing throws an error before completion.  That way, there is no need to re-run the model.
+    * [`process_results!(config, data)`](@ref) - Calls [`modify_results!(mod, config, data)`](@ref) for each `mod` in the `config`. Saves `data` if `config[:save_data_processeded]` is `true` (default is `true`)
 5. Iterate, running more simulations as needed.
     * See [`Iterable`](@ref) and [`load_config`](@ref) for more information.
 """
@@ -117,8 +121,8 @@ function run_e4st(config::OrderedDict)
         check(model) || return model # all_results
 
         ### Results
-        parse_results(config, data, model)
-        process_results(config, data)
+        parse_results!(config, data, model)
+        process_results!(config, data)
         results = get_results(data)
         push!(all_results, results)
 

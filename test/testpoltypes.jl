@@ -11,12 +11,8 @@ model_ref = setup_model(config_ref, data_ref)
 
 optimize!(model_ref)
 
-all_results_ref = []
-
-results_raw_ref = parse_results(config_ref, data_ref, model_ref)
-results_user_ref = process_results(config_ref, data_ref)
-push!(all_results_ref, results_user_ref)
-
+parse_results!(config_ref, data_ref, model_ref)
+process_results!(config_ref, data_ref)
 
 # Policy tests
 #####################################################################
@@ -52,9 +48,10 @@ push!(all_results_ref, results_user_ref)
         #make sure model still optimizes 
         optimize!(model)
         @test check(model)
+        parse_results!(config, data, model)
 
         #make sure obj was lowered
-        @test objective_value(model) < objective_value(model_ref) #if this isn't working, check that it isn't due to differences between the config files
+        @test get_raw_result(data, :obj) < get_raw_result(data_ref, :obj) #if this isn't working, check that it isn't due to differences between the config files
     end
 
 end
@@ -90,9 +87,10 @@ end
         #make sure model still optimizes 
         optimize!(model)
         @test check(model)
+        parse_results!(config, data, model)
 
         #make sure obj was lowered
-        @test objective_value(model) < objective_value(model_ref) #if this isn't working, check that it isn't due to differences between the config files
+        @test get_raw_result(data, :obj) < get_raw_result(data_ref, :obj) #if this isn't working, check that it isn't due to differences between the config files
 
     end
 end
@@ -144,8 +142,8 @@ end
         @test check(model)
 
 
-        parse_results(config, data, model)
-        process_results(config, data)
+        parse_results!(config, data, model)
+        process_results!(config, data)
 
         ## Check that policy impacts results 
         gen = get_table(data, :gen)
@@ -170,7 +168,7 @@ end
         @test emis_co2_total_2040 <= config[:mods][:example_emiscap][:values][:y2040] + 0.001
 
         #check that policy is binding 
-        res_raw = get_results_raw(data)
+        res_raw = get_raw_results(data)
         cap_prices = res_raw[:cons_example_emiscap_max]
         @test abs(cap_prices[:y2035]) > 1e-3
         @test abs(cap_prices[:y2040]) > 1e-3
@@ -209,8 +207,8 @@ end
         @test check(model)
 
         # process results
-        parse_results(config, data, model)
-        process_results(config, data)
+        parse_results!(config, data, model)
+        process_results!(config, data)
 
         ## Check that policy impacts results 
         gen = get_table(data, :gen)

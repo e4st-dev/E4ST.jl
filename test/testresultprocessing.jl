@@ -45,7 +45,7 @@ end
     data = load_data(config)
     model = setup_model(config, data)
     optimize!(model)
-    parse_results(config, data, model)
+    parse_results!(config, data, model)
     
     @testset "Test gen_idx filters" begin
         tot = aggregate_result(total, data, :gen, :egen)
@@ -149,7 +149,7 @@ end
     data = load_data(config)
     model = setup_model(config, data)
     optimize!(model)
-    parse_results(config, data, model)
+    parse_results!(config, data, model)
 
     @testset "Test AggregationTemplate" begin
         # Make new mod
@@ -161,7 +161,7 @@ end
         empty!(mods)
         mods[name] = mod
         
-        process_results(config, data)
+        process_results!(config, data)
         @test isfile(get_out_path(config, "$name.csv"))
         results = get_results(data)
         @test haskey(results, name)
@@ -182,7 +182,7 @@ end
             empty!(mods)
             mods[name] = mod
             
-            process_results(config, data)
+            process_results!(config, data)
             results = get_results(data)
 
             table = get_table(data, mod.table_name)
@@ -213,7 +213,7 @@ end
             empty!(mods)
             mods[name] = mod
             
-            process_results(config, data)
+            process_results!(config, data)
             results = get_results(data)
 
             table = get_table(data, mod.table_name)
@@ -239,7 +239,7 @@ end
     # Now load the config from the out_path, with some results processing mods too.  Could also add the mods manually here.
     mod_file= joinpath(@__DIR__, "config/config_res.yml")
     config = load_config(out_path, mod_file)
-    data = process_results(config)
+    data = process_results!(config)
 
     # Test that the results contain the raw results and the agg_res from the added mod_file.
     res = get_results(data)
@@ -247,7 +247,7 @@ end
     @test haskey(res, :raw)
 
     ### Do the same test with just the out_path and the mod file
-    data = process_results(mod_file, out_path)
+    data = process_results!(mod_file, out_path)
 
     # Test that the results contain the raw results and the agg_res from the added mod_file.
     res = get_results(data)

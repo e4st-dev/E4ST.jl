@@ -12,7 +12,7 @@
 
     @test check(model)
 
-    parse_results(config, data, model)
+    parse_results!(config, data, model)
 
     @testset "Test no curtailment" begin
         bus = get_table(data, :bus)
@@ -27,7 +27,7 @@
     end
 
     @testset "Test DC lines" begin
-        res_raw = get_results_raw(data)
+        res_raw = get_raw_results(data)
         @test haskey(data, :dc_line)
         @test haskey(res_raw, :pflow_dc)
         @test 0 < maximum(abs, res_raw[:pflow_dc]) <= maximum(get_table(data, :dc_line).pflow_max)
