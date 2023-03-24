@@ -41,6 +41,7 @@ include("types/modifications/DCLine.jl")
 include("types/modifications/AggregationTemplate.jl")
 include("types/modifications/GenerationConstraint.jl")
 include("types/modifications/YearlyTable.jl")
+include("types/modifications/CCUS.jl")
 
 # Include Policies
 include("types/policies/ITC.jl")

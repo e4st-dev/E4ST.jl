@@ -1,0 +1,7 @@
+producer,storer,step_num,stor_type,step_quantity,price_trans,price_store
+narnia,narnia,1,eor,100,10,-15
+narnia,narnia,2,saline,10000,10,7
+narnia,archenland,1,eor,200,20,-16
+archenland,archenland,1,eor,200,10,-16
+archenland,archenland,2,saline,20000,10,8
+archenland,narnia,1,eor,100,20,-15

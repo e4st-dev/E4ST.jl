@@ -22,3 +22,7 @@ mods:
   dc_line:
     type: DCLine
     file: "../data/3bus/dc_line.csv"
+  ccus:
+    type: CCUS
+    file: "../data/3bus/ccus_country.csv"
+    groupby: "country"

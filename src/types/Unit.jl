@@ -14,10 +14,13 @@ end
 struct DollarsPerMWhServed <: Unit end; export DollarsPerMWhServed
 struct Dollars <: Unit end; export Dollars
 struct ShortTonsPerMWhGenerated <: Unit end; export ShortTonsPerMWhGenerated
+struct ShortTonsPerYear <: Unit end; export ShortTonsPerYear
+
 struct DollarsPerMWCapacity <: Unit end; export DollarsPerMWCapacity
 struct DollarsPerMWBuiltCapacity <: Unit end; export DollarsPerMWBuiltCapacity
 struct DollarsPerMWhGenerated <: Unit end; export DollarsPerMWhGenerated
 struct DollarsPerMWFlow <: Unit end; export DollarsPerMWFlow
+struct DollarsPerShortTon <: Unit end; export DollarsPerShortTon
 struct MWhGeneratedPerMWhCapacity <: Unit end; export MWhGeneratedPerMWhCapacity
 struct MWhGenerated <: Unit end; export MWhGenerated
 struct MWhServed <: Unit end; export MWhServed
