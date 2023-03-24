@@ -18,11 +18,11 @@ iter:
 ```
 
 ## Interfaces
-* [`init!(iter, config)`](@ref) - (optional) Initialize `iter` with `config`, making any changes.
-* [`should_iterate(iter, config, data, model, results_raw, results_user)`](@ref) - return whether or not the simulation should continue for another iteration.
-* [`iterate!(iter, config, data, model, results_raw, results_user)`](@ref) - Makes any changes to any of the structures between iterations. 
+* [`init!(iter::Iterable, config)`](@ref) - (optional) Initialize `iter` with `config`, making any changes.
+* [`should_iterate(iter, config, data)`](@ref) - return whether or not the simulation should continue for another iteration.
+* [`iterate!(iter, config, data)`](@ref) - Makes any changes to any of the structures between iterations. 
 * [`should_reload_data(iter)`](@ref) - Returns whether or not to reload the data when iterating. 
-* [`fieldnames_for_yaml(::Type{I})`](@ref) - (optional) return the fieldnames to print to yaml file in [`save_config`](@ref)
+* [`fieldnames_for_yaml(::Type{<:Iterable})`](@ref) - (optional) return the fieldnames to print to yaml file in [`save_config`](@ref)
 """
 abstract type Iterable end
 export Iterable
@@ -44,9 +44,9 @@ end
 export init!
 
 """    
-    should_iterate(iter, config, data, model, results_raw, results_user) -> Bool
+    should_iterate(iter, config, data) -> Bool
     
-Returns whether or not the model should iterate.
+Returns whether or not E4ST should iterate.
 """
 function should_iterate end
 export should_iterate
@@ -69,7 +69,7 @@ function should_reload_data end
 export should_reload_data
 
 """
-    iterate!(iter::Iterable, config, data, model, results_raw, results_user)
+    iterate!(iter::Iterable, config, data)
 
 Make any necessary modifications to the `config` or `data` based on `iter`.
 """

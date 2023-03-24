@@ -114,7 +114,7 @@ Some possible pairs to filter by:
 * `:age => (2,10)`: checks if the `age` column is between 2, and 10, inclusive.  To be exclusive, use different values like (2.0001, 9.99999) for clarity
 * `:state => in(("alabama", "arkansas"))`: checks if the `state` column is either "alabama" or "arkansas"
 
-See also [`filter_view`](@ref)
+Used in [`get_table`](@ref) and [`get_table_row_idxs`](@ref).
 """
 function get_row_idxs(table, idxs::Colon)
     return 1:nrow(table)
@@ -162,19 +162,20 @@ export get_row_idxs
 
 
 """
-    comparison(value, v) -> comp
+    comparison(value, v) -> comp::Function
 
 Returns the appropriate comparison function for `value` to be compared to each member of `v`.
 
-    comparison(value, ::Type)
+    comparison(value, ::Type) -> comp::Function
 
 Returns the appropriate comparison function for `value` to be compared to the 2nd argument type.  Here are a few options:
 * comparison(f::Function, ::Type) -> f
-* comparison(s::String, ::String) -> 
+* comparison(s::String, ::Type{<:AbstractString}) -> ==(s)
 """
 function comparison(value, v::AbstractVector)
     comparison(value, eltype(v))
 end
+export comparison
 
 function comparison(value::Function, ::Type)
     return value
@@ -357,6 +358,7 @@ function parse_year_idxs(_s::AbstractString)
 
     error("No match found for $s")
 end
+export parse_year_idxs
 
 
 
@@ -384,6 +386,7 @@ function parse_hour_idxs(_s::AbstractString)
 
     error("No match found for $s")
 end
+export parse_hour_idxs
 
 function str2array(s::AbstractString)
     v = split(s,',')

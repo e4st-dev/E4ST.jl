@@ -11,12 +11,8 @@ model_ref = setup_model(config_ref, data_ref)
 
 optimize!(model_ref)
 
-all_results_ref = []
-
-results_raw_ref = parse_results(config_ref, data_ref, model_ref)
-results_user_ref = process_results(config_ref, data_ref, results_raw_ref)
-push!(all_results_ref, results_user_ref)
-
+parse_results!(config_ref, data_ref, model_ref)
+process_results!(config_ref, data_ref)
 
 # Policy tests
 #####################################################################
@@ -52,9 +48,10 @@ push!(all_results_ref, results_user_ref)
         #make sure model still optimizes 
         optimize!(model)
         @test check(model)
+        parse_results!(config, data, model)
 
         #make sure obj was lowered
-        @test objective_value(model) < objective_value(model_ref) #if this isn't working, check that it isn't due to differences between the config files
+        @test get_raw_result(data, :obj) < get_raw_result(data_ref, :obj) #if this isn't working, check that it isn't due to differences between the config files
     end
 
 end
@@ -90,9 +87,10 @@ end
         #make sure model still optimizes 
         optimize!(model)
         @test check(model)
+        parse_results!(config, data, model)
 
         #make sure obj was lowered
-        @test objective_value(model) < objective_value(model_ref) #if this isn't working, check that it isn't due to differences between the config files
+        @test get_raw_result(data, :obj) < get_raw_result(data_ref, :obj) #if this isn't working, check that it isn't due to differences between the config files
 
     end
 end
@@ -111,7 +109,7 @@ end
         # read back into config yaml without the gen_cons
         save_config(config)
 
-        outfile = out_path(config,basename(config[:config_file]))
+        outfile = get_out_path(config,"config.yml")
         savedconfig = YAML.load_file(outfile, dicttype=OrderedDict{Symbol, Any})
         savedmods = savedconfig[:mods]
 
@@ -143,43 +141,37 @@ end
         optimize!(model)
         @test check(model)
 
-        # process results
-        all_results = []
 
-        results_raw = parse_results(config, data, model)
-        results_user = process_results(config, data, results_raw)
-        push!(all_results, results_user)
-         
-
+        parse_results!(config, data, model)
+        process_results!(config, data)
 
         ## Check that policy impacts results 
         gen = get_table(data, :gen)
         years = get_years(data)
-        emis_co2_total = aggregate_result(total, data, results_raw, :gen, :emis_co2)
+        emis_co2_total = aggregate_result(total, data, :gen, :emis_co2)
 
         gen_ref = get_table(data_ref, :gen)
-        emis_co2_total_ref = aggregate_result(total, data_ref, results_raw_ref, :gen, :emis_co2)
+        emis_co2_total_ref = aggregate_result(total, data_ref, :gen, :emis_co2)
 
         # check that emissions are reduced
         @test emis_co2_total < emis_co2_total_ref
 
         # check that yearly cap values are actually followed
         idx_2035 = get_year_idxs(data, "y2035")
-        emis_co2_total_2035 = aggregate_result(total, data, results_raw, :gen, :emis_co2, :, idx_2035)
+        emis_co2_total_2035 = aggregate_result(total, data, :gen, :emis_co2, :, idx_2035)
 
         @test emis_co2_total_2035 <= config[:mods][:example_emiscap][:values][:y2035] + 0.001
 
         idx_2040 = get_year_idxs(data, "y2040")
-        emis_co2_total_2040 = aggregate_result(total, data, results_raw, :gen, :emis_co2, :, idx_2040)
+        emis_co2_total_2040 = aggregate_result(total, data, :gen, :emis_co2, :, idx_2040)
 
         @test emis_co2_total_2040 <= config[:mods][:example_emiscap][:values][:y2040] + 0.001
 
         #check that policy is binding 
-        cap_prices = results_raw[:cons_example_emiscap_max]
+        res_raw = get_raw_results(data)
+        cap_prices = res_raw[:cons_example_emiscap_max]
         @test abs(cap_prices[:y2035]) > 1e-3
         @test abs(cap_prices[:y2040]) > 1e-3
-
-
     end
 end
 
@@ -215,20 +207,17 @@ end
         @test check(model)
 
         # process results
-        all_results = []
-
-        results_raw = parse_results(config, data, model)
-        results_user = process_results(config, data, results_raw)
-        push!(all_results, results_user)
+        parse_results!(config, data, model)
+        process_results!(config, data)
 
         ## Check that policy impacts results 
         gen = get_table(data, :gen)
         years = get_years(data)
         emis_prc_mod = config[:mods][:example_emisprc]
-        emis_co2_total = aggregate_result(total, data, results_raw, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
+        emis_co2_total = aggregate_result(total, data, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
 
         gen_ref = get_table(data_ref, :gen)
-        emis_co2_total_ref = aggregate_result(total, data_ref, results_raw_ref, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
+        emis_co2_total_ref = aggregate_result(total, data_ref, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
 
         # check that emissions are reduced for qualifying gens
         @test emis_co2_total < emis_co2_total_ref

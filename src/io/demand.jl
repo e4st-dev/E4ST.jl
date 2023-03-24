@@ -37,7 +37,7 @@ export setup_demand!
 """
     shape_demand!(config, data)
 
-Shapes the hourly demand to match profiles given in `config[:demand_shape_file]`.  See [`summarize_demand_shape_table`](@ref) for more details
+Shapes the hourly demand to match profiles given in `config[:demand_shape_file]`.  See [`summarize_table(::Val{:demand_shape})`](@ref) for more details
 
 Demanded power often changes on an hourly basis. The `demand_shape_table` allows the user to provide hourly demand profiles with which to scale the base demanded power for demand regions, types, or even specific demand elements.  Each row of the table represents a set of load elements, and the hourly demand profile with which to scale them.  For demand elements that fall in multiple sets, the hourly load will be scaled by each profile, in order.
 """
@@ -109,7 +109,7 @@ export shape_demand!
 """
     match_demand!(config, data)
 
-Match the yearly demand by area given in `config[:demand_match_file]`, updates the `pd` field of the `data[:bus]`.  See [`summarize_demand_match_table`](@ref) for more details.
+Match the yearly demand by area given in `config[:demand_match_file]`, updates the `pd` field of the `data[:bus]`.  See [`summarize_table(::Val{:demand_match})`](@ref) for more details.
 
 Often, we want to force the total energy demanded for a set of demand elements over a year to match load projections from a data source.  The `demand_match_table` allows the user to provide yearly energy demanded targets, in \$MWh\$, to match.  The matching weights each hourly demand by the number of hours spent at each of the representative hours, as provided in the `hours` table, converting from \$MW\$ power demanded over the representative hour, into \$MWh\$.
 """
@@ -253,7 +253,6 @@ function summarize_table(::Val{:demand_table})
     )
     return df
 end
-export summarize_demand_table
 
 """
     summarize_table(::Val{:demand_shape}) -> summary
@@ -270,7 +269,6 @@ function summarize_table(::Val{:demand_shape})
     )
     return df
 end
-export summarize_demand_shape_table
 
 """
     summarize_table(::Val{:demand_match}) -> summary
@@ -286,7 +284,6 @@ function summarize_table(::Val{:demand_match})
     )
     return df
 end
-export summarize_demand_match_table
 
 
 """
@@ -304,4 +301,3 @@ function summarize_table(::Val{:demand_add})
     )
     return df
 end
-export summarize_demand_add_table

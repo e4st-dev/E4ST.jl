@@ -44,7 +44,7 @@ summarize_table(::Val{:demand_add})
 
 #### Column Summary
 ```@example demand
-summarize_table(::Val{:demand_add}) # hide
+summarize_table(:demand_add) # hide
 ```
 
 

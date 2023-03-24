@@ -48,7 +48,7 @@ function load_data!(config, data)
 
     # Save the data to file as specified.
     if get(config, :save_data, true)
-        serialize(out_path(config, "data.jls"), data)
+        serialize(get_out_path(config, "data.jls"), data)
     end
     return data
 end
@@ -91,7 +91,7 @@ export load_data_files!
 Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_raw_data!(mod, config, data)`](@ref)
 """
 function modify_raw_data!(config, data)    
-    for (sym, mod) in getmods(config)
+    for (sym, mod) in get_mods(config)
         modify_raw_data!(mod, config, data)
     end
     return nothing
@@ -103,7 +103,7 @@ end
 Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_setup_data!(mod, config, data)`](@ref)
 """
 function modify_setup_data!(config, data)    
-    for (sym, mod) in getmods(config)
+    for (sym, mod) in get_mods(config)
         modify_setup_data!(mod, config, data)
     end
     return nothing

@@ -52,16 +52,16 @@ function should_iterate(iter::RunSequential, args...)
 end
 
 """
-    iterate!(iter::RunSequential, config, data, model, results_raw, results_user) -> nothing
+    iterate!(iter::RunSequential, config, data) -> nothing
 
 Iterates by:
 * Incrementing the years in the config
 * Changing the `config[:out_path]` to be `"iter<n>"`
 * Changing `config[:gen_file]`
 """
-function iterate!(iter::RunSequential, config, data, model, results_raw, results_user)
+function iterate!(iter::RunSequential, config, data)
     # Update config[:gen_file] to be from the current out_path
-    config[:gen_file] = out_path(config, "gen.csv")
+    config[:gen_file] = get_out_path(config, "gen.csv")
 
     # Increment iter.state
     iter.state += 1

@@ -19,18 +19,17 @@ using E4STUtil
 
 export save_config, load_config
 export load_data
-export save_results!, load_results
 
 export setup_model, check
 export setup_dcopf!
-export parse_results, process_results
+export parse_results!, process_results!
 export should_iterate, iterate!
 export Modification, Policy
 export modify_raw_data!, modify_setup_data!, modify_model!, modify_results!, fieldnames_for_yaml
 export run_e4st
 export setup_new_gens!
 
-##Include types
+# Include types
 include("types/Modification.jl")
 include("types/Policy.jl")
 include("types/Unit.jl")
@@ -41,8 +40,9 @@ include("types/Iterable.jl")
 include("types/modifications/DCLine.jl")
 include("types/modifications/AggregationTemplate.jl")
 include("types/modifications/GenerationConstraint.jl")
+include("types/modifications/YearlyTable.jl")
 
-#Include Policies
+# Include Policies
 include("types/policies/ITC.jl")
 include("types/policies/PTC.jl")
 #include("types/policies/RPS.jl")
@@ -59,39 +59,42 @@ include("io/data.jl")
 include("io/adjust.jl")
 include("io/util.jl")
 include("io/demand.jl")
-include("io/results.jl")
 
-##Include model
+# Include model
 include("model/setup.jl")
 include("model/dcopf.jl")
 include("model/check.jl")
-include("model/results.jl")
 include("model/newgens.jl")
 
+# Include Results
+include("results/parse.jl")
+include("results/process.jl")
+include("results/aggregate.jl")
+include("results/util.jl")
 
 
 """
-    run_e4st(config) -> results
+    run_e4st(config) -> out_path, results
 
-    run_e4st(filename) -> run_e4st(load_config(filename))
+    run_e4st(filename(s)) -> out_path, results
 
 Top-level function for running E4ST.  Here is a general overview of what happens:
 1. Book-keeping
     * [`load_config(config_file)`](@ref) - loads in the `config` from file, if not passed in directly.  
     * [`save_config(config)`](@ref) - the config is saved to `config[:out_path]`
-    * [`start_logging!(config)`](@ref) - Logging is started
-    * [`log_info`](@ref) - some information is logged.
+    * [`start_logging!(config)`](@ref) - Logging is started, some basic information is logged via [`log_start`](@ref).
 2. Load Input Data
     * [`load_data(config)`](@ref) - The data is loaded in from files specified in the `config`.
 3. Construct JuMP Model and optimize
     * [`setup_model(config, data)`](@ref) - The `model` (a JuMP Model) is set up.
     * [`JuMP.optimize!(model)`](https://jump.dev/JuMP.jl/stable/reference/solutions/#JuMP.optimize!) - The `model` is optimized.
 4. Process Results
-    * TODO: Add more here for the results processing stuff once we get to it
+    * [`parse_results!(config, data, model)`](@ref) - Retrieves all necessary values and shadow prices from `model`, storing them into data[:results][:raw], (see [`get_raw_results`](@ref) and [`get_results`](@ref)) and saves `data` if `config[:save_data_parsed]` is `true` (default is `true`).  This is mostly stored in case the results processing throws an error before completion.  That way, there is no need to re-run the model.
+    * [`process_results!(config, data)`](@ref) - Calls [`modify_results!(mod, config, data)`](@ref) for each `mod` in the `config`. Saves `data` if `config[:save_data_processeded]` is `true` (default is `true`)
 5. Iterate, running more simulations as needed.
     * See [`Iterable`](@ref) and [`load_config`](@ref) for more information.
 """
-function run_e4st(config)
+function run_e4st(config::OrderedDict)
 
     # Initial config setup
     save_config(config)
@@ -107,7 +110,7 @@ function run_e4st(config)
     # Initialize the results
     all_results = []
 
-    # Begin iteration loop
+    ### Begin iteration loop
     while true
         model = setup_model(config, data)
     
@@ -117,27 +120,28 @@ function run_e4st(config)
 
         check(model) || return model # all_results
 
-        results_raw = parse_results(config, data, model)
-        results_user = process_results(config, data, results_raw)
-        push!(all_results, results_user)
+        ### Results
+        parse_results!(config, data, model)
+        process_results!(config, data)
+        results = get_results(data)
+        push!(all_results, results)
 
-        # ITERATION
-        #############################################################################
+        ### Iteration
         # First check to see if we even need to iterate
-        should_iterate(iter, config, data, model, results_raw, results_user) || break
+        should_iterate(iter, config, data) || break
 
         # Now make any changes to things based on the iteration
-        iterate!(iter, config, data, model, results_raw, results_user)
+        iterate!(iter, config, data)
 
         # Reload data as needed
         should_reload_data(iter) && load_data!(config, data)
     end
 
     stop_logging!(config)
-    return all_results
+    return get_out_path(config), all_results
 end
 
-run_e4st(path::String) = run_e4st(load_config(path))
+run_e4st(path...) = run_e4st(load_config(path...))
 
 global STR2TYPE = Dict{String, Type}()
 global SYM2TYPE = Dict{Symbol, Type}()
