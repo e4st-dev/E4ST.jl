@@ -38,7 +38,7 @@ export AggregationTemplate
 
 
 fieldnames_for_yaml(::Type{AggregationTemplate}) = (:file,)
-function modify_results!(mod::AggregationTemplate, config, data, res_raw, res_user)
+function modify_results!(mod::AggregationTemplate, config, data)
     table = mod.table
     table.value = map(eachrow(table)) do row
         op = row.operation
@@ -47,10 +47,11 @@ function modify_results!(mod::AggregationTemplate, config, data, res_raw, res_us
         idxs = parse_comparisons(row)
         yr_idxs = parse_year_idxs(row.filter_years)
         hr_idxs = parse_hour_idxs(row.filter_hours)
-        return aggregate_result(op, data, res_raw, table_name, col_name, idxs, yr_idxs, hr_idxs)
+        return aggregate_result(op, data, table_name, col_name, idxs, yr_idxs, hr_idxs)
     end    
-    CSV.write(out_path(config, string(mod.name, ".csv")), table)
-    res_user[mod.name] = table
+    CSV.write(get_out_path(config, string(mod.name, ".csv")), table)
+    results = get_results(data)
+    results[mod.name] = table
     return
 end
 

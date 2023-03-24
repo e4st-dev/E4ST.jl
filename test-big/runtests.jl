@@ -25,9 +25,9 @@ using JuMP
 
             optimize!(model)
             
-            results_raw = parse_results(config, data, model)
+            results_raw = parse_results!(config, data, model)
             model = nothing
-            results_user = process_results(config, data, results_raw)
+            results_user = process_results!(config, data, results_raw)
             
             @test aggregate_result(total, data, results_raw, :bus, :ecurt) < 1e-3
             # run_e4st(config_file)

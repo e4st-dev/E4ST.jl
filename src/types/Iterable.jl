@@ -18,10 +18,11 @@ iter:
 ```
 
 ## Interfaces
-* [`should_iterate(iter, config, data, model, results)`](@ref) - return whether or not the simulation should continue for another iteration.
-* [`iterate!(iter, config, data, model, results)`](@ref) - Makes any changes to any of the structures between iterations. 
+* [`init!(iter::Iterable, config)`](@ref) - (optional) Initialize `iter` with `config`, making any changes.
+* [`should_iterate(iter, config, data)`](@ref) - return whether or not the simulation should continue for another iteration.
+* [`iterate!(iter, config, data)`](@ref) - Makes any changes to any of the structures between iterations. 
 * [`should_reload_data(iter)`](@ref) - Returns whether or not to reload the data when iterating. 
-* [`fieldnames_for_yaml(::Type{I})`](@ref) - (optional) return the fieldnames to print to yaml file in [`save_config`](@ref)
+* [`fieldnames_for_yaml(::Type{<:Iterable})`](@ref) - (optional) return the fieldnames to print to yaml file in [`save_config`](@ref)
 """
 abstract type Iterable end
 export Iterable
@@ -32,10 +33,20 @@ function Iterable(d::AbstractDict)
     return iter
 end
 
+"""
+    init!(iter, config) -> nothing
+
+Initialize `iter` with `config`, making any changes to `config` as needed.
+"""
+function init!(iter::Iterable, config)
+    return nothing
+end
+export init!
+
 """    
-    should_iterate(iter, config, data, model, results_raw, results_user) -> Bool
+    should_iterate(iter, config, data) -> Bool
     
-Returns whether or not the model should iterate.
+Returns whether or not E4ST should iterate.
 """
 function should_iterate end
 export should_iterate
@@ -58,7 +69,7 @@ function should_reload_data end
 export should_reload_data
 
 """
-    iterate!(iter::Iterable, config, data, model, results_raw, results_user)
+    iterate!(iter::Iterable, config, data)
 
 Make any necessary modifications to the `config` or `data` based on `iter`.
 """
@@ -74,16 +85,4 @@ function YAML._print(io::IO, iter::I, level::Int=0, ignore_level::Bool=false) wh
     println(io)
     iter_dict = OrderedDict(:type => string(typeof(iter)), (k=>getproperty(iter, k) for k in fieldnames_for_yaml(I))...)
     YAML._print(io::IO, iter_dict, level, ignore_level)
-end
-
-"""
-    struct RunOnce <: Iterable end
-
-This is the most basic Iterable.  It only allows E4ST to run a single time.
-"""
-struct RunOnce <: Iterable end
-export RunOnce
-
-function should_iterate(::RunOnce, args...)
-    return false
 end

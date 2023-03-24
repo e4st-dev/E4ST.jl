@@ -21,7 +21,7 @@ When defining a concrete `Modification` type, you should know the following.
 * [`modify_raw_data!(mod, config, data)`](@ref) - In the data preparation step, right after [`load_data_files!(config, data)`](@ref) before setting up the data
 * [`modify_setup_data!(mod, config, data)`](@ref) - In the data preparation step, right after [`setup_data!(config, data)`](@ref) before setting up the `Model`
 * [`modify_model!(mod, config, data, model)`](@ref) - In the model setup step, after setting up the DC-OPF but before optimizing
-* [`modify_results!(mod, config, data, model, results)`](@ref) - After optimizing the model, in the results generation step
+* [`modify_results!(mod, config, data)`](@ref) - After optimizing the model, in the results generation step
 
 Modifications get printed to YAML when the config file is saved at the beginning of a call to `run_e4st`.  If you implement a Modification for which it is undesirable to print every field, you can implement the following interface:
 * [`fieldnames_for_yaml(::Type)`](@ref) - returns the desired fieldnames as a collection of `Symbol`s
@@ -126,11 +126,11 @@ function modify_model!(mod::Modification, config, data, model)
 end
 
 """
-    modify_results!(mod::Modification, config, data, res_raw, results)
+    modify_results!(mod::Modification, config, data)
 
-Gather the results from `mod` from the solved model, called in `parse_results`
+Gather the results from `mod` from the solved model, called in `parse_results!`
 """
-function modify_results!(mod::Modification, config, data, res_raw, results)
+function modify_results!(mod::Modification, config, data)
     @warn "No modify_results! function defined for mod type $(typeof(mod)), doing nothing"
 end
 

@@ -12,7 +12,9 @@ end
 
     load_config(filenames) -> config::OrderedDict{Symbol,Any}
 
-Load the config file from `filename`, inferring any necessary settings as needed.  See [`load_data`](@ref) to see how the `config` is used.  If multiple filenames given, (in a vector, or separated by commas) merges them, preserving the settings found in the last file, when there are conflicts, appending the list of [`Modification`](@ref)s.
+    load_config(path) -> config::OrderedDict{Symbol, Any}
+
+Load the config file from `filename`, inferring any necessary settings as needed.  If `path` given, checks for `joinpath(path, "config.yml")`.  This can be used with the `out_path` returned by [`run_e4st`](@ref)  See [`load_data`](@ref) to see how the `config` is used.  If multiple filenames given, (in a vector, or separated by commas) merges them, preserving the settings found in the last file, when there are conflicts, appending the list of [`Modification`](@ref)s.
 
 The Config File is a file that fully specifies all the necessary information.  Note that when filenames are given as a relative path, they are assumed to be relative to the location of the config file.
 
@@ -28,6 +30,7 @@ The Config File is a file that fully specifies all the necessary information.  N
 * `mods` - A list of `Modification`s specifying changes for how E4ST runs.  See the [`Modification`](@ref) for information on what they are, how to add them to a config file.
 
 ## Optional Fields:
+* `out_path` - the path to output to.  If this is not provided, an output path will be created [`make_out_path!`](@ref).
 * `af_file` - The filepath (relative or absolute) to the availability factor table.  See [`summarize_table(::Val{:af_table})`](@ref)
 * `iter` - The [`Iterable`](@ref) object to specify the way the sim should iterate.  If nothing specified, defaults to run a single time.  Specify the `Iterable` type, and all keyword arguments.
 * `demand_shape_file` - a file for specifying the hourly shape of demand elements.  See [`summarize_table(::Val{:demand_shape})`](@ref)
@@ -40,9 +43,11 @@ The Config File is a file that fully specifies all the necessary information.  N
 * `data_file` - The filepath (relative or absolute) to the data file (a serialized julia object).  If this is provided, it will use this instead of loading data from all the other files.
 * `save_model_presolve` - A boolean specifying whether or not to save the model before solving it, for later use (i.e. by specifying a `model_presolve_file` for future sims). Defaults to `false`
 * `model_presolve_file` - The filepath (relative or absolute) to the unsolved model.  If this is provided, it will use this instead of creating a new model.
-* `save_results_raw` - A boolean specifying whether or not to save the raw results after solving the model.  This could be useful for calling [`process_results(config)`](@ref) in the future.
-* `results_raw_file` - The filepath (relative or absolute) to the raw results.  This is helpful for calling [`process_results(config)`](@ref) to generate user results without having to re-run E4ST.
+* `save_data_parsed` - A boolean specifying whether or not to save the raw results after solving the model.  This could be useful for calling [`process_results!(config)`](@ref) in the future. Defaults to `true`
+* `save_data_processed` - A boolean specifying whether or not to save the processed results after solving the model.  Defaults to `true`.
+* `results_raw_file` - The filepath (relative or absolute) to the raw results.  This is helpful for calling [`process_results!(config)`](@ref) to generate user results without having to re-run E4ST.
 * `objective_scalar` - This is specifies how much to scale the objective by for the sake of the solver.  Does not impact any user-created expressions or shadow prices from the raw results, as they get scaled back.  (Defaults to 1e6)
+* `gen_pcap_threshold` - This is the `pcap` threshold for new generators to be kept.  Defaults to `eps()`.  See also [`save_updated_gen_table`](@ref)
 
 ## Example Config File
 ```yaml
@@ -52,7 +57,7 @@ $(read_sample_config_file())
 function load_config(filenames...)
     config = _load_config(filenames)
     check_required_fields!(config)
-    make_paths_absolute!(config)
+    check_years!(config)
     make_out_path!(config)
     convert_mods!(config)
     convert_iter!(config)
@@ -63,6 +68,11 @@ function _load_config(filename::AbstractString)
     if contains(filename, ".yml")
         config = YAML.load_file(filename, dicttype=OrderedDict{Symbol, Any})
         get!(config, :config_file, filename)
+        make_paths_absolute!(config)
+    elseif isdir(filename)
+        filename_new = joinpath(filename, "config.yml")
+        isfile(filename_new) || error("No config file found at the following location:\n  $filename_new")
+        return _load_config(filename_new)
     else
         error("Cannot load config from: $filename")
     end
@@ -80,8 +90,10 @@ end
 function _load_config!(config::OrderedDict, filename::AbstractString)
     config_new = _load_config(filename)
     config_file = config[:config_file]
+
     mods = config[:mods]
-    merge!(mods, config_new[:mods])
+    haskey(config_new, :mods) && merge!(mods, config_new[:mods])
+
     merge!(config, config_new)
     config[:config_file] = config_file
     config[:mods] = mods
@@ -102,7 +114,7 @@ function save_config(config)
     # remove config filepath 
     config_file = pop!(config, :config_file)
 
-    YAML.write_file(out_path(config, basename(config_file)), config)
+    YAML.write_file(get_out_path(config, "config.yml"), config)
 
     config[:config_file] = config_file
 end
@@ -131,7 +143,7 @@ function start_logging!(config)
             minlevel = Logging.Info
         end
         # logger = Base.SimpleLogger(open(abspath(config[:out_path], "E4ST.log"),"w"), log_level)
-        io = open(out_path(config, "E4ST.log"),"w")
+        io = open(get_out_path(config, "E4ST.log"),"w")
         format = "{[{timestamp}] - {level} - :func}{@ {module} {filepath}:{line:cyan}:light_green}\n{message}"
         logger = MiniLogger(;io, minlevel, format, message_mode=:notransformations)
     end
@@ -139,6 +151,7 @@ function start_logging!(config)
     old_logger = Logging.global_logger(logger)
     config[:logger] = logger
     config[:old_logger] = old_logger
+    log_start(config)
     return
 end
 export start_logging!
@@ -191,6 +204,7 @@ Returns a 3-line header string
 function header_string(header)
     string("#"^80, "\n",header,"\n","#"^80)
 end
+export header_string
 
 """
     time_string() -> s
@@ -200,6 +214,7 @@ Returns a time string in the format "yymmdd_HHMMSS"
 function time_string()
     format(now(), dateformat"yymmdd_HHMMSSsss")
 end
+export time_string
 
 """
     date_string() -> s
@@ -252,13 +267,15 @@ end
 
 # Accessor Functions
 ################################################################################
-function getmods(config)
+function get_mods(config)
     config[:mods]
 end
+export get_mods
 
 function get_iterator(config)
     return get(config, :iter, RunOnce())
 end
+export get_iterator
 
 # Helper Functions
 ################################################################################
@@ -273,6 +290,35 @@ function required_fields()
         :mods
     )
 end
+
+"""
+    check_years!(config::OrderedDict)
+
+Enforces that `config[:years]` is a vector of year strings.
+"""
+function check_years!(config)
+    config[:years] = check_years(config[:years])
+end
+"""
+    check_years(years) -> years_corrected
+
+Returns a vector of year strings.  I.e. `["y2020", "y2025"]`
+"""
+function check_years(years)
+    _vec(_check_years(years))
+end
+function _check_years(y::Int)
+    return "y$y"
+end
+function _check_years(y::String)
+    return y
+end
+function _check_years(v::AbstractVector)
+    _check_years.(v)
+end
+_vec(v::AbstractVector) = v
+_vec(s::AbstractString) = [s]
+
 
 function check_required_fields!(config)
     return all(f->haskey(config, f), required_fields())
@@ -322,16 +368,19 @@ contains_file_or_path(s::Symbol) = contains_file_or_path(string(s))
 Returns the most recently created `out_path` from within `base_out_path`.
 """
 function latest_out_path(base_out_path)
-    return last(readdir(base_out_path, join=true, sort=true))
+    dirs = readdir(base_out_path, join=true, sort=true)
+    filter!(isdir, dirs)
+    return last(dirs)
 end
 export latest_out_path
 
 """
     make_out_path!(config) -> nothing
 
-Makes sure `config[:base_out_path]` exists, making it as needed.  Creates a new time-stamped folder via [`time_string`](@ref), stores it into `config[:out_path]`.  See [`out_path`](@ref) to create paths for output files. 
+If `config[:out_path]` provided, does nothing.  Otherwise, makes sure `config[:base_out_path]` exists, making it as needed.  Creates a new time-stamped folder via [`time_string`](@ref), stores it into `config[:out_path]`.  See [`get_out_path`](@ref) to create paths for output files. 
 """
 function make_out_path!(config)
+    haskey(config, :out_path) && return nothing
     base_out_path = config[:base_out_path]
 
     # Make out_path as necessary
@@ -347,16 +396,20 @@ function make_out_path!(config)
 
     return nothing
 end
+export make_out_path!
 
 """
-    out_path(config, filename) -> path
+    get_out_path(config, filename) -> path
 
 Returns `joinpath(config[:out_path], filename)`
 """
-function out_path(config, filename::String)
-    joinpath(config[:out_path], filename)
+function get_out_path(config, filename::String)
+    joinpath(get_out_path(config), filename)
 end
-export out_path
+function get_out_path(config)
+    config[:out_path]::String
+end
+export get_out_path
 
 function convert_mods!(config)
     if ~haskey(config, :mods) || isnothing(config[:mods])

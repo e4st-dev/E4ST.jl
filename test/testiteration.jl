@@ -2,7 +2,7 @@
 
 @testset "Test Iteration" begin
     @testset "Test Default Iteration" begin
-        results = run_e4st(config_file)
+        out_path, results = run_e4st(config_file)
         @test results isa AbstractVector
         @test length(results) == 1
     end
@@ -14,16 +14,16 @@
             avg_ng_egen::Vector{Float64}=Float64[]
         end
         E4ST.fieldnames_for_yaml(::Type{TargetAvgAnnualNGGen}) = (:target, :tol)
-        function E4ST.should_iterate(iter::TargetAvgAnnualNGGen, config, data, model, args...)
+        function E4ST.should_iterate(iter::TargetAvgAnnualNGGen, config, data)
             tgt = iter.target
             tol = iter.tol
-            ng_gen_total = aggregate_result(total, data, model, :gen, :egen, :genfuel=>"ng")
+            ng_gen_total = aggregate_result(total, data, :gen, :egen, :genfuel=>"ng")
             ng_gen_ann = ng_gen_total/get_num_years(data)
             return abs(ng_gen_ann-tgt) > tol            
         end
-        function E4ST.iterate!(iter::TargetAvgAnnualNGGen, config, data, model, args...)
+        function E4ST.iterate!(iter::TargetAvgAnnualNGGen, config, data)
             tgt = iter.target
-            ng_gen_total = aggregate_result(total, data, model, :gen, :egen, :genfuel=>"ng")
+            ng_gen_total = aggregate_result(total, data, :gen, :egen, :genfuel=>"ng")
             ng_gen_ann = ng_gen_total/get_num_years(data)
             
             diff = ng_gen_ann - tgt
@@ -61,5 +61,26 @@
         # TODO: test saving and loading with iter
         all_results = run_e4st(config)
         @test length(all_results) > 1
+    end
+
+    @testset "Test Sequential Iteration" begin
+        config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
+        iter_file = joinpath(@__DIR__, "config", "iter_seq.yml")
+
+        config = load_config(config_file, iter_file)
+
+        @test get_iterator(config) isa RunSequential
+
+        run_e4st(config)
+
+        op = latest_out_path(config[:base_out_path])
+        
+        @test isdir(joinpath(op, "iter1"))
+        @test isdir(joinpath(op, "iter2"))
+        @test isfile(joinpath(op, "E4ST.log"))
+        @test isfile(joinpath(op, "iter1", "gen.csv"))
+        @test isfile(joinpath(op, "iter2", "gen.csv"))
+
+        # TODO: think of any tests here that would better check the functionality
     end
 end

@@ -48,7 +48,7 @@ function load_data!(config, data)
 
     # Save the data to file as specified.
     if get(config, :save_data, true)
-        serialize(out_path(config, "data.jls"), data)
+        serialize(get_out_path(config, "data.jls"), data)
     end
     return data
 end
@@ -91,7 +91,7 @@ export load_data_files!
 Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_raw_data!(mod, config, data)`](@ref)
 """
 function modify_raw_data!(config, data)    
-    for (sym, mod) in getmods(config)
+    for (sym, mod) in get_mods(config)
         modify_raw_data!(mod, config, data)
     end
     return nothing
@@ -103,7 +103,7 @@ end
 Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_setup_data!(mod, config, data)`](@ref)
 """
 function modify_setup_data!(config, data)    
-    for (sym, mod) in getmods(config)
+    for (sym, mod) in get_mods(config)
         modify_setup_data!(mod, config, data)
     end
     return nothing
@@ -365,6 +365,8 @@ Creates age column which is a ByYear column. Unbuilt generators have a negative 
 function setup_table!(config, data, ::Val{:gen})
     bus = get_table(data, :bus)
     gen = get_table(data, :gen)
+
+    data[:gen_table_original_cols] = propertynames(gen)
 
     #removes capex_obj if loaded in from previous sim
     :capex_obj in propertynames(data[:gen]) && select!(data[:gen], Not(:capex_obj))
@@ -835,6 +837,12 @@ _eltype(v) = eltype(v)
 
 """
     get_table_num(data, table_name, col_name, row_idx, yr_idx, hr_idx) -> num::Float64
+
+Retrieves a `Float64` from  `table[row_idx, col_idx][yr_idx, hr_idx]`.  This indexes into [`Container`](@ref)s as needed and will still work for `Float64` columns.
+
+Related functions:
+* [`get_table_val(data, table_name, col_name, row_idx)`](@ref): retrieves the raw value from the table (without indexing by year/hour).
+* [`get_num(data, name, yr_idx, hr_idx)`](@ref): retrieves a `Float64` from `data`, indexing by year and hour.
 """
 function get_table_num(data, table_name, col_name, row_idx, yr_idx, hr_idx)
     table = get_table(data, table_name)
@@ -845,6 +853,12 @@ export get_table_num
 
 """
     get_num(data, variable_name, yr_idx, hr_idx) -> num::Float64
+
+Retrieves a `Float64` from `data[variable_name]`, indexing by year and hour.  Works for [`Container`](@ref)s and `Number`s.
+
+Related functions:
+* [`get_table_val(data, table_name, col_name, row_idx)`](@ref): retrieves the raw value from the table (without indexing by year/hour).
+* [`get_table_num(data, table_name, col_name, row_idx, yr_idx, hr_idx)`](@ref): retrieves the `Float64` from `data[variable_name]`, indexing by year and hour.
 """
 function get_num(data, variable_name::Symbol, yr_idx, hr_idx)
     c = data[variable_name]
@@ -856,6 +870,10 @@ export get_num
     get_table_val(data, table_name, col_name, row_idx) -> val
 
 Returns the value of the table at column `col_name` and row `row_idx`
+
+Related functions:
+* [`get_table_num(data, table_name, col_name, row_idx, yr_idx, hr_idx)`](@ref): retrieves the `Float64` from `data[variable_name]`, indexing by year and hour.
+* [`get_num(data, name, yr_idx, hr_idx)`](@ref): retrieves a `Float64` from `data`, indexing by year and hour.
 """
 function get_table_val(data, table_name, col_name, row_idx)
     table = get_table(data, table_name)
