@@ -43,8 +43,8 @@ The Config File is a file that fully specifies all the necessary information.  N
 * `data_file` - The filepath (relative or absolute) to the data file (a serialized julia object).  If this is provided, it will use this instead of loading data from all the other files.
 * `save_model_presolve` - A boolean specifying whether or not to save the model before solving it, for later use (i.e. by specifying a `model_presolve_file` for future sims). Defaults to `false`
 * `model_presolve_file` - The filepath (relative or absolute) to the unsolved model.  If this is provided, it will use this instead of creating a new model.
-* `save_data_parsed` - A boolean specifying whether or not to save the raw results after solving the model.  This could be useful for calling [`process_results!(config)`](@ref) in the future.
-* `save_data_processed` - A boolean specifying whether or not to save the processed results after solving the model.
+* `save_data_parsed` - A boolean specifying whether or not to save the raw results after solving the model.  This could be useful for calling [`process_results!(config)`](@ref) in the future. Defaults to `true`
+* `save_data_processed` - A boolean specifying whether or not to save the processed results after solving the model.  Defaults to `true`.
 * `results_raw_file` - The filepath (relative or absolute) to the raw results.  This is helpful for calling [`process_results!(config)`](@ref) to generate user results without having to re-run E4ST.
 * `objective_scalar` - This is specifies how much to scale the objective by for the sake of the solver.  Does not impact any user-created expressions or shadow prices from the raw results, as they get scaled back.  (Defaults to 1e6)
 * `gen_pcap_threshold` - This is the `pcap` threshold for new generators to be kept.  Defaults to `eps()`.  See also [`save_updated_gen_table`](@ref)
