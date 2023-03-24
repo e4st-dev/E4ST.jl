@@ -11,7 +11,7 @@ Renewable Portfolio Standard -
 """
 struct RPS <: Policy
     name::Symbol
-    values
+    values::OrderedDict
     gen_filters::OrderedDict
     load_bus_filters::OrderedDict 
 
@@ -26,6 +26,7 @@ end
 """
 struct GenerationStandard <: Policy 
     name::Symbol
+    values::OrderedDict
     gen_credits::OrderedDict
     gen_filters::OrderedDict
     

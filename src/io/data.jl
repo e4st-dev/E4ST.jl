@@ -660,7 +660,7 @@ function summarize_table(::Val{:build_gen})
     push!(df, 
         (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
-        (:build_status, AbstractString, NA, true, "Whether the generator is 'built', 'new', or 'unbuilt'. Should always be unbuilt for exog new gens."),
+        (:build_status, AbstractString, NA, true, "Whether the generator is 'built', 'new', or 'unbuilt'. Should be unbuilt for exog new gens that could be built in the sim."),
         (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built). Should either be exog or endog for buil_gen."),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
         (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
