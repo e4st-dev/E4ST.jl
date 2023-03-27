@@ -371,6 +371,10 @@ function setup_table!(config, data, ::Val{:gen})
     #removes capex_obj if loaded in from previous sim
     :capex_obj in propertynames(data[:gen]) && select!(data[:gen], Not(:capex_obj))
 
+    #set build_status to 'built' for all gens marked 'new'. This marks gens built in a previous sim as 'built'.
+    idx_new = gen.build_status.=="new"
+    gen[idx_new, :build_status] .= "built"
+
     ### Create new gens and add to the gen table
     if haskey(config, :build_gen_file) 
         setup_new_gens!(config, data)  
@@ -577,7 +581,7 @@ function summarize_table(::Val{:gen})
     push!(df, 
         (:bus_idx, Int64, NA, true, "The index of the `bus` table that the generator corresponds to"),
         (:status, Bool, NA, false, "Whether or not the generator is in service"),
-        (:build_status, AbstractString, NA, true, "Whether the generator is 'built', 'new', or 'unbuilt'"),
+        (:build_status, AbstractString, NA, true, "Whether the generator is 'built', 'new', or 'unbuilt'. All generators marked 'new' when the gen file is read in will be changed to 'built'."),
         (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
         (:year_on, AbstractString, Year, true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses"),
@@ -660,7 +664,7 @@ function summarize_table(::Val{:build_gen})
     push!(df, 
         (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
-        (:build_status, AbstractString, NA, true, "Whether the generator is 'built', 'new', or 'unbuilt'. Should always be unbuilt for exog new gens."),
+        (:build_status, AbstractString, NA, true, "Whether the generator is 'built', 'new', or 'unbuilt'. Should be unbuilt for all new gens. This will be updated to 'new' for generators that were built in the sim."),
         (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built). Should either be exog or endog for buil_gen."),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
         (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),

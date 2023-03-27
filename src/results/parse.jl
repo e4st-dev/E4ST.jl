@@ -22,6 +22,10 @@ function parse_results!(config, data, model)
 
     parse_lmp_results!(config, data)
     parse_power_results!(config, data)
+
+    #change build_status to 'new' for generators built in the sim
+    set_new_gen_build_status!(config, data)
+
     save_updated_gen_table(config, data)
 
     # Save the parsed data
@@ -191,8 +195,6 @@ function save_updated_gen_table(config, data)
     thresh = get(config, :gen_pcap_threshold, eps())
     filter!(:pcap0 => >(thresh), gen_tmp)
 
-    # Update build status
-    gen_tmp.build_status .= "built"
 
     CSV.write(get_out_path(config, "gen.csv"), gen_tmp)
     return nothing
@@ -200,3 +202,17 @@ end
 export save_updated_gen_table
 
 
+"""
+    set_new_gen_build_status!(config, data) -> 
+
+Change the build_status of generators built in the simulation to 'new'
+"""
+function set_new_gen_build_status!(config, data)
+    gen = get_table(data, :gen)
+
+    #Threshold capacity to be saved into the next run
+    thresh = get(config, :gen_pcap_threshold, eps())
+
+    new_idxs = findall(idx -> gen[idx, :build_status] == "unbuilt" && aggregate_result(total, data, :gen, :pcap, idx) >= thresh, 1:nrow(gen))
+    gen[new_idxs, :build_status] .= "new"
+end
