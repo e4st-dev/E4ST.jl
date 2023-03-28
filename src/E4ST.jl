@@ -181,6 +181,7 @@ function reload_types!()
     reload_types!(AbstractString)
     reload_types!(AbstractFloat)
     reload_types!(Integer)
+    reload_types!(Crediting)
 end
 function reload_types!(::Type{T}) where T
     global STR2TYPE

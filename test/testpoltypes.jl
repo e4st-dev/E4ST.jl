@@ -223,3 +223,4 @@ end
         @test emis_co2_total < emis_co2_total_ref
     end
 end
+
