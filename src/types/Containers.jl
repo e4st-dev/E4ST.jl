@@ -9,6 +9,8 @@ Abstract type for containers that can be indexed by year and time.  i.e. `c[yr_i
 abstract type Container end
 export Container
 
+Container(x::Number) = OriginalContainer(x, ByNothing(x))
+
 Base.isempty(c::Container) = false
 
 mutable struct OriginalContainer{C} <: Container where {C<:Container}
@@ -30,6 +32,17 @@ end
 struct HoursContainer <: Container
     v::Vector{Float64}
 end
+
+Base.:-(c::ByNothing, n::Number) = ByNothing(c.v-n)
+Base.:+(c::ByNothing, n::Number) = ByNothing(c.v+n)
+Base.:*(c::ByNothing, n::Number) = ByNothing(c.v*n)
+Base.:/(c::ByNothing, n::Number) = ByNothing(c.v/n)
+
+Base.:-(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v-n))
+Base.:+(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v+n))
+Base.:*(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v*n))
+Base.:/(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v/n))
+
 
 
 """

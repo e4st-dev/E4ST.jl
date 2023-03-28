@@ -58,14 +58,15 @@ include("types/iterables/RunSequential.jl")
 include("io/config.jl")
 include("io/data.jl")
 include("io/adjust.jl")
-include("io/util.jl")
 include("io/demand.jl")
+include("io/util.jl")
 
 # Include model
 include("model/setup.jl")
 include("model/dcopf.jl")
 include("model/check.jl")
 include("model/newgens.jl")
+include("model/util.jl")
 
 # Include Results
 include("results/parse.jl")

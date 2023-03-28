@@ -727,12 +727,22 @@ Return a subset of the table `table_name` for which the row passes the `conditio
 * `:genfuel => ["ng", "solar", "wind"]` - All rows for which `row.genfuel` is either "ng", "solar", or "wind"
 * `:emis_co2 => f::Function` - All rows for which f(row.emis_co2) returns `true`.  For example `>(0)`, or `x->(0<x<=0.5)`
 """
-function get_table(data, table_name, conditions...)
+function get_table(data, table_name::Union{Symbol, AbstractString}, conditions...)
     table = get_table(data, table_name)
+    get_subtable(table, conditions...)
+end
+export get_table
+
+"""
+    get_subtable(table::DataFrame, conditions...)
+
+Returns a `SubDataFrame` of `table`, based on `conditions`.  See [`get_table`](@ref) for ideas of appropriate `conditions`
+"""
+function get_subtable(table::DataFrame, conditions...)
     row_idxs = get_row_idxs(table, conditions...)
     return view(table, row_idxs, :)
 end
-export get_table
+export get_subtable
 
 """
     get_table_row_idxs(data, table_name, conditions...) -> row_idxs::Vector{Int64}
@@ -755,7 +765,6 @@ function get_table_col(data, table_name, col_name)
     return col::AbstractVector
 end
 export get_table_col
-
 """
     add_table_col!(data, table_name, col_name, col, unit, description)
 

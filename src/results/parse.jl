@@ -63,6 +63,9 @@ end
 function value_or_shadow_price(ar::AbstractArray, obj_scalar)
     value_or_shadow_price.(ar, obj_scalar)
 end
+function value_or_shadow_price(v::Number, obj_scalar)
+    return v
+end
 export value_or_shadow_price
 
 
