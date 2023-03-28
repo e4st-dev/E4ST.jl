@@ -91,9 +91,50 @@ function modify_setup_data!(mod::CCUS, config, data)
     # TODO: think through how to un-group ccus matched generators, and how we would want to handle saving them and loading them in
     update_ccus_gens!(mod, config, data)
 
-    # Make ccus_storers
 
-    # Make ccus_senders
+    ### Modify ccus
+    ccus = get_table(data, :ccus)
+    gen = get_table(data, :gen)
+    add_table_col!(data, :ccus, :trans_idx, 1:nrow(ccus), NA, "The index of this path")
+    add_table_col!(data, :ccus, :price_total, (ccus.price_trans .+ ccus.price_store), DollarsPerShortTon, "The cost of transporting and storing a short ton of CO₂ in this storage pathway")
+
+
+    ### Make ccus_storers
+    # Gather all the sequestration steps.  There could be multiple steps per region, and multiple ccus options per step, from different producing regions
+    gdf_storers = groupby(ccus, [:storer, :step_num])
+
+    # Assert that all the members of each sequestration step have the same quantity
+    @assert all(allequal(sdf.step_quantity) for sdf in gdf_storers) "Carbon sequestration steps must have the same step_quantity!"
+    @assert all(allequal(sdf.price_store) for sdf in gdf_storers) "Carbon sequestration steps must have the same price_store!"
+    @assert all(allequal(sdf.ccus_type) for sdf in gdf_storers) "Carbon sequestration steps must have the same ccus_type"
+
+    ccus_storers = combine(gdf_storers,
+        :ccus_type => first => :ccus_type,
+        :step_quantity => first => :step_quantity,
+        :price_store => first => :price_store,
+        :trans_idx => Ref => :trans_idxs,
+    )
+    ccus_storers.stor_idx = 1:nrow(ccus_storers)
+    data[:ccus_storers] = ccus_storers
+
+
+    ### Make ccus_senders
+    # Group ccus by the producing region and ccus_type
+    gdf_senders = groupby(ccus, [:producer, :ccus_type])
+    gdf_gen = groupby(gen, Cols(mod.groupby, :ccus_type))
+
+    # Add the generators together for the producer-type combos
+    ccus_senders = combine(gdf_senders,
+        :trans_idx => Ref => :trans_idxs,
+    )
+
+    transform!(ccus_senders,
+        [:producer, :ccus_type] => 
+        ByRow((key...) -> (haskey(gdf_gen, key) ? getfield(gdf_gen[key], :rows) : Int64[]))
+        => :gen_idxs
+    )
+
+    data[:ccus_senders] = ccus_senders
 
 end
 export modify_setup_data!
@@ -109,7 +150,9 @@ function update_ccus_gens!(mod::CCUS, config, data)
     @assert hasproperty(gen, :capt_co2_percent) "gen table must have column for `capt_co2_percent` for CCUS"
     @assert hasproperty(gen, :emis_co2) "gen table must have column for `capt_co2_percent` for CCUS"
 
-    gen.capt_co2 = gen.emis_co2 .* gen.capt_co2_percent # This may make an OriginalContainer with the original value for emis_co2 preserved, but that should be ok since this column isn't kept in save_updated_gen_table.
+    capt_co2 = gen.emis_co2 .* gen.capt_co2_percent # This may make an OriginalContainer with the original value for emis_co2 preserved, but that should be ok since this column isn't kept in save_updated_gen_table.
+    add_table_col!(data, :gen, :capt_co2, capt_co2, ShortTonsPerMWhGenerated, "The rate of capture of CO2 (calculated from emis_co2 and capt_co2_percent)")
+
 
     # Turn emis_co2 into a vector of Containers for book-keeping.
     gen.emis_co2 = Container[Container(e) for e in gen.emis_co2]
@@ -166,37 +209,22 @@ end
 export update_ccus_gens!
 
 function modify_model!(mod::CCUS, config, data, model)
-    match_capacity!(data, model, data[:ccus_gen_sets], :ccus)
 
-    # Pull in the table
+    # Pull in the tables
     gen = get_table(data, :gen)
     ccus = get_table(data, :ccus)
+    ccus_storers = get_table(data, :ccus_storers)
+    ccus_senders = get_table(data, :ccus_senders)
+    ccus_gen_sets = data[:ccus_gen_sets]::Vector{Vector{Int64}}
     nyear = get_num_years(data)
     nhour = get_num_hours(data)
-
-    ccus.trans_idx = 1:nrow(ccus)
-    price_total = (ccus.price_trans .+ ccus.price_store)::Vector{Float64}
-
-    # Gather all the sequestration steps.  There could be multiple steps per region, and multiple ccus options per step, from different producing regions
-    gdf_storers = groupby(ccus, [:storer, :step_num])
-
-    # Assert that all the members of each sequestration step have the same quantity
-    @assert all(allequal(sdf.step_quantity) for sdf in gdf_storers) "Carbon sequestration steps must have the same step_quantity!"
-    @assert all(allequal(sdf.price_store) for sdf in gdf_storers) "Carbon sequestration steps must have the same price_store!"
-    @assert all(allequal(sdf.ccus_type) for sdf in gdf_storers) "Carbon sequestration steps must have the same ccus_type"
-
-    for (i, sdf) in enumerate(gdf_storers)
-        sdf[!, :stor_idx] .= i # Technically this introduces missings but should be ok
-    end
-
-    ccus_storers = combine(gdf_storers,
-        :ccus_type => first => :ccus_type,
-        :step_quantity => first => :step_quantity,
-        :price_store => first => :price_store,
-        :trans_idx => Ref => :trans_idxs,
-    )
     nstor = nrow(ccus_storers)
-    stor2trans = ccus_storers.trans_idxs::Vector{SubArray{Int64, 1, Vector{Int64}, Tuple{SubArray{Int64, 1, Vector{Int64}, Tuple{UnitRange{Int64}}, true}}, false}}
+    nsend = nrow(ccus_senders)
+
+    # Add capacity matching constraints for the sets of ccus generators
+    match_capacity!(data, model, ccus_gen_sets, :ccus)
+
+
 
     # Make variables for amount of captured carbon going each of the carbon markets bounded by [0, maximum co2 storage]
     @variable(model, co2_trans[ts_idx in 1:nrow(ccus), yr_idx in 1:nyear], lower_bound = 0, upper_bound=ccus.step_quantity[ts_idx])
@@ -204,13 +232,13 @@ function modify_model!(mod::CCUS, config, data, model)
     # Setup expressions for each year's total sequestration cost.
     @expression(model, 
         cost_ccus[yr_idx in 1:nyear],
-        sum(co2_trans[ts_idx, yr_idx] * price_total[ts_idx] for ts_idx in 1:nrow(ccus))
+        sum(co2_trans[ts_idx, yr_idx] * ccus.price_total[ts_idx] for ts_idx in 1:nrow(ccus))
     )
 
     # Setup expressions for carbon stored for each of the carbon sequesterers as a function of the co2 transported
     @expression(model, 
         co2_stor[stor_idx in 1:nstor, yr_idx in 1:nyear],
-        sum(co2_trans[ts_idx, yr_idx] for ts_idx in stor2trans[stor_idx])
+        sum(co2_trans[ts_idx, yr_idx] for ts_idx in ccus_storers.trans_idxs[stor_idx])
     )
     
     # Constrain the co2 sold to each sequestration step must be less than the step quantity
@@ -219,40 +247,25 @@ function modify_model!(mod::CCUS, config, data, model)
         co2_stor[stor_idx, yr_idx] <= ccus_storers.step_quantity[stor_idx]::Float64
     )
 
-    # Group ccus by the producing region and ccus_type
-    gdf_senders = groupby(ccus, [:producer, :ccus_type])
-    gdf_gen = groupby(gen, Cols(mod.groupby, :ccus_type))
-
-    # Add the generators together for the producer-type combos
-    ccus_senders = combine(gdf_senders,
-        :trans_idx => Ref => :trans_idxs,
-    )
-
-    transform!(ccus_senders,
-        [:producer, :ccus_type] => 
-        ByRow((key...) -> (haskey(gdf_gen, key) ? getfield(gdf_gen[key], :rows) : Int64[]))
-        => :gen_idxs
+    # Create expression for total CO2 for each sending region of each type
+    @expression(model, 
+        co2_sent[send_idx in 1:nsend, yr_idx in 1:nyear],
+        sum(co2_trans[ts_idx, yr_idx] for ts_idx in ccus_senders.trans_idxs[send_idx])
     )
 
     # Create expression for total CO2 for each sending region of each type
     @expression(model, 
-        co2_sent[mkt_idx in 1:nrow(ccus_senders), yr_idx in 1:nyear],
-        sum(co2_trans[ts_idx, yr_idx] for ts_idx in ccus_senders.trans_idxs[mkt_idx])
-    )
-
-    # Create expression for total CO2 for each sending region of each type
-    @expression(model, 
-        co2_prod[mkt_idx in 1:nrow(ccus_senders), yr_idx in 1:nyear],
+        co2_prod[send_idx in 1:nsend, yr_idx in 1:nyear],
         sum(
             model[:egen_gen][gen_idx, yr_idx, hr_idx] * get_table_num(data, :gen, :capt_co2, gen_idx, yr_idx, hr_idx)
-            for gen_idx in ccus_senders.gen_idxs[mkt_idx], hr_idx in 1:nhour
+            for gen_idx in ccus_senders.gen_idxs[send_idx], hr_idx in 1:nhour
         )
     )
 
     # Constrain that co2 captured in a region must equal the CO2 sold in that region. "CO2 balancing constraint"
     @constraint(model, 
-        cons_co2_bal[mkt_idx in 1:nrow(ccus_senders), yr_idx in 1:nyear], 
-        co2_prod[mkt_idx, yr_idx] == co2_sent[mkt_idx, yr_idx])
+        cons_co2_bal[send_idx in 1:nsend, yr_idx in 1:nyear], 
+        co2_prod[send_idx, yr_idx] == co2_sent[send_idx, yr_idx])
 
     add_to_expression!(model[:obj], sum(cost_ccus))
 

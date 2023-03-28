@@ -596,7 +596,9 @@ function summarize_table(::Val{:gen})
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
         (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
         (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
-        (:af, Float64, MWhGeneratedPerMWhCapacity, false, "The availability factor, or maximum available ratio of pewer generation to nameplate capacity for the generator.")
+        (:af, Float64, MWhGeneratedPerMWhCapacity, false, "The availability factor, or maximum available ratio of pewer generation to nameplate capacity for the generator."),
+        (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The emission rate per MWh of CO2"),
+        (:capt_co2_percent, Float64, ShortTonsPerMWhGenerated, false, "The percentage of co2 emissions captured, to be sequestered."),
     )
     return df
 end
