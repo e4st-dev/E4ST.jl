@@ -9,7 +9,7 @@
 function parse_results!(config, data, model)
     log_header("PARSING RESULTS")
 
-    obj_scalar = get(config, :objective_scalar, 1e6)
+    obj_scalar = config[:objective_scalar]
 
     results_raw = Dict(k => (@info "Parsing Result $k"; value_or_shadow_price(v, obj_scalar)) for (k,v) in object_dictionary(model))
     
@@ -25,7 +25,7 @@ function parse_results!(config, data, model)
     save_updated_gen_table(config, data)
 
     # Save the parsed data
-    if get(config, :save_data_parsed, true)
+    if config[:save_data_parsed] === true
         serialize(get_out_path(config, "data_parsed.jls"), data)
     end
 
@@ -188,7 +188,7 @@ function save_updated_gen_table(config, data)
     gen_tmp.pcap0 = last.(gen.pcap)
 
     # Filter anything with capacity below the threshold
-    thresh = get(config, :gen_pcap_threshold, eps())
+    thresh = config[:gen_pcap_threshold]
     filter!(:pcap0 => >(thresh), gen_tmp)
 
     # Update build status

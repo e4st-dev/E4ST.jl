@@ -286,10 +286,7 @@ end
 Return the marginal cost of load curtailment / VOLL as a variable in data
 """
 function load_voll!(config, data)
-    default_voll = 5000.0;
-    haskey(config, :voll) ? data[:voll] = config[:voll] : data[:voll] = default_voll
-    hasmethod(Float64, Tuple{typeof(data[:voll])}) || error("data[:voll] cannot be converted to a Float64")
-    data[:voll] = Float64.(data[:voll]) 
+    data[:voll] = Float64(config[:voll]) 
 end
 export load_voll!
 
