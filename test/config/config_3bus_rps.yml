@@ -2,10 +2,11 @@ base_out_path:    "../out/3bus_rps"
 mods:
   example_rps:
     type: "RPS"
-    values: 
+    values:
       y2035: 0.9
       y2040: 0.95
-    crediting: "StandardRPSCrediting"
+    crediting: 
+      type: "StandardRPSCrediting"
     gen_filters:
       country: "archenland"
     load_bus_filters:
@@ -16,14 +17,14 @@ mods:
       y2030: 0.7
       y2035: 0.8
       y2040: 0.9
-    crediting: "CreditByGentype"
-      solar: 1
-      wind: 1
-      oswind: 1
-      ngccs: 0.5
+    crediting: 
+      type: "CreditByGentype"
+      credits:
+        solar: 0.8
+        wind: 1.0
+        oswind: 1.0
+        ngccs: 0.5
     gen_filters:
       country: "narnia"
-    load_bus_filters: 
+    load_bus_filters:
       country: "narnia"
-
-

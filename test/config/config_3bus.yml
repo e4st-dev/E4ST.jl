@@ -7,7 +7,7 @@ af_file:     "../data/3bus/af.csv"
 demand_file: "../data/3bus/demand.csv"
 gentype_genfuel_file: "../data/3bus/gentype_genfuel.csv"
 build_gen_file: "../data/3bus/build_gen.csv"
-summary_table_file: '../data/3bus/summary_table.csv'
+summary_table_file: "../data/3bus/summary_table.csv"
 logging: true
 voll: 5000
 years:

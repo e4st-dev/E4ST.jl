@@ -1,9 +1,16 @@
 @doc raw"""
     struct GenerationStandard <: Policy
 
-*`name` - Name of the policy/standard 
-*`gen_credits`- An OrderedDict of the generation types and the credit level that they receive
-*`gen_filters` - An OrderedDict of filters for which generators can supply to meet the generation standard
+A generation standard (also refered to as a portfolio standard) is a constraint on generation where a portion of generation from certain generators must meet the a portion of the load in a specified region.
+This encompasses RPSs, CESs, and technology carveouts.
+To assign the credit (the portion of generation that can contribute) to generators, the [Crediting](@ref) type is used.
+
+* `name` - Name of the policy 
+* `values` - The yearly values for the Generation Standard
+* `gen_filters` - Filters on which generation qualifies to fulfill the GS. Sometimes qualifying generators may be outside of the GS load region if they supply power to it. 
+* `crediting` - the crediting structure and related fields
+* `load_bus_filters` - Filters on which buses fall into the GS load region. The GS will be applied to the load from these buses. 
+* `gs_type` - The original type the GS (RPS, CES, etc)
 """
 struct GenerationStandard <: Policy 
     name::Symbol
@@ -13,13 +20,12 @@ struct GenerationStandard <: Policy
     load_bus_filters::OrderedDict
     gs_type::DataType
 
-    function GenerationStandard(;name, values, crediting, gen_filters, load_bus_filters, gs_type)
-        c = Crediting(crediting)
-        return GenerationStandard(Symbol(name), values, c, gen_filters, load_bus_filters, gs_type)
-    end
-
-    
 end
+function GenerationStandard(;name, values, crediting::OrderedDict, gen_filters, load_bus_filters, gs_type)
+    c = Crediting(crediting)
+    return GenerationStandard(Symbol(name), values, c, gen_filters, load_bus_filters, gs_type)
+end
+export GenerationStandard
 
 """
     modify_setup_data!(pol::GenerationStandard, config, data)
@@ -28,7 +34,6 @@ end
 function modify_setup_data!(pol::GenerationStandard, config, data)
     #add policy name and type to data[:gs_pol_list]
     add_to_gs_pol_list!(pol, config, data) 
-
 
     #get gen idxs 
     gen = get_table(data, :gen)
@@ -53,13 +58,14 @@ end
 
 Adds the generation standard policy name and type as a key value pair in an ordered dict `data[:gs_pol_list]`
 """
-function add_to_gs_pol_list!(pol::Policy, config, data)
+function add_to_gs_pol_list!(pol::GenerationStandard, config, data)
     if haskey(data, :gs_pol_list) #TODO: could come up with better name
-        data[:gs_pol_list][pol.name] => typeof(pol)
+        data[:gs_pol_list][pol.name] = pol.gs_type
     else 
         #create gs_pol_list if it doesn't exist yet
-        data[:gs_pol_list] => OrderedDict{}(
-            pol.name => typeof(pol)
+        data[:gs_pol_list] = OrderedDict{}(
+            pol.name => pol.gs_type
         )
     end
 end
+

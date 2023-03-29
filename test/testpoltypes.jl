@@ -175,7 +175,7 @@ end
     end
 end
 
-@testset "Emission Price" begin
+@testset "Test Emission Price" begin
     config_file = joinpath(@__DIR__, "config", "config_3bus_emisprc.yml")
     config = load_config(config_file_ref, config_file)
 
@@ -224,3 +224,31 @@ end
     end
 end
 
+
+@testset "Test Generation Standards" begin
+
+    @testset "Test RPS" begin
+
+        config_file = joinpath(@__DIR__, "config", "config_3bus_rps.yml")
+        config = load_config(config_file_ref, config_file)
+
+        data = load_data(config)
+        gen = get_table(data, :gen)
+
+        @testset "Test Crediting" begin 
+            # columns added to the gen table
+            @test hasproperty(gen, :example_rps)
+            @test hasproperty(gen, :example_rps_gentype)
+
+            # check that some crediting was applied
+            @test any(credit -> credit > 0.0, gen[!,:example_rps])
+            @test any(credit -> credit > 0.0, gen[!,:example_rps_gentype])
+
+            @test ~any(credit -> credit > 1.0 || credit < 0.0, gen[!,:example_rps])
+            @test ~any(credit -> credit > 1.0 || credit < 0.0, gen[!,:example_rps_gentype])
+
+        end 
+
+    end
+
+end

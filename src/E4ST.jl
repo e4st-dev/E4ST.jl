@@ -35,17 +35,19 @@ include("types/Policy.jl")
 include("types/Unit.jl")
 include("types/Containers.jl")
 include("types/Iterable.jl")
+include("types/Crediting.jl")
 
 # Include Modifications
 include("types/modifications/DCLine.jl")
 include("types/modifications/AggregationTemplate.jl")
 include("types/modifications/GenerationConstraint.jl")
+include("types/modifications/GenerationStandard.jl")
 include("types/modifications/YearlyTable.jl")
 
 # Include Policies
 include("types/policies/ITC.jl")
 include("types/policies/PTC.jl")
-#include("types/policies/RPS.jl")
+include("types/policies/RPS.jl")
 include("types/policies/EmissionCap.jl")
 include("types/policies/EmissionPrice.jl")
 

@@ -11,6 +11,30 @@ abstract type Policy <: Modification end
 # TODO: Load in set of policies from a CSV
 
 
+### Helper functions
+
+
+
+"""
+    set_gs_credits!(pol::Policy, config, data) -> 
+
+Sets the generation standard credit level for each generator. 
+Default is to give all generation that is filtered credit = 1.  
+"""
+function set_gs_credits!(pol::Policy, config, data) #TODO: should this be for GenerationStandards instead of Policy? Policy doesn't necessarily have these struct fields
+    gen = get_table(data, :gen)
+
+    #get qualifying gen idxs
+    gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
+
+    v = zeros(Bool, nrow(gen))
+    add_table_col!(data, :gen, pol.name, v, NA,
+        "Credit level for generators that qualify under the $(cons.name) generation standard")
+    gen[gen_idxs, cons.name] .= 1 
+end
+
+
+
 ### Basic Policy Types ------------------------------------
 #TODO: These are actually going to be in separate file by basic policy type
 """
