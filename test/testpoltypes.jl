@@ -235,7 +235,7 @@ end
         data = load_data(config)
         gen = get_table(data, :gen)
 
-        @testset "Test Crediting" begin 
+        @testset "Test Crediting RPS" begin 
             # columns added to the gen table
             @test hasproperty(gen, :example_rps)
             @test hasproperty(gen, :example_rps_gentype)
@@ -249,6 +249,11 @@ end
 
         end 
 
+    end
+
+    @testset "Test CES" begin
+        
+        @testset "Test Crediting CES"
     end
 
 end

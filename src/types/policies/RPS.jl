@@ -3,7 +3,9 @@
 @doc raw"""
     struct RPS <: Policy
 
-Renewable Portfolio Standard - 
+**Renewable Portfolio Standard** - A policy that constrains a certain amount of load from a region to be supplied by qualifying clean/renewable energy. 
+
+## Fields
 * `name` - Name of the policy 
 * `values` - The yearly values for the RPS
 * `gen_filters` - Filters on which generation qualifies to fulfill the RPS. Sometimes qualifying generators may be outside of the RPS load region if they supply power to it. 
