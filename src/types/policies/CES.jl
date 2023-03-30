@@ -41,4 +41,8 @@ function modify_setup_data!(pol::CES, config, data)
 
 end
 
+function modify_model!(pol::CES, config, data, model)
+    modify_model!(pol.gen_stan, config, data, model)
+end
+
 

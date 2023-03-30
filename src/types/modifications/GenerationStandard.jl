@@ -63,7 +63,6 @@ end
     modify_model!(pol::GenerationStandard, config, data, model) -> 
 """
 function modify_model!(pol::GenerationStandard, config, data, model)
-    #TODO: I'm building this here right now but I still need to develop a way for this to happen after all modification have been made to pserv
     
     # get bus and gen idxs
     gen = get_table(data, :gen)
@@ -72,9 +71,28 @@ function modify_model!(pol::GenerationStandard, config, data, model)
     bus = get_table(data, :bus)
     bus_idxs = get_row_idxs(bus, parse_comparisons(pol.load_bus_filters))
 
-    # create expression for qualifying load 
+    years = get_year(data)
+
+    # create expression for qualifying load, only created if it hasn't already been defined in the model
+    nyear = get_num_years(data)
+    nhour = get_num_hours(data)
+
+    #TODO: when energy storage, DAC, and T&D losses are added to the model, they will need to be added to this
+    if ~haskey(model, :p_gs_bus)
+        @expression(model, p_gs_bus[bus_idx in 1:nrow(bus), year_idx in 1:nyear, hour_idx in 1:nhour], 
+                get_pdem(data, bus_idx, year_idx, hour_idx) - pcurt_bus[bus_idx, year_idx, hour_idx])
+    end
 
     # create yearly constraint that qualifying generation meeting qualifying load
+    # takes the form sum(gs_egen * credit) <= gs_value * sum(gs_load)
+
+    cons_name = "cons_$(pol.name)"
+    val_years = collect(keys(cons.values))
+
+    @info "Creating a generation constraint for the Generation Standard $(pol.name)."
+    model[Symbol(cons_name)] = constraint(model, [y=val_years], 
+            sum(get_egen_gen(data, model, gen_idx, findfirst(==(y), years), hour_idx)*get_table_val(data, :gen, pol.name, gen_idx) for gen_idx=gen_idxs, hour_idx=1:nhours) >= 
+            pol.values[y]*sum(p_gs_bus[bus_idx, findfirst(==(y), years), hour_idx] for bus_idx=bus_idxs, hour_idx=1:nhours))
 
 end
 

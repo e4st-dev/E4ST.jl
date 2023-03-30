@@ -42,6 +42,10 @@ function modify_setup_data!(pol::RPS, config, data)
 
 end
 
+function modify_model!(pol::RPS, config, data, model)
+    modify_model!(pol.gen_stan, config, data, model)
+end
+
 
 """
    struct StandardRPSCrediting <: Crediting

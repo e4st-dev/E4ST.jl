@@ -255,6 +255,10 @@ end
 
         end 
 
+        @testset "Adding RPS to model" begin
+            
+        end
+
     end
 
     @testset "Test CES" begin
@@ -275,6 +279,11 @@ end
             @test ~any(credit -> credit > 1.0 || credit < 0.0, gen[!,:example_ces])
 
         end
+
+        @testset "Adding CES to model" begin
+            
+        end
+
     end
 
 end
