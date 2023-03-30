@@ -23,6 +23,9 @@ export aggregate_result
 
 export total
 
+function total(::Type{ShortTons}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+    return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
+end
 function total(::Type{ShortTonsPerMWhGenerated}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :egen], idxs, yr_idxs, hr_idxs)
 end

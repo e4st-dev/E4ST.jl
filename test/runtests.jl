@@ -6,6 +6,7 @@ using DataFrames
 using Logging
 using BasicInterpolators
 import OrderedCollections: OrderedDict
+import YAML
 
 # Garbage collect any random things that might be locking a resource
 GC.gc()

@@ -1,5 +1,6 @@
 @testset "Test Parsing and Saving Results" begin
-    # Tests parsing, processing, and saving of results 
+    # Tests parsing, processing, and saving of results
+    config_file =  joinpath(@__DIR__, "config", "config_3bus.yml")
 
     @testset "Test loading/saving data from .jls file" begin
         config = load_config(config_file)

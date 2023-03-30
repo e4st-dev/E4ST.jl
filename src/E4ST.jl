@@ -36,24 +36,6 @@ include("types/Unit.jl")
 include("types/Containers.jl")
 include("types/Iterable.jl")
 
-# Include Modifications
-include("types/modifications/DCLine.jl")
-include("types/modifications/AggregationTemplate.jl")
-include("types/modifications/GenerationConstraint.jl")
-include("types/modifications/YearlyTable.jl")
-include("types/modifications/CCUS.jl")
-
-# Include Policies
-include("types/policies/ITC.jl")
-include("types/policies/PTC.jl")
-#include("types/policies/RPS.jl")
-include("types/policies/EmissionCap.jl")
-include("types/policies/EmissionPrice.jl")
-
-# Include Iterables
-include("types/iterables/RunOnce.jl")
-include("types/iterables/RunSequential.jl")
-
 #Include IO
 include("io/config.jl")
 include("io/data.jl")
@@ -73,6 +55,24 @@ include("results/parse.jl")
 include("results/process.jl")
 include("results/aggregate.jl")
 include("results/util.jl")
+
+# Include Modifications
+include("types/modifications/DCLine.jl")
+include("types/modifications/AggregationTemplate.jl")
+include("types/modifications/GenerationConstraint.jl")
+include("types/modifications/YearlyTable.jl")
+include("types/modifications/CCUS.jl")
+
+# Include Policies
+include("types/policies/ITC.jl")
+include("types/policies/PTC.jl")
+#include("types/policies/RPS.jl")
+include("types/policies/EmissionCap.jl")
+include("types/policies/EmissionPrice.jl")
+
+# Include Iterables
+include("types/iterables/RunOnce.jl")
+include("types/iterables/RunSequential.jl")
 
 
 """

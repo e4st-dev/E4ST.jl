@@ -11,11 +11,12 @@ function (Type{<:Unit})(s::AbstractString)
     get_type(s)
 end
 
-struct DollarsPerMWhServed <: Unit end; export DollarsPerMWhServed
-struct Dollars <: Unit end; export Dollars
+struct ShortTons <: Unit end; export ShortTons
 struct ShortTonsPerMWhGenerated <: Unit end; export ShortTonsPerMWhGenerated
 struct ShortTonsPerYear <: Unit end; export ShortTonsPerYear
 
+struct DollarsPerMWhServed <: Unit end; export DollarsPerMWhServed
+struct Dollars <: Unit end; export Dollars        
 struct DollarsPerMWCapacity <: Unit end; export DollarsPerMWCapacity
 struct DollarsPerMWBuiltCapacity <: Unit end; export DollarsPerMWBuiltCapacity
 struct DollarsPerMWhGenerated <: Unit end; export DollarsPerMWhGenerated

@@ -1,4 +1,4 @@
-producer,storer,step_num,ccus_type,step_quantity,price_trans,price_store
+producing_region,storing_region,step_id,ccus_type,step_quantity,price_trans,price_store
 narnia,narnia,1,eor,10000,10,-15
 narnia,narnia,2,saline,10000,10,7
 narnia,archenland,1,eor,200,14,-16

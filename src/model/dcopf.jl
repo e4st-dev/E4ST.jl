@@ -46,7 +46,7 @@ function setup_dcopf!(config, data, model)
         pgen_gen[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour], 
         start=0.0,
         lower_bound = 0.0,
-        upper_bound = get_pcap_max(data, gen_idx, year_idx),
+        upper_bound = get_pcap_max(data, gen_idx, year_idx)+1, # +1 here to allow cons_pgen_max to always be binding
     )
 
     # Power Curtailed
