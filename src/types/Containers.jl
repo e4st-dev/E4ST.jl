@@ -96,14 +96,20 @@ function Base.getindex(c::HoursContainer, i::Int64, y::Int64, h::Int64)
 end
 
 # For vector of AbstractMatrixes
-function Base.getindex(v::Vector{<:AbstractMatrix{<:Real}}, i::Int64, y::Int64, h::Int64)
+function _getindex(v::Vector{<:AbstractMatrix{<:Real}}, i::Int64, y::Int64, h::Int64)
     return v[i][y,h]
 end
 
 # Assume that if we are trying to index into a vector of vectors, it is for yearly data only
-function Base.getindex(v::Vector{<:AbstractVector{<:Real}}, i::Int64, y::Int64, h::Int64)
+# _getindex is to protect us from having to overwrite getindex in a bad way for common types.
+function _getindex(v::Vector{<:AbstractVector{<:Real}}, i::Int64, y::Int64, h::Int64)
     return v[i][y]
 end
+function _getindex(v::Vector{<:AbstractVector{<:Real}}, i::Int64, y::Int64)
+    return v[i][y]
+end
+_getindex(args...) = getindex(args...)
+
 
 # Assume that if we are trying to index into a vector of vectors, it is for yearly data only
 function Base.getindex(v::Vector{<:Real}, i::Int64, y::Int64, h::Int64)

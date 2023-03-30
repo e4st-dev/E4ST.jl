@@ -199,7 +199,13 @@ function save_updated_gen_table(config, data)
     filter!(:pcap0 => >(thresh), gen_tmp)
 
 
-    CSV.write(get_out_path(config, "gen.csv"), gen_tmp)
+    # Combine generators that are the same
+    gdf = groupby(gen_tmp, Not(:pcap0))
+    gen_tmp_combined = combine(gdf,
+        :pcap0 => sum => :pcap0
+    )
+
+    CSV.write(get_out_path(config, "gen.csv"), gen_tmp_combined)
     return nothing
 end
 export save_updated_gen_table
