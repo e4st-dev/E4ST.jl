@@ -22,23 +22,23 @@ Creates the following tables in `data`:
     * `ccus_type` - whether the step is `eor` or `saline`.
     * `step_quantity` - the number of short tons that may be stored in the step
     * `price_store` - the price to store a short ton of CO₂.
-    * `trans_idxs` - A list of indices representing the transportation paths to store carbon in this step.  Indexes into `ccus_paths` table.
-* `ccus_senders` - contains all the senders, grouped by `ccus_type` and `producing_region`.  This contains the following columns:
+    * `path_idxs` - A list of indices representing the transportation paths to store carbon in this step.  Indexes into `ccus_paths` table.
+* `ccus_producers` - contains all the producers, grouped by `ccus_type` and `producing_region`.  This contains the following columns:
     * `producing_region` - the region the CO₂ will be sent from
     * `ccus_type` - the type of the step the CO₂ will be sent to (`eor` or `saline`)
-    * `trans_idxs` - A list of indices representing the transportation paths to send carbon from this step.  Indexes into `ccus_paths` table.
+    * `path_idxs` - A list of indices representing the transportation paths to send carbon from this step.  Indexes into `ccus_paths` table.
     * `gen_idxs` - A list of generator indices that produce CO₂ in this region.
 
 Creates the following variables/expressions
-* `co2_trans[1:nrow(ccus_paths), 1:nyear]` - the amount of CO₂ transported along this sender-producer pathway (variable)
+* `co2_trans[1:nrow(ccus_paths), 1:nyear]` - the amount of CO₂ transported along this producer-producer pathway (variable)
 * `co2_stor[1:nrow(ccus_storers), 1:nyear]` - the amount of CO₂ stored by each storer (expression of `co2_trans`)
-* `co2_prod[1:nrow(ccus_senders), 1:nyear]` - the amount of CO₂ produced by each sending region (expression of electricity generation)
-* `co2_sent[1:nrow(ccus_senders), 1:nyear]` - the amount of CO₂ sent out from each sending region (expression of `co2_trans`).  This includes CO₂ sent within the same region.
-* `cost_ccus[1:nyear]` - the total cost of ccus, as added to the objective function.
+* `co2_prod[1:nrow(ccus_producers), 1:nyear]` - the amount of CO₂ produced by each sending region (expression of electricity generation)
+* `co2_sent[1:nrow(ccus_producers), 1:nyear]` - the amount of CO₂ sent out from each sending region (expression of `co2_trans`).  This includes CO₂ sent within the same region.
+* `cost_ccus_obj[1:nyear]` - the total cost of ccus, as added to the objective function.
 
 Creates the following constraints
 * `cons_co2_stor[1:nrow(ccus_storers), 1:nyear]` - the CO₂ stored at each injection site must not exceed `step_quantity`
-* `cons_co2_bal[1:nrow(ccus_senders), 1:nyear]` - the CO₂ balancing equation for each region, i.e. `co2_prod == co2_sent`.
+* `cons_co2_bal[1:nrow(ccus_producers), 1:nyear]` - the CO₂ balancing equation for each region, i.e. `co2_prod == co2_sent`.
 """
 struct CCUS <: Modification
     file::String # This would point to the file containing the CCUS market
@@ -95,7 +95,7 @@ function modify_setup_data!(mod::CCUS, config, data)
     ### Modify ccus
     ccus_paths = get_table(data, :ccus_paths)
     gen = get_table(data, :gen)
-    add_table_col!(data, :ccus_paths, :trans_idx, 1:nrow(ccus_paths), NA, "The index of this path")
+    add_table_col!(data, :ccus_paths, :path_idx, 1:nrow(ccus_paths), NA, "The index of this path")
     add_table_col!(data, :ccus_paths, :price_total, (ccus_paths.price_trans .+ ccus_paths.price_store), DollarsPerShortTonCO2Captured, "The cost of transporting and storing a short ton of CO₂ in this storage pathway")
 
 
@@ -112,37 +112,37 @@ function modify_setup_data!(mod::CCUS, config, data)
         :ccus_type => first => :ccus_type,
         :step_quantity => first => :step_quantity,
         :price_store => first => :price_store,
-        :trans_idx => Ref => :trans_idxs,
+        :path_idx => Ref => :path_idxs,
     )
     ccus_storers.stor_idx = 1:nrow(ccus_storers)
 
     # Augment ccus_paths with the stor_idx.
     ccus_paths.stor_idx .= 0
     for (stor_idx, row) in enumerate(eachrow(ccus_storers))
-        trans_idxs = row.trans_idxs
-        ccus_paths.stor_idx[trans_idxs] .= stor_idx
+        path_idxs = row.path_idxs
+        ccus_paths.stor_idx[path_idxs] .= stor_idx
     end
 
     data[:ccus_storers] = ccus_storers
 
 
-    ### Make ccus_senders
+    ### Make ccus_producers
     # Group ccus_paths by the producing region and ccus_type
-    gdf_senders = groupby(ccus_paths, [:producing_region, :ccus_type])
+    gdf_producers = groupby(ccus_paths, [:producing_region, :ccus_type])
     gdf_gen = groupby(gen, Cols(mod.groupby, :ccus_type))
 
     # Add the generators together for the producer-type combos
-    ccus_senders = combine(gdf_senders,
-        :trans_idx => Ref => :trans_idxs,
+    ccus_producers = combine(gdf_producers,
+        :path_idx => Ref => :path_idxs,
     )
 
-    transform!(ccus_senders,
+    transform!(ccus_producers,
         [:producing_region, :ccus_type] => 
         ByRow((key...) -> (haskey(gdf_gen, key) ? getfield(gdf_gen[key], :rows) : Int64[]))
         => :gen_idxs
     )
 
-    data[:ccus_senders] = ccus_senders
+    data[:ccus_producers] = ccus_producers
 
 end
 export modify_setup_data!
@@ -222,12 +222,12 @@ function modify_model!(mod::CCUS, config, data, model)
     gen = get_table(data, :gen)
     ccus_paths = get_table(data, :ccus_paths)
     ccus_storers = get_table(data, :ccus_storers)
-    ccus_senders = get_table(data, :ccus_senders)
+    ccus_producers = get_table(data, :ccus_producers)
     ccus_gen_sets = data[:ccus_gen_sets]::Vector{Vector{Int64}}
     nyear = get_num_years(data)
     nhour = get_num_hours(data)
     nstor = nrow(ccus_storers)
-    nsend = nrow(ccus_senders)
+    nsend = nrow(ccus_producers)
 
     # Add capacity matching constraints for the sets of ccus_paths generators
     match_capacity!(data, model, ccus_gen_sets, :ccus)
@@ -243,14 +243,14 @@ function modify_model!(mod::CCUS, config, data, model)
 
     # Setup expressions for each year's total sequestration cost.
     @expression(model, 
-        cost_ccus[yr_idx in 1:nyear],
+        cost_ccus_obj[yr_idx in 1:nyear],
         sum(co2_trans[ts_idx, yr_idx] * ccus_paths.price_total[ts_idx] for ts_idx in 1:nrow(ccus_paths))
     )
 
     # Setup expressions for carbon stored for each of the carbon sequesterers as a function of the co2 transported
     @expression(model, 
         co2_stor[stor_idx in 1:nstor, yr_idx in 1:nyear],
-        sum(co2_trans[ts_idx, yr_idx] for ts_idx in ccus_storers.trans_idxs[stor_idx])
+        sum(co2_trans[ts_idx, yr_idx] for ts_idx in ccus_storers.path_idxs[stor_idx])
     )
     
     # Constrain the co2 sold to each sequestration step must be less than the step quantity
@@ -262,7 +262,7 @@ function modify_model!(mod::CCUS, config, data, model)
     # Create expression for total CO2 for each sending region of each type
     @expression(model, 
         co2_sent[send_idx in 1:nsend, yr_idx in 1:nyear],
-        sum(co2_trans[ts_idx, yr_idx] for ts_idx in ccus_senders.trans_idxs[send_idx])
+        sum(co2_trans[ts_idx, yr_idx] for ts_idx in ccus_producers.path_idxs[send_idx])
     )
 
     # Create expression for total CO2 for each sending region of each type
@@ -270,7 +270,7 @@ function modify_model!(mod::CCUS, config, data, model)
         co2_prod[send_idx in 1:nsend, yr_idx in 1:nyear],
         sum(
             model[:egen_gen][gen_idx, yr_idx, hr_idx] * get_table_num(data, :gen, :capt_co2, gen_idx, yr_idx, hr_idx)
-            for gen_idx in ccus_senders.gen_idxs[send_idx], hr_idx in 1:nhour
+            for gen_idx in ccus_producers.gen_idxs[send_idx], hr_idx in 1:nhour
         )
     )
 
@@ -279,7 +279,7 @@ function modify_model!(mod::CCUS, config, data, model)
         cons_co2_bal[send_idx in 1:nsend, yr_idx in 1:nyear], 
         co2_prod[send_idx, yr_idx] == co2_sent[send_idx, yr_idx])
 
-    add_obj_exp!(data, model, CCUSTerm(), :cost_ccus; oper=+)
+    add_obj_exp!(data, model, CCUSTerm(), :cost_ccus_obj; oper=+)
 
     return nothing
 end
@@ -293,7 +293,7 @@ struct CCUSTerm <: Term end
 """
 function modify_results!(mod::CCUS, config, data)
     ccus_storers = get_table(data, :ccus_storers)
-    ccus_senders = get_table(data, :ccus_senders)
+    ccus_producers = get_table(data, :ccus_producers)
     ccus_paths = get_table(data, :ccus_paths)
     gen = get_table(data, :gen)
     co2_sent = get_raw_result(data, :co2_sent)::Matrix{Float64}
@@ -308,10 +308,10 @@ function modify_results!(mod::CCUS, config, data)
     @assert all(<=(0), cons_co2_stor) "Shadow prices on CO2 stored should be <= 0! Max value found was $(maximum(cons_co2_stor))"
 
     # Compute clearing prices for each sending region
-    ccus_senders.co2_sent = [view(co2_sent, i, :) for i in 1:nrow(ccus_senders)]
-    gdf_senders = groupby(ccus_senders, :producing_region)
-    df_senders = combine(gdf_senders,
-        :trans_idxs => ((v)->Ref(vcat(v...))) => :f_trans_idxs,
+    ccus_producers.co2_sent = [view(co2_sent, i, :) for i in 1:nrow(ccus_producers)]
+    gdf_producers = groupby(ccus_producers, :producing_region)
+    df_producers = combine(gdf_producers,
+        :path_idxs => ((v)->Ref(vcat(v...))) => :f_path_idxs,
         :gen_idxs =>   ((v)->Ref(vcat(v...))) => :gen_idxs,
         :co2_sent => (co2_sent->Ref(sum(co2_sent))) => :co2_sent,
         [:co2_sent, :ccus_type] => 
@@ -320,40 +320,40 @@ function modify_results!(mod::CCUS, config, data)
         [:co2_sent, :ccus_type] => 
             ((co2_sent, ccus_type)->Ref(sum(co2_sent[i] for i in 1:length(co2_sent) if ccus_type[i] == "saline"))) =>
             :co2_sent_saline,
-        :trans_idxs => ((v)->Ref([ccus_paths.stor_idx[trans_idx] for trans_idx in v])) => :stor_idxs
+        :path_idxs => ((v)->Ref([ccus_paths.stor_idx[path_idx] for path_idx in v])) => :stor_idxs
     )
 
-    df_senders.price_capt_co2 = fill(zeros(nyear), nrow(df_senders))
-    df_senders.price_capt_co2_trans = fill(zeros(nyear), nrow(df_senders))
-    df_senders.price_capt_co2_store = fill(zeros(nyear), nrow(df_senders))
+    df_producers.price_capt_co2 = fill(zeros(nyear), nrow(df_producers))
+    df_producers.price_capt_co2_trans = fill(zeros(nyear), nrow(df_producers))
+    df_producers.price_capt_co2_store = fill(zeros(nyear), nrow(df_producers))
     
     # Add prices to gen table
     add_table_col!(data, :gen, :price_capt_co2, fill(zeros(nyear), nrow(gen)), DollarsPerShortTonCO2Captured, "Region-wide clearing price for the generator to pay for the transport and storage of a short ton of captured CO2")
     add_table_col!(data, :gen, :price_capt_co2_store, fill(zeros(nyear), nrow(gen)), DollarsPerShortTonCO2Captured, "Region-wide average price for the generator to pay for the storage of a short ton of captured CO2")
     add_table_col!(data, :gen, :price_capt_co2_trans, fill(zeros(nyear), nrow(gen)), DollarsPerShortTonCO2Captured, "Region-wide average price for the generator to pay for the transport of a short ton of captured CO2")
     
-    for row in eachrow(df_senders)
-        trans_idxs = row.f_trans_idxs
+    for row in eachrow(df_producers)
+        path_idxs = row.f_path_idxs
         co2_sent = row.co2_sent
         gen_idxs = row.gen_idxs
 
         # Find the price and index of the cheapest step from this sending region 
-        cheapest_price_total, _tmp_idx = findmin(trans_idx->ccus_paths.price_total[trans_idx], trans_idxs)
-        cheapest_trans_idx = trans_idxs[_tmp_idx]
+        cheapest_price_total, _tmp_idx = findmin(path_idx->ccus_paths.price_total[path_idx], path_idxs)
+        cheapest_path_idx = path_idxs[_tmp_idx]
 
         # Compute the shadow price for this cheapest step to find the clearing price.
-        cheapest_stor_idx = ccus_paths.stor_idx[cheapest_trans_idx]
+        cheapest_stor_idx = ccus_paths.stor_idx[cheapest_path_idx]
         stor_shadow_price = view(cons_co2_stor,cheapest_stor_idx,:)
         price_total = cheapest_price_total .- stor_shadow_price
 
-        # Compute the total cost of transport in this sending region, and divide by co2 sent to get average price of transport for this sender
-        cost_trans = [sum(co2_trans[trans_idx, yr_idx] * ccus_paths.price_trans[trans_idx] for trans_idx in trans_idxs) for yr_idx in 1:nyear]
+        # Compute the total cost of transport in this sending region, and divide by co2 sent to get average price of transport for this producer
+        cost_trans = [sum(co2_trans[path_idx, yr_idx] * ccus_paths.price_trans[path_idx] for path_idx in path_idxs) for yr_idx in 1:nyear]
         price_trans = cost_trans ./ co2_sent
 
         # Update price_trans to be cheapest transport price for the situations when no co2 was sent.
         for (yr_idx, co2) in enumerate(co2_sent)
             co2 > 0 && continue
-            price_trans[yr_idx] = ccus_paths.price_trans[cheapest_trans_idx]
+            price_trans[yr_idx] = ccus_paths.price_trans[cheapest_path_idx]
         end
 
         price_stor = price_total - price_trans
@@ -370,8 +370,8 @@ function modify_results!(mod::CCUS, config, data)
         end
 
         # Add the total clearing price to each of the transport steps
-        for trans_idx in trans_idxs
-            ccus_paths.price_total_clearing[trans_idx] = price_total
+        for path_idx in path_idxs
+            ccus_paths.price_total_clearing[path_idx] = price_total
         end
     end
 
