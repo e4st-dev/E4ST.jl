@@ -68,14 +68,13 @@ function get_credit(c::CreditByGentype, gen_row::DataFrameRow)
     return Float64(credit)
 end
 
-struct CreditByBenchmark <: Crediting
+@Base.kwdef struct CreditByBenchmark <: Crediting
     gen_col::Symbol
     benchmark::Float64
-
-    function CreditByBenchmark(;benchmark)
-        gen_col = :emis_co2
-        return CreditByBenchmark(gen_col, benchmark)
-    end
+end
+function CreditByBenchmark(;benchmark)
+    gen_col = :emis_co2
+    return CreditByBenchmark(gen_col, benchmark)
 end
 export CreditByBenchmark
 

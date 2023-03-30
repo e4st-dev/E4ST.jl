@@ -48,6 +48,7 @@ include("types/modifications/YearlyTable.jl")
 include("types/policies/ITC.jl")
 include("types/policies/PTC.jl")
 include("types/policies/RPS.jl")
+include("types/policies/CES.jl")
 include("types/policies/EmissionCap.jl")
 include("types/policies/EmissionPrice.jl")
 

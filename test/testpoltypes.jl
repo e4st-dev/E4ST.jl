@@ -252,8 +252,25 @@ end
     end
 
     @testset "Test CES" begin
+
+        config_file = joinpath(@__DIR__, "config", "config_3bus_ces.yml")
+        config = load_config(config_file_ref, config_file)
+
+        data = load_data(config)
+        gen = get_table(data, :gen)
         
-        @testset "Test Crediting CES"
+        @testset "Test Crediting CES" begin
+            # columns added to the gen table
+            @test hasproperty(gen, :example_ces)
+
+            # check that some crediting was applied
+            @test any(credit -> credit > 0.0, gen[!,:example_ces])
+
+            @test ~any(credit -> credit > 1.0 || credit < 0.0, gen[!,:example_ces])
+
+            @show gen[!,:example_ces]
+
+        end
     end
 
 end

@@ -33,6 +33,8 @@ export RPS
 
 """
     modify_setup_data!(pol::RPS, config, data) -> 
+
+Calls `modify_setup_data!` on the generation standard. This will add the credits column for this policy to the gen table. 
 """
 function modify_setup_data!(pol::RPS, config, data)
     modify_setup_data!(pol.gen_stan, config, data)
@@ -61,23 +63,3 @@ function get_credit(c::StandardRPSCrediting, gen_row::DataFrameRow)
     #This could also be written to call the CreditByGentype method but probably not any better
 end
 export get_credit
-
-# """
-#     set_gs_credits!(pol::RPS, config, data) -> 
-
-# Sets the credit level for generators that qualify under the RPS. 
-# Default, all qualifying generators will receive a credit of 1. 
-# """
-# function set_gs_credits!(pol::RPS, config, data)
-#     gen = get_table(data, :gen)
-
-#     #get qualifying gen idxs
-#     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
-
-#     v = zeros(Bool, nrow(gen))
-#     add_table_col!(data, :gen, pol.name, v, Ratio,
-#         "Credit level for generators that qualify under the $(cons.name) RPS") 
-#     gen[gen_idxs, cons.name] .= 1 
-
-#     #TODO: Does CCS get a partial credit for this? I think it does in some RPSs in matlab E4ST
-# end
