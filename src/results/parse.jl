@@ -14,7 +14,7 @@ function parse_results!(config, data, model)
     results_raw = Dict(k => (@info "Parsing Result $k"; value_or_shadow_price(v, obj_scalar)) for (k,v) in object_dictionary(model))
     
     # Empty the model now that we have retrieved all info, to save RAM and prevent the user from accidentally accessing un-scaled data.
-    empty!(model)
+    # empty!(model)
     
     results = OrderedDict{Symbol, Any}()
     data[:results] = results

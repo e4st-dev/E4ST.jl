@@ -26,7 +26,9 @@ export total
 function total(::Type{ShortTonsPerMWhGenerated}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :egen], idxs, yr_idxs, hr_idxs)
 end
-
+function total(::Type{Dollars}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+    return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
+end
 function total(::Type{DollarsPerMWhServed}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :eserv], idxs, yr_idxs, hr_idxs)
 end
@@ -35,6 +37,9 @@ function total(::Type{DollarsPerMWhGenerated}, data, table, column_name, idxs, y
 end
 function total(::Type{DollarsPerMWCapacity}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :pcap], idxs, yr_idxs, hr_idxs)
+end
+function total(::Type{DollarsPerShortTonCO2Captured}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+    return weighted_sum(table[!, column_name], table[!, :capt_co2], table[!, :egen], idxs, yr_idxs, hr_idxs)
 end
 function total(::Type{MWhServed}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)

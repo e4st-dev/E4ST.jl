@@ -31,9 +31,9 @@ Creates the following tables in `data`:
 
 Creates the following variables/expressions
 * `co2_trans[1:nrow(ccus), 1:nyear]` - the amount of CO₂ transported along this sender-producer pathway (variable)
-* `co2_stored[1:nrow(ccus_storers), 1:nyear]` - the amount of CO₂ stored by each storer (expression of `co2_trans`)
+* `co2_stor[1:nrow(ccus_storers), 1:nyear]` - the amount of CO₂ stored by each storer (expression of `co2_trans`)
 * `co2_prod[1:nrow(ccus_senders), 1:nyear]` - the amount of CO₂ produced by each sending region (expression of electricity generation)
-* `co2_sent[1:nrow(ccus_senders), 1:nyear]` - the amount of CO₂ sent out from each sending region (expression of `co2_stored`)
+* `co2_sent[1:nrow(ccus_senders), 1:nyear]` - the amount of CO₂ sent out from each sending region (expression of `co2_stor`)
 * `cost_ccus[1:nyear]` - the total cost of ccus, as added to the objective function.
 
 Creates the following constraints
@@ -96,7 +96,7 @@ function modify_setup_data!(mod::CCUS, config, data)
     ccus = get_table(data, :ccus)
     gen = get_table(data, :gen)
     add_table_col!(data, :ccus, :trans_idx, 1:nrow(ccus), NA, "The index of this path")
-    add_table_col!(data, :ccus, :price_total, (ccus.price_trans .+ ccus.price_store), DollarsPerShortTon, "The cost of transporting and storing a short ton of CO₂ in this storage pathway")
+    add_table_col!(data, :ccus, :price_total, (ccus.price_trans .+ ccus.price_store), DollarsPerShortTonCO2Captured, "The cost of transporting and storing a short ton of CO₂ in this storage pathway")
 
 
     ### Make ccus_storers
@@ -115,6 +115,14 @@ function modify_setup_data!(mod::CCUS, config, data)
         :trans_idx => Ref => :trans_idxs,
     )
     ccus_storers.stor_idx = 1:nrow(ccus_storers)
+
+    # Augment ccus with the stor_idx.
+    ccus.stor_idx .= 0
+    for (stor_idx, row) in enumerate(eachrow(ccus_storers))
+        trans_idxs = row.trans_idxs
+        ccus.stor_idx[trans_idxs] .= stor_idx
+    end
+
     data[:ccus_storers] = ccus_storers
 
 
@@ -227,7 +235,7 @@ function modify_model!(mod::CCUS, config, data, model)
 
 
     # Make variables for amount of captured carbon going each of the carbon markets bounded by [0, maximum co2 storage]
-    @variable(model, co2_trans[ts_idx in 1:nrow(ccus), yr_idx in 1:nyear], lower_bound = 0, upper_bound=ccus.step_quantity[ts_idx])
+    @variable(model, co2_trans[ts_idx in 1:nrow(ccus), yr_idx in 1:nyear], lower_bound = 0, upper_bound=ccus.step_quantity[ts_idx]+1) # NOTE: +1 here to prevent the upper bound from being binding - that would take the shadow price away from the cons_co2_stor constraint.
 
     # Setup expressions for each year's total sequestration cost.
     @expression(model, 
@@ -267,13 +275,12 @@ function modify_model!(mod::CCUS, config, data, model)
         cons_co2_bal[send_idx in 1:nsend, yr_idx in 1:nyear], 
         co2_prod[send_idx, yr_idx] == co2_sent[send_idx, yr_idx])
 
-    add_to_expression!(model[:obj], sum(cost_ccus))
-
-    data[:ccus_storers] = ccus_storers
-    data[:ccus_senders] = ccus_senders
+    add_obj_exp!(data, model, CCUSTerm(), :cost_ccus; oper=+)
 
     return nothing
 end
+
+struct CCUSTerm <: Term end
 
 """
     modify_results!(mod::CCUS, config, data) 
@@ -281,5 +288,105 @@ end
 
 """
 function modify_results!(mod::CCUS, config, data)
+    @show "modifying results for CCUS"
+    ccus_storers = get_table(data, :ccus_storers)
+    ccus_senders = get_table(data, :ccus_senders)
+    ccus = get_table(data, :ccus)
+    gen = get_table(data, :gen)
+    co2_sent = get_raw_result(data, :co2_sent)::Matrix{Float64}
+    co2_stor = get_raw_result(data, :co2_stor)::Matrix{Float64}
+    co2_trans = get_raw_result(data, :co2_trans)::Matrix{Float64}
+    cons_co2_stor = get_raw_result(data, :cons_co2_stor)::Matrix{Float64}
+    nyear = get_num_years(data)
+
+    # Add co2_trans to ccus
+    ccus.co2_trans = [view(co2_trans, i, :) for i in 1:nrow(ccus)]
+    ccus.price_total_clearing = fill(zeros(nyear), nrow(ccus))
+
+    @assert all(<=(0), cons_co2_stor) "Shadow prices on CO2 stored should be <= 0! Max value found was $(maximum(cons_co2_stor))"
+
+    # Compute clearing prices for each sending region
+    ccus_senders.co2_sent = [view(co2_sent, i, :) for i in 1:nrow(ccus_senders)]
+    gdf_senders = groupby(ccus_senders, :producer)
+    df_senders = combine(gdf_senders,
+        :trans_idxs => ((v)->Ref(vcat(v...))) => :f_trans_idxs,
+        :gen_idxs =>   ((v)->Ref(vcat(v...))) => :gen_idxs,
+        :co2_sent => (co2_sent->Ref(sum(co2_sent))) => :co2_sent,
+        [:co2_sent, :ccus_type] => 
+            ((co2_sent, ccus_type)->Ref(sum(co2_sent[i] for i in 1:length(co2_sent) if ccus_type[i] == "eor"))) =>
+            :co2_sent_eor,
+        [:co2_sent, :ccus_type] => 
+            ((co2_sent, ccus_type)->Ref(sum(co2_sent[i] for i in 1:length(co2_sent) if ccus_type[i] == "saline"))) =>
+            :co2_sent_saline,
+        :trans_idxs => ((v)->Ref([ccus.stor_idx[trans_idx] for trans_idx in v])) => :stor_idxs
+    )
+
+    df_senders.price_co2_sent_total = fill(zeros(nyear), nrow(df_senders))
+    df_senders.price_co2_sent_trans = fill(zeros(nyear), nrow(df_senders))
+    df_senders.price_co2_sent_stor = fill(zeros(nyear), nrow(df_senders))
+    
+    # Add prices to gen table
+    add_table_col!(data, :gen, :price_co2_sent_total, fill(zeros(nyear), nrow(gen)), DollarsPerShortTonCO2Captured, "Region-wide clearing price for sequestering a short ton of CO2, including transport and storage")
+    add_table_col!(data, :gen, :price_co2_sent_stor, fill(zeros(nyear), nrow(gen)), DollarsPerShortTonCO2Captured, "Region-wide clearing price for sequestering a short ton of CO2, including storage costs only")
+    add_table_col!(data, :gen, :price_co2_sent_trans, fill(zeros(nyear), nrow(gen)), DollarsPerShortTonCO2Captured, "Region-wide clearing price for sequestering a short ton of CO2, including transport costs only")
+    
+    for row in eachrow(df_senders)
+        trans_idxs = row.f_trans_idxs
+        co2_sent = row.co2_sent
+        gen_idxs = row.gen_idxs
+
+        # Find the price and index of the cheapest step from this sending region 
+        cheapest_price_total, _tmp_idx = findmin(trans_idx->ccus.price_total[trans_idx], trans_idxs)
+        cheapest_trans_idx = trans_idxs[_tmp_idx]
+
+        # Compute the shadow price for this cheapest step to find the clearing price.
+        cheapest_stor_idx = ccus.stor_idx[cheapest_trans_idx]
+        stor_shadow_price = view(cons_co2_stor,cheapest_stor_idx,:)
+        price_total = cheapest_price_total .- stor_shadow_price
+
+        # Compute the total cost of transport in this sending region, and divide by co2 sent to get average price of transport for this sender
+        cost_trans = [sum(co2_trans[trans_idx, yr_idx] * ccus.price_trans[trans_idx] for trans_idx in trans_idxs) for yr_idx in 1:nyear]
+        price_trans = cost_trans ./ co2_sent
+
+        # Update price_trans to be cheapest transport price for the situations when no co2 was sent.
+        for (yr_idx, co2) in enumerate(co2_sent)
+            co2 > 0 && continue
+            price_trans[yr_idx] = ccus.price_trans[cheapest_trans_idx]
+        end
+
+        price_stor = price_total - price_trans
+
+        row.price_co2_sent_total = price_total
+        row.price_co2_sent_trans = price_trans
+        row.price_co2_sent_stor  = price_stor
+
+        # Add the prices to each of the generators
+        for gen_idx in gen_idxs
+            gen.price_co2_sent_total[gen_idx] = price_total
+            gen.price_co2_sent_trans[gen_idx] = price_trans
+            gen.price_co2_sent_stor[gen_idx] = price_stor
+        end
+
+        # Add the total clearing price to each of the transport steps
+        for trans_idx in trans_idxs
+            ccus.price_total_clearing[trans_idx] = price_total
+        end
+    end
+
+    # Calculate total cost, profit & revenue
+    ccus_cost = ccus.price_store .* ccus.co2_trans
+    ccus_revenue = [(ccus.price_total_clearing[i] .- ccus.price_trans[i]) .* ccus.co2_trans[i] for i in 1:nrow(ccus)]
+    ccus_profit = ccus_revenue .- ccus_cost
+
+    add_table_col!(data, :ccus, :cost, ccus_cost, Dollars, "Total storage cost of CCUS via this pathway, from the perspective of the sequesterer")
+    add_table_col!(data, :ccus, :revenue, ccus_revenue, Dollars, "Total revenue earned from storage for CCUS via this pathway.  This is the amount paid by the EGU's to the sequesterer, equal to the clearing price minus the transport cost.")
+    add_table_col!(data, :ccus, :profit, ccus_profit, Dollars, "Total profit earned by storing carbon via this pathway, equal to the revenue minus the cost.")
+
+    # Assert that all the profits are ≥ 0.
+    @assert all(v->all(>=(0), v), ccus.profit) "All CCUS profits should be ≥ 0, but found $(minimum(minimum, ccus.profit))"
+
+    # Aggregate by storer region.
+    
+
 end
 export modify_results!

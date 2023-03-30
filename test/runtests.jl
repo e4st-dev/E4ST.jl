@@ -23,6 +23,7 @@ original_logger = global_logger(NullLogger())
     include("testoptimizemodel.jl")
     include("testresultprocessing.jl")
     include("testiteration.jl")
+    include("testccus.jl")
     include("testutil.jl")
 end
 
