@@ -6,7 +6,7 @@ Emission Price - A price on a certain emission for a given set of generators.
 
 *`name`: name of the policy (Symbol)
 *`emis_col`: name of the emission rate column in the gen table (ie. emis_co2) (Symbol)
-*`values`: OrderedDict of price values by year
+*`values`: OrderedDict of price values by year. Given as price per unit of emissions (ie. \$/short ton)
 *`gen_filters`: OrderedDict of generator filters
 """
 struct EmissionPrice <: Policy
@@ -21,6 +21,13 @@ function EmissionPrice(;name::Any, emis_col::Any, values, gen_filters=OrderedDic
 end
 export EmissionPrice
 
+
+"""
+    E4ST.modify_model!(pol::EmissionPrice, config, data, model)
+
+Adds a column to the gen table containing the emission price as a per MWh value (gen emission rate * emission price). 
+Adds this as a PerMWhGen price to the objective function using `add_obj_term!`
+"""
 function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
 
     gen = get_table(data, :gen)
@@ -37,7 +44,7 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
     #update column for gen_idx 
     price_yearly = [get(pol.values, Symbol(year), 0.0) for year in years] #values for the years in the sim
     for gen_idx in gen_idxs
-        gen[gen_idx, pol.name] = scale_yearly(gen[gen_idx, pol.emis_col], price_yearly)
+        gen[gen_idx, pol.name] = scale_yearly(gen[gen_idx, pol.emis_col], price_yearly) #emission rate [st/MWh] * price [$/st] 
     end
     
     add_obj_term!(data, model, PerMWhGen(), pol.name, oper = +)

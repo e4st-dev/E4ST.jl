@@ -195,9 +195,11 @@ end
         
         # test that ByYear containers have non zero values
         @test sum(emisprc->sum(emisprc.v), gen.example_emisprc) > 0
+
     end
 
     @testset "Adding Emis Prc to the model" begin
+
         #test that emis prc is added to the obj 
         @test haskey(data[:obj_vars], :example_emisprc)
         @test haskey(model, :example_emisprc) 
@@ -235,6 +237,10 @@ end
         data = load_data(config)
         gen = get_table(data, :gen)
 
+        #test that sorting happened correctly 
+        ranks = list_mod_ranks(config)
+        @test ranks[:example_rps] > 0.0
+
         @testset "Test Crediting RPS" begin 
             # columns added to the gen table
             @test hasproperty(gen, :example_rps)
@@ -267,8 +273,6 @@ end
             @test any(credit -> credit > 0.0, gen[!,:example_ces])
 
             @test ~any(credit -> credit > 1.0 || credit < 0.0, gen[!,:example_ces])
-
-            @show gen[!,:example_ces]
 
         end
     end

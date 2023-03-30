@@ -36,16 +36,12 @@ function Crediting(d::OrderedDict)
 end
 export Crediting
 
-# function Crediting(p::Pair)
-#     name, d = p
-#     T = get_type(d[:type])
-#     if hasfield(T, :name)
-#         mod = _discard_type(T; name, d...)
-#     else
-#         mod = _discard_type(T; d...)
-#     end
-#     return mod
-# end
+"""
+    get_credit(c::Crediting, gen_row::DataFrame) -> 
+"""
+function get_credit(c::Crediting, gen_row::DataFrame)
+    @error "No get_credit() defined for crediting type $(typeof(c)), no credits will be applied for this policy."
+end
 
 
 """

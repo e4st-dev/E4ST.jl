@@ -27,9 +27,15 @@ function GenerationStandard(;name, values, crediting::OrderedDict, gen_filters, 
 end
 export GenerationStandard
 
+mod_rank(::Type{GenerationStandard}) = 1.0 #not sure this matters because this isn't usually a type specified in the config or a super type of something specified in the config. 
+
+
+## Modifying Functions
+#######################################################################################################################
 """
     modify_setup_data!(pol::GenerationStandard, config, data)
 
+Adds column to the gen table with the credit level of the generation standard. Adds the name and type of the policy to the gs_pol_list in data. 
 """
 function modify_setup_data!(pol::GenerationStandard, config, data)
     #add policy name and type to data[:gs_pol_list]
@@ -52,6 +58,29 @@ function modify_setup_data!(pol::GenerationStandard, config, data)
     end
 
 end
+
+"""
+    modify_model!(pol::GenerationStandard, config, data, model) -> 
+"""
+function modify_model!(pol::GenerationStandard, config, data, model)
+    #TODO: I'm building this here right now but I still need to develop a way for this to happen after all modification have been made to pserv
+    
+    # get bus and gen idxs
+    gen = get_table(data, :gen)
+    gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
+
+    bus = get_table(data, :bus)
+    bus_idxs = get_row_idxs(bus, parse_comparisons(pol.load_bus_filters))
+
+    # create expression for qualifying load 
+
+    # create yearly constraint that qualifying generation meeting qualifying load
+
+end
+
+
+## Helper Functions
+#############################################################################################################
 
 """
     add_to_gs_pol_list!(pol, config, data) -> 

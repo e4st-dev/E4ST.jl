@@ -36,6 +36,8 @@ export EmissionCap
 """
  E4ST.modify_model!(pol::EmissionCap, config, data, model)
 
+Calls modify_model! on the GenerationConstraint
+`[modify_model!(cons::GenerationConstraint, config, data, model)]@ref`
 """
 function E4ST.modify_model!(pol::EmissionCap, config, data, model)
     modify_model!(pol.gen_cons, config, data, model)

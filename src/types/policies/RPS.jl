@@ -30,6 +30,7 @@ function RPS(;name, values, crediting::OrderedDict, gen_filters, load_bus_filter
 end
 export RPS
 
+mod_rank(::Type{RPS}) = 1.0
 
 """
     modify_setup_data!(pol::RPS, config, data) -> 

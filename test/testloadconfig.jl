@@ -1,27 +1,32 @@
-Base.@kwdef struct ExamplePolicyType <: Policy
-    name::Symbol
-    value::Float64 = 1.0    # defaults to 1.0
-    some_parameter::Vector  # no default, so it must be specified, can be a Vector of any kind
-    other_parameter         # no default, and no type specification
+#Test loading in the config file 
+
+@testset "Loading config with modification" begin
+    Base.@kwdef struct ExamplePolicyType <: Policy
+        name::Symbol
+        value::Float64 = 1.0    # defaults to 1.0
+        some_parameter::Vector  # no default, so it must be specified, can be a Vector of any kind
+        other_parameter         # no default, and no type specification
+    end
+
+    Base.@kwdef struct OtherModificationType <: Modification
+        value::Float64 = 1.0    # defaults to 1.0
+        custom_parameter        # no default, and no type specification
+    end
+
+    filename = joinpath(@__DIR__, "config/config_3bus_examplepol.yml")
+
+    @test load_config(filename) isa AbstractDict
+    config = load_config(filename)
+
+    @test isabspath(config[:out_path])
+    @test isabspath(config[:gen_file])
+    @test isabspath(config[:bus_file])
+    @test isabspath(config[:branch_file])
+
+    @test config[:mods] isa OrderedDict{Symbol, <:Modification}
+    @test config[:mods][:example_policy].name == :example_policy
+
 end
-
-Base.@kwdef struct OtherModificationType <: Modification
-    value::Float64 = 1.0    # defaults to 1.0
-    custom_parameter        # no default, and no type specification
-end
-
-filename = joinpath(@__DIR__, "config/config_3bus_examplepol.yml")
-
-@test load_config(filename) isa AbstractDict
-config = load_config(filename)
-
-@test isabspath(config[:out_path])
-@test isabspath(config[:gen_file])
-@test isabspath(config[:bus_file])
-@test isabspath(config[:branch_file])
-
-@test config[:mods] isa OrderedDict{Symbol, <:Modification}
-@test config[:mods][:example_policy].name == :example_policy
 
 @testset "Test Loading Optimizer from Config" begin
     attrib = E4ST.optimizer_attributes(config)
@@ -35,6 +40,9 @@ config = load_config(filename)
 end
 
 @testset "Test Logging" begin
+    filename = joinpath(@__DIR__, "config/config_3bus_examplepol.yml")
+    config = load_config(filename)
+
     log_file = get_out_path(config, "E4ST.log")
     
     isfile(log_file) && rm(log_file, force=true)
@@ -82,5 +90,17 @@ end
     log_start(config)
     stop_logging!(config)
     @test length(readlines(log_file)) > 6
+
+end
+
+@testset "Test mod sorting by rank" begin
+    config_file_base = joinpath(@__DIR__, "config", "config_3bus.yml")
+    config_RPS = joinpath(@__DIR__, "config", "config_3bus_rps.yml")
+    config_PTC = joinpath(@__DIR__, "config", "config_3bus_ptc.yml")
+
+    config = load_config(config_file_base, config_RPS, config_PTC)
+
+    ranks = list_mod_ranks(config)
+    @test ranks[:example_ptc] < ranks[:example_rps]
 
 end

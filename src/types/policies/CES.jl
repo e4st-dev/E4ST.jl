@@ -29,6 +29,8 @@ function CES(;name, values, crediting::OrderedDict, gen_filters, load_bus_filter
 end
 export CES
 
+mod_rank(::Type{CES}) = 1.0
+
 """
     modify_setup_data!(pol::CES, config, data) -> 
 
