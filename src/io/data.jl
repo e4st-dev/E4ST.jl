@@ -372,8 +372,9 @@ function setup_table!(config, data, ::Val{:gen})
     :capex_obj in propertynames(data[:gen]) && select!(data[:gen], Not(:capex_obj))
 
     #set build_status to 'built' for all gens marked 'new'. This marks gens built in a previous sim as 'built'.
-    idx_new = gen.build_status.=="new"
-    gen[idx_new, :build_status] .= "built"
+    c = ==("new") # Comparison, one allocation
+    b = "built" # pre-allocate
+    transform!(gen, :build_status => ByRow(s->c(s) ? b : s) => :build_status) # transform in-place
 
     ### Create new gens and add to the gen table
     if haskey(config, :build_gen_file) 
