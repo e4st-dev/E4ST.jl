@@ -552,8 +552,6 @@ function setup_table!(config, data, ::Val{:af_table})
     end
     return data
 end
-export setup_af!
-
 
 """
     setup_table!(config, data, ::Val{:genfuel}) -> nothing
@@ -951,7 +949,6 @@ function get_branch(data, branch_idx)
 end
 
 export get_generator, get_bus, get_branch
-export get_bus_from_generator_idx
 
 """
     get_af(data, gen_idx, year_idx, hour_idx) -> af
