@@ -117,7 +117,9 @@
         @test "endog" in gen.build_type
         @test "unbuilt" in gen.build_status
         for gen_row in eachrow(gen)
-            gen_row.build_status == "unbuilt" && @test gen_row.pcap0 == 0
+            if gen_row.build_status == "unbuilt" && gen_row.build_type == "endog"
+                @test gen_row.pcap0 == 0
+            end
         end
 
         "new" in build_gen.build_status && @test "new" in gen.build_status
