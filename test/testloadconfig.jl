@@ -29,6 +29,10 @@
 end
 
 @testset "Test Loading Optimizer from Config" begin
+
+    filename = joinpath(@__DIR__, "config/config_3bus_examplepol.yml")
+    config = load_config(filename)
+    
     attrib = E4ST.optimizer_attributes(config)
     @test attrib isa NamedTuple
     for (k,v) in config[:optimizer]

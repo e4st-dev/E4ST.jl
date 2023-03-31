@@ -60,10 +60,13 @@ function modify_setup_data!(pol::GenerationStandard, config, data)
 end
 
 """
-    modify_model!(pol::GenerationStandard, config, data, model) -> 
+    modify_model!(pol::GenerationStandard, config, data, model)
+
+Creates the expression :p_gs_bus, the load that generation standards are applied to, if it hasn't been created already. 
+Creates a constraint that takes the general form: `sum(gs_egen * credit) <= gs_value * sum(gs_load)`
 """
-function modify_model!(pol::GenerationStandard, config, data, model)
-    
+function E4ST.modify_model!(pol::GenerationStandard, config, data, model)
+
     # get bus and gen idxs
     gen = get_table(data, :gen)
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
@@ -71,7 +74,7 @@ function modify_model!(pol::GenerationStandard, config, data, model)
     bus = get_table(data, :bus)
     bus_idxs = get_row_idxs(bus, parse_comparisons(pol.load_bus_filters))
 
-    years = get_year(data)
+    years = Symbol.(get_years(data))
 
     # create expression for qualifying load, only created if it hasn't already been defined in the model
     nyear = get_num_years(data)
@@ -79,22 +82,25 @@ function modify_model!(pol::GenerationStandard, config, data, model)
 
     #TODO: when energy storage, DAC, and T&D losses are added to the model, they will need to be added to this
     if ~haskey(model, :p_gs_bus)
-        @expression(model, p_gs_bus[bus_idx in 1:nrow(bus), year_idx in 1:nyear, hour_idx in 1:nhour], 
-                get_pdem(data, bus_idx, year_idx, hour_idx) - pcurt_bus[bus_idx, year_idx, hour_idx])
+        model[:p_gs_bus] = @expression(model, [bus_idx in 1:nrow(bus), year_idx in 1:nyear, hour_idx in 1:nhour], 
+                get_pdem(data, bus_idx, year_idx, hour_idx) - model[:pcurt_bus][bus_idx, year_idx, hour_idx])   
     end
 
     # create yearly constraint that qualifying generation meeting qualifying load
     # takes the form sum(gs_egen * credit) <= gs_value * sum(gs_load)
 
     cons_name = "cons_$(pol.name)"
-    val_years = collect(keys(cons.values))
+    val_years = collect(keys(pol.values))
+
+    @show cons_name
 
     @info "Creating a generation constraint for the Generation Standard $(pol.name)."
-    model[Symbol(cons_name)] = constraint(model, [y=val_years], 
-            sum(get_egen_gen(data, model, gen_idx, findfirst(==(y), years), hour_idx)*get_table_val(data, :gen, pol.name, gen_idx) for gen_idx=gen_idxs, hour_idx=1:nhours) >= 
-            pol.values[y]*sum(p_gs_bus[bus_idx, findfirst(==(y), years), hour_idx] for bus_idx=bus_idxs, hour_idx=1:nhours))
+    model[Symbol(cons_name)] = @constraint(model, [y = val_years], 
+            sum(get_egen_gen(data, model, gen_idx, findfirst(==(y), years), hour_idx)*get_table_val(data, :gen, pol.name, gen_idx) for gen_idx=gen_idxs, hour_idx=1:nhour) >= 
+            pol.values[y]*sum(model[:p_gs_bus][bus_idx, findfirst(==(y), years), hour_idx] for bus_idx=bus_idxs, hour_idx=1:nhour))
 
 end
+export modify_model!
 
 
 ## Helper Functions

@@ -235,6 +235,7 @@ end
         config = load_config(config_file_ref, config_file)
 
         data = load_data(config)
+        model = setup_model(config, data)
         gen = get_table(data, :gen)
 
         #test that sorting happened correctly 
@@ -256,7 +257,32 @@ end
         end 
 
         @testset "Adding RPS to model" begin
+
+            #make sure model still optimizes 
+            optimize!(model)
+            @test check(model)
             
+            @test haskey(model, :p_gs_bus)
+            @test haskey(model, :cons_example_rps)
+            @test haskey(model, :cons_example_rps_gentype)
+
+            # process results
+            parse_results!(config, data, model)
+            process_results!(config, data)
+
+            ## Check that policy impacts results 
+            rps_mod = config[:mods][:example_rps]
+
+            gen = get_table(data, :gen)
+
+            gen_total = aggregate_result(total, data, :gen, :egen, :emis_co2=><(0.5))
+
+            gen_ref = get_table(data_ref, :gen)
+            gen_total_ref = aggregate_result(total, data_ref, :gen, :egen, :emis_co2=><(0.5))
+
+            # check that emissions are reduced for qualifying gens
+            @test gen_total > gen_total_ref
+        
         end
 
     end

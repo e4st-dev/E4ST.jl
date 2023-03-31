@@ -37,13 +37,14 @@ mod_rank(::Type{RPS}) = 1.0
 
 Calls `modify_setup_data!` on the generation standard. This will add the credits column for this policy to the gen table. 
 """
-function modify_setup_data!(pol::RPS, config, data)
+function E4ST.modify_setup_data!(pol::RPS, config, data)
     modify_setup_data!(pol.gen_stan, config, data)
 
 end
 
-function modify_model!(pol::RPS, config, data, model)
+function E4ST.modify_model!(pol::RPS, config, data, model)
     modify_model!(pol.gen_stan, config, data, model)
+
 end
 
 

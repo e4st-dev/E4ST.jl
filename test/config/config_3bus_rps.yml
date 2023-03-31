@@ -23,7 +23,6 @@ mods:
         solar: 0.8
         wind: 1.0
         oswind: 1.0
-        ngccs: 0.5
     gen_filters:
       country: "narnia"
     load_bus_filters:
