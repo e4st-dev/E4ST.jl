@@ -39,6 +39,21 @@ Creates the following variables/expressions
 Creates the following constraints
 * `cons_co2_stor[1:nrow(ccus_storers), 1:nyear]` - the CO₂ stored at each injection site must not exceed `step_quantity`
 * `cons_co2_bal[1:nrow(ccus_producers), 1:nyear]` - the CO₂ balancing equation for each region, i.e. `co2_prod == co2_sent`.
+
+## Accessing Results
+Results are stored in 2 places; the `ccus_paths` table, and the `gen` table.
+
+Example Result Queries
+* `aggregate_result(total, data, :ccus_paths, :stored_co2, :ccus_type=>"eor", "y2030")`
+* `aggregate_result(total, data, :gen, :price_capt_co2, :ccus_type=>"eor", yr_idx)`
+* `aggregate_result(total, data, :gen, :price_capt_co2_store, :gentype=>"coalccs", yr_idx)`
+* `aggregate_result(total, data, :gen, :price_capt_co2_trans, :, yr_idx)`
+
+See also:
+* [`modify_raw_data!(::CCUS, config, data)`](@ref)
+* [`modify_setup_data!(::CCUS, config, data)`](@ref)
+* [`modify_model!(::CCUS, config, data, model)`](@ref)
+* [`modify_results!(::CCUS, config, data)`](@ref)
 """
 struct CCUS <: Modification
     file::String # This would point to the file containing the CCUS market
@@ -88,9 +103,7 @@ Does the following:
 * Adds sets of indices to `data[:ccus_gen_sets]::Vector{Vector{Int64}}`
 """
 function modify_setup_data!(mod::CCUS, config, data)
-    # TODO: think through how to un-group ccus matched generators, and how we would want to handle saving them and loading them in
     update_ccus_gens!(mod, config, data)
-
 
     ### Modify ccus
     ccus_paths = get_table(data, :ccus_paths)

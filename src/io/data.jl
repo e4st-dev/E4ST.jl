@@ -924,9 +924,9 @@ end
 export has_table
 
 """
-    get_table_summary(config, data, table_name) -> summary::SubDataFrame
+    get_table_summary(data, table_name) -> summary::SubDataFrame
 
-Returns a summary of `table_name`, loaded in from [`summarize_table`](@ref)` and [`load_summary_table!`](@ref).
+Returns a summary of `table_name`, loaded in from [`summarize_table`](@ref) and [`load_summary_table!`](@ref).
 """
 function get_table_summary(data, table_name)
     st = get_table(data, :summary_table)

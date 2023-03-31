@@ -215,7 +215,7 @@ end
 """
     weighted_sum(v1, v2, v3, idxs, yr_idxs, hr_idxs)
 
-Compute the `sum(_getindex(v1, i, y, h)*_getindex(v2, i, y, h)*v3[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)`
+Compute the `sum(_getindex(v1, i, y, h)*_getindex(v2, i, y, h)*_getindex(v3,i,y,h) for i in idxs, y in yr_idxs, h in hr_idxs)`
 """
 function weighted_sum(v1, v2, v3, idxs, yr_idxs, hr_idxs)
     isempty(v1) && return 0.0
@@ -224,7 +224,7 @@ function weighted_sum(v1, v2, v3, idxs, yr_idxs, hr_idxs)
     isempty(idxs) && return 0.0
     isempty(yr_idxs) && return 0.0
     isempty(hr_idxs) && return 0.0
-    sum(_getindex(v1, i, y, h)*_getindex(v2, i, y, h)*v3[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
+    sum(_getindex(v1, i, y, h)*_getindex(v2, i, y, h)*_getindex(v3,i,y,h) for i in idxs, y in yr_idxs, h in hr_idxs)
 end
 
 """

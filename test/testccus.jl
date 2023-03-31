@@ -34,5 +34,9 @@
         @test co2_by_path[4] ≈ ccus_paths.step_quantity[4]
         @test co2_by_path[5] ≈ ccus_paths.step_quantity[5]
         @test 0 < co2_by_path[6] < ccus_paths.step_quantity[6]
+
+        # Test that the generator's cost to store is equal to the revenue seen by the storers
+        gen_cost_to_store = aggregate_result(total, data, :gen, :price_capt_co2_store, :, yr_idx)
+        @test gen_cost_to_store ≈ storer_revenue
     end
 end
