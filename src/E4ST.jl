@@ -178,9 +178,13 @@ function reload_types!()
     global STR2TYPE
     global SYM2TYPE
     for n in names(E4ST)
-        T = getfield(E4ST, n)
-        if T isa Type
-            reload_types!(T)
+        try
+            T = getfield(E4ST, n)
+            if T isa Type
+                reload_types!(T)
+            end
+        catch
+            @warn "No definition for name `$n` - consider removing the export statement, or defining it."
         end
     end
     reload_types!(AbstractString)
