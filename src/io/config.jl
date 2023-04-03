@@ -52,6 +52,7 @@ function summarize_config()
         (:voll, false, 5000, "This is the assumed value of lost load for which the objective function will be penalized for every MWh of curtailed load."),
         (:logging, false, true, "This specifies whether or not E4ST will log to [`get_out_path(config, \"E4ST.log\")`](@ref). Options include `true`, `false`, or `\"debug\"`.  See [`start_logging!`](@ref) for more info."),
         (:eor_leakage_rate, false, 0.5, "The assumed rate (between 0 and 1) at which CO₂ stored in Enhanced Oil Recovery (EOR) leaks back into the atmosphere."),
+        (:line_loss_rate, false, 0.1, "The assumed electrical loss rate from generation to consumption, given as a ratio between 0 and 1.  Default is 0.1, or 10% energy loss"),
     )
     return df
 end

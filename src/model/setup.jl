@@ -104,7 +104,7 @@ end
 
 Constrain the power balancing equation to equal zero for each bus, at each year and hour.
 
-`pgen_bus - pserv_bus - pflow_bus == 0`
+`pgen_bus - pserv_bus / (1 - line_loss_rate) - pflow_bus == 0`
 
 * `pgen_bus` is the power generated at the bus
 * `pserv_bus` is the power served/consumed at the bus
@@ -114,9 +114,11 @@ function constrain_pbal!(config, data, model)
     nyear = get_num_years(data)
     nhour = get_num_hours(data)
     nbus = nrow(get_table(data, :bus))
+    line_loss_rate = config[:line_loss_rate]::Float64
+    pserv_scalar = 1/(1-line_loss_rate)
     @constraint(model, 
         cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-        model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:pserv_bus][bus_idx, year_idx, hour_idx] - model[:pflow_bus][bus_idx, year_idx, hour_idx] == 0.0
+        model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:pserv_bus][bus_idx, year_idx, hour_idx] * pserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] == 0.0
     )
     return nothing
 end
