@@ -38,5 +38,11 @@
         # Test that the generator's cost to store is equal to the revenue seen by the storers
         gen_cost_to_store = aggregate_result(total, data, :gen, :price_capt_co2_store, :, yr_idx)
         @test gen_cost_to_store ≈ storer_revenue
+
+        # Test that there are 2 carbon-capturing generators in the gen table before saving, and only 1 after
+        @test length(get_table_row_idxs(data, :gen, :gentype=>"ngccccs")) == 2
+
+        gen_updated = load_table(joinpath(out_path, "gen.csv"))
+        @test length(get_row_idxs(gen_updated, :gentype=>"ngccccs")) == 1
     end
 end

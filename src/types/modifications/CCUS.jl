@@ -117,8 +117,8 @@ function modify_setup_data!(mod::CCUS, config, data)
     gdf_storers = groupby(ccus_paths, [:storing_region, :step_id])
 
     # Assert that all the members of each sequestration step have the same quantity
-    @assert all(allequal(sdf.step_quantity) for sdf in gdf_storers) "Carbon sequestration steps must have the same step_quantity!"
-    @assert all(allequal(sdf.price_store) for sdf in gdf_storers) "Carbon sequestration steps must have the same price_store!"
+    @assert all(allequal(sdf.step_quantity) for sdf in gdf_storers) "Carbon sequestration steps must have the same step_quantity"
+    @assert all(allequal(sdf.price_store) for sdf in gdf_storers) "Carbon sequestration steps must have the same price_store"
     @assert all(allequal(sdf.ccus_type) for sdf in gdf_storers) "Carbon sequestration steps must have the same ccus_type"
 
     ccus_storers = combine(gdf_storers,
@@ -162,9 +162,9 @@ export modify_setup_data!
 
 
 """
-    update_ccus_gens!(mod::CCUS, config, data) -> 
+    update_ccus_gens!(mod::CCUS, config, data) -> nothing
 
-Updates the carbon capturing generators
+Updates the carbon capturing generators by splitting into EOR and Saline-storing generators.  
 """
 function update_ccus_gens!(mod::CCUS, config, data)
     gen = get_table(data, :gen)
@@ -181,7 +181,7 @@ function update_ccus_gens!(mod::CCUS, config, data)
 
     # Add column for ccus_type
     ccus_type = fill("na", nrow(gen))
-    add_table_col!(data, :gen, :ccus_type, ccus_type, NA, "The type way the captured carbon will be utilized.  Either `saline` or `eor`.")
+    add_table_col!(data, :gen, :ccus_type, ccus_type, NA, "The type of reservoir that the captured carbon will be stored.  Either `saline` or `eor`.")
     ccus_types = unique(data[:ccus_paths].ccus_type)
 
     # Create sets of generators to match.
@@ -214,7 +214,7 @@ function update_ccus_gens!(mod::CCUS, config, data)
             push!(gen_set, new_idx)
             new_idx += 1
         end
-    elseif ccus_types==1
+    elseif length(ccus_types) == 1
         # If all one type, then assign to that type
         ccus_idxs = get_row_idxs(gen, :capt_co2=> >(0))
         gen[ccus_idxs, :ccus_type] = first(ccus_types)
@@ -224,8 +224,6 @@ function update_ccus_gens!(mod::CCUS, config, data)
     gen_eor = get_subtable(gen, :ccus_type=>"eor")
     eor_leakage_rate = get(config, :eor_leakage_rate, 0.5)
     gen_eor.emis_co2 .+=  eor_leakage_rate * gen_eor.capt_co2
-
-    # TODO: add eor_leakage_rate to config 
 end
 export update_ccus_gens!
 
