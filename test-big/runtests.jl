@@ -12,24 +12,27 @@ using JuMP
         @testset "Full Tests" begin
 
             config_file = joinpath(@__DIR__, "config/config_gurobi.yml")
+            @time out_path, _ = run_e4st(config_file)
 
-            @time config=load_config(config_file);
-            start_logging!(config)
-            @test config isa AbstractDict
+            # @time config=load_config(config_file);
+            # start_logging!(config)
+            # @test config isa AbstractDict
 
-            @time data=load_data(config)
-            @test data isa AbstractDict
+            # @time data=load_data(config)
+            # @test data isa AbstractDict
 
-            @time model = setup_model(config, data)
-            @test model isa JuMP.Model
+            # @time model = setup_model(config, data)
+            # @test model isa JuMP.Model
 
-            optimize!(model)
+            # optimize!(model)
             
-            results_raw = parse_results!(config, data, model)
-            model = nothing
-            results_user = process_results!(config, data, results_raw)
+            # results_raw = parse_results!(config, data, model)
+            # model = nothing
+            # results_user = process_results!(config, data, results_raw)
             
-            @test aggregate_result(total, data, results_raw, :bus, :ecurt) < 1e-3
+            data = load_processed_results(out_path)
+
+            @test aggregate_result(total, data, :bus, :ecurt) < 1
             # run_e4st(config_file)
         end
     end

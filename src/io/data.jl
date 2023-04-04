@@ -208,6 +208,12 @@ function load_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
         end
     end
     data[table_name] = table
+
+    # Add other columns to the summary, with NA unit and empty descriptions
+    for name in propertynames(table)
+        name in st.column_name && continue
+        add_table_col!(data, table_name, name, table[!, name], NA, "")
+    end
     return
 end
 
@@ -769,12 +775,12 @@ function add_table_col!(data, table_name, column_name, col::AbstractVector, unit
     data[:desc_lookup][(table_name, column_name)] = description
 end
 function add_table_col!(data, table_name, column_name, ar::AbstractArray{<:Real, 3}, unit, description)
-    v = [view(ar, i, :, :) for i in 1:size(ar, 1)]
+    v = [view(ar, i, :, :) for i in axes(ar, 1)]
     return add_table_col!(data, table_name, column_name, v, unit, description)
 end
 function add_table_col!(data, table_name, column_name, ar::AbstractMatrix{<:Real}, unit, description)
     # Might need to make this into a container.
-    v = [view(ar, i, :) for i in 1:size(ar, 1)]
+    v = [view(ar, i, :) for i in axes(ar, 1)]
     return add_table_col!(data, table_name, column_name, v, unit, description)
 end
 export add_table_col!

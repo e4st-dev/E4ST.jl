@@ -57,7 +57,7 @@ end
 function value_or_shadow_price(x::AbstractJuMPScalar, obj_scalar)
     value(x)
 end
-function value_or_shadow_price(x::Float64)
+function value_or_shadow_price(x::Float64, obj_scalar)
     return x
 end
 function value_or_shadow_price(ar::AbstractArray, obj_scalar)

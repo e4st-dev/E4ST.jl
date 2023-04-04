@@ -115,11 +115,31 @@ function constrain_pbal!(config, data, model)
     nhour = get_num_hours(data)
     nbus = nrow(get_table(data, :bus))
     line_loss_rate = config[:line_loss_rate]::Float64
-    pserv_scalar = 1/(1-line_loss_rate)
-    @constraint(model, 
-        cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-        model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:pserv_bus][bus_idx, year_idx, hour_idx] * pserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] == 0.0
-    )
+    line_loss_type = config[:line_loss_type]::String
+    if line_loss_type == "pflow_in"
+        pflow_bus = model[:pflow_bus]
+
+        # Make variables for positive and negative power flowing out of the bus.
+        @variable(model, pflow_out_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], lower_bound = 0)
+        @variable(model, pflow_in_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], lower_bound = 0)
+
+        # Constrain power flowing out of the bus.
+        @constraint(model, cons_pflow_in_out[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
+            pflow_out_bus[bus_idx, year_idx, hour_idx] - pflow_in_bus[bus_idx, year_idx, hour_idx] == pflow_bus[bus_idx, year_idx, hour_idx]
+        )
+        @constraint(model, 
+            cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:pserv_bus][bus_idx, year_idx, hour_idx] - model[:pflow_out_bus][bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * model[:pflow_in_bus][bus_idx, year_idx, hour_idx] == 0.0
+        )
+    elseif line_loss_type == "pserv"
+        pserv_scalar = 1/(1-line_loss_rate)
+        @constraint(model, 
+            cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:pserv_bus][bus_idx, year_idx, hour_idx] * pserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] == 0.0
+        )
+    else
+        error("config[:line_loss_type] must be `pserv` or `pflow_in`, but $line_loss_type was given")
+    end
     return nothing
 end
 export constrain_pbal!

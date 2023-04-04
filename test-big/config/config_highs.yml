@@ -1,5 +1,5 @@
 data_path: "L:/Project-Gurobi/Workspace3/E4ST/Data/mpc_210711_allTech"
-base_out_path: "../out-big/gurobi"
+out_path: "../out/highs"
 years:
   - "y2030"
 mods: []
@@ -11,6 +11,9 @@ bus_file: "L:/Project-Gurobi/Workspace3/E4ST/Data/mpc_210711_allTech/bus.csv"
 branch_file: "L:/Project-Gurobi/Workspace3/E4ST/Data/mpc_210711_allTech/branch.csv"
 hours_file: "L:/Project-Gurobi/Workspace3/E4ST/Data/mpc_210711_allTech/hours.csv"
 optimizer:
-  type: "Gurobi"
-  LogFile: "Gurobi.log"
-original_config_file: "L:/Project-Gurobi/Workspace3/E4ST/Data/mpc_210711_allTech\\config_gurobi.yml"
+  type: "HiGHS"
+  log_file: "HiGHS.log"
+  solver: "ipm"
+  run_crossover: "off"
+  parallel: "off"
+config_file: "L:/Project-Gurobi/Workspace3/E4ST/Data/mpc_210711_allTech\\config_gurobi.yml"
