@@ -1,6 +1,8 @@
 # Test iterating the model
 
 @testset "Test Iteration" begin
+    config_file =  joinpath(@__DIR__, "config", "config_3bus.yml")
+    
     @testset "Test Default Iteration" begin
         out_path, results = run_e4st(config_file)
         @test results isa AbstractVector

@@ -62,3 +62,7 @@ Then, in the julia repl, simply:
 include("make.jl")
 ```
 This will output the html documents to `docs/build` folder (which are being ignored by the .gitignore)
+
+## Helpful Tips
+
+- If you are using VSCode, it is helpful to install a YAML extension to flag any errors when setting up a config file. One option is the YAML extension from Red Hat.

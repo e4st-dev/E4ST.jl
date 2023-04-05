@@ -46,7 +46,7 @@ function setup_dcopf!(config, data, model)
         pgen_gen[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour], 
         start=0.0,
         lower_bound = 0.0,
-        upper_bound = get_pcap_max(data, gen_idx, year_idx),
+        upper_bound = get_pcap_max(data, gen_idx, year_idx)+1, # +1 here to allow cons_pgen_max to always be binding
     )
 
     # Power Curtailed
@@ -286,23 +286,6 @@ function get_egen_gen(data, model, gen_idx, year_idx, hour_idx)
 end
 
 export get_egen_gen
-
-
-
-
-# Model Mutation Functions
-################################################################################
-"""
-    abstract type Term
-
-Abstract type Term is used to add variables (terms) to the objective function or other functions. Subtypes include PerMWhGen, PerMWCap, and PerMWhCurtailed. 
-"""        
-abstract type Term end
-
-struct PerMWhGen <: Term end
-struct PerMWCap <: Term end
-struct PerMWhCurtailed <: Term end
-
   
 
 """

@@ -35,12 +35,14 @@ include("types/Policy.jl")
 include("types/Unit.jl")
 include("types/Containers.jl")
 include("types/Iterable.jl")
+include("types/Term.jl")
 
 # Include Modifications
 include("types/modifications/DCLine.jl")
 include("types/modifications/AggregationTemplate.jl")
 include("types/modifications/GenerationConstraint.jl")
 include("types/modifications/YearlyTable.jl")
+include("types/modifications/CCUS.jl")
 
 # Include Policies
 include("types/policies/ITC.jl")
@@ -57,14 +59,15 @@ include("types/iterables/RunSequential.jl")
 include("io/config.jl")
 include("io/data.jl")
 include("io/adjust.jl")
-include("io/util.jl")
 include("io/demand.jl")
+include("io/util.jl")
 
 # Include model
 include("model/setup.jl")
 include("model/dcopf.jl")
 include("model/check.jl")
 include("model/newgens.jl")
+include("model/util.jl")
 
 # Include Results
 include("results/parse.jl")
@@ -175,9 +178,18 @@ end
 Loads all types associated with E4ST so that the type will accessible by string with `get_type(str)`.
 """
 function reload_types!()
-    reload_types!(Modification)
-    reload_types!(Iterable)
-    reload_types!(Unit)
+    global STR2TYPE
+    global SYM2TYPE
+    for n in names(E4ST)
+        try
+            T = getfield(E4ST, n)
+            if T isa Type
+                reload_types!(T)
+            end
+        catch
+            @warn "No definition for name `$n` - consider removing the export statement, or defining it."
+        end
+    end
     reload_types!(AbstractString)
     reload_types!(AbstractFloat)
     reload_types!(Integer)
