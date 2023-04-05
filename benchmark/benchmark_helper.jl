@@ -61,7 +61,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
     CSV.write(joinpath(@__DIR__, "data/branch.csv"), branch)
     CSV.write(joinpath(@__DIR__, "data/time.csv"), time)
     config = OrderedDict(
-        :out_path=>abspath(@__DIR__,"out"),
+        :base_out_path=>abspath(@__DIR__,"out"),
         :gen_file=>abspath(@__DIR__,"data/gen.csv"),
         :bus_file=>abspath(@__DIR__,"data/bus.csv"),
         :branch_file=>abspath(@__DIR__, "data/branch.csv"),
@@ -108,6 +108,8 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         config[:demand_add_file] = abspath(@__DIR__, "data/demand_add.csv")
     end
     
+    check_config!(config)
+
     return config
 end
 

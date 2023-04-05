@@ -75,7 +75,7 @@ export add_result!
 """
     get_result(data, name) -> retult
 
-Retrieves `data[:results][name]`.  See also [`add_results!`](@ref)
+Retrieves `data[:results][name]`.  See also [`add_result!`](@ref)
 """
 function get_result(data, name)
     results = get_results(data)
