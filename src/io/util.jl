@@ -496,3 +496,17 @@ function _sum_product(M::AbstractMatrix, v::AbstractVector)
     @inbounds sum(M[row_idx, hr_idx]*v[hr_idx] for row_idx in 1:size(M,1), hr_idx in 1:size(M,2))
 end
 
+
+"""
+    replace_nans!(v, x) -> v
+
+Replaces all `NaN` values in `v` with `x`
+"""
+function replace_nans!(v, x)
+    for i in eachindex(v)
+        isnan(v[i]) || continue
+        v[i] = x
+    end
+    return v
+end
+export replace_nans!

@@ -409,7 +409,7 @@ make_paths_absolute!(config) = make_paths_absolute!(config, config[:config_file]
 Returns true if `s` contains "_file" or "_path".
 """
 function contains_file_or_path(s::AbstractString)
-    return contains(s, "file") || contains(s, "path")
+    return endswith(s, "file") || endswith(s, "path")
 end
 contains_file_or_path(s::Symbol) = contains_file_or_path(string(s))
 

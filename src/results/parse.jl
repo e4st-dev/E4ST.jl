@@ -63,6 +63,9 @@ end
 function value_or_shadow_price(ar::AbstractArray, obj_scalar)
     value_or_shadow_price.(ar, obj_scalar)
 end
+function value_or_shadow_price(v::Number, obj_scalar)
+    return v
+end
 export value_or_shadow_price
 
 
@@ -196,7 +199,13 @@ function save_updated_gen_table(config, data)
     filter!(:pcap0 => >(thresh), gen_tmp)
 
 
-    CSV.write(get_out_path(config, "gen.csv"), gen_tmp)
+    # Combine generators that are the same
+    gdf = groupby(gen_tmp, Not(:pcap0))
+    gen_tmp_combined = combine(gdf,
+        :pcap0 => sum => :pcap0
+    )
+
+    CSV.write(get_out_path(config, "gen.csv"), gen_tmp_combined)
     return nothing
 end
 export save_updated_gen_table

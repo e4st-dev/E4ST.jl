@@ -591,7 +591,9 @@ function summarize_table(::Val{:gen})
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
         (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
         (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
-        (:af, Float64, MWhGeneratedPerMWhCapacity, false, "The availability factor, or maximum available ratio of pewer generation to nameplate capacity for the generator.")
+        (:af, Float64, MWhGeneratedPerMWhCapacity, false, "The availability factor, or maximum available ratio of pewer generation to nameplate capacity for the generator."),
+        (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The emission rate per MWh of CO2"),
+        (:capt_co2_percent, Float64, ShortTonsPerMWhGenerated, false, "The percentage of co2 emissions captured, to be sequestered."),
     )
     return df
 end
@@ -677,6 +679,8 @@ function summarize_table(::Val{:build_gen})
         (:year_on, AbstractString, NA, true, "The first year of operation for the generator. (For new gens this is also the year it was built). Endogenous unbuilt generators will be left blank"),
         (:year_on_min, AbstractString, NA, true, "The first year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
         (:year_on_max, AbstractString, NA, true, "The last year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
+        (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The CO2 emission rate of the generator, in short tons per MWh generated.  This is the net emissions. (i.e. not including captured CO2 that gets captured)"),
+        (:capt_co2_percent, Float64, ShortTonsPerMWhGenerated, false, "The percentage of co2 emissions captured, to be sequestered."),
     )
     return df
 end
@@ -720,12 +724,22 @@ Return a subset of the table `table_name` for which the row passes the `conditio
 * `:genfuel => ["ng", "solar", "wind"]` - All rows for which `row.genfuel` is either "ng", "solar", or "wind"
 * `:emis_co2 => f::Function` - All rows for which f(row.emis_co2) returns `true`.  For example `>(0)`, or `x->(0<x<=0.5)`
 """
-function get_table(data, table_name, conditions...)
+function get_table(data, table_name::Union{Symbol, AbstractString}, conditions...)
     table = get_table(data, table_name)
+    get_subtable(table, conditions...)
+end
+export get_table
+
+"""
+    get_subtable(table::DataFrame, conditions...)
+
+Returns a `SubDataFrame` of `table`, based on `conditions`.  See [`get_table`](@ref) for ideas of appropriate `conditions`
+"""
+function get_subtable(table::DataFrame, conditions...)
     row_idxs = get_row_idxs(table, conditions...)
     return view(table, row_idxs, :)
 end
-export get_table
+export get_subtable
 
 """
     get_table_row_idxs(data, table_name, conditions...) -> row_idxs::Vector{Int64}
@@ -748,7 +762,6 @@ function get_table_col(data, table_name, col_name)
     return col::AbstractVector
 end
 export get_table_col
-
 """
     add_table_col!(data, table_name, col_name, col, unit, description)
 
@@ -906,9 +919,9 @@ end
 export has_table
 
 """
-    get_table_summary(config, data, table_name) -> summary::SubDataFrame
+    get_table_summary(data, table_name) -> summary::SubDataFrame
 
-Returns a summary of `table_name`, loaded in from [`summarize_table`](@ref)` and [`load_summary_table!`](@ref).
+Returns a summary of `table_name`, loaded in from [`summarize_table`](@ref) and [`load_summary_table!`](@ref).
 """
 function get_table_summary(data, table_name)
     st = get_table(data, :summary_table)
