@@ -169,7 +169,7 @@ Updates the carbon capturing generators by splitting into EOR and Saline-storing
 function update_ccus_gens!(mod::CCUS, config, data)
     gen = get_table(data, :gen)
     @assert hasproperty(gen, :capt_co2_percent) "gen table must have column for `capt_co2_percent` for CCUS"
-    @assert hasproperty(gen, :emis_co2) "gen table must have column for `capt_co2_percent` for CCUS"
+    @assert hasproperty(gen, :emis_co2) "gen table must have column for `emis_co2` for CCUS"
 
     capt_co2 = gen.emis_co2 .* gen.capt_co2_percent # This may make an OriginalContainer with the original value for emis_co2 preserved, but that should be ok since this column isn't kept in save_updated_gen_table.
     add_table_col!(data, :gen, :capt_co2, capt_co2, ShortTonsPerMWhGenerated, "The rate of capture of CO2 (calculated from emis_co2 and capt_co2_percent)")
@@ -245,7 +245,7 @@ function modify_model!(mod::CCUS, config, data, model)
 
 
 
-    # Make variables for amount of captured carbon going each of the carbon markets bounded by [0, maximum co2 storage]
+    # Make variables for amount of captured carbon going into each of the carbon markets bounded by [0, maximum co2 storage]
     @variable(model, 
         co2_trans[ts_idx in 1:nrow(ccus_paths), yr_idx in 1:nyear], 
         lower_bound = 0,
