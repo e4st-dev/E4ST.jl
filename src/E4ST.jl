@@ -177,9 +177,18 @@ end
 Loads all types associated with E4ST so that the type will accessible by string with `get_type(str)`.
 """
 function reload_types!()
-    reload_types!(Modification)
-    reload_types!(Iterable)
-    reload_types!(Unit)
+    global STR2TYPE
+    global SYM2TYPE
+    for n in names(E4ST)
+        try
+            T = getfield(E4ST, n)
+            if T isa Type
+                reload_types!(T)
+            end
+        catch
+            @warn "No definition for name `$n` - consider removing the export statement, or defining it."
+        end
+    end
     reload_types!(AbstractString)
     reload_types!(AbstractFloat)
     reload_types!(Integer)

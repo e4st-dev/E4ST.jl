@@ -32,7 +32,6 @@ function setup_table!(config, data, ::Val{:demand_table})
     haskey(config, :demand_match_file) && match_demand!(config, data)
     haskey(config, :demand_add_file)   && add_demand!(config, data)
 end
-export setup_demand!
 
 """
     shape_demand!(config, data)

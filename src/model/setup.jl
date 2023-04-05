@@ -82,12 +82,12 @@ function setup_model(config, data)
         end
 
         # Set the objective, scaling down for numerical stability.
-        obj_scalar = get(config, :objective_scalar, 1e6)
+        obj_scalar = config[:objective_scalar]
         @objective(model, Min, model[:obj]/obj_scalar)
 
         constrain_pbal!(config, data, model)
 
-        if get(config, :save_model_presolve, true)
+        if config[:save_model_presolve] === true
             model_presolve_file = get_out_path(config,"model_presolve.jls")
             @info "Saving model to:\n$model_presolve_file"
             serialize(model_presolve_file, model)
