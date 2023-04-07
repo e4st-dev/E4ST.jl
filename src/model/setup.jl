@@ -62,6 +62,8 @@ The objective is a single expression that can be accessed via `model[:obj]`.  In
 
 """
 function setup_model(config, data)
+    @info summarize(data)
+
     log_header("SETTING UP MODEL")
 
     if haskey(config, :model_presolve_file)
@@ -95,7 +97,6 @@ function setup_model(config, data)
 
     add_optimizer!(config, data, model)
 
-    @info "Model Summary:\n$(summarize(model))"
     return model
 end
 
@@ -150,13 +151,19 @@ function add_optimizer!(config, data, model)
 end
 
 """
-    summarize(model::Model) -> summary::String
-
-Returns the string that would be output by show(model).
+    summarize(data) -> summary::String
 """
-function summarize(model::Model)
-    buf = IOBuffer() 
-    show(buf, model)
+function summarize(data)
+    buf = IOBuffer()
+    df = DataFrame(:Table=>String[], :Rows=>Int64[])
+    
+    push!(df, ("gen", nrow(get_table(data, :gen))))
+    push!(df, ("bus", nrow(get_table(data, :bus))))
+    push!(df, ("branch", nrow(get_table(data, :branch))))
+    push!(df, ("hours", nrow(get_table(data, :hours))))
+    println(buf, "Data Summary:")
+
+    println(buf, df)
     summary = String(take!(buf))
     return summary
 end

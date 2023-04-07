@@ -41,13 +41,20 @@ Exogenously specified generators are also added to newgen through the build_gen 
 function make_newgens!(config, data, newgen)
     build_gen = get_table(data, :build_gen)
     bus = get_table(data, :bus)
-    spec_names = filter!(!=(:bus_idx), propertynames(newgen)) #this needs to be updated if there is anything else in gen that isn't a spec
+    spec_names = filter!(!in((:bus_idx, :gen_latitude, :gen_longitude)), propertynames(newgen)) #this needs to be updated if there is anything else in gen that isn't a spec
     years = get_years(data)
 
     for spec_row in eachrow(build_gen)
+        # continue if status is false
+        get(spec_row, :status, true) || continue
+
         area = spec_row.area
         subarea = spec_row.subarea
-        bus_idxs = get_row_idxs(bus, (area=>subarea))
+        if isempty(area)
+            bus_idxs = 1:nrow(bus)
+        else
+            bus_idxs = get_row_idxs(bus, (area=>subarea))
+        end
         
         #set default min and max for year_on if blank
         spec_row.year_on_min == "" ? year_on_min = "y0" : year_on_min = spec_row.year_on_min
@@ -62,11 +69,16 @@ function make_newgens!(config, data, newgen)
                     #populate newgen_row with specs
                     newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
                     newgen_row[:year_on] = year
+                    hasproperty(newgen, :gen_latitude) && (newgen_row[:gen_latitude] = bus.bus_latitude[bus_idx])
+                    hasproperty(newgen, :gen_longitude) && (newgen_row[:gen_longitude] = bus.bus_longitude[bus_idx])
                     push!(newgen, newgen_row)
                 end
             else 
                 # for exogenously specified gens, only one generator is created with the specified year_on
-                newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)  
+                newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
+                hasproperty(newgen, :gen_latitude) && (newgen_row[:gen_latitude] = bus.bus_latitude[bus_idx])
+                hasproperty(newgen, :gen_longitude) && (newgen_row[:gen_longitude] = bus.bus_longitude[bus_idx])
+
                 push!(newgen, newgen_row)        
             end
         end

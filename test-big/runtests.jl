@@ -10,9 +10,9 @@ using JuMP
             include("../test-gurobi/runtests.jl")
         end
         @testset "Full Tests" begin
-
-            config_file = joinpath(@__DIR__, "config/config_gurobi.yml")
-            @time out_path, _ = run_e4st(config_file)
+            config_2016 = "L:/Project-Gurobi/Workspace3/E4ST/Data/config/config_2016.yml"
+            config_gurobi = joinpath(@__DIR__, "config/config_gurobi.yml")
+            @time out_path, _ = run_e4st(config_2016, config_gurobi)
 
             # @time config=load_config(config_file);
             # start_logging!(config)

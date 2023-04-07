@@ -52,6 +52,7 @@ function shape_demand!(config, data)
     # Pull out year info that will be needed
     all_years = get_years(data)
     nyr = get_num_years(data)
+    nhr = get_num_hours(data)
 
 
     # Add columns to the demand_table so we can group more easily
@@ -69,14 +70,15 @@ function shape_demand!(config, data)
     gdf = groupby(demand_table, grouping_variables)
 
     # Loop through each row in the demand_shape_table
+    demand_hr_idxs = hr_idx:(hr_idx + nhr - 1)
     for i in 1:nrow(demand_shape_table)
         row = demand_shape_table[i, :]
-        shape = Float64[row[i_hr] for i_hr in hr_idx:length(row)]
+        shape = Float64[row[i_hr] for i_hr in demand_hr_idxs]
 
 
         get(row, :status, true) || continue
 
-        if isempty(row.year)
+        if (~haskey(row, :year)) || isempty(row.year)
             yr_idx = 1:get_num_years(data)
         elseif row.year ∈ all_years
             yr_idx = findfirst(==(row.year), all_years)
@@ -206,7 +208,7 @@ function add_demand!(config, data)
         get(row, :status, true) || continue
         shape = Float64[row[i_hr] for i_hr in hr_idx:length(row)]
 
-        if isempty(row.year)
+        if (~haskey(row, :year)) || isempty(row.year)
             yr_idx = 1:get_num_years(data)
         elseif row.year ∈ all_years
             yr_idx = findfirst(==(row.year), all_years)
@@ -262,7 +264,7 @@ function summarize_table(::Val{:demand_shape})
         (:area, String, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, String, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:load_type, String, NA, false, "The type of load represented for this load shape.  Leave blank to not filter by type."),
-        (:year, String, Year, true, "The year to apply the demand profile to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
+        (:year, String, Year, false, "The year to apply the demand profile to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\". Leave blank or omit this column if it applies to every year."),
         (:status, Bool, NA, false, "Whether or not to use this shape adjustment"),
         (:h_, Float64, Ratio, true, "Demand scaling factor of hour 1.  Include a column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
     )
@@ -294,7 +296,7 @@ function summarize_table(::Val{:demand_add})
         (:area, String, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, String, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:load_type, String, NA, false, "The type of load represented for this load add.  Leave blank to not filter by type."),
-        (:year, String, Year, true, "The year to apply the demand profile to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
+        (:year, String, Year, false, "The year to apply the demand profile to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\".  Leave blank for all years, or omit column."),
         (:status, Bool, NA, false, "Whether or not to use this addition"),
         (:h_, Float64, MWDemanded, true, "Amount of demanded power to add in hour _.  Include a column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
     )

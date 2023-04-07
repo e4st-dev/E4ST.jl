@@ -189,7 +189,7 @@ Returns net power flow out of the bus
 """ 
 function get_pflow_bus(data, model, bus_idx, year_idx, hour_idx) 
     branch_idxs = get_table(data, :bus)[bus_idx, :connected_branch_idxs] #vector of the connecting branches with positive values for branches going out (branch f_bus = bus_idx) and negative values for branches coming in (branch t_bus = bus_idx)
-    isempty(branch_idxs) && return 0.0
+    isempty(branch_idxs) && return AffExpr(0.0)
     return sum(get_pflow_branch(data, model, branch_idx, year_idx, hour_idx) for branch_idx in branch_idxs)
 end
 export get_pflow_bus
