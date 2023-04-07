@@ -2,15 +2,15 @@
     #Testing initializing data: loading in, setting up, modifying, adding new gens
 
     config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
-    config = load_config(config_file)
+    config = read_config(config_file)
 
-    data = load_data(config)
+    data = read_data(config)
     import E4ST.Container
     Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
 
     @testset "Test Initializing the Data" begin
-        config = load_config(config_file)
-        data = load_data(config)
+        config = read_config(config_file)
+        data = read_data(config)
         table_names = get_table_names(data)
         for table_name in table_names
             @test has_table(data, table_name)
@@ -34,11 +34,11 @@
         function E4ST.modify_setup_data!(::DoubleVOM, config, data)
             data[:gen][!, :vom] .*= 2
         end
-        config = load_config(config_file)
-        data_0 = load_data(config)
+        config = read_config(config_file)
+        data_0 = read_data(config)
         push!(config[:mods], :testmod=>DoubleVOM())
         @test ~isempty(config[:mods])
-        data = load_data(config)
+        data = read_data(config)
         @test data != data_0
         @test sum(data[:gen].vom) == 2*sum(data_0[:gen].vom)
 
@@ -50,12 +50,19 @@
     include("testadjust.jl")
 
 
+<<<<<<< HEAD
     @testset "Test load_demand_table! with shaping" begin
         config = load_config(config_file)
         #config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
         delete!(config, :demand_match_file)
         delete!(config, :demand_add_file)
         data = load_data(config)
+=======
+    @testset "Test read_demand_table! with shaping" begin
+        config = read_config(config_file)
+        config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
+        data = read_data(config)
+>>>>>>> 2b2079b (Change all load -> read)
         archenland_buses = findall(==("archenland"), data[:bus].country)
         narnia_buses = findall(==("narnia"), data[:bus].country)
         all_buses = 1:nrow(data[:bus])
@@ -76,12 +83,20 @@
         end
     end
 
+<<<<<<< HEAD
     @testset "Test load_demand_table! with shaping and matching" begin
         config = load_config(config_file)
         # config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
         # config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
         delete!(config, :demand_add_file)
         data = load_data(config)
+=======
+    @testset "Test read_demand_table! with shaping and matching" begin
+        config = read_config(config_file)
+        config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
+        config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
+        data = read_data(config)
+>>>>>>> 2b2079b (Change all load -> read)
         archenland_buses = findall(==("archenland"), data[:bus].country)
         narnia_buses = findall(==("narnia"), data[:bus].country)
         all_buses = 1:nrow(data[:bus])
@@ -99,12 +114,21 @@
         end
     end
 
+<<<<<<< HEAD
     @testset "Test load_demand_table! with shaping, matching and adding" begin
         config = load_config(config_file)
         # config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
         # config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
         # config[:demand_add_file]   = abspath(@__DIR__, "data", "3bus","demand_add.csv")
         data = load_data(config)
+=======
+    @testset "Test read_demand_table! with shaping, matching and adding" begin
+        config = read_config(config_file)
+        config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
+        config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
+        config[:demand_add_file]   = abspath(@__DIR__, "data", "3bus","demand_add.csv")
+        data = read_data(config)
+>>>>>>> 2b2079b (Change all load -> read)
 
 
         @test get_edem_demand(data, :, "y2030", :) ≈ 16000
@@ -113,8 +137,8 @@
     end
 
     @testset "Test Adding New Gens" begin
-        config = load_config(config_file)
-        data = load_data(config)
+        config = read_config(config_file)
+        data = read_data(config)
         gen = get_table(data, :gen)
         build_gen = get_table(data, :build_gen)
 
@@ -134,8 +158,8 @@
     end
 
     @testset "Test Setting Up Gen Table" begin 
-        config = load_config(config_file)
-        data = load_data(config)
+        config = read_config(config_file)
+        data = read_data(config)
         gen = get_table(data, :gen)
 
         @test hasproperty(gen, :capex_obj)

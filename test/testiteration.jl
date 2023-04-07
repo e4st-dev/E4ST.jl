@@ -53,10 +53,10 @@
             gen.fuel_cost .+= ng_price_diff
             return nothing            
         end
-        E4ST.should_reload_data(::TargetAvgAnnualNGGen) = false
+        E4ST.should_reread_data(::TargetAvgAnnualNGGen) = false
         
         config_file = joinpath(@__DIR__, "config", "config_3bus_iter.yml")
-        config = load_config(config_file)
+        config = read_config(config_file)
         
         @test config[:iter] isa TargetAvgAnnualNGGen
 
@@ -69,7 +69,7 @@
         config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
         iter_file = joinpath(@__DIR__, "config", "iter_seq.yml")
 
-        config = load_config(config_file, iter_file)
+        config = read_config(config_file, iter_file)
 
         @test get_iterator(config) isa RunSequential
 

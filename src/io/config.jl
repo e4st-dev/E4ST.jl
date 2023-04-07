@@ -80,13 +80,13 @@ table_element(x) = x
 table_element(x::Symbol) = "`$x`"
 
 @doc """
-    load_config(filename) -> config::OrderedDict{Symbol,Any}
+    read_config(filename) -> config::OrderedDict{Symbol,Any}
 
-    load_config(filenames) -> config::OrderedDict{Symbol,Any}
+    read_config(filenames) -> config::OrderedDict{Symbol,Any}
 
-    load_config(path) -> config::OrderedDict{Symbol, Any}
+    read_config(path) -> config::OrderedDict{Symbol, Any}
 
-Load the config file from `filename`, inferring any necessary settings as needed.  If `path` given, checks for `joinpath(path, "config.yml")`.  This can be used with the `out_path` returned by [`run_e4st`](@ref)  See [`load_data`](@ref) to see how the `config` is used.  If multiple filenames given, (in a vector, or separated by commas) merges them, preserving the settings found in the last file, when there are conflicts, appending the list of [`Modification`](@ref)s.  Uses [`summarize_config`](@ref) to infer defaults, when applicable.
+Load the config file from `filename`, inferring any necessary settings as needed.  If `path` given, checks for `joinpath(path, "config.yml")`.  This can be used with the `out_path` returned by [`run_e4st`](@ref)  See [`read_data`](@ref) to see how the `config` is used.  If multiple filenames given, (in a vector, or separated by commas) merges them, preserving the settings found in the last file, when there are conflicts, appending the list of [`Modification`](@ref)s.  Uses [`summarize_config`](@ref) to infer defaults, when applicable.
 
 The Config File is a file that fully specifies all the necessary information.  Note that when filenames are given as a relative path, they are assumed to be relative to the location of the config file.
 
@@ -97,8 +97,8 @@ $(table2markdown(summarize_config()))
 $(read_sample_config_file())
 ```
 """
-function load_config(filenames...)
-    config = _load_config(filenames)
+function read_config(filenames...)
+    config = _read_config(filenames)
     check_config!(config)
     check_years!(config)
     make_out_path!(config)
@@ -107,7 +107,7 @@ function load_config(filenames...)
     return config
 end
 
-function _load_config(filename::AbstractString)
+function _read_config(filename::AbstractString)
     if contains(filename, ".yml")
         config = YAML.load_file(filename, dicttype=OrderedDict{Symbol, Any})
         get!(config, :config_file, filename)
@@ -115,23 +115,23 @@ function _load_config(filename::AbstractString)
     elseif isdir(filename)
         filename_new = joinpath(filename, "config.yml")
         isfile(filename_new) || error("No config file found at the following location:\n  $filename_new")
-        return _load_config(filename_new)
+        return _read_config(filename_new)
     else
         error("Cannot load config from: $filename")
     end
     return config
 end
 
-function _load_config(filenames)
-    config = _load_config(first(filenames))
+function _read_config(filenames)
+    config = _read_config(first(filenames))
     for i in 2:length(filenames)
-        _load_config!(config, filenames[i])
+        _read_config!(config, filenames[i])
     end
     return config
 end
 
-function _load_config!(config::OrderedDict, filename::AbstractString)
-    config_new = _load_config(filename)
+function _read_config!(config::OrderedDict, filename::AbstractString)
+    config_new = _read_config(filename)
     config_file = config[:config_file]
 
     mods = config[:mods]

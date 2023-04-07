@@ -5,9 +5,9 @@
     # Setup reference case 
     ####################################################################
     config_file_ref = joinpath(@__DIR__, "config", "config_3bus.yml")
-    config_ref = load_config(config_file_ref)
+    config_ref = read_config(config_file_ref)
 
-    data_ref = load_data(config_ref)
+    data_ref = read_data(config_ref)
     model_ref = setup_model(config_ref, data_ref)
 
     optimize!(model_ref)
@@ -21,9 +21,9 @@
 
     @testset "Test PTC" begin 
         config_file = joinpath(@__DIR__, "config", "config_3bus_ptc.yml")
-        config = load_config(config_file_ref, config_file)
+        config = read_config(config_file_ref, config_file)
 
-        data = load_data(config)
+        data = read_data(config)
         model = setup_model(config, data)
 
         gen = get_table(data, :gen)
@@ -61,9 +61,9 @@
 
     @testset "Test ITC" begin
         config_file = joinpath(@__DIR__, "config", "config_3bus_itc.yml")
-        config = load_config(config_file_ref, config_file)
+        config = read_config(config_file_ref, config_file)
 
-        data = load_data(config)
+        data = read_data(config)
         model = setup_model(config, data)
 
         gen = get_table(data, :gen)
@@ -100,9 +100,9 @@
 
     @testset "Test EmissionCap" begin
         config_file = joinpath(@__DIR__, "config", "config_3bus_emiscap.yml")
-        config = load_config(config_file_ref, config_file)
+        config = read_config(config_file_ref, config_file)
 
-        data = load_data(config)
+        data = read_data(config)
         model = setup_model(config, data)
 
         gen = get_table(data, :gen)
@@ -184,9 +184,9 @@
 
     @testset "Emission Price" begin
         config_file = joinpath(@__DIR__, "config", "config_3bus_emisprc.yml")
-        config = load_config(config_file_ref, config_file)
+        config = read_config(config_file_ref, config_file)
 
-        data = load_data(config)
+        data = read_data(config)
         model = setup_model(config, data)
 
         gen = get_table(data, :gen)

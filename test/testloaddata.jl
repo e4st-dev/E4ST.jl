@@ -4,10 +4,10 @@
     # Test loading in the data to the model
 
     config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
-    config = load_config(config_file)
+    config = read_config(config_file)
 
     @testset "Test Loading the Data" begin    
-        data = load_data(config)
+        data = read_data(config)
         @test get_table(data, :gen) isa DataFrame
         @test get_table(data, :build_gen) isa DataFrame
         @test get_table(data, :bus) isa DataFrame
@@ -19,9 +19,9 @@
     end
 
 
-    @testset "Test load_af_table!" begin
-        config = load_config(config_file)
-        data = load_data(config)
+    @testset "Test read_af_table!" begin
+        config = read_config(config_file)
+        data = read_data(config)
 
         # generator 1 is a natural gas plant, defaults to 1.0
 
@@ -36,11 +36,22 @@
     end
 
 
+    @testset "Test read_demand_table!" begin
+        config = read_config(config_file)
+        data = read_data(config)
+
+        # generator 1 is a natural gas plant, defaults to 1.0
+
+        # AF not specified for ng, should be default of 1.0
+        @test all(get_pdem(data, 1, yr_idx, hr_idx) ≈ 0.2 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
+        @test all(get_pdem(data, 2, yr_idx, hr_idx) ≈ 1.6 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
+        @test all(get_pdem(data, 3, yr_idx, hr_idx) ≈ 0.2 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
+    end
 
     @testset "Test duplicate lines combination" begin
-        config = load_config(config_file)
+        config = read_config(config_file)
         config[:branch] = joinpath(@__DIR__, "data/3bus/branch_dup.csv")
-        data = load_data(config)
+        data = read_data(config)
         branch = get_table(data, :branch)
         @test nrow(branch) == 2
         @test all(x->x≈0.01, branch.x)

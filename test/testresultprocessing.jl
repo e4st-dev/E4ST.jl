@@ -3,29 +3,29 @@
     config_file =  joinpath(@__DIR__, "config", "config_3bus.yml")
 
     @testset "Test loading/saving data from .jls file" begin
-        config = load_config(config_file)
+        config = read_config(config_file)
         config[:base_out_path] = "../out/3bus1"
         E4ST.make_out_path!(config)
-        data1 = load_data(config)
+        data1 = read_data(config)
 
         # Check that it is trying to load in the data file
         config[:data_file] = get_out_path(config, "blah.jls")
-        @test_throws Exception load_data(config)
+        @test_throws Exception read_data(config)
 
         # Check that data file is loaded in and identical.  Also check that other files aren't touched
         config[:data_file] = get_out_path(config, "data.jls")
         config[:demand_file] = "blah.csv"
-        data2 = load_data(config)
+        data2 = read_data(config)
         @test data1 == data2
     end
 
     @testset "Test loading/saving model from .jls file" begin
-        config = load_config(config_file)
+        config = read_config(config_file)
         config[:base_out_path] = "../out/3bus1"
         config[:save_model_presolve] = true
         E4ST.make_paths_absolute!(config, config_file)
         E4ST.make_out_path!(config)
-        data = load_data(config)
+        data = read_data(config)
         model1 = setup_model(config, data)
 
         # Check that it is trying to load in the model file
@@ -43,8 +43,8 @@
 
 
     @testset "Test Aggregation" begin
-        config = load_config(config_file)
-        data = load_data(config)
+        config = read_config(config_file)
+        data = read_data(config)
         model = setup_model(config, data)
         optimize!(model)
         parse_results!(config, data, model)
@@ -148,8 +148,8 @@
 
     @testset "Test Results Mods" begin
         # Setup
-        config = load_config(config_file)
-        data = load_data(config)
+        config = read_config(config_file)
+        data = read_data(config)
         model = setup_model(config, data)
         optimize!(model)
         parse_results!(config, data, model)
@@ -241,7 +241,7 @@
 
         # Now load the config from the out_path, with some results processing mods too.  Could also add the mods manually here.
         mod_file= joinpath(@__DIR__, "config/config_res.yml")
-        config = load_config(out_path, mod_file)
+        config = read_config(out_path, mod_file)
         data = process_results!(config)
 
         # Test that the results contain the raw results and the agg_res from the added mod_file.

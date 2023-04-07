@@ -21,14 +21,14 @@ end
     process_results!(config; processed=true) -> data
 
 This loads `data` in, then calls [`process_results!(config, data)`](@ref).  
-* `processed=false` - loads in `data` via [`load_parsed_results`](@ref)
-* `processed=true` - loads in `data` via [`load_processed_results`](@ref)
+* `processed=false` - loads in `data` via [`read_parsed_results`](@ref)
+* `processed=true` - loads in `data` via [`read_processed_results`](@ref)
 """
 function process_results!(config; processed=true)
     if processed
-        data = load_processed_results(config)
+        data = read_processed_results(config)
     else
-        data = load_parsed_results(config)
+        data = read_parsed_results(config)
     end
     return process_results!(config, data)
 end
@@ -37,15 +37,15 @@ export process_results!
 """
     process_results!(mod_file::String, out_path::String; processed=true) -> data
 
-Processes the results the [`Modification`](@ref)s found in `mod_file`, a .yml file similar to a `config` file (see [`load_config`](@ref)), only requiring the `mods` field.
-* `processed=false` - loads in `data` via [`load_parsed_results`](@ref)
-* `processed=true` - loads in `data` via [`load_processed_results`](@ref)
+Processes the results the [`Modification`](@ref)s found in `mod_file`, a .yml file similar to a `config` file (see [`read_config`](@ref)), only requiring the `mods` field.
+* `processed=false` - loads in `data` via [`read_parsed_results`](@ref)
+* `processed=true` - loads in `data` via [`read_processed_results`](@ref)
 """
 function process_results!(mod_file::String, out_path::String; processed=true)
 
     # Load the config, and the modifications
-    config = load_config(out_path)
-    mods = _load_config(mod_file)
+    config = read_config(out_path)
+    mods = _read_config(mod_file)
     convert_mods!(mods)
 
     # Merge the mods into config, overwriting anything in config

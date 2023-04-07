@@ -2,12 +2,12 @@ Data
 ====
 ## Loading Data
 ```@docs
-load_data
-load_data_files!(config, data)
+read_data
+read_data_files!(config, data)
 modify_raw_data!(config, data)
 setup_data!
 modify_setup_data!(config, data)
-load_summary_table!
+read_summary_table!
 setup_table!(config, data, ::Symbol)
 ```
 

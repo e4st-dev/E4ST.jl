@@ -12,6 +12,6 @@ get_results
 get_result
 add_result!
 save_updated_gen_table
-load_parsed_results
-load_processed_results
+read_parsed_results
+read_processed_results
 ```

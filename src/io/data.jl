@@ -3,17 +3,17 @@
 ################################################################################
 
 """
-    load_data(config) -> data
+    read_data(config) -> data
 
 Pulls in data found in files listed in the `config`, and stores into `data`.
 
 Calls the following functions:
-* [`load_data_files!(config, data)`](@ref) - load in the data from files
+* [`read_data_files!(config, data)`](@ref) - load in the data from files
 * [`modify_raw_data!(config, data)`](@ref) - Gives [`Modification`](@ref)s a chance to modify the raw data before the data gets setup.
 * [`setup_data!(config, data)`](@ref) - Sets up the data, modifying/adding to the tables as needed.
 * [`modify_setup_data!(config, data)`](@ref) - Gives [`Modification`](@ref)s a chance to modify the setup data before the model is built.
 """
-function load_data(config)
+function read_data(config)
     log_header("LOADING DATA")
 
     # Try loading the data directly
@@ -24,24 +24,24 @@ function load_data(config)
     end
     data = OrderedDict{Symbol, Any}()
     
-    load_data!(config, data)
+    read_data!(config, data)
 
     return data
 end
 
 """
-    load_data!(config, data) -> data
+    read_data!(config, data) -> data
 
 Loads data specified by `config` into `data`. `data` can be empty or full.
 """
-function load_data!(config, data)
+function read_data!(config, data)
     # Check to see if data is empty
     if ~isempty(data)
-        @warn "Inside load_data! and `data` is not empty, clearing."
+        @warn "Inside read_data! and `data` is not empty, clearing."
         empty!(data)
     end
 
-    load_data_files!(config, data)
+    read_data_files!(config, data)
     modify_raw_data!(config, data)
     setup_data!(config, data)  
     modify_setup_data!(config, data)
@@ -52,38 +52,38 @@ function load_data!(config, data)
     end
     return data
 end
-export load_data!
+export read_data!
 
 """
-    load_data_files!(config, data)
+    read_data_files!(config, data)
 
 Loads in the data files presented in the `config`.
 """
-function load_data_files!(config, data)
-    load_summary_table!(config, data)
+function read_data_files!(config, data)
+    read_summary_table!(config, data)
 
     # Other things to load
-    load_voll!(config, data)
-    load_years!(config, data)
+    read_voll!(config, data)
+    read_years!(config, data)
 
-    load_table!(config, data, :bus_file      => :bus)
-    load_table!(config, data, :gen_file      => :gen)
-    load_table!(config, data, :branch_file   => :branch)
-    load_table!(config, data, :hours_file    => :hours)
-    load_table!(config, data, :demand_file   => :demand_table)
+    read_table!(config, data, :bus_file      => :bus)
+    read_table!(config, data, :gen_file      => :gen)
+    read_table!(config, data, :branch_file   => :branch)
+    read_table!(config, data, :hours_file    => :hours)
+    read_table!(config, data, :demand_file   => :demand_table)
     
 
     # Optional tables
-    load_table!(config, data, :af_file       => :af_table, optional = true)
-    load_table!(config, data, :demand_shape_file=>:demand_shape, optional=true)
-    load_table!(config, data, :demand_match_file=>:demand_match, optional=true)
-    load_table!(config, data, :demand_add_file=>:demand_add, optional=true)
-    load_table!(config, data, :build_gen_file => :build_gen, optional=true)
-    load_table!(config, data, :gentype_genfuel_file => :genfuel, optional=true)
-    load_table!(config, data, :adjust_yearly_file => :adjust_yearly, optional=true)
-    load_table!(config, data, :adjust_hourly_file => :adjust_hourly, optional=true)
+    read_table!(config, data, :af_file       => :af_table, optional = true)
+    read_table!(config, data, :demand_shape_file=>:demand_shape, optional=true)
+    read_table!(config, data, :demand_match_file=>:demand_match, optional=true)
+    read_table!(config, data, :demand_add_file=>:demand_add, optional=true)
+    read_table!(config, data, :build_gen_file => :build_gen, optional=true)
+    read_table!(config, data, :gentype_genfuel_file => :genfuel, optional=true)
+    read_table!(config, data, :adjust_yearly_file => :adjust_yearly, optional=true)
+    read_table!(config, data, :adjust_hourly_file => :adjust_hourly, optional=true)
 end
-export load_data_files!
+export read_data_files!
 
 """
     modify_raw_data!(config, data)
@@ -151,7 +151,7 @@ export setup_table!
 
 Returns a summary of the table `s`.  Note that more information can be provided in the the `summary_table`, which contains a summary of all tables, including all information from `summarize_table`, plus additional columns specified.
 
-See also [`get_table(data, name)`](@ref), [`load_summary_table!(config, data)`](@ref), [`get_table_summary(data, name)`](@ref)
+See also [`get_table(data, name)`](@ref), [`read_summary_table!(config, data)`](@ref), [`get_table_summary(data, name)`](@ref)
 """
 function summarize_table(s::Symbol)
     return summarize_table(Val(s))
@@ -164,27 +164,27 @@ export summarize_table
 ################################################################################
 
 """
-    load_table(filename) -> table
+    read_table(filename) -> table
 
 Loads a table from filename, where filename is a csv.
 """
-function load_table(filename::String)
+function read_table(filename::String)
     CSV.read(filename, DataFrame, missingstring=nothing, stripwhitespace=true)
 end
-export load_table
+export read_table
 
 
 """
-    load_table!(config, data, p::Pair)
+    read_table!(config, data, p::Pair)
     
 Loads the table from the file in `config[p[1]]` into `data[p[2]]`
 """
-function load_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
+function read_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
     optional===true && !haskey(config, first(p)) && return
     @info "Loading data[:$(last(p))] from $(config[first(p)])"
     table_file = config[first(p)]::String
     table_name = last(p)
-    table = load_table(table_file)
+    table = read_table(table_file)
     st = get_table_summary(data, table_name)
     force_table_types!(table, table_name, st)
     
@@ -213,11 +213,11 @@ end
 
 
 """
-    load_summary_table!(config, data)
+    read_summary_table!(config, data)
 
 Loads in the summary table for each of the other tables.
 """
-function load_summary_table!(config, data)
+function read_summary_table!(config, data)
     st = DataFrame(
         :table_name => Symbol[],
         :column_name => Symbol[],
@@ -237,7 +237,7 @@ function load_summary_table!(config, data)
     rows_to_add = DataFrameRow[]
     if haskey(config, :summary_table_file)
         gst = groupby(st, [:table_name, :column_name])
-        df = load_table(config[:summary_table_file])
+        df = read_table(config[:summary_table_file])
 
         force_table_types!(df, :summary_table,
             (cn=>eltype(st[!,cn]) for cn in propertynames(st))...
@@ -267,7 +267,7 @@ function load_summary_table!(config, data)
     
     return
 end
-export load_summary_table!
+export read_summary_table!
 
 """
     append_to_summary_table!(summary_table::DataFrame, v::Val)
@@ -281,25 +281,25 @@ function append_to_summary_table!(summary_table::DataFrame, v::V) where {s, V<:V
 end
 
 """
-    load_voll!(config, data)
+    read_voll!(config, data)
 
 Return the marginal cost of load curtailment / VOLL as a variable in data
 """
-function load_voll!(config, data)
+function read_voll!(config, data)
     data[:voll] = Float64(config[:voll]) 
 end
-export load_voll!
+export read_voll!
 
 """
-    load_years!(config, data)
+    read_years!(config, data)
 
 Loads the years from config into data
 """
-function load_years!(config, data)
+function read_years!(config, data)
     data[:years] = config[:years]
     return
 end
-export load_years!
+export read_years!
 
 """
     force_table_types!(df::DataFrame, name, pairs...)
@@ -330,7 +330,7 @@ function force_table_types!(df::DataFrame, name, row::DataFrameRow; kwargs...)
     req = row["required"]
     T = row["data_type"]
     if ~hasproperty(df, col)
-        # Return for special column identifiers - these will get checked inside load_table!
+        # Return for special column identifiers - these will get checked inside read_table!
         col === :h_ && return
         col === :y_ && return
         col === :filter_ && return
@@ -921,7 +921,7 @@ export has_table
 """
     get_table_summary(data, table_name) -> summary::SubDataFrame
 
-Returns a summary of `table_name`, loaded in from [`summarize_table`](@ref) and [`load_summary_table!`](@ref).
+Returns a summary of `table_name`, loaded in from [`summarize_table`](@ref) and [`read_summary_table!`](@ref).
 """
 function get_table_summary(data, table_name)
     st = get_table(data, :summary_table)
@@ -1023,7 +1023,7 @@ end
 
 Return the energy demanded by demand elements corresponding to `demand_idx` or `demand_idxs`, for `year_idx` and `hour_idx`.  Note `year_idx` can be the index or the year string (i.e. "y2030").
 
-If pair(s) are given, filters the demand elements by pair.  i.e. pairs = ("country"=>"narnia", "load_type"=>"residential").
+If pair(s) are given, filters the demand elements by pair.  i.e. pairs = ("country"=>"narnia", "read_type"=>"residential").
 """
 function get_edem_demand(data, demand_idxs::AbstractVector{Int64}, year_idx::Int64, hour_idxs)
     demand_arr = get_demand_array(data)

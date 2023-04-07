@@ -6,7 +6,7 @@
 
     filename = joinpath(@__DIR__, "config/config_3bus_examplepol.yml")
 
-    config = load_config(filename)
+    config = read_config(filename)
 
     save_config(config)
 
@@ -16,7 +16,7 @@
     @test ispath(outfilename)
 
     # test if it can load in the saved config 
-    newconfig = load_config(outfilename)
+    newconfig = read_config(outfilename)
 
     @test isabspath(newconfig[:out_path])
     @test isabspath(newconfig[:gen_file])

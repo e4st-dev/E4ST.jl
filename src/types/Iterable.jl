@@ -21,7 +21,7 @@ iter:
 * [`init!(iter::Iterable, config)`](@ref) - (optional) Initialize `iter` with `config`, making any changes.
 * [`should_iterate(iter, config, data)`](@ref) - return whether or not the simulation should continue for another iteration.
 * [`iterate!(iter, config, data)`](@ref) - Makes any changes to any of the structures between iterations. 
-* [`should_reload_data(iter)`](@ref) - Returns whether or not to reload the data when iterating. 
+* [`should_reread_data(iter)`](@ref) - Returns whether or not to reload the data when iterating. 
 * [`fieldnames_for_yaml(::Type{<:Iterable})`](@ref) - (optional) return the fieldnames to print to yaml file in [`save_config`](@ref)
 """
 abstract type Iterable end
@@ -61,12 +61,12 @@ function fieldnames_for_yaml(::Type{I}) where {I<:Iterable}
 end
 
 """
-    should_reload_data(iter::Iterable) -> ::Bool
+    should_reread_data(iter::Iterable) -> ::Bool
 
 Return whether or not the data should be reloaded when iterating.
 """
-function should_reload_data end
-export should_reload_data
+function should_reread_data end
+export should_reread_data
 
 """
     iterate!(iter::Iterable, config, data)
