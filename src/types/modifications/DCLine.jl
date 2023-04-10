@@ -31,7 +31,7 @@ end
     summarize_table(::Val{:dc_line}) -> summary
 """
 function summarize_table(::Val{:dc_line})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:f_bus_idx, Int64, NA, true, "The index of the `bus` table that the line originates **f**rom"),
         (:t_bus_idx, Int64, NA, true, "The index of the `bus` table that the line goes **t**o"),

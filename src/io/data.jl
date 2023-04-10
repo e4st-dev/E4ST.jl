@@ -158,6 +158,11 @@ function summarize_table(s::Symbol)
 end
 export summarize_table
 
+function TableSummary()
+    DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[],  "required"=>Bool[],"description"=>String[])
+end
+export TableSummary
+
 
 ################################################################################
 # Data Loading
@@ -573,7 +578,7 @@ end
     summarize_table(::Val{:gen}) -> summary
 """
 function summarize_table(::Val{:gen})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[],  "required"=>Bool[],"description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:bus_idx, Int64, NA, true, "The index of the `bus` table that the generator corresponds to"),
         (:status, Bool, NA, false, "Whether or not the generator is in service"),
@@ -603,7 +608,7 @@ end
     summarize_table(::Val{:bus}) -> summary
 """
 function summarize_table(::Val{:bus})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:ref_bus, Bool, NA, true, "Whether or not the bus is a reference bus.  There should be a single reference bus for each island."),
     )
@@ -614,7 +619,7 @@ end
     summarize_table(::Val{:branch}) -> summary
 """
 function summarize_table(::Val{:branch})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:f_bus_idx, Int64, NA, true, "The index of the `bus` table that the branch originates **f**rom"),
         (:t_bus_idx, Int64, NA, true, "The index of the `bus` table that the branch goes **t**o"),
@@ -629,7 +634,7 @@ end
     summarize_table(::Val{:hours}) -> summary
 """
 function summarize_table(::Val{:hours})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:hours, Float64, Hours, true, "The number of hours spent in each representative hour over the course of a year (must sum to 8760)"),
     )
@@ -640,7 +645,7 @@ end
     summarize_table(::Val{:af_table}) -> summary
 """
 function summarize_table(::Val{:af_table})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
@@ -658,7 +663,7 @@ end
     summarize_table(::Val{:build_gen}) -> summary
 """
 function summarize_table(::Val{:build_gen})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
@@ -689,7 +694,7 @@ end
     summarize_table(::Val{:genfuel}) -> 
 """
 function summarize_table(::Val{:genfuel})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:gentype, AbstractString, NA, true, "The generator type (ie. ngcc, dist_solar, os_wind)"),
         (:genfuel, AbstractString, NA, true, "The corresponding generator fuel or renewable type (ie. ng, solar, wind)"),

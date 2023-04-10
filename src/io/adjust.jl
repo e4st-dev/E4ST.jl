@@ -10,7 +10,7 @@ end
     summarize_table(::Val{:adjust_hourly}) -> summary
 """
 function summarize_table(::Val{:adjust_hourly})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:table_name, AbstractString, NA, true, "The name of the table to adjust.  Leave blank if this adjustment is intended for a variable in `data`"),
         (:variable_name, AbstractString, NA, true, "The name of the variable/column to adjust"),
@@ -27,7 +27,7 @@ end
     summarize_table(::Val{:adjust_yearly}) -> summary
 """
 function summarize_table(::Val{:adjust_yearly})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:table_name, AbstractString, NA, true, "The name of the table to adjust.  Leave blank if this adjustment is intended for a variable in `data`"),
         (:variable_name, AbstractString, NA, true, "The name of the variable/column to adjust"),
