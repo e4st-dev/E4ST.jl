@@ -61,6 +61,21 @@ function shape_demand!(config, data)
     areas_to_join = setdiff(all_areas, demand_table_names)
     bus_view = view(bus_table, :, ["bus_idx", areas_to_join...])
     leftjoin!(demand_table, bus_view, on=:bus_idx)
+    
+    # Document in the summary table
+    summary_table = get_table(data, :summary_table)
+    description = "Area used to group buses for the demand table"
+    table_name = :demand_table
+    data_type = String
+    unit = NA
+    for col in areas_to_join
+        column_name = Symbol(col)
+        row = (;table_name, column_name, data_type, unit, required=false, description)
+        push!(summary_table, row)
+        data[:unit_lookup][(table_name, column_name)] = unit
+        data[:desc_lookup][(table_name, column_name)] = description
+    end
+    
     dropmissing!(demand_table, areas_to_join)
     grouping_variables = copy(all_areas)
 
@@ -135,6 +150,20 @@ function match_demand!(config, data)
         dropmissing!(demand_table, areas_to_join)
     end
 
+    # Document in the summary table
+    summary_table = get_table(data, :summary_table)
+    description = "Area used to group buses for the demand table"
+    table_name = :demand_table
+    data_type=String
+    unit = NA
+    for col in areas_to_join
+        column_name = Symbol(col)
+        row = (;table_name, column_name, data_type, unit, required=false, description)
+        push!(summary_table, row)
+        data[:unit_lookup][(table_name, column_name)] = unit
+        data[:desc_lookup][(table_name, column_name)] = description
+    end
+
     hr_weights = get_hour_weights(data)
     
     for i = 1:nrow(demand_match_table)
@@ -197,6 +226,20 @@ function add_demand!(config, data)
         bus_view = view(bus_table, :, ["bus_idx", areas_to_join...])
         leftjoin!(demand_table, bus_view, on=:bus_idx)
         dropmissing!(demand_table, areas_to_join)
+    end
+
+    # Document in the summary table
+    summary_table = get_table(data, :summary_table)
+    description = "Area used to group buses for the demand table"
+    table_name = :demand_table
+    data_type=String
+    unit = NA
+    for col in areas_to_join
+        column_name = Symbol(col)
+        row = (;table_name, column_name, data_type, unit, required=false, description)
+        push!(summary_table, row)
+        data[:unit_lookup][(table_name, column_name)] = unit
+        data[:desc_lookup][(table_name, column_name)] = description
     end
 
     # Loop through each row in the demand_shape_table
@@ -300,3 +343,4 @@ function summarize_table(::Val{:demand_add})
     )
     return df
 end
+export summarize_table

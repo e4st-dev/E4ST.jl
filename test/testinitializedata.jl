@@ -52,7 +52,9 @@
 
     @testset "Test load_demand_table! with shaping" begin
         config = load_config(config_file)
-        config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
+        #config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
+        delete!(config, :demand_match_file)
+        delete!(config, :demand_add_file)
         data = load_data(config)
         archenland_buses = findall(==("archenland"), data[:bus].country)
         narnia_buses = findall(==("narnia"), data[:bus].country)
@@ -76,20 +78,22 @@
 
     @testset "Test load_demand_table! with shaping and matching" begin
         config = load_config(config_file)
-        config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
-        config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
+        # config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
+        # config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
+        delete!(config, :demand_add_file)
         data = load_data(config)
         archenland_buses = findall(==("archenland"), data[:bus].country)
         narnia_buses = findall(==("narnia"), data[:bus].country)
         all_buses = 1:nrow(data[:bus])
 
         # The last row, the all-area match is enabled for 2030 and 2035
-        @test get_edem_demand(data, :, "y2030", :) ≈ 2.2
-        @test get_edem_demand(data, :, "y2035", :) ≈ 2.3
+        @test get_edem_demand(data, :, "y2030", :) ≈ 16
+        @test get_edem_demand(data, :, "y2035", :) ≈ 18
 
-        # In 2040, it should be equal to the naria (2.2) + the archenland match (0.22)
-        @test get_edem_demand(data, :, "y2040", :) ≈ 2.53
+        # In 2040, it should be equal to the naria (1.8) + the archenland match (18)
+        @test get_edem_demand(data, :, "y2040", :) ≈ 19.8
 
+        # Test that ratio between load in naria and archenland stayed the same with scaling
         @testset for y in get_years(data)
             @test get_edem_demand(data, :country=>"narnia", y, :)*10 ≈ get_edem_demand(data, :country=>"archenland", y, :)
         end
@@ -97,15 +101,15 @@
 
     @testset "Test load_demand_table! with shaping, matching and adding" begin
         config = load_config(config_file)
-        config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
-        config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
-        config[:demand_add_file]   = abspath(@__DIR__, "data", "3bus","demand_add.csv")
+        # config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
+        # config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
+        # config[:demand_add_file]   = abspath(@__DIR__, "data", "3bus","demand_add.csv")
         data = load_data(config)
 
 
-        @test get_edem_demand(data, :, "y2030", :) ≈ 2.2
-        @test get_edem_demand(data, :, "y2035", :) ≈ 2.3
-        @test get_edem_demand(data, :, "y2040", :) ≈ 2.53 + 0.01*8760
+        @test get_edem_demand(data, :, "y2030", :) ≈ 16
+        @test get_edem_demand(data, :, "y2035", :) ≈ 18
+        @test get_edem_demand(data, :, "y2040", :) ≈ 19.8 + 0.00001*8760
     end
 
     @testset "Test Adding New Gens" begin

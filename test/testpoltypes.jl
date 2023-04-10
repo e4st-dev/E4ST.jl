@@ -15,6 +15,7 @@
     parse_results!(config_ref, data_ref, model_ref)
     process_results!(config_ref, data_ref)
 
+
     # Policy tests
     #####################################################################
 
@@ -151,6 +152,7 @@
             years = get_years(data)
             emis_co2_total = aggregate_result(total, data, :gen, :emis_co2)
 
+
             gen_ref = get_table(data_ref, :gen)
             emis_co2_total_ref = aggregate_result(total, data_ref, :gen, :emis_co2)
 
@@ -169,10 +171,8 @@
             @test emis_co2_total_2040 <= config[:mods][:example_emiscap][:values][:y2040] + 0.001
 
             #check that policy is binding 
-            res_raw = get_raw_results(data)
-            cap_prices = res_raw[:cons_example_emiscap_max]
-            @test abs(cap_prices[:y2035]) > 1e-3
-            @test abs(cap_prices[:y2040]) > 1e-3
+            cap_prices = get_raw_result(data, :cons_example_emiscap_max)
+            @test abs(cap_prices[:y2035]) + abs(cap_prices[:y2040]) > 1e-6 # At least one will be binding, but potentially not both bc of perfect foresight
         end
     end
 

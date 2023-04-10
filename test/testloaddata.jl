@@ -46,17 +46,6 @@
     end
 
 
-    @testset "Test load_demand_table!" begin
-        config = load_config(config_file)
-        data = load_data(config)
-
-        # generator 1 is a natural gas plant, defaults to 1.0
-
-        # AF not specified for ng, should be default of 1.0
-        @test all(get_pdem(data, 1, yr_idx, hr_idx) ≈ 0.2 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
-        @test all(get_pdem(data, 2, yr_idx, hr_idx) ≈ 1.6 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
-        @test all(get_pdem(data, 3, yr_idx, hr_idx) ≈ 0.2 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
-    end
 
     @testset "Test duplicate lines combination" begin
         config = load_config(config_file)

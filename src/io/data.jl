@@ -803,7 +803,7 @@ function get_table_col_unit(data, table_name::Symbol, column_name::Symbol)
         if contains(cn, r"h\d*")
             haskey(ul, (table_name, :h_)) && return ul[(table_name, :h_)]
         elseif contains(cn, r"y\d*")
-            haskey(ul, (table_name, :h_)) && return ul[(table_name, :y_)]
+            haskey(ul, (table_name, :y_)) && return ul[(table_name, :y_)]
         end
         error("No unit found for table column $table_name[:$column_name].\nConsider defining the column in the summary_table.")
     end::Type{<:Unit}
@@ -824,7 +824,7 @@ function get_table_col_description(data, table_name::Symbol, column_name::Symbol
         if contains(cn, r"h\d*")
             haskey(ul, (table_name, :h_)) && return ul[(table_name, :h_)]
         elseif contains(cn, r"y\d*")
-            haskey(ul, (table_name, :h_)) && return ul[(table_name, :y_)]
+            haskey(ul, (table_name, :y_)) && return ul[(table_name, :y_)]
         end
         error("No description found for table column $table_name[:$column_name].\nConsider defining the column in the summary_table.")
     end::String

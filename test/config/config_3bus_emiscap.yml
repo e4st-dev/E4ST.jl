@@ -4,9 +4,9 @@ mods:
     type: "EmissionCap"
     emis_col: "emis_co2"
     values: 
-      y2035: 1500
-      y2040: 1000
+      y2035: 1.5
+      y2040: 1.5
     gen_filters:
-      country: "[narnia,archenland]"
+      country: "[narnia, archenland]"
 
 
