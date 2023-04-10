@@ -87,11 +87,11 @@
         all_buses = 1:nrow(data[:bus])
 
         # The last row, the all-area match is enabled for 2030 and 2035
-        @test get_edem_demand(data, :, "y2030", :) ≈ 16
-        @test get_edem_demand(data, :, "y2035", :) ≈ 18
+        @test get_edem_demand(data, :, "y2030", :) ≈ 16000
+        @test get_edem_demand(data, :, "y2035", :) ≈ 18000
 
         # In 2040, it should be equal to the naria (1.8) + the archenland match (18)
-        @test get_edem_demand(data, :, "y2040", :) ≈ 19.8
+        @test get_edem_demand(data, :, "y2040", :) ≈ 19800
 
         # Test that ratio between load in naria and archenland stayed the same with scaling
         @testset for y in get_years(data)
@@ -107,9 +107,9 @@
         data = load_data(config)
 
 
-        @test get_edem_demand(data, :, "y2030", :) ≈ 16
-        @test get_edem_demand(data, :, "y2035", :) ≈ 18
-        @test get_edem_demand(data, :, "y2040", :) ≈ 19.8 + 0.00001*8760
+        @test get_edem_demand(data, :, "y2030", :) ≈ 16000
+        @test get_edem_demand(data, :, "y2035", :) ≈ 18000
+        @test get_edem_demand(data, :, "y2040", :) ≈ 19800 + 0.00001*8760
     end
 
     @testset "Test Adding New Gens" begin

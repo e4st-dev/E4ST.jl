@@ -13,6 +13,7 @@ build_gen_file: "../data/3bus/build_gen.csv"
 summary_table_file: '../data/3bus/summary_table.csv'
 logging: true
 voll: 5000
+objective_scalar: 1
 years:
   - y2030
   - y2035
@@ -21,6 +22,7 @@ optimizer:
   type: "HiGHS" # See available options here: https://docs.juliahub.com/HiGHS/WFic5/0.3.1/
   dual_feasibility_tolerance: 1e-5
   solver: simplex # "ipm" is probably preferred for larger problems, but it logs to console due to an issue
+  random_seed: 3
 mods:
   dc_line:
     type: DCLine

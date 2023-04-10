@@ -63,17 +63,8 @@ function shape_demand!(config, data)
     leftjoin!(demand_table, bus_view, on=:bus_idx)
     
     # Document in the summary table
-    summary_table = get_table(data, :summary_table)
-    description = "Area used to group buses for the demand table"
-    table_name = :demand_table
-    data_type = String
-    unit = NA
     for col in areas_to_join
-        column_name = Symbol(col)
-        row = (;table_name, column_name, data_type, unit, required=false, description)
-        push!(summary_table, row)
-        data[:unit_lookup][(table_name, column_name)] = unit
-        data[:desc_lookup][(table_name, column_name)] = description
+        add_table_col!(data, :demand_table, Symbol(col), demand_table[!,Symbol(col)], get_table_col_unit(data, :bus, col), get_table_col_description(data, :bus, col); warn_overwrite = false)
     end
     
     dropmissing!(demand_table, areas_to_join)
@@ -151,17 +142,8 @@ function match_demand!(config, data)
     end
 
     # Document in the summary table
-    summary_table = get_table(data, :summary_table)
-    description = "Area used to group buses for the demand table"
-    table_name = :demand_table
-    data_type=String
-    unit = NA
     for col in areas_to_join
-        column_name = Symbol(col)
-        row = (;table_name, column_name, data_type, unit, required=false, description)
-        push!(summary_table, row)
-        data[:unit_lookup][(table_name, column_name)] = unit
-        data[:desc_lookup][(table_name, column_name)] = description
+        add_table_col!(data, :demand_table, Symbol(col), demand_table[!,Symbol(col)], get_table_col_unit(data, :bus, col), get_table_col_description(data, :bus, col); warn_overwrite = false)
     end
 
     hr_weights = get_hour_weights(data)
@@ -229,17 +211,8 @@ function add_demand!(config, data)
     end
 
     # Document in the summary table
-    summary_table = get_table(data, :summary_table)
-    description = "Area used to group buses for the demand table"
-    table_name = :demand_table
-    data_type=String
-    unit = NA
     for col in areas_to_join
-        column_name = Symbol(col)
-        row = (;table_name, column_name, data_type, unit, required=false, description)
-        push!(summary_table, row)
-        data[:unit_lookup][(table_name, column_name)] = unit
-        data[:desc_lookup][(table_name, column_name)] = description
+        add_table_col!(data, :demand_table, Symbol(col), demand_table[!,Symbol(col)], get_table_col_unit(data, :bus, col), get_table_col_description(data, :bus, col); warn_overwrite = false)
     end
 
     # Loop through each row in the demand_shape_table

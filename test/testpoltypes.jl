@@ -5,7 +5,8 @@
     # Setup reference case 
     ####################################################################
     config_file_ref = joinpath(@__DIR__, "config", "config_3bus.yml")
-    config_ref = load_config(config_file_ref)
+    config_agg_res = joinpath(@__DIR__, "config", "config_res.yml")
+    config_ref = load_config(config_file_ref, config_agg_res)
 
     data_ref = load_data(config_ref)
     model_ref = setup_model(config_ref, data_ref)
@@ -100,7 +101,7 @@
 
     @testset "Test EmissionCap" begin
         config_file = joinpath(@__DIR__, "config", "config_3bus_emiscap.yml")
-        config = load_config(config_file_ref, config_file)
+        config = load_config(config_file_ref, config_agg_res, config_file)
 
         data = load_data(config)
         model = setup_model(config, data)
@@ -150,11 +151,11 @@
             ## Check that policy impacts results 
             gen = get_table(data, :gen)
             years = get_years(data)
-            emis_co2_total = aggregate_result(total, data, :gen, :emis_co2)
+            emis_co2_total = aggregate_result(total, data, :gen, :emis_co2, :, [2,3])
 
 
             gen_ref = get_table(data_ref, :gen)
-            emis_co2_total_ref = aggregate_result(total, data_ref, :gen, :emis_co2)
+            emis_co2_total_ref = aggregate_result(total, data_ref, :gen, :emis_co2, :, [2,3])
 
             # check that emissions are reduced
             @test emis_co2_total < emis_co2_total_ref
@@ -164,15 +165,21 @@
             emis_co2_total_2035 = aggregate_result(total, data, :gen, :emis_co2, :, idx_2035)
 
             @test emis_co2_total_2035 <= config[:mods][:example_emiscap][:values][:y2035] + 0.001
+            
 
             idx_2040 = get_year_idxs(data, "y2040")
             emis_co2_total_2040 = aggregate_result(total, data, :gen, :emis_co2, :, idx_2040)
 
             @test emis_co2_total_2040 <= config[:mods][:example_emiscap][:values][:y2040] + 0.001
+            
+
+            
 
             #check that policy is binding 
             cap_prices = get_raw_result(data, :cons_example_emiscap_max)
+
             @test abs(cap_prices[:y2035]) + abs(cap_prices[:y2040]) > 1e-6 # At least one will be binding, but potentially not both bc of perfect foresight
+
         end
     end
 

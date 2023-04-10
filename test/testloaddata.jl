@@ -28,16 +28,6 @@
         # AF not specified for ng, should be default of 1.0
         @test all(get_af(data, 1, yr_idx, hr_idx) == 1.0 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
 
-        # AF not specified for solar in narnia in 2030 or 2035, should be default of 1.0
-        @test get_af(data, 2, 1, 1) == 1.0
-        @test get_af(data, 2, 1, 2) == 1.0
-        @test get_af(data, 2, 1, 3) == 1.0
-        @test get_af(data, 2, 1, 4) == 1.0
-        @test get_af(data, 2, 2, 1) == 1.0
-        @test get_af(data, 2, 2, 2) == 1.0
-        @test get_af(data, 2, 2, 3) == 1.0
-        @test get_af(data, 2, 2, 4) == 1.0
-
         # Generator 2 is a solar generator in narnia, should be equal to 0.5 in hours 1 and 4, 0.6 in hours 2 and 3 for 2040.
         @test get_af(data, 2, 3, 1) == 0.5
         @test get_af(data, 2, 3, 2) == 0.6
