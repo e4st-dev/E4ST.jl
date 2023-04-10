@@ -1115,43 +1115,6 @@ function get_num_years(data)
 end
 export get_num_years, get_years
 
-
-"""
-    get_prebuild_year_idxs(data, gen_idx) -> prebuild_year_idxs::Array
-
-Returns an array of the year indexes for years in the simulation before the start year of the specified generator. 
-"""
-function get_prebuild_year_idxs(data, gen_idx)
-    years = get_years(data)
-    year_on = get_table_val(data, :gen, :year_on, gen_idx)
-    idxs = findall(x -> years[x] < year_on, 1:length(years))
-    return idxs
-end
-export get_prebuild_year_idxs
-
-"""
-    get_year_on_sim_idx(data, gen_idx) -> year_on_sim_idx
-
-Gets the index for the generator on year. 
-If the on_year is in the set of sim years, it returns that index. 
-If this year is not part of the set of year, it returns the index of the next closest year. (ie. years = [2020, 2025, 2030], year_on = 2022, year_on_sim = 2025, year_on_sim_idx = 2)
-If this year is after the simulation years it returns length(years)+1 indicating that it is in the future.
-"""
-function get_year_on_sim_idx(data, gen_idx)
-    years = get_years(data)
-    year_on = get_table_val(data, :gen, :year_on, gen_idx)
-    year_on_sim_idx = findfirst(x -> years[x] >= year_on, 1:length(years)) 
-    if year_on_sim_idx === nothing
-        year_on_sim_idx = length(years)+1
-    end
-    return year_on_sim_idx
-end
-export get_year_on_sim_idx
-
-## Moved from dcopf, will organize later
-
-### System mapping helper functions
-
 """
     get_bus_gens(data, bus_idx)
 
@@ -1159,7 +1122,7 @@ Returns an array of the gen_idx of all the gens at the bus.
 """
 function get_bus_gens(data, bus_idx) 
     gen = get_table(data, :gen)
-    return findall(x -> x == bus_idx, gen.bus_idx)
+    return findall(==(bus_idx), gen.bus_idx)
 end
 export get_bus_gens
 
