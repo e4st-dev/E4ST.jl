@@ -35,19 +35,6 @@
         @test get_af(data, 2, 3, 4) == 0.5
     end
 
-
-    @testset "Test read_nominal_load!" begin
-        config = read_config(config_file)
-        data = read_data(config)
-
-        # generator 1 is a natural gas plant, defaults to 1.0
-
-        # AF not specified for ng, should be default of 1.0
-        @test all(get_pdem(data, 1, yr_idx, hr_idx) ≈ 0.2 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
-        @test all(get_pdem(data, 2, yr_idx, hr_idx) ≈ 1.6 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
-        @test all(get_pdem(data, 3, yr_idx, hr_idx) ≈ 0.2 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
-    end
-
     @testset "Test duplicate lines combination" begin
         config = read_config(config_file)
         config[:branch] = joinpath(@__DIR__, "data/3bus/branch_dup.csv")

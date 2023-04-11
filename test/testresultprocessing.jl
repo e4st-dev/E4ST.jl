@@ -124,8 +124,8 @@
         
             # Test that total power capacity is greater than or equal to average load
             pcap = aggregate_result(total, data, :gen, :pcap)
-            pdem = aggregate_result(total, data, :bus, :pdem)
-            @test pcap >= pdem
+            plnom = aggregate_result(total, data, :bus, :plnom)
+            @test pcap >= plnom
         
             # Test that the maximum of pcap is less than the total
             pcap_max = aggregate_result(maximum, data, :gen, :pcap)

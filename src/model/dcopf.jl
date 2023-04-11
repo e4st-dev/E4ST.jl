@@ -54,7 +54,7 @@ function setup_dcopf!(config, data, model)
         plcurt_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
         start=0.0,
         lower_bound = 0.0,
-        upper_bound = get_pdem(data, bus_idx, year_idx, hour_idx),
+        upper_bound = get_plnom(data, bus_idx, year_idx, hour_idx),
     )
 
     ## Expressions to be used later
@@ -67,7 +67,7 @@ function setup_dcopf!(config, data, model)
     @expression(model, pflow_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pflow_bus(data, model, bus_idx, year_idx, hour_idx))
 
     # Served power of a given bus
-    @expression(model, plserv_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pdem(data, bus_idx, year_idx, hour_idx) - plcurt_bus[bus_idx, year_idx, hour_idx])
+    @expression(model, plserv_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_plnom(data, bus_idx, year_idx, hour_idx) - plcurt_bus[bus_idx, year_idx, hour_idx])
 
     # Generated power of a given bus
     @expression(model, pgen_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pgen_bus(data, model, bus_idx, year_idx, hour_idx))

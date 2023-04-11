@@ -14,17 +14,17 @@ function setup_table!(config, data, ::Val{:nominal_load})
     data[:load_array] = ar
 
     # Grab views of the load for the pd column of the bus table
-    pdem = map(i->view(ar, i, :, :), 1:nrow(load))
+    plnom = map(i->view(ar, i, :, :), 1:nrow(load))
 
-    add_table_col!(data, :nominal_load, :pdem, pdem, MWLoad, "Load power by the load element")
+    add_table_col!(data, :nominal_load, :plnom, plnom, MWLoad, "Load power by the load element")
     bus = get_table(data, :bus)
-    pdem_bus = [LoadContainer() for _ in 1:nrow(bus)]
+    plnom_bus = [LoadContainer() for _ in 1:nrow(bus)]
 
-    add_table_col!(data, :bus, :pdem, pdem_bus, MWLoad, "Average MW of power load")
+    add_table_col!(data, :bus, :plnom, plnom_bus, MWLoad, "Average MW of power load")
     for row in eachrow(load)
         bus_idx = row.bus_idx::Int64
-        c = bus[bus_idx, :pdem]
-        _add_view!(c, row.pdem)
+        c = bus[bus_idx, :plnom]
+        _add_view!(c, row.plnom)
     end
 
     # Modify the load by shaping, matching, and adding
@@ -60,14 +60,14 @@ function shape_nominal_load!(config, data)
     nominal_load_names = names(nominal_load)
     areas_to_join = setdiff(all_areas, nominal_load_names)
     bus_view = view(bus_table, :, ["bus_idx", areas_to_join...])
-    leftjoin!(demand_table, bus_view, on=:bus_idx)
+    leftjoin!(nominal_load, bus_view, on=:bus_idx)
     
     # Document in the summary table
     for col in areas_to_join
-        add_table_col!(data, :demand_table, Symbol(col), demand_table[!,Symbol(col)], get_table_col_unit(data, :bus, col), get_table_col_description(data, :bus, col); warn_overwrite = false)
+        add_table_col!(data, :nominal_load, Symbol(col), nominal_load[!,Symbol(col)], get_table_col_unit(data, :bus, col), get_table_col_description(data, :bus, col); warn_overwrite = false)
     end
     
-    dropmissing!(demand_table, areas_to_join)
+    dropmissing!(nominal_load, areas_to_join)
     grouping_variables = copy(all_areas)
 
     "load_type" in nominal_load_names && push!(grouping_variables, "load_type")
@@ -143,7 +143,7 @@ function match_nominal_load!(config, data)
 
     # Document in the summary table
     for col in areas_to_join
-        add_table_col!(data, :demand_table, Symbol(col), demand_table[!,Symbol(col)], get_table_col_unit(data, :bus, col), get_table_col_description(data, :bus, col); warn_overwrite = false)
+        add_table_col!(data, :nominal_load, Symbol(col), nominal_load[!,Symbol(col)], get_table_col_unit(data, :bus, col), get_table_col_description(data, :bus, col); warn_overwrite = false)
     end
 
     hr_weights = get_hour_weights(data)
@@ -212,12 +212,12 @@ function add_nominal_load!(config, data)
 
     # Document in the summary table
     for col in areas_to_join
-        add_table_col!(data, :demand_table, Symbol(col), demand_table[!,Symbol(col)], get_table_col_unit(data, :bus, col), get_table_col_description(data, :bus, col); warn_overwrite = false)
+        add_table_col!(data, :nominal_load, Symbol(col), nominal_load[!,Symbol(col)], get_table_col_unit(data, :bus, col), get_table_col_description(data, :bus, col); warn_overwrite = false)
     end
 
-    # Loop through each row in the demand_shape_table
-    for i in 1:nrow(demand_add_table)
-        row = demand_add_table[i, :]
+    # Loop through each row in the load_shape_table
+    for i in 1:nrow(load_add_table)
+        row = load_add_table[i, :]
 
         get(row, :status, true) || continue
         shape = Float64[row[i_hr] for i_hr in hr_idx:length(row)]

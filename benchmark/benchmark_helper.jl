@@ -13,7 +13,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
     ## Make Bus Table
     bus = DataFrame(
         ref_bus = fill(false, n_bus),
-        pdem = rand(n_bus),
+        plnom = rand(n_bus),
         country = rand(countries(), n_bus)
     )
     ref_bus_idx = rand(1:n_bus)

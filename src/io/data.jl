@@ -980,78 +980,78 @@ end
 export get_af
 
 """
-    get_pdem(data, bus_idx, year_idx, hour_idx) -> pdem
+    get_plnom(data, bus_idx, year_idx, hour_idx) -> plnom
 
 Retrieves the load power for a bus at a year and a time.
 """
-function get_pdem(data, bus_idx, year_idx, hour_idx)
-    return get_table_num(data, :bus, :pdem, bus_idx, year_idx, hour_idx)
+function get_plnom(data, bus_idx, year_idx, hour_idx)
+    return get_table_num(data, :bus, :plnom, bus_idx, year_idx, hour_idx)
 end
-export get_pdem
+export get_plnom
 
 """
-    get_edem(data, bus_idx, year_idx, hour_idx) -> ed::Float64 (MWh)
+    get_elnom(data, bus_idx, year_idx, hour_idx) -> ed::Float64 (MWh)
 
-    get_edem(data, bus_idx, year_idx, hour_idxs) -> ed::Float64 (MWh)
+    get_elnom(data, bus_idx, year_idx, hour_idxs) -> ed::Float64 (MWh)
 
 Retrieve the total energy load for a bus at a given year and hour(s).
 """
-function get_edem(data, bus_idx::Int64, year_idx::Int64, hour_idx::Int64)
-    return get_hour_weight(data, hour_idx) * get_pdem(data, bus_idx, year_idx, hour_idx)
+function get_elnom(data, bus_idx::Int64, year_idx::Int64, hour_idx::Int64)
+    return get_hour_weight(data, hour_idx) * get_plnom(data, bus_idx, year_idx, hour_idx)
 end
-function get_edem(data, bus_idx::Int64, year_idx::Int64, hour_idxs)
-    return sum(get_hour_weight(data, hour_idx) * get_pdem(data, bus_idx, year_idx, hour_idx) for hour_idx in hour_idxs)
+function get_elnom(data, bus_idx::Int64, year_idx::Int64, hour_idxs)
+    return sum(get_hour_weight(data, hour_idx) * get_plnom(data, bus_idx, year_idx, hour_idx) for hour_idx in hour_idxs)
 end
-function get_edem(data, bus_idx::Int64, year_idx::Int64, hour_idxs::Colon)
+function get_elnom(data, bus_idx::Int64, year_idx::Int64, hour_idxs::Colon)
     hour_weights = get_hour_weights(data)
-    return sum(hour_weights[hour_idx] * get_pdem(data, bus_idx, year_idx, hour_idx) for hour_idx in eachindex(hour_weights))
+    return sum(hour_weights[hour_idx] * get_plnom(data, bus_idx, year_idx, hour_idx) for hour_idx in eachindex(hour_weights))
 end
-function get_edem(data, bus_idx=(:), year_idx=(:), hour_idx=(:))
+function get_elnom(data, bus_idx=(:), year_idx=(:), hour_idx=(:))
     _bus_idxs = get_table_row_idxs(data, :bus, bus_idx)
     _year_idxs = get_year_idxs(data, year_idx)
     _hour_idxs = get_hour_idxs(data, hour_idx)
     hour_weights = get_hour_weights(data)
-    return sum(hour_weights[h] * get_pdem(data, b, y, h) for h in _hour_idxs, y in _year_idxs, b in _bus_idxs)
+    return sum(hour_weights[h] * get_plnom(data, b, y, h) for h in _hour_idxs, y in _year_idxs, b in _bus_idxs)
 end
 
 """
-    get_edem_load(data, load_idx, year_idx, hour_idxs) -> ed::Float64 (MWh)
+    get_elnom_load(data, load_idx, year_idx, hour_idxs) -> ed::Float64 (MWh)
 
-    get_edem_load(data, load_idxs, year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
+    get_elnom_load(data, load_idxs, year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
 
-    get_edem_load(data, pair(s), year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
+    get_elnom_load(data, pair(s), year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
 
 Return the energy load by load elements corresponding to `load_idx` or `load_idxs`, for `year_idx` and `hour_idx`.  Note `year_idx` can be the index or the year string (i.e. "y2030").
 
 If pair(s) are given, filters the load elements by pair.  i.e. pairs = ("country"=>"narnia", "read_type"=>"residential").
 """
-function get_edem_load(data, load_idxs::AbstractVector{Int64}, year_idx::Int64, hour_idxs)
+function get_elnom_load(data, load_idxs::AbstractVector{Int64}, year_idx::Int64, hour_idxs)
     load_arr = get_load_array(data)
     load_mat = view(load_arr, load_idxs, year_idx, hour_idxs)
     hour_weights = get_hour_weights(data, hour_idxs)
     return _sum_product(load_mat, hour_weights)
 end
-function get_edem_load(data, ::Colon, year_idx::Int64, hour_idxs)
+function get_elnom_load(data, ::Colon, year_idx::Int64, hour_idxs)
     load_arr = get_load_array(data)
     load_mat = view(load_arr, :, year_idx, hour_idxs)
     hour_weights = get_hour_weights(data, hour_idxs)
     return _sum_product(load_mat, hour_weights)
 end
 
-function get_edem_load(data, pairs, year_idx::Int64, hour_idxs)
+function get_elnom_load(data, pairs, year_idx::Int64, hour_idxs)
     nominal_load = get_table(data, :nominal_load, pairs...)
-    return get_edem_load(data, getfield(nominal_load, :rows), year_idx, hour_idxs)
+    return get_elnom_load(data, getfield(nominal_load, :rows), year_idx, hour_idxs)
 end
 
-function get_edem_load(data, pair::Pair, year_idx::Int64, hour_idxs)
+function get_elnom_load(data, pair::Pair, year_idx::Int64, hour_idxs)
     nominal_load = get_table(data, :nominal_load, pair)
-    return get_edem_load(data, getfield(nominal_load, :rows), year_idx, hour_idxs)
+    return get_elnom_load(data, getfield(nominal_load, :rows), year_idx, hour_idxs)
 end
-function get_edem_load(data, load_idxs, y::String, hr_idx)
+function get_elnom_load(data, load_idxs, y::String, hr_idx)
     year_idx = findfirst(==(y), get_years(data))
-    return get_edem_load(data, load_idxs, year_idx, hr_idx)
+    return get_elnom_load(data, load_idxs, year_idx, hr_idx)
 end
-export get_edem, get_edem_load
+export get_elnom, get_elnom_load
 
 
 """

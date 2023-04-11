@@ -83,7 +83,7 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | :bus | :eserv | MWhServed | Electricity served at this bus for the weighted representative hour |
 | :bus | :plcurt | MWCurtailed | Average power curtailed at this bus |
 | :bus | :ecurt | MWhCurtailed | Electricity curtailed at this bus for the weighted representative hour |
-| :bus | :edem  | MWhLoad | Electricity load at this bus for the weighted representative hour |
+| :bus | :elnom  | MWhLoad | Electricity load at this bus for the weighted representative hour |
 | :gen | :pgen | MWGenerated | Average power generated at this generator |
 | :gen | :egen | MWhGenerated | Electricity generated at this generator for the weighted representative hour |
 | :gen | :pcap | MWCapacity | Power capacity of this generator generated at this generator for the weighted representative hour |
@@ -108,7 +108,7 @@ function parse_power_results!(config, data)
     egen_bus = weight_hourly(data, pgen_bus)
     eserv_bus = weight_hourly(data, plserv_bus)
     ecurt_bus = weight_hourly(data, plcurt_bus)
-    edem_bus = weight_hourly(data, get_table_col(data, :bus, :pdem))
+    elnom_bus = weight_hourly(data, get_table_col(data, :bus, :plnom))
     
     # Create new things as needed
     cf = pgen_gen ./ pcap_gen
@@ -122,7 +122,7 @@ function parse_power_results!(config, data)
     add_table_col!(data, :bus, :eserv, eserv_bus, MWhServed,"Electricity served at this bus for the weighted representative hour")      
     add_table_col!(data, :bus, :plcurt, plcurt_bus, MWCurtailed,"Average power curtailed at this bus")
     add_table_col!(data, :bus, :ecurt, ecurt_bus, MWhCurtailed,"Electricity curtailed at this bus for the weighted representative hour")   
-    add_table_col!(data, :bus, :edem,  edem_bus,  MWhLoad,"Electricity load at this bus for the weighted representative hour")   
+    add_table_col!(data, :bus, :elnom,  elnom_bus,  MWhLoad,"Electricity load at this bus for the weighted representative hour")   
 
     # Add things to the gen table
     add_table_col!(data, :gen, :pgen,  pgen_gen,  MWGenerated,"Average power generated at this generator")
