@@ -122,7 +122,7 @@
             ecurt = aggregate_result(total, data, :bus, :ecurt, :, :, :)
             @test ecurt < 1e-6
         
-            # Test that total power capacity is greater than or equal to average demand
+            # Test that total power capacity is greater than or equal to average load
             pcap = aggregate_result(total, data, :gen, :pcap)
             pdem = aggregate_result(total, data, :bus, :pdem)
             @test pcap >= pdem

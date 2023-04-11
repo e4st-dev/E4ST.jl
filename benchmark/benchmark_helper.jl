@@ -6,7 +6,7 @@ using E4ST
 using JuMP
 using HiGHS
 
-function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n_hours=100, n_demand = 200, n_load_shape=100, n_load_match = 100, n_load_add = 100, af_file=true, load_shape_file=true, load_match_file=true, load_add_file=true)
+function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n_hours=100, n_load = 200, n_load_shape=100, n_load_match = 100, n_load_add = 100, af_file=true, load_shape_file=true, load_match_file=true, load_add_file=true)
     Random.seed!(1)
 
 
@@ -78,8 +78,8 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
     )
     n_years = length(years())
 
-    demand = rand_demand(;n_bus, n_demand)
-    CSV.write(joinpath(@__DIR__, "data/load.csv"), demand)
+    load = rand_load(;n_bus, n_load)
+    CSV.write(joinpath(@__DIR__, "data/load.csv"), load)
     config[:nominal_load_file] = abspath(@__DIR__, "data/load.csv")
 
     if af_file
@@ -128,10 +128,10 @@ function countries()
 end
 
 
-function rand_demand(;n_bus, n_demand, kwargs...)
+function rand_load(;n_bus, n_load, kwargs...)
     DataFrame(
-        "bus_idx" => rand(1:n_bus, n_demand),
-        "pdem0" => rand(n_demand),
+        "bus_idx" => rand(1:n_bus, n_load),
+        "plnom0" => rand(n_load),
         "load_type" => rand(load_types())
     )
 end

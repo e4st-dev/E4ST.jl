@@ -93,7 +93,7 @@ end
 function total(::Type{MWhGenerated}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
 end
-function total(::Type{MWhDemanded}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+function total(::Type{MWhLoad}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
 end
 function total(::Type{MWhCurtailed}, data, table, column_name, idxs, yr_idxs, hr_idxs)
@@ -103,18 +103,18 @@ end
 """
     total(::Type{MWCapacity}, data, table, column_name, idxs, yr_idxs, hr_idxs)
 
-The total average demanded power of all elements corresponding to `idxs`
+The total average load power of all elements corresponding to `idxs`
 """
 function total(::Type{MWCapacity}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     hc = data[:hours_container]::HoursContainer
     return weighted_sum(table[!, column_name], hc, idxs, yr_idxs, hr_idxs) / total_sum(hc, 1, yr_idxs, hr_idxs)
 end
 """
-    total(::Type{MWDemanded}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+    total(::Type{MWLoad}, data, table, column_name, idxs, yr_idxs, hr_idxs)
 
-The total average demanded power of all elements corresponding to `idxs`
+The total average load power of all elements corresponding to `idxs`
 """
-function total(::Type{MWDemanded}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+function total(::Type{MWLoad}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     hc = data[:hours_container]::HoursContainer
     return weighted_sum(table[!, column_name], hc, idxs, yr_idxs, hr_idxs) / total_sum(hc, 1, yr_idxs, hr_idxs)
 end
@@ -129,11 +129,11 @@ function average(::Type{DollarsPerMWhServed}, data, table, column_name, idxs, yr
 end
 
 """
-    average(::Type{MWDemanded}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+    average(::Type{MWLoad}, data, table, column_name, idxs, yr_idxs, hr_idxs)
 
-The per-bus average demanded power.
+The per-bus average load power.
 """
-function average(::Type{MWDemanded}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+function average(::Type{MWLoad}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     hc = data[:hours_container]::HoursContainer
     return weighted_avg(table[!, column_name], hc, idxs, yr_idxs, hr_idxs)
 end

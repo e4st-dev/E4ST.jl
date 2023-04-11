@@ -51,7 +51,7 @@ function setup_dcopf!(config, data, model)
 
     # Power Curtailed
     @variable(model, 
-        pcurt_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+        plcurt_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
         start=0.0,
         lower_bound = 0.0,
         upper_bound = get_pdem(data, bus_idx, year_idx, hour_idx),
@@ -67,7 +67,7 @@ function setup_dcopf!(config, data, model)
     @expression(model, pflow_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pflow_bus(data, model, bus_idx, year_idx, hour_idx))
 
     # Served power of a given bus
-    @expression(model, pserv_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pdem(data, bus_idx, year_idx, hour_idx) - pcurt_bus[bus_idx, year_idx, hour_idx])
+    @expression(model, plserv_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pdem(data, bus_idx, year_idx, hour_idx) - plcurt_bus[bus_idx, year_idx, hour_idx])
 
     # Generated power of a given bus
     @expression(model, pgen_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pgen_bus(data, model, bus_idx, year_idx, hour_idx))
@@ -340,7 +340,7 @@ function add_obj_term!(data, model, ::PerMWhCurtailed, s::Symbol; oper)
 
     # Use this expression for single VOLL
     model[s] = @expression(model, [bus_idx in 1:nrow(bus)],
-        sum(get_voll(data, bus_idx, year_idx, hour_idx) .* rep_hours.hours[hour_idx] .* model[:pcurt_bus][bus_idx, year_idx, hour_idx] for year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)))
+        sum(get_voll(data, bus_idx, year_idx, hour_idx) .* rep_hours.hours[hour_idx] .* model[:plcurt_bus][bus_idx, year_idx, hour_idx] for year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)))
 
     # add or subtract the expression from the objective function
     add_obj_exp!(data, model, PerMWhCurtailed(), s; oper = oper)  

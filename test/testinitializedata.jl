@@ -50,61 +50,38 @@
     include("testadjust.jl")
 
 
-<<<<<<< HEAD
-<<<<<<< HEAD
     @testset "Test load_demand_table! with shaping" begin
         config = load_config(config_file)
         #config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
         delete!(config, :demand_match_file)
         delete!(config, :demand_add_file)
         data = load_data(config)
-=======
-    @testset "Test read_demand_table! with shaping" begin
-=======
-    @testset "Test read_nominal_load! with shaping" begin
->>>>>>> c965430 (Update demand -> load)
-        config = read_config(config_file)
-        config[:load_shape_file] = abspath(@__DIR__, "data", "3bus","load_shape.csv")
-        data = read_data(config)
->>>>>>> 2b2079b (Change all load -> read)
         archenland_buses = findall(==("archenland"), data[:bus].country)
         narnia_buses = findall(==("narnia"), data[:bus].country)
         all_buses = 1:nrow(data[:bus])
 
 
-        # Check that narnian demanded power is different across years (look at the load_shape.csv)
-        @testset "Test that bus $bus_idx demand is different across years $yr_idx and $(yr_idx+1)" for bus_idx in narnia_buses, yr_idx in 1:get_num_years(data)-1
+        # Check that narnian load power is different across years (look at the load_shape.csv)
+        @testset "Test that bus $bus_idx load is different across years $yr_idx and $(yr_idx+1)" for bus_idx in narnia_buses, yr_idx in 1:get_num_years(data)-1
             @test ~all(get_pdem(data, 1, yr_idx, hr_idx) ≈ get_pdem(data, 1, yr_idx+1, hr_idx) for hr_idx in 1:get_num_hours(data))
         end
         
-        @testset "Test that bus $bus_idx demand is the same across years $yr_idx and $(yr_idx+1)" for bus_idx in archenland_buses, yr_idx in 1:get_num_years(data)-1
+        @testset "Test that bus $bus_idx load is the same across years $yr_idx and $(yr_idx+1)" for bus_idx in archenland_buses, yr_idx in 1:get_num_years(data)-1
             @test all(get_pdem(data, bus_idx, yr_idx, hr_idx) ≈ get_pdem(data, bus_idx, yr_idx+1, hr_idx) for hr_idx in 1:get_num_hours(data))
         end
         
-        # Check that each bus changes demand across hours
-        @testset "Test that bus $bus_idx demand is different across hours" for bus_idx in all_buses, yr_idx in 1:get_num_years(data)
+        # Check that each bus changes load across hours
+        @testset "Test that bus $bus_idx load is different across hours" for bus_idx in all_buses, yr_idx in 1:get_num_years(data)
             @test any(get_pdem(data, bus_idx, yr_idx, 1) != get_pdem(data, bus_idx, yr_idx, hr_idx) for hr_idx in 1:get_num_hours(data))
         end
     end
 
-<<<<<<< HEAD
-<<<<<<< HEAD
     @testset "Test load_demand_table! with shaping and matching" begin
         config = load_config(config_file)
         # config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
         # config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
         delete!(config, :demand_add_file)
         data = load_data(config)
-=======
-    @testset "Test read_demand_table! with shaping and matching" begin
-=======
-    @testset "Test read_nominal_load! with shaping and matching" begin
->>>>>>> c965430 (Update demand -> load)
-        config = read_config(config_file)
-        config[:load_shape_file] = abspath(@__DIR__, "data", "3bus","load_shape.csv")
-        config[:load_match_file] = abspath(@__DIR__, "data", "3bus","load_match.csv")
-        data = read_data(config)
->>>>>>> 2b2079b (Change all load -> read)
         archenland_buses = findall(==("archenland"), data[:bus].country)
         narnia_buses = findall(==("narnia"), data[:bus].country)
         all_buses = 1:nrow(data[:bus])
@@ -118,30 +95,17 @@
 
         # Test that ratio between load in naria and archenland stayed the same with scaling
         @testset for y in get_years(data)
-            @test get_edem_demand(data, :country=>"narnia", y, :)*10 ≈ get_edem_demand(data, :country=>"archenland", y, :)
+            @test get_edem_load(data, :country=>"narnia", y, :)*10 ≈ get_edem_load(data, :country=>"archenland", y, :)
         end
     end
 
-<<<<<<< HEAD
-<<<<<<< HEAD
     @testset "Test load_demand_table! with shaping, matching and adding" begin
         config = load_config(config_file)
         # config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
         # config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
         # config[:demand_add_file]   = abspath(@__DIR__, "data", "3bus","demand_add.csv")
         data = load_data(config)
-=======
-    @testset "Test read_demand_table! with shaping, matching and adding" begin
-=======
-    @testset "Test read_nominal_load! with shaping, matching and adding" begin
->>>>>>> c965430 (Update demand -> load)
         config = read_config(config_file)
-        config[:load_shape_file] = abspath(@__DIR__, "data", "3bus","load_shape.csv")
-        config[:load_match_file] = abspath(@__DIR__, "data", "3bus","load_match.csv")
-        config[:load_add_file]   = abspath(@__DIR__, "data", "3bus","load_add.csv")
-        data = read_data(config)
->>>>>>> 2b2079b (Change all load -> read)
-
 
         @test get_edem_demand(data, :, "y2030", :) ≈ 16000
         @test get_edem_demand(data, :, "y2035", :) ≈ 18000

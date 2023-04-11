@@ -33,10 +33,10 @@ struct MWFlow <: Unit end; export MWFlow
 struct MWGenerated <: Unit end; export MWGenerated
 struct MWServed <: Unit end; export MWServed
 struct MWCapacity <: Unit end; export MWCapacity
-struct MWDemanded <: Unit end; export MWDemanded
+struct MWLoad <: Unit end; export MWLoad
 struct MWCurtailed <: Unit end; export MWCurtailed
 
-struct MWhDemanded <: Unit end; export MWhDemanded
+struct MWhLoad <: Unit end; export MWhLoad
 
 struct Hours <: Unit end; export Hours
 struct Year <: Unit end; export Year

@@ -930,14 +930,14 @@ end
 export get_table_summary
 
 """
-    get_demand_array(data)
+    get_load_array(data)
 
-Returns the demand array, a 3d array of demand indexed by [demand_idx, yr_idx, hr_idx]
+Returns the load array, a 3d array of load indexed by [load_idx, yr_idx, hr_idx]
 """
-function get_demand_array(data)
-    return data[:demand_array]::Array{Float64,3}
+function get_load_array(data)
+    return data[:load_array]::Array{Float64,3}
 end
-export get_demand_array
+export get_load_array
 
 """
     get_generator(data, gen_idx) -> row
@@ -982,7 +982,7 @@ export get_af
 """
     get_pdem(data, bus_idx, year_idx, hour_idx) -> pdem
 
-Retrieves the demanded power for a bus at a year and a time.
+Retrieves the load power for a bus at a year and a time.
 """
 function get_pdem(data, bus_idx, year_idx, hour_idx)
     return get_table_num(data, :bus, :pdem, bus_idx, year_idx, hour_idx)
@@ -994,7 +994,7 @@ export get_pdem
 
     get_edem(data, bus_idx, year_idx, hour_idxs) -> ed::Float64 (MWh)
 
-Retrieve the total energy demanded for a bus at a given year and hour(s).
+Retrieve the total energy load for a bus at a given year and hour(s).
 """
 function get_edem(data, bus_idx::Int64, year_idx::Int64, hour_idx::Int64)
     return get_hour_weight(data, hour_idx) * get_pdem(data, bus_idx, year_idx, hour_idx)
@@ -1015,43 +1015,43 @@ function get_edem(data, bus_idx=(:), year_idx=(:), hour_idx=(:))
 end
 
 """
-    get_edem_demand(data, demand_idx, year_idx, hour_idxs) -> ed::Float64 (MWh)
+    get_edem_load(data, load_idx, year_idx, hour_idxs) -> ed::Float64 (MWh)
 
-    get_edem_demand(data, demand_idxs, year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
+    get_edem_load(data, load_idxs, year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
 
-    get_edem_demand(data, pair(s), year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
+    get_edem_load(data, pair(s), year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
 
-Return the energy demanded by demand elements corresponding to `demand_idx` or `demand_idxs`, for `year_idx` and `hour_idx`.  Note `year_idx` can be the index or the year string (i.e. "y2030").
+Return the energy load by load elements corresponding to `load_idx` or `load_idxs`, for `year_idx` and `hour_idx`.  Note `year_idx` can be the index or the year string (i.e. "y2030").
 
-If pair(s) are given, filters the demand elements by pair.  i.e. pairs = ("country"=>"narnia", "read_type"=>"residential").
+If pair(s) are given, filters the load elements by pair.  i.e. pairs = ("country"=>"narnia", "read_type"=>"residential").
 """
-function get_edem_demand(data, demand_idxs::AbstractVector{Int64}, year_idx::Int64, hour_idxs)
-    demand_arr = get_demand_array(data)
-    demand_mat = view(demand_arr, demand_idxs, year_idx, hour_idxs)
+function get_edem_load(data, load_idxs::AbstractVector{Int64}, year_idx::Int64, hour_idxs)
+    load_arr = get_load_array(data)
+    load_mat = view(load_arr, load_idxs, year_idx, hour_idxs)
     hour_weights = get_hour_weights(data, hour_idxs)
-    return _sum_product(demand_mat, hour_weights)
+    return _sum_product(load_mat, hour_weights)
 end
-function get_edem_demand(data, ::Colon, year_idx::Int64, hour_idxs)
-    demand_arr = get_demand_array(data)
-    demand_mat = view(demand_arr, :, year_idx, hour_idxs)
+function get_edem_load(data, ::Colon, year_idx::Int64, hour_idxs)
+    load_arr = get_load_array(data)
+    load_mat = view(load_arr, :, year_idx, hour_idxs)
     hour_weights = get_hour_weights(data, hour_idxs)
-    return _sum_product(demand_mat, hour_weights)
+    return _sum_product(load_mat, hour_weights)
 end
 
-function get_edem_demand(data, pairs, year_idx::Int64, hour_idxs)
+function get_edem_load(data, pairs, year_idx::Int64, hour_idxs)
     nominal_load = get_table(data, :nominal_load, pairs...)
-    return get_edem_demand(data, getfield(nominal_load, :rows), year_idx, hour_idxs)
+    return get_edem_load(data, getfield(nominal_load, :rows), year_idx, hour_idxs)
 end
 
-function get_edem_demand(data, pair::Pair, year_idx::Int64, hour_idxs)
+function get_edem_load(data, pair::Pair, year_idx::Int64, hour_idxs)
     nominal_load = get_table(data, :nominal_load, pair)
-    return get_edem_demand(data, getfield(nominal_load, :rows), year_idx, hour_idxs)
+    return get_edem_load(data, getfield(nominal_load, :rows), year_idx, hour_idxs)
 end
-function get_edem_demand(data, demand_idxs, y::String, hr_idx)
+function get_edem_load(data, load_idxs, y::String, hr_idx)
     year_idx = findfirst(==(y), get_years(data))
-    return get_edem_demand(data, demand_idxs, year_idx, hr_idx)
+    return get_edem_load(data, load_idxs, year_idx, hr_idx)
 end
-export get_edem, get_edem_demand
+export get_edem, get_edem_load
 
 
 """

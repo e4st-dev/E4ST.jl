@@ -5,7 +5,7 @@ Sometimes, it may be desirable to run E4ST back-to-back with very similar sets o
 
 The `Iterable` represents how [`run_e4st`](@ref) should iterate through multiple optimizations.  This structure could be used for any number of things, such as:
 * Running a sequence of years
-* Iterating to find the optimal price for natural gas to meet some demand criterion.
+* Iterating to find the optimal price for natural gas to meet some load criterion.
 * Running the first simulation for capacity/retirement, then run the next sim to find generation with a higher temporal resolution.
 
 ## Adding an Iterable to config
