@@ -5,8 +5,7 @@
     # Setup reference case 
     ####################################################################
     config_file_ref = joinpath(@__DIR__, "config", "config_3bus.yml")
-    config_agg_res = joinpath(@__DIR__, "config", "config_res.yml")
-    config_ref = load_config(config_file_ref, config_agg_res)
+    config_ref = load_config(config_file_ref)
 
     data_ref = load_data(config_ref)
     model_ref = setup_model(config_ref, data_ref)
@@ -101,7 +100,7 @@
 
     @testset "Test EmissionCap" begin
         config_file = joinpath(@__DIR__, "config", "config_3bus_emiscap.yml")
-        config = load_config(config_file_ref, config_agg_res, config_file)
+        config = load_config(config_file_ref, config_file)
 
         data = load_data(config)
         model = setup_model(config, data)
