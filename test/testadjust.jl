@@ -1,11 +1,11 @@
 @testset "Test Arbitrary Adjustments" begin
     @testset "Test Yearly and Hourly Adjustments" begin
         config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
-        config = load_config(config_file)
-        data0 = load_data(config)
+        config = read_config(config_file)
+        data0 = read_data(config)
         config[:adjust_yearly_file] = joinpath(@__DIR__, "data","3bus","adjust_yearly.csv")
         config[:adjust_hourly_file] = joinpath(@__DIR__, "data","3bus","adjust_hourly.csv")
-        data = load_data(config)
+        data = read_data(config)
         @test data isa AbstractDict
 
         @testset "Test Yearly Adjustments" begin

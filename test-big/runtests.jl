@@ -13,11 +13,11 @@ using JuMP
 
             config_file = joinpath(@__DIR__, "config/config_gurobi.yml")
 
-            @time config=load_config(config_file);
+            @time config=read_config(config_file);
             start_logging!(config)
             @test config isa AbstractDict
 
-            @time data=load_data(config)
+            @time data=read_data(config)
             @test data isa AbstractDict
 
             @time model = setup_model(config, data)

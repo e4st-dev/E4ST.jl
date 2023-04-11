@@ -5,7 +5,7 @@ Iterable
 init!
 should_iterate
 iterate!
-should_reload_data
+should_reread_data
 fieldnames_for_yaml(::Type{<:Iterable})
 ```
 

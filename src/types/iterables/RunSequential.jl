@@ -82,9 +82,9 @@ end
 
 
 """
-    should_reload_data(::RunSequential) -> true
+    should_reread_data(::RunSequential) -> true
 """
-function should_reload_data(::RunSequential)
+function should_reread_data(::RunSequential)
     true
 end
 

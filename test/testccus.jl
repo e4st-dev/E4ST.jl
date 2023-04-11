@@ -3,7 +3,7 @@
     ccus_config_file = joinpath(@__DIR__, "config/config_ccus.yml")
     out_path, _ = run_e4st(config_file, ccus_config_file)
 
-    data = load_processed_results(out_path)
+    data = read_processed_results(out_path)
     nyear = get_num_years(data)
     ccus_paths = get_table(data, :ccus_paths)
     
@@ -43,7 +43,7 @@
         # Test that there are 2 carbon-capturing generators in the gen table before saving, and only 1 after
         @test length(get_table_row_idxs(data, :gen, :gentype=>"ngccccs")) == 2
 
-        gen_updated = load_table(joinpath(out_path, "gen.csv"))
+        gen_updated = read_table(joinpath(out_path, "gen.csv"))
         @test length(get_row_idxs(gen_updated, :gentype=>"ngccccs")) == 1
     end
 end

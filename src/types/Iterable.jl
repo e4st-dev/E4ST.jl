@@ -5,7 +5,7 @@ Sometimes, it may be desirable to run E4ST back-to-back with very similar sets o
 
 The `Iterable` represents how [`run_e4st`](@ref) should iterate through multiple optimizations.  This structure could be used for any number of things, such as:
 * Running a sequence of years
-* Iterating to find the optimal price for natural gas to meet some demand criterion.
+* Iterating to find the optimal price for natural gas to meet some load criterion.
 * Running the first simulation for capacity/retirement, then run the next sim to find generation with a higher temporal resolution.
 
 ## Adding an Iterable to config
@@ -21,7 +21,7 @@ iter:
 * [`init!(iter::Iterable, config)`](@ref) - (optional) Initialize `iter` with `config`, making any changes.
 * [`should_iterate(iter, config, data)`](@ref) - return whether or not the simulation should continue for another iteration.
 * [`iterate!(iter, config, data)`](@ref) - Makes any changes to any of the structures between iterations. 
-* [`should_reload_data(iter)`](@ref) - Returns whether or not to reload the data when iterating. 
+* [`should_reread_data(iter)`](@ref) - Returns whether or not to reread the data when iterating. 
 * [`fieldnames_for_yaml(::Type{<:Iterable})`](@ref) - (optional) return the fieldnames to print to yaml file in [`save_config`](@ref)
 """
 abstract type Iterable end
@@ -61,12 +61,12 @@ function fieldnames_for_yaml(::Type{I}) where {I<:Iterable}
 end
 
 """
-    should_reload_data(iter::Iterable) -> ::Bool
+    should_reread_data(iter::Iterable) -> ::Bool
 
-Return whether or not the data should be reloaded when iterating.
+Return whether or not the data should be re-read when iterating.
 """
-function should_reload_data end
-export should_reload_data
+function should_reread_data end
+export should_reread_data
 
 """
     iterate!(iter::Iterable, config, data)

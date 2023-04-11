@@ -2,15 +2,15 @@
     #Testing initializing data: loading in, setting up, modifying, adding new gens
 
     config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
-    config = load_config(config_file)
+    config = read_config(config_file)
 
-    data = load_data(config)
+    data = read_data(config)
     import E4ST.Container
     Base.:(==)(c1::Container, c2::Container) = c1.v==c2.v
 
     @testset "Test Initializing the Data" begin
-        config = load_config(config_file)
-        data = load_data(config)
+        config = read_config(config_file)
+        data = read_data(config)
         table_names = get_table_names(data)
         for table_name in table_names
             @test has_table(data, table_name)
@@ -34,11 +34,11 @@
         function E4ST.modify_setup_data!(::DoubleVOM, config, data)
             data[:gen][!, :vom] .*= 2
         end
-        config = load_config(config_file)
-        data_0 = load_data(config)
+        config = read_config(config_file)
+        data_0 = read_data(config)
         push!(config[:mods], :testmod=>DoubleVOM())
         @test ~isempty(config[:mods])
-        data = load_data(config)
+        data = read_data(config)
         @test data != data_0
         @test sum(data[:gen].vom) == 2*sum(data_0[:gen].vom)
 
@@ -50,71 +50,71 @@
     include("testadjust.jl")
 
 
-    @testset "Test load_demand_table! with shaping" begin
-        config = load_config(config_file)
-        #config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
-        delete!(config, :demand_match_file)
-        delete!(config, :demand_add_file)
-        data = load_data(config)
+    @testset "Test load with shaping" begin
+        config = read_config(config_file)
+        #config[:load_shape_file] = abspath(@__DIR__, "data", "3bus","load_shape.csv")
+        delete!(config, :load_match_file)
+        delete!(config, :load_add_file)
+        data = read_data(config)
         archenland_buses = findall(==("archenland"), data[:bus].country)
         narnia_buses = findall(==("narnia"), data[:bus].country)
         all_buses = 1:nrow(data[:bus])
 
 
-        # Check that narnian demanded power is different across years (look at the demand_shape.csv)
-        @testset "Test that bus $bus_idx demand is different across years $yr_idx and $(yr_idx+1)" for bus_idx in narnia_buses, yr_idx in 1:get_num_years(data)-1
-            @test ~all(get_pdem(data, 1, yr_idx, hr_idx) ≈ get_pdem(data, 1, yr_idx+1, hr_idx) for hr_idx in 1:get_num_hours(data))
+        # Check that narnian load power is different across years (look at the load_shape.csv)
+        @testset "Test that bus $bus_idx load is different across years $yr_idx and $(yr_idx+1)" for bus_idx in narnia_buses, yr_idx in 1:get_num_years(data)-1
+            @test ~all(get_plnom(data, 1, yr_idx, hr_idx) ≈ get_plnom(data, 1, yr_idx+1, hr_idx) for hr_idx in 1:get_num_hours(data))
         end
         
-        @testset "Test that bus $bus_idx demand is the same across years $yr_idx and $(yr_idx+1)" for bus_idx in archenland_buses, yr_idx in 1:get_num_years(data)-1
-            @test all(get_pdem(data, bus_idx, yr_idx, hr_idx) ≈ get_pdem(data, bus_idx, yr_idx+1, hr_idx) for hr_idx in 1:get_num_hours(data))
+        @testset "Test that bus $bus_idx load is the same across years $yr_idx and $(yr_idx+1)" for bus_idx in archenland_buses, yr_idx in 1:get_num_years(data)-1
+            @test all(get_plnom(data, bus_idx, yr_idx, hr_idx) ≈ get_plnom(data, bus_idx, yr_idx+1, hr_idx) for hr_idx in 1:get_num_hours(data))
         end
         
-        # Check that each bus changes demand across hours
-        @testset "Test that bus $bus_idx demand is different across hours" for bus_idx in all_buses, yr_idx in 1:get_num_years(data)
-            @test any(get_pdem(data, bus_idx, yr_idx, 1) != get_pdem(data, bus_idx, yr_idx, hr_idx) for hr_idx in 1:get_num_hours(data))
+        # Check that each bus changes load across hours
+        @testset "Test that bus $bus_idx load is different across hours" for bus_idx in all_buses, yr_idx in 1:get_num_years(data)
+            @test any(get_plnom(data, bus_idx, yr_idx, 1) != get_plnom(data, bus_idx, yr_idx, hr_idx) for hr_idx in 1:get_num_hours(data))
         end
     end
 
-    @testset "Test load_demand_table! with shaping and matching" begin
-        config = load_config(config_file)
-        # config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
-        # config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
-        delete!(config, :demand_add_file)
-        data = load_data(config)
+    @testset "Test load with shaping and matching" begin
+        config = read_config(config_file)
+        # config[:load_shape_file] = abspath(@__DIR__, "data", "3bus","load_shape.csv")
+        # config[:load_match_file] = abspath(@__DIR__, "data", "3bus","load_match.csv")
+        delete!(config, :load_add_file)
+        data = read_data(config)
         archenland_buses = findall(==("archenland"), data[:bus].country)
         narnia_buses = findall(==("narnia"), data[:bus].country)
         all_buses = 1:nrow(data[:bus])
 
         # The last row, the all-area match is enabled for 2030 and 2035
-        @test get_edem_demand(data, :, "y2030", :) ≈ 16000
-        @test get_edem_demand(data, :, "y2035", :) ≈ 18000
+        @test get_elnom_load(data, :, "y2030", :) ≈ 16000
+        @test get_elnom_load(data, :, "y2035", :) ≈ 18000
 
         # In 2040, it should be equal to the naria (1.8) + the archenland match (18)
-        @test get_edem_demand(data, :, "y2040", :) ≈ 19800
+        @test get_elnom_load(data, :, "y2040", :) ≈ 19800
 
         # Test that ratio between load in naria and archenland stayed the same with scaling
         @testset for y in get_years(data)
-            @test get_edem_demand(data, :country=>"narnia", y, :)*10 ≈ get_edem_demand(data, :country=>"archenland", y, :)
+            @test get_elnom_load(data, :country=>"narnia", y, :)*10 ≈ get_elnom_load(data, :country=>"archenland", y, :)
         end
     end
 
-    @testset "Test load_demand_table! with shaping, matching and adding" begin
-        config = load_config(config_file)
-        # config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
-        # config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
-        # config[:demand_add_file]   = abspath(@__DIR__, "data", "3bus","demand_add.csv")
-        data = load_data(config)
+    @testset "Test load with shaping, matching and adding" begin
+        config = read_config(config_file)
+        # config[:load_shape_file] = abspath(@__DIR__, "data", "3bus","load_shape.csv")
+        # config[:load_match_file] = abspath(@__DIR__, "data", "3bus","load_match.csv")
+        # config[:load_add_file]   = abspath(@__DIR__, "data", "3bus","load_add.csv")
+        data = read_data(config)
+        config = read_config(config_file)
 
-
-        @test get_edem_demand(data, :, "y2030", :) ≈ 16000
-        @test get_edem_demand(data, :, "y2035", :) ≈ 18000
-        @test get_edem_demand(data, :, "y2040", :) ≈ 19800 + 0.00001*8760
+        @test get_elnom_load(data, :, "y2030", :) ≈ 16000
+        @test get_elnom_load(data, :, "y2035", :) ≈ 18000
+        @test get_elnom_load(data, :, "y2040", :) ≈ 19800 + 0.00001*8760
     end
 
     @testset "Test Adding New Gens" begin
-        config = load_config(config_file)
-        data = load_data(config)
+        config = read_config(config_file)
+        data = read_data(config)
         gen = get_table(data, :gen)
         build_gen = get_table(data, :build_gen)
 
@@ -134,8 +134,8 @@
     end
 
     @testset "Test Setting Up Gen Table" begin 
-        config = load_config(config_file)
-        data = load_data(config)
+        config = read_config(config_file)
+        data = read_data(config)
         gen = get_table(data, :gen)
 
         @test hasproperty(gen, :capex_obj)

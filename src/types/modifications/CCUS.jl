@@ -88,7 +88,7 @@ Loads `mod.file` into `data[:ccus_paths]`.  See [`summarize_table(::Val{:ccus_pa
 """
 function modify_raw_data!(mod::CCUS, config, data)
     config[:ccus_file] = mod.file
-    load_table!(config, data, :ccus_file => :ccus_paths)
+    read_table!(config, data, :ccus_file => :ccus_paths)
     return nothing
 end
 

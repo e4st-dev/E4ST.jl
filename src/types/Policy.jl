@@ -25,7 +25,7 @@ struct CES <: Policy
 
     # function CES(;name,emiscol,benchmark,cap_file)
     #     #create a container of cap value and years 
-    #     cap_table = load_table(joinpath(@__DIR__,cap_file))
+    #     cap_table = read_table(joinpath(@__DIR__,cap_file))
     #         #for each year in the sim that is in the cap_table, add it to a vector and then call set_yearly
     # end
 
