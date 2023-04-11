@@ -55,7 +55,7 @@ function E4ST.modify_model!(cons::GenerationConstraint, config, data, model)
     if ~isempty(min_years)
         @info "Creating a miminum generation constraint based on $(cons.col) for $(length(gen_idxs)) generators. Constraint name is $(min_cons_name)"
         model[Symbol(min_cons_name)] = @constraint(model, [y=min_years], 
-            sum(get_egen_gen(data, model, gen_idx, findfirst(==(y), years), hour_idx)*get_table_num(data, :gen, cons.col, gen_idx, findfirst(==(y), years), hour_idx) for gen_idx=gen_idxs, hour_idx=1:nhours) <= cons.min_values[y])  #TODO: make it so that emis can be indexed by hour 
+            sum(get_egen_gen(data, model, gen_idx, findfirst(==(y), years), hour_idx)*get_table_num(data, :gen, cons.col, gen_idx, findfirst(==(y), years), hour_idx) for gen_idx=gen_idxs, hour_idx=1:nhours) >= cons.min_values[y])  #TODO: make it so that emis can be indexed by hour 
     end
 
 end

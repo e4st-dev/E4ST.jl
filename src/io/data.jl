@@ -286,10 +286,7 @@ end
 Return the marginal cost of load curtailment / VOLL as a variable in data
 """
 function load_voll!(config, data)
-    default_voll = 5000.0;
-    haskey(config, :voll) ? data[:voll] = config[:voll] : data[:voll] = default_voll
-    hasmethod(Float64, Tuple{typeof(data[:voll])}) || error("data[:voll] cannot be converted to a Float64")
-    data[:voll] = Float64.(data[:voll]) 
+    data[:voll] = Float64(config[:voll]) 
 end
 export load_voll!
 
@@ -370,6 +367,11 @@ function setup_table!(config, data, ::Val{:gen})
 
     #removes capex_obj if loaded in from previous sim
     :capex_obj in propertynames(data[:gen]) && select!(data[:gen], Not(:capex_obj))
+
+    #set build_status to 'built' for all gens marked 'new'. This marks gens built in a previous sim as 'built'.
+    c = ==("new") # Comparison, one allocation
+    b = "built" # pre-allocate
+    transform!(gen, :build_status => ByRow(s->c(s) ? b : s) => :build_status) # transform in-place
 
     ### Create new gens and add to the gen table
     if haskey(config, :build_gen_file) 
@@ -555,8 +557,6 @@ function setup_table!(config, data, ::Val{:af_table})
     end
     return data
 end
-export setup_af!
-
 
 """
     setup_table!(config, data, ::Val{:genfuel}) -> nothing
@@ -577,7 +577,7 @@ function summarize_table(::Val{:gen})
     push!(df, 
         (:bus_idx, Int64, NA, true, "The index of the `bus` table that the generator corresponds to"),
         (:status, Bool, NA, false, "Whether or not the generator is in service"),
-        (:build_status, AbstractString, NA, true, "Whether the generator is 'built', 'new', or 'unbuilt'"),
+        (:build_status, AbstractString, NA, true, "Whether the generator is 'built', 'new', or 'unbuilt'. All generators marked 'new' when the gen file is read in will be changed to 'built'."),
         (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
         (:year_on, AbstractString, Year, true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses"),
@@ -591,7 +591,9 @@ function summarize_table(::Val{:gen})
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
         (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
         (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
-        (:af, Float64, MWhGeneratedPerMWhCapacity, false, "The availability factor, or maximum available ratio of pewer generation to nameplate capacity for the generator.")
+        (:af, Float64, MWhGeneratedPerMWhCapacity, false, "The availability factor, or maximum available ratio of pewer generation to nameplate capacity for the generator."),
+        (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The emission rate per MWh of CO2"),
+        (:capt_co2_percent, Float64, ShortTonsPerMWhGenerated, false, "The percentage of co2 emissions captured, to be sequestered."),
     )
     return df
 end
@@ -660,7 +662,7 @@ function summarize_table(::Val{:build_gen})
     push!(df, 
         (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
-        (:build_status, AbstractString, NA, true, "Whether the generator is 'built', 'new', or 'unbuilt'. Should be unbuilt for exog new gens that could be built in the sim."),
+        (:build_status, AbstractString, NA, true, "Whether the generator is 'built', 'new', or 'unbuilt'. Should be unbuilt for all new gens. This will be updated to 'new' for generators that were built in the sim."),
         (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built). Should either be exog or endog for buil_gen."),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
         (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
@@ -677,6 +679,8 @@ function summarize_table(::Val{:build_gen})
         (:year_on, AbstractString, NA, true, "The first year of operation for the generator. (For new gens this is also the year it was built). Endogenous unbuilt generators will be left blank"),
         (:year_on_min, AbstractString, NA, true, "The first year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
         (:year_on_max, AbstractString, NA, true, "The last year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
+        (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The CO2 emission rate of the generator, in short tons per MWh generated.  This is the net emissions. (i.e. not including captured CO2 that gets captured)"),
+        (:capt_co2_percent, Float64, ShortTonsPerMWhGenerated, false, "The percentage of co2 emissions captured, to be sequestered."),
     )
     return df
 end
@@ -720,12 +724,22 @@ Return a subset of the table `table_name` for which the row passes the `conditio
 * `:genfuel => ["ng", "solar", "wind"]` - All rows for which `row.genfuel` is either "ng", "solar", or "wind"
 * `:emis_co2 => f::Function` - All rows for which f(row.emis_co2) returns `true`.  For example `>(0)`, or `x->(0<x<=0.5)`
 """
-function get_table(data, table_name, conditions...)
+function get_table(data, table_name::Union{Symbol, AbstractString}, conditions...)
     table = get_table(data, table_name)
+    get_subtable(table, conditions...)
+end
+export get_table
+
+"""
+    get_subtable(table::DataFrame, conditions...)
+
+Returns a `SubDataFrame` of `table`, based on `conditions`.  See [`get_table`](@ref) for ideas of appropriate `conditions`
+"""
+function get_subtable(table::DataFrame, conditions...)
     row_idxs = get_row_idxs(table, conditions...)
     return view(table, row_idxs, :)
 end
-export get_table
+export get_subtable
 
 """
     get_table_row_idxs(data, table_name, conditions...) -> row_idxs::Vector{Int64}
@@ -748,16 +762,15 @@ function get_table_col(data, table_name, col_name)
     return col::AbstractVector
 end
 export get_table_col
-
 """
     add_table_col!(data, table_name, col_name, col, unit, description)
 
 Adds `col` to `data[table_name][!, col_name]`, also adding the description and unit to the summary table.
 """
-function add_table_col!(data, table_name, column_name, col::AbstractVector, unit, description)
+function add_table_col!(data, table_name, column_name, col::AbstractVector, unit, description; warn_overwrite = true)
     # Add col to table
     table = get_table(data, table_name)
-    hasproperty(table, column_name) && @warn "Table data[$table_name] already has column $column_name, overwriting"
+    hasproperty(table, column_name) && warn_overwrite == true && @warn "Table data[$table_name] already has column $column_name, overwriting"
     table[!, column_name] = col
 
     # Document in the summary table
@@ -768,14 +781,14 @@ function add_table_col!(data, table_name, column_name, col::AbstractVector, unit
     data[:unit_lookup][(table_name, column_name)] = unit
     data[:desc_lookup][(table_name, column_name)] = description
 end
-function add_table_col!(data, table_name, column_name, ar::AbstractArray{<:Real, 3}, unit, description)
+function add_table_col!(data, table_name, column_name, ar::AbstractArray{<:Real, 3}, unit, description; warn_overwrite = true)
     v = [view(ar, i, :, :) for i in 1:size(ar, 1)]
-    return add_table_col!(data, table_name, column_name, v, unit, description)
+    return add_table_col!(data, table_name, column_name, v, unit, description; warn_overwrite)
 end
-function add_table_col!(data, table_name, column_name, ar::AbstractMatrix{<:Real}, unit, description)
+function add_table_col!(data, table_name, column_name, ar::AbstractMatrix{<:Real}, unit, description; warn_overwrite = true)
     # Might need to make this into a container.
     v = [view(ar, i, :) for i in 1:size(ar, 1)]
-    return add_table_col!(data, table_name, column_name, v, unit, description)
+    return add_table_col!(data, table_name, column_name, v, unit, description; warn_overwrite)
 end
 export add_table_col!
 
@@ -790,7 +803,7 @@ function get_table_col_unit(data, table_name::Symbol, column_name::Symbol)
         if contains(cn, r"h\d*")
             haskey(ul, (table_name, :h_)) && return ul[(table_name, :h_)]
         elseif contains(cn, r"y\d*")
-            haskey(ul, (table_name, :h_)) && return ul[(table_name, :y_)]
+            haskey(ul, (table_name, :y_)) && return ul[(table_name, :y_)]
         end
         error("No unit found for table column $table_name[:$column_name].\nConsider defining the column in the summary_table.")
     end::Type{<:Unit}
@@ -811,7 +824,7 @@ function get_table_col_description(data, table_name::Symbol, column_name::Symbol
         if contains(cn, r"h\d*")
             haskey(ul, (table_name, :h_)) && return ul[(table_name, :h_)]
         elseif contains(cn, r"y\d*")
-            haskey(ul, (table_name, :h_)) && return ul[(table_name, :y_)]
+            haskey(ul, (table_name, :y_)) && return ul[(table_name, :y_)]
         end
         error("No description found for table column $table_name[:$column_name].\nConsider defining the column in the summary_table.")
     end::String
@@ -906,9 +919,9 @@ end
 export has_table
 
 """
-    get_table_summary(config, data, table_name) -> summary::SubDataFrame
+    get_table_summary(data, table_name) -> summary::SubDataFrame
 
-Returns a summary of `table_name`, loaded in from [`summarize_table`](@ref)` and [`load_summary_table!`](@ref).
+Returns a summary of `table_name`, loaded in from [`summarize_table`](@ref) and [`load_summary_table!`](@ref).
 """
 function get_table_summary(data, table_name)
     st = get_table(data, :summary_table)
@@ -954,7 +967,6 @@ function get_branch(data, branch_idx)
 end
 
 export get_generator, get_bus, get_branch
-export get_bus_from_generator_idx
 
 """
     get_af(data, gen_idx, year_idx, hour_idx) -> af

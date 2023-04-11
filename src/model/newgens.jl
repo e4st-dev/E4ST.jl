@@ -62,12 +62,12 @@ function make_newgens!(config, data, newgen)
                     #populate newgen_row with specs
                     newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
                     newgen_row[:year_on] = year
-                    push!(newgen, newgen_row)
+                    push!(newgen, newgen_row, promote=true)
                 end
             else 
                 # for exogenously specified gens, only one generator is created with the specified year_on
                 newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)  
-                push!(newgen, newgen_row)        
+                push!(newgen, newgen_row, promote=true)        
             end
         end
     end
@@ -81,7 +81,7 @@ end
 Appends the newgen table to the gen table. 
 """
 function append_newgen_table!(data, newgen)
-    append!(get_table(data, :gen), newgen)
+    append!(get_table(data, :gen), newgen, promote = true)
 end
 
 

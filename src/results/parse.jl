@@ -9,7 +9,7 @@
 function parse_results!(config, data, model)
     log_header("PARSING RESULTS")
 
-    obj_scalar = get(config, :objective_scalar, 1e6)
+    obj_scalar = config[:objective_scalar]
 
     results_raw = Dict(k => (@info "Parsing Result $k"; value_or_shadow_price(v, obj_scalar)) for (k,v) in object_dictionary(model))
     
@@ -22,10 +22,14 @@ function parse_results!(config, data, model)
 
     parse_lmp_results!(config, data)
     parse_power_results!(config, data)
+
+    #change build_status to 'new' for generators built in the sim
+    set_new_gen_build_status!(config, data)
+
     save_updated_gen_table(config, data)
 
     # Save the parsed data
-    if get(config, :save_data_parsed, true)
+    if config[:save_data_parsed] === true
         serialize(get_out_path(config, "data_parsed.jls"), data)
     end
 
@@ -58,6 +62,9 @@ function value_or_shadow_price(x::Float64)
 end
 function value_or_shadow_price(ar::AbstractArray, obj_scalar)
     value_or_shadow_price.(ar, obj_scalar)
+end
+function value_or_shadow_price(v::Number, obj_scalar)
+    return v
 end
 export value_or_shadow_price
 
@@ -188,15 +195,36 @@ function save_updated_gen_table(config, data)
     gen_tmp.pcap0 = last.(gen.pcap)
 
     # Filter anything with capacity below the threshold
-    thresh = get(config, :gen_pcap_threshold, eps())
+    thresh = config[:gen_pcap_threshold]
     filter!(:pcap0 => >(thresh), gen_tmp)
 
-    # Update build status
-    gen_tmp.build_status .= "built"
 
-    CSV.write(get_out_path(config, "gen.csv"), gen_tmp)
+    # Combine generators that are the same
+    gdf = groupby(gen_tmp, Not(:pcap0))
+    gen_tmp_combined = combine(gdf,
+        :pcap0 => sum => :pcap0
+    )
+
+    CSV.write(get_out_path(config, "gen.csv"), gen_tmp_combined)
     return nothing
 end
 export save_updated_gen_table
 
 
+"""
+    set_new_gen_build_status!(config, data) -> 
+
+Change the build_status of generators built in the simulation to 'new'
+"""
+function set_new_gen_build_status!(config, data)
+    gen = get_table(data, :gen)
+
+    #Threshold capacity to be saved into the next run
+    thresh = get(config, :gen_pcap_threshold, eps())
+
+    for idx in 1:nrow(gen)
+        gen[idx, :build_status] =="unbuilt" && aggregate_result(total, data, :gen, :pcap, idx) >= thresh ? gen[idx, :build_status] = "new" : continue
+    end
+
+
+end

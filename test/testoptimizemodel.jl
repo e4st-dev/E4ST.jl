@@ -1,4 +1,3 @@
-
 @testset "Test Optimizing Model" begin
 
     config_file = joinpath(@__DIR__, "config", "config_3bus.yml")

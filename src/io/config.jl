@@ -7,6 +7,78 @@ function read_sample_config_file()
     read(joinpath(@__DIR__,"../../test/config/config_3bus_examplepol.yml"), String)
 end
 
+"""
+    summarize_config() -> summary::DataFrame
+
+Summarizes the `config`, with columns for:
+* `name` - the property name, i.e. key
+* `required` - whether or not the property is required
+* `default` - default value of this property
+* `description`
+"""
+function summarize_config()
+    df = DataFrame("name"=>Symbol[], "required"=>Bool[], "default"=>[], "description"=>String[])
+    push!(df, 
+        # Required
+        (:base_out_path, true, nothing, "The path (relative or absolute) to the desired output folder.  This folder doesn't necessarily need to exist.  The code will make it for you if it doesn't exist yet.  E4ST will make a timestamped folder within `base_out_path`, and store that new path into `config[out_path]`.  This is to prevent processes from overwriting one another."),
+        (:gen_file, true, nothing, "The filepath (relative or absolute) to the generator table.  See [`summarize_table(::Val{:gen})`](@ref)."),
+        (:bus_file, true, nothing, "The filepath (relative or absolute) to the bus table.  See [`summarize_table(::Val{:bus})`](@ref)."),
+        (:branch_file, true, nothing, "The filepath (relative or absolute) to the branch table.  See [`summarize_table(::Val{:branch})`](@ref)."),
+        (:hours_file, true, nothing, "The filepath (relative or absolute) to the hours table.  See [`summarize_table(::Val{:hours})`](@ref)."),
+        (:demand_file, true, nothing, "The filepath (relative or absolute) to the time representation.  See [`summarize_table(::Val{:demand_table})`](@ref)"),
+        (:years, true, nothing, "a list of years to run in the simulation specified as a string.  I.e. `\"y2030\"`"),
+        (:optimizer, true, nothing, "The optimizer type and attributes to use in solving the linear program.  The `type` field should be always be given, (i.e. `type: HiGHS`) as well as each of the solver options you wish to set.  E4ST is a BYOS (Bring Your Own Solver :smile:) library, with default attributes for HiGHS and Gurobi.  For all other solvers, you're on your own to provide a reasonable set of attributes.  To see a full list of solvers with work with JuMP.jl, see [here](https://jump.dev/JuMP.jl/stable/installation/#Supported-solvers)."),
+        (:mods, true, nothing, "A list of `Modification`s specifying changes for how E4ST runs.  See the [`Modification`](@ref) for information on what they are, how to add them to a config file."),
+        
+        ## Optional Fields:
+        (:out_path, false, nothing, "the path to output to.  If this is not provided, an output path will be created [`make_out_path!`](@ref)."),
+        (:af_file, false, nothing, "The filepath (relative or absolute) to the availability factor table.  See [`summarize_table(::Val{:af_table})`](@ref)"),
+        (:iter, false, RunOnce(), "The [`Iterable`](@ref) object to specify the way the sim should iterate.  If nothing specified, defaults to run a single time via [`RunOnce`](@ref).  Specify the `Iterable` type, and all keyword arguments."),
+        (:demand_shape_file, false, nothing, "a file for specifying the hourly shape of demand elements.  See [`summarize_table(::Val{:demand_shape})`](@ref)"),
+        (:demand_match_file, false, nothing, "a file for specifying annual demanded energy to match for sets.  See [`summarize_table(::Val{:demand_match})`](@ref)"),
+        (:demand_add_file, false, nothing, "a file for specifying additional demanded energy, after matching.  See [`summarize_table(::Val{:demand_add})`](@ref)"),
+        (:demand_add_file, false, nothing, "a file for specifying additional demanded energy, after matching.  See [`summarize_table(::Val{:demand_add})`](@ref)"),
+        (:build_gen_file, false, nothing, "a file for specifying generators that could get built.  See [`summarize_table(::Val{:build_gen})`](@ref)"),
+        (:gentype_genfuel_file, false, nothing, "a file for storing gentype-genfuel pairings.  See [`summarize_table(::Val{:genfuel})`](@ref)"),
+        (:summary_table_file, false, nothing, "a file for giving information about additional columns not specified in [`summarize_table`](@ref)"),
+        (:save_data, false, true, "A boolean specifying whether or not to save the loaded data to file for later use (i.e. by specifying a `data_file` for future simulations)."),
+        (:data_file, false, nothing, "The filepath (relative or absolute) to the data file (a serialized julia object).  If this is provided, it will use this instead of loading data from all the other files."),
+        (:save_model_presolve, false, false, "A boolean specifying whether or not to save the model before solving it, for later use (i.e. by specifying a `model_presolve_file` for future sims). Defaults to `false`"),
+        (:model_presolve_file, false, nothing, "The filepath (relative or absolute) to the unsolved model.  If this is provided, it will use this instead of creating a new model."),
+        (:save_data_parsed, false, true, "A boolean specifying whether or not to save the raw results after solving the model.  This could be useful for calling [`process_results!(config)`](@ref) in the future. Defaults to `true`"),
+        (:save_data_processed, false, true, "A boolean specifying whether or not to save the processed results after solving the model.  Defaults to `true`."),
+        (:objective_scalar, false, 1e6, "This is specifies how much to scale the objective by for the sake of the solver.  Does not impact any user-created expressions or shadow prices from the raw results, as they get scaled back.  (Defaults to 1e6)"),
+        (:gen_pcap_threshold, false, 1e-6, "This is the minimum `pcap` threshold (in MW) for new generators to be kept.  Defaults to 1e-6 (i.e. 1W).  See also [`save_updated_gen_table`](@ref)"),
+        (:voll, false, 5000, "This is the assumed value of lost load for which the objective function will be penalized for every MWh of curtailed load."),
+        (:logging, false, true, "This specifies whether or not E4ST will log to [`get_out_path(config, \"E4ST.log\")`](@ref). Options include `true`, `false`, or `\"debug\"`.  See [`start_logging!`](@ref) for more info."),
+        (:eor_leakage_rate, false, 0.5, "The assumed rate (between 0 and 1) at which CO₂ stored in Enhanced Oil Recovery (EOR) leaks back into the atmosphere."),
+    )
+    return df
+end
+export summarize_config
+
+function table2markdown(df::DataFrame)
+    io = IOBuffer()
+    print(io, "|")
+    for n in names(df)
+        print(io, " ", n, " |")
+    end
+    println(io)
+    print(io, "|")
+    foreach(x->print(io, " :-- |"), 1:ncol(df))
+    println(io)
+    for row in eachrow(df)
+        print(io, "|")
+        foreach(x->print(io, " ", table_element(x), " |"), row)
+        println(io)
+    end
+    return String(take!(io))
+end
+export table2markdown
+
+table_element(x) = x
+table_element(x::Symbol) = "`$x`"
+
 @doc """
     load_config(filename) -> config::OrderedDict{Symbol,Any}
 
@@ -14,40 +86,11 @@ end
 
     load_config(path) -> config::OrderedDict{Symbol, Any}
 
-Load the config file from `filename`, inferring any necessary settings as needed.  If `path` given, checks for `joinpath(path, "config.yml")`.  This can be used with the `out_path` returned by [`run_e4st`](@ref)  See [`load_data`](@ref) to see how the `config` is used.  If multiple filenames given, (in a vector, or separated by commas) merges them, preserving the settings found in the last file, when there are conflicts, appending the list of [`Modification`](@ref)s.
+Load the config file from `filename`, inferring any necessary settings as needed.  If `path` given, checks for `joinpath(path, "config.yml")`.  This can be used with the `out_path` returned by [`run_e4st`](@ref)  See [`load_data`](@ref) to see how the `config` is used.  If multiple filenames given, (in a vector, or separated by commas) merges them, preserving the settings found in the last file, when there are conflicts, appending the list of [`Modification`](@ref)s.  Uses [`summarize_config`](@ref) to infer defaults, when applicable.
 
 The Config File is a file that fully specifies all the necessary information.  Note that when filenames are given as a relative path, they are assumed to be relative to the location of the config file.
 
-## Required Fields:
-* `base_out_path` - The path (relative or absolute) to the desired output folder.  This folder doesn't necessarily need to exist.  The code will make it for you if it doesn't exist yet.  E4ST will make a timestamped folder within `base_out_path`, and store that new path into `config[out_path]`.  This is to prevent processes from overwriting one another.
-* `gen_file` - The filepath (relative or absolute) to the generator table.  See [`summarize_table(::Val{:gen})`](@ref).
-* `bus_file` - The filepath (relative or absolute) to the bus table.  See [`summarize_table(::Val{:bus})`](@ref)
-* `branch_file` - The filepath (relative or absolute) to the branch table.  See [`summarize_table(::Val{:branch})`](@ref)
-* `hours_file` - The filepath (relative or absolute) to the hours table for the model's time representation.  See [`summarize_table(::Val{:hours})`](@ref)
-* `demand_file` - The filepath (relative or absolute) to the time representation.  See [`summarize_table(::Val{:demand_table})`](@ref)
-* `years` - a list of years to run in the simulation specified as a string.  I.e. `"y2030"`
-* `optimizer` - The optimizer type and attributes to use in solving the linear program.  The `type` field should be always be given, (i.e. `type: HiGHS`) as well as each of the solver options you wish to set.  E4ST is a BYOS (Bring Your Own Solver :smile:) library, with default attributes for HiGHS and Gurobi.  For all other solvers, you're on your own to provide a reasonable set of attributes.  To see a full list of solvers with work with JuMP.jl, see [here](https://jump.dev/JuMP.jl/stable/installation/#Supported-solvers).
-* `mods` - A list of `Modification`s specifying changes for how E4ST runs.  See the [`Modification`](@ref) for information on what they are, how to add them to a config file.
-
-## Optional Fields:
-* `out_path` - the path to output to.  If this is not provided, an output path will be created [`make_out_path!`](@ref).
-* `af_file` - The filepath (relative or absolute) to the availability factor table.  See [`summarize_table(::Val{:af_table})`](@ref)
-* `iter` - The [`Iterable`](@ref) object to specify the way the sim should iterate.  If nothing specified, defaults to run a single time.  Specify the `Iterable` type, and all keyword arguments.
-* `demand_shape_file` - a file for specifying the hourly shape of demand elements.  See [`summarize_table(::Val{:demand_shape})`](@ref)
-* `demand_match_file` - a file for specifying annual demanded energy to match for sets  See [`summarize_table(::Val{:demand_match})`](@ref)
-* `demand_add_file` - a file for specifying additional demanded energy, after matching.  See [`summarize_table(::Val{:demand_add})`](@ref)
-* `build_gen_file` - a file for specifying generators that could get built.  See [`summarize_table(::Val{:build_gen})`](@ref)
-* `gentype_genfuel_file` - a file for storing gentype-genfuel pairings.  See [`summarize_table(::Val{:genfuel})`](@ref)
-* `summary_table_file` - a file for giving information about additional columns not specified in [`summarize_table`](@ref)
-* `save_data` - A boolean specifying whether or not to save the loaded data to file for later use (i.e. by specifying a `data_file` for future simulations).  Defaults to `true`
-* `data_file` - The filepath (relative or absolute) to the data file (a serialized julia object).  If this is provided, it will use this instead of loading data from all the other files.
-* `save_model_presolve` - A boolean specifying whether or not to save the model before solving it, for later use (i.e. by specifying a `model_presolve_file` for future sims). Defaults to `false`
-* `model_presolve_file` - The filepath (relative or absolute) to the unsolved model.  If this is provided, it will use this instead of creating a new model.
-* `save_data_parsed` - A boolean specifying whether or not to save the raw results after solving the model.  This could be useful for calling [`process_results!(config)`](@ref) in the future. Defaults to `true`
-* `save_data_processed` - A boolean specifying whether or not to save the processed results after solving the model.  Defaults to `true`.
-* `results_raw_file` - The filepath (relative or absolute) to the raw results.  This is helpful for calling [`process_results!(config)`](@ref) to generate user results without having to re-run E4ST.
-* `objective_scalar` - This is specifies how much to scale the objective by for the sake of the solver.  Does not impact any user-created expressions or shadow prices from the raw results, as they get scaled back.  (Defaults to 1e6)
-* `gen_pcap_threshold` - This is the `pcap` threshold for new generators to be kept.  Defaults to `eps()`.  See also [`save_updated_gen_table`](@ref)
+$(table2markdown(summarize_config()))
 
 ## Example Config File
 ```yaml
@@ -56,7 +99,7 @@ $(read_sample_config_file())
 """
 function load_config(filenames...)
     config = _load_config(filenames)
-    check_required_fields!(config)
+    check_config!(config)
     check_years!(config)
     make_out_path!(config)
     convert_mods!(config)
@@ -134,7 +177,7 @@ To log things, you can use `@info`, `@warn`, or `@debug` as defined in Logging.j
 To stop the logger and close its io stream, see [`stop_logging!(config)`](@ref)
 """
 function start_logging!(config)
-    logging = get(config, :logging, true)
+    logging = config[:logging]
     if logging === false
         logger = Base.NullLogger()
     else
@@ -179,6 +222,9 @@ Logs any necessary info at the beginning of a run of E4ST
 function log_start(config)
     @info string(
         header_string("STARTING E4ST"), 
+        "\n\n",
+        "Output Path:\n",
+        config[:out_path],
         "\n\n",
         version_info_string(),
         "\nE4ST Info:\n",
@@ -274,23 +320,12 @@ end
 export get_mods
 
 function get_iterator(config)
-    return get(config, :iter, RunOnce())
+    return config[:iter]::Iterable
 end
 export get_iterator
 
 # Helper Functions
 ################################################################################
-function required_fields()
-    return (
-        :gen_file,
-        :branch_file,
-        :bus_file,
-        :hours_file,
-        :base_out_path,
-        :optimizer,
-        :mods
-    )
-end
 
 """
     check_years!(config::OrderedDict)
@@ -320,10 +355,26 @@ end
 _vec(v::AbstractVector) = v
 _vec(s::AbstractString) = [s]
 
+"""
+    check_config!(config)
 
-function check_required_fields!(config)
-    return all(f->haskey(config, f), required_fields())
+Ensures that `config` has required fields listed in [`summarize_config`](@ref)
+"""
+function check_config!(config)
+    summary = summarize_config()
+    for row in eachrow(summary)
+        name = row.name
+        default = row.default
+        if row.required === true
+            @assert haskey(config, name) "config must have property $(name)"
+        end
+        if default !== nothing
+            get!(config, name, default)
+        end
+    end
+    return nothing
 end
+export check_config!
 
 """
     make_paths_absolute!(config, filename)
@@ -359,7 +410,7 @@ make_paths_absolute!(config) = make_paths_absolute!(config, config[:config_file]
 Returns true if `s` contains "_file" or "_path".
 """
 function contains_file_or_path(s::AbstractString)
-    return contains(s, "file") || contains(s, "path")
+    return endswith(s, "file") || endswith(s, "path")
 end
 contains_file_or_path(s::Symbol) = contains_file_or_path(string(s))
 
@@ -427,7 +478,7 @@ function sort_mods_by_rank!(config)
 end
 
 function convert_iter!(config)
-    haskey(config, :iter) || return
+    config[:iter] isa RunOnce && return
     config[:iter] = Iterable(config[:iter])
     return
 end

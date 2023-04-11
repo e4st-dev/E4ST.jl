@@ -32,7 +32,6 @@ function setup_table!(config, data, ::Val{:demand_table})
     haskey(config, :demand_match_file) && match_demand!(config, data)
     haskey(config, :demand_add_file)   && add_demand!(config, data)
 end
-export setup_demand!
 
 """
     shape_demand!(config, data)
@@ -62,6 +61,12 @@ function shape_demand!(config, data)
     areas_to_join = setdiff(all_areas, demand_table_names)
     bus_view = view(bus_table, :, ["bus_idx", areas_to_join...])
     leftjoin!(demand_table, bus_view, on=:bus_idx)
+    
+    # Document in the summary table
+    for col in areas_to_join
+        add_table_col!(data, :demand_table, Symbol(col), demand_table[!,Symbol(col)], get_table_col_unit(data, :bus, col), get_table_col_description(data, :bus, col); warn_overwrite = false)
+    end
+    
     dropmissing!(demand_table, areas_to_join)
     grouping_variables = copy(all_areas)
 
@@ -136,6 +141,11 @@ function match_demand!(config, data)
         dropmissing!(demand_table, areas_to_join)
     end
 
+    # Document in the summary table
+    for col in areas_to_join
+        add_table_col!(data, :demand_table, Symbol(col), demand_table[!,Symbol(col)], get_table_col_unit(data, :bus, col), get_table_col_description(data, :bus, col); warn_overwrite = false)
+    end
+
     hr_weights = get_hour_weights(data)
     
     for i = 1:nrow(demand_match_table)
@@ -198,6 +208,11 @@ function add_demand!(config, data)
         bus_view = view(bus_table, :, ["bus_idx", areas_to_join...])
         leftjoin!(demand_table, bus_view, on=:bus_idx)
         dropmissing!(demand_table, areas_to_join)
+    end
+
+    # Document in the summary table
+    for col in areas_to_join
+        add_table_col!(data, :demand_table, Symbol(col), demand_table[!,Symbol(col)], get_table_col_unit(data, :bus, col), get_table_col_description(data, :bus, col); warn_overwrite = false)
     end
 
     # Loop through each row in the demand_shape_table
@@ -301,3 +316,4 @@ function summarize_table(::Val{:demand_add})
     )
     return df
 end
+export summarize_table

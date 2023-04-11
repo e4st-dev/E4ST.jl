@@ -34,6 +34,10 @@ makedocs(
             "Policy"=>"types/policy.md",
             "Unit"=>"types/unit.md",
         ],
+        "Technologies"=>Any[
+            "CO₂ Capture, Utilization & Storage"=>"types/modifications/ccus.md",
+            "DC Transmission Lines" => "types/modifications/dcline.md"
+        ],
         
     ],
     # TODO: Comment out format line before deploying, this is only for testing locally

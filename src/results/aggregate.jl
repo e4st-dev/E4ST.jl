@@ -23,10 +23,58 @@ export aggregate_result
 
 export total
 
+function total(::Type{ShortTons}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+    col = table[!, column_name]
+    E = eltype(col)
+    if ishourly(E)
+        return total_sum(col, idxs, yr_idxs, hr_idxs)
+    elseif isyearly(E)
+        @assert hr_idxs == 1:get_num_hours(data) "Cannot aggregate yearly container unless all hours given"
+        return total_sum(col, idxs, yr_idxs)
+    else
+        @assert hr_idxs == 1:get_num_hours(data) "Cannot aggregate single-value container unless all hours given"
+        @assert yr_idxs == 1:get_num_years(data) "Cannot aggregate single-value container unless all years given"
+        return total_sum(col, idxs)
+    end
+end
+
+ishourly(::Type{<:ByNothing}) = false
+ishourly(::Type{<:ByHour}) = true
+ishourly(::Type{<:ByYearAndHour}) = true
+ishourly(::Type{<:AbstractMatrix}) = true
+ishourly(::Type{<:OriginalContainer{T}}) where T = ishourly(T)
+ishourly(::Type) = false
+
+"""
+    isyearly(::Type) -> ::Bool
+
+Returns whether or not a type is broken up by years.
+"""
+isyearly(::Type{<:ByNothing}) = false
+isyearly(::Type{<:ByHour}) = false
+isyearly(::Type{<:ByYearAndHour}) = true
+isyearly(::Type{<:AbstractMatrix}) = true
+isyearly(::Type{<:OriginalContainer{T}}) where T = isyearly(T)
+isyearly(::Type{<:AbstractVector}) = true
+isyearly(::Type) = false
+
 function total(::Type{ShortTonsPerMWhGenerated}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :egen], idxs, yr_idxs, hr_idxs)
 end
-
+function total(::Type{Dollars}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+    col = table[!, column_name]
+    E = eltype(col)
+    if ishourly(E)
+        return total_sum(col, idxs, yr_idxs, hr_idxs)
+    elseif isyearly(E)
+        @assert hr_idxs == 1:get_num_hours(data) "Cannot aggregate yearly container unless all hours given"
+        return total_sum(col, idxs, yr_idxs)
+    else
+        @assert hr_idxs == 1:get_num_hours(data) "Cannot aggregate single-value container unless all hours given"
+        @assert yr_idxs == 1:get_num_years(data) "Cannot aggregate single-value container unless all years given"
+        return total_sum(col, idxs)
+    end
+end
 function total(::Type{DollarsPerMWhServed}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :eserv], idxs, yr_idxs, hr_idxs)
 end
@@ -35,6 +83,9 @@ function total(::Type{DollarsPerMWhGenerated}, data, table, column_name, idxs, y
 end
 function total(::Type{DollarsPerMWCapacity}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :pcap], idxs, yr_idxs, hr_idxs)
+end
+function total(::Type{DollarsPerShortTonCO2Captured}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+    return weighted_sum(table[!, column_name], table[!, :capt_co2], table[!, :egen], idxs, yr_idxs, hr_idxs)
 end
 function total(::Type{MWhServed}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
@@ -101,7 +152,7 @@ function Base.maximum(::Type, data, table, column_name, idxs, yr_idxs, hr_idxs)
 end
 
 function Base.maximum(v, idxs, yr_idxs, hr_idxs)
-    return maximum(v[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
+    return maximum(_getindex(v, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
 end
 
 function Base.minimum(::Type, data, table, column_name, idxs, yr_idxs, hr_idxs)
@@ -110,7 +161,7 @@ function Base.minimum(::Type, data, table, column_name, idxs, yr_idxs, hr_idxs)
 end
 
 function Base.minimum(v, idxs, yr_idxs, hr_idxs)
-    return minimum(v[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
+    return minimum(_getindex(v, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
 end
 
 #########################################################################
@@ -120,20 +171,37 @@ end
 """
     total_sum(v::Vector, idxs, yr_idxs, hr_idxs)
 
-Compute `sum(v[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)`
+    total_sum(v::Vector, idxs, yr_idxs)
+
+    total_sum(v::Vector, idxs)
+
+Compute `sum(_getindex(v, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)`
 """
 function total_sum(v, idxs, yr_idxs, hr_idxs)
     isempty(v) && return 0.0
     isempty(idxs) && return 0.0
     isempty(yr_idxs) && return 0.0
     isempty(hr_idxs) && return 0.0
-    sum(v[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
+    sum(_getindex(v, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
+end
+
+function total_sum(v, idxs, yr_idxs)
+    isempty(v) && return 0.0
+    isempty(idxs) && return 0.0
+    isempty(yr_idxs) && return 0.0
+    sum(_getindex(v,i,y) for i in idxs, y in yr_idxs)
+end
+
+function total_sum(v, idxs)
+    isempty(v) && return 0.0
+    isempty(idxs) && return 0.0
+    sum(_getindex(v,i) for i in idxs)
 end
 
 """
     weighted_sum(v1, v2, idxs, yr_idxs, hr_idxs)
 
-Compute the `sum(v1[i,y,h]*v2[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)`
+Compute the `sum(_getindex(v1, i, y, h)*_getindex(v2, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)`
 """
 function weighted_sum(v1, v2, idxs, yr_idxs, hr_idxs)
     isempty(v1) && return 0.0
@@ -141,13 +209,13 @@ function weighted_sum(v1, v2, idxs, yr_idxs, hr_idxs)
     isempty(idxs) && return 0.0
     isempty(yr_idxs) && return 0.0
     isempty(hr_idxs) && return 0.0
-    sum(v1[i,y,h]*v2[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
+    sum(_getindex(v1, i, y, h)*_getindex(v2, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
 end
 
 """
     weighted_sum(v1, v2, v3, idxs, yr_idxs, hr_idxs)
 
-Compute the `sum(v1[i,y,h]*v2[i,y,h]*v3[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)`
+Compute the `sum(_getindex(v1, i, y, h)*_getindex(v2, i, y, h)*_getindex(v3,i,y,h) for i in idxs, y in yr_idxs, h in hr_idxs)`
 """
 function weighted_sum(v1, v2, v3, idxs, yr_idxs, hr_idxs)
     isempty(v1) && return 0.0
@@ -156,7 +224,7 @@ function weighted_sum(v1, v2, v3, idxs, yr_idxs, hr_idxs)
     isempty(idxs) && return 0.0
     isempty(yr_idxs) && return 0.0
     isempty(hr_idxs) && return 0.0
-    sum(v1[i,y,h]*v2[i,y,h]*v3[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
+    sum(_getindex(v1, i, y, h)*_getindex(v2, i, y, h)*_getindex(v3,i,y,h) for i in idxs, y in yr_idxs, h in hr_idxs)
 end
 
 """
@@ -166,6 +234,6 @@ Compute the `v2`-weighted average of `v1`.  I.e. computed [`weighted_sum`](@ref)
 """
 function weighted_avg(v1, v2, idxs, yr_idxs, hr_idxs)
     ws = weighted_sum(v1, v2, idxs, yr_idxs, hr_idxs)
-    s = sum(v2[i,y,h] for i in idxs, y in yr_idxs, h in hr_idxs)
+    s = sum(_getindex(v2, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
     return ws/s
 end
