@@ -27,6 +27,7 @@
         # Test that some carbon was stored
         co2 = aggregate_result(total, data, :ccus_paths, :stored_co2, :, yr_idx)
 
+
         @test co2 > 0
 
         # We should be maxing out the 4th and 5th paths, and storing in the 6th but not maxing it out
