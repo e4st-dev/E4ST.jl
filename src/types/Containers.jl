@@ -430,27 +430,27 @@ end
 
 
 """
-    DemandContainer()
+    LoadContainer()
 
-Contains a vector of views of the demand_array, so that it is possible to access by 
+Contains a vector of views of the load_array, so that it is possible to access by 
 """
-struct DemandContainer <: Container
+struct LoadContainer <: Container
     v::Vector{SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}}
 end
 
-_add_view!(c::DemandContainer, v) = push!(c.v, v)
+_add_view!(c::LoadContainer, v) = push!(c.v, v)
 
-DemandContainer() = DemandContainer(SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}[])
-function Base.getindex(c::DemandContainer, year_idx, hour_idx)
+LoadContainer() = LoadContainer(SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}[])
+function Base.getindex(c::LoadContainer, year_idx, hour_idx)
     isempty(c.v) && return 0.0
     return sum(vv->vv[year_idx, hour_idx], c.v)::Float64
 end
 
-function Base.show(io::IO, c::DemandContainer)
-    isempty(c.v) && return print(io, "empty DemandContainer")
+function Base.show(io::IO, c::LoadContainer)
+    isempty(c.v) && return print(io, "empty LoadContainer")
     l,m = size(c.v[1])
     n = length(c.v)
-    print(io, "$n-element DemandContainer of $(l)×$m Matrix")
+    print(io, "$n-element LoadContainer of $(l)×$m Matrix")
 end
 
 

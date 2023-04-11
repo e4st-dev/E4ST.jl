@@ -25,7 +25,7 @@ function summarize_config()
         (:bus_file, true, nothing, "The filepath (relative or absolute) to the bus table.  See [`summarize_table(::Val{:bus})`](@ref)."),
         (:branch_file, true, nothing, "The filepath (relative or absolute) to the branch table.  See [`summarize_table(::Val{:branch})`](@ref)."),
         (:hours_file, true, nothing, "The filepath (relative or absolute) to the hours table.  See [`summarize_table(::Val{:hours})`](@ref)."),
-        (:demand_file, true, nothing, "The filepath (relative or absolute) to the time representation.  See [`summarize_table(::Val{:demand_table})`](@ref)"),
+        (:nominal_load_file, true, nothing, "The filepath (relative or absolute) to the time representation.  See [`summarize_table(::Val{:nominal_load})`](@ref)"),
         (:years, true, nothing, "a list of years to run in the simulation specified as a string.  I.e. `\"y2030\"`"),
         (:optimizer, true, nothing, "The optimizer type and attributes to use in solving the linear program.  The `type` field should be always be given, (i.e. `type: HiGHS`) as well as each of the solver options you wish to set.  E4ST is a BYOS (Bring Your Own Solver :smile:) library, with default attributes for HiGHS and Gurobi.  For all other solvers, you're on your own to provide a reasonable set of attributes.  To see a full list of solvers with work with JuMP.jl, see [here](https://jump.dev/JuMP.jl/stable/installation/#Supported-solvers)."),
         (:mods, true, nothing, "A list of `Modification`s specifying changes for how E4ST runs.  See the [`Modification`](@ref) for information on what they are, how to add them to a config file."),
@@ -34,10 +34,10 @@ function summarize_config()
         (:out_path, false, nothing, "the path to output to.  If this is not provided, an output path will be created [`make_out_path!`](@ref)."),
         (:af_file, false, nothing, "The filepath (relative or absolute) to the availability factor table.  See [`summarize_table(::Val{:af_table})`](@ref)"),
         (:iter, false, RunOnce(), "The [`Iterable`](@ref) object to specify the way the sim should iterate.  If nothing specified, defaults to run a single time via [`RunOnce`](@ref).  Specify the `Iterable` type, and all keyword arguments."),
-        (:demand_shape_file, false, nothing, "a file for specifying the hourly shape of demand elements.  See [`summarize_table(::Val{:demand_shape})`](@ref)"),
-        (:demand_match_file, false, nothing, "a file for specifying annual demanded energy to match for sets.  See [`summarize_table(::Val{:demand_match})`](@ref)"),
-        (:demand_add_file, false, nothing, "a file for specifying additional demanded energy, after matching.  See [`summarize_table(::Val{:demand_add})`](@ref)"),
-        (:demand_add_file, false, nothing, "a file for specifying additional demanded energy, after matching.  See [`summarize_table(::Val{:demand_add})`](@ref)"),
+        (:load_shape_file, false, nothing, "a file for specifying the hourly shape of load elements.  See [`summarize_table(::Val{:load_shape})`](@ref)"),
+        (:load_match_file, false, nothing, "a file for specifying annual load energy to match for sets.  See [`summarize_table(::Val{:load_match})`](@ref)"),
+        (:load_add_file, false, nothing, "a file for specifying additional load energy, after matching.  See [`summarize_table(::Val{:load_add})`](@ref)"),
+        (:load_add_file, false, nothing, "a file for specifying additional load energy, after matching.  See [`summarize_table(::Val{:load_add})`](@ref)"),
         (:build_gen_file, false, nothing, "a file for specifying generators that could get built.  See [`summarize_table(::Val{:build_gen})`](@ref)"),
         (:gentype_genfuel_file, false, nothing, "a file for storing gentype-genfuel pairings.  See [`summarize_table(::Val{:genfuel})`](@ref)"),
         (:summary_table_file, false, nothing, "a file for giving information about additional columns not specified in [`summarize_table`](@ref)"),
@@ -80,13 +80,13 @@ table_element(x) = x
 table_element(x::Symbol) = "`$x`"
 
 @doc """
-    load_config(filename) -> config::OrderedDict{Symbol,Any}
+    read_config(filename) -> config::OrderedDict{Symbol,Any}
 
-    load_config(filenames) -> config::OrderedDict{Symbol,Any}
+    read_config(filenames) -> config::OrderedDict{Symbol,Any}
 
-    load_config(path) -> config::OrderedDict{Symbol, Any}
+    read_config(path) -> config::OrderedDict{Symbol, Any}
 
-Load the config file from `filename`, inferring any necessary settings as needed.  If `path` given, checks for `joinpath(path, "config.yml")`.  This can be used with the `out_path` returned by [`run_e4st`](@ref)  See [`load_data`](@ref) to see how the `config` is used.  If multiple filenames given, (in a vector, or separated by commas) merges them, preserving the settings found in the last file, when there are conflicts, appending the list of [`Modification`](@ref)s.  Uses [`summarize_config`](@ref) to infer defaults, when applicable.
+Load the config file from `filename`, inferring any necessary settings as needed.  If `path` given, checks for `joinpath(path, "config.yml")`.  This can be used with the `out_path` returned by [`run_e4st`](@ref)  See [`read_data`](@ref) to see how the `config` is used.  If multiple filenames given, (in a vector, or separated by commas) merges them, preserving the settings found in the last file, when there are conflicts, appending the list of [`Modification`](@ref)s.  Uses [`summarize_config`](@ref) to infer defaults, when applicable.
 
 The Config File is a file that fully specifies all the necessary information.  Note that when filenames are given as a relative path, they are assumed to be relative to the location of the config file.
 
@@ -97,8 +97,8 @@ $(table2markdown(summarize_config()))
 $(read_sample_config_file())
 ```
 """
-function load_config(filenames...)
-    config = _load_config(filenames)
+function read_config(filenames...)
+    config = _read_config(filenames)
     check_config!(config)
     check_years!(config)
     make_out_path!(config)
@@ -108,7 +108,7 @@ function load_config(filenames...)
     return config
 end
 
-function _load_config(filename::AbstractString)
+function _read_config(filename::AbstractString)
     if contains(filename, ".yml")
         config = YAML.load_file(filename, dicttype=OrderedDict{Symbol, Any})
         get!(config, :config_file, filename)
@@ -116,23 +116,23 @@ function _load_config(filename::AbstractString)
     elseif isdir(filename)
         filename_new = joinpath(filename, "config.yml")
         isfile(filename_new) || error("No config file found at the following location:\n  $filename_new")
-        return _load_config(filename_new)
+        return _read_config(filename_new)
     else
         error("Cannot load config from: $filename")
     end
     return config
 end
 
-function _load_config(filenames)
-    config = _load_config(first(filenames))
+function _read_config(filenames)
+    config = _read_config(first(filenames))
     for i in 2:length(filenames)
-        _load_config!(config, filenames[i])
+        _read_config!(config, filenames[i])
     end
     return config
 end
 
-function _load_config!(config::OrderedDict, filename::AbstractString)
-    config_new = _load_config(filename)
+function _read_config!(config::OrderedDict, filename::AbstractString)
+    config_new = _read_config(filename)
     config_file = config[:config_file]
 
     mods = config[:mods]

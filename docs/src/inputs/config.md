@@ -1,7 +1,7 @@
 # Config File
 
 ```@docs
-load_config
+read_config
 summarize_config
 save_config
 check_config!

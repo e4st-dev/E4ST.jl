@@ -1,36 +1,36 @@
 """
-    load_parsed_results(config) -> data
+    read_parsed_results(config) -> data
 
-    load_parsed_results(out_path) -> data
+    read_parsed_results(out_path) -> data
 
 Loads `data` in from `get_out_path(config, "data_parsed.jls")`.
 """
-function load_parsed_results(config::OrderedDict)
-    load_parsed_results(get_out_path(config))
+function read_parsed_results(config::OrderedDict)
+    read_parsed_results(get_out_path(config))
 end
-function load_parsed_results(out_path::AbstractString)
+function read_parsed_results(out_path::AbstractString)
     file = joinpath(out_path, "data_parsed.jls")
     isfile(file) || error("No parsed data file found at $file")
     return deserialize(file)
 end
-export load_parsed_results
+export read_parsed_results
 
 """
-    load_processed_results(config) -> data
+    read_processed_results(config) -> data
 
-    load_processed_results(out_path) -> data
+    read_processed_results(out_path) -> data
 
 Loads `data` in from `data_processed.jls`.
 """
-function load_processed_results(config::OrderedDict)
-    return load_processed_results(get_out_path(config))
+function read_processed_results(config::OrderedDict)
+    return read_processed_results(get_out_path(config))
 end
-function load_processed_results(out_path::AbstractString)
+function read_processed_results(out_path::AbstractString)
     file = joinpath(out_path, "data_processed.jls")
     isfile(file) || error("No parsed data file found at $file")
     return deserialize(file)
 end
-export load_processed_results
+export read_processed_results
 
 """
     get_raw_results(data) -> raw::Dict{Symbol, Any}

@@ -14,8 +14,8 @@
 
     filename = joinpath(@__DIR__, "config/config_3bus_examplepol.yml")
 
-    @test load_config(filename) isa AbstractDict
-    config = load_config(filename)
+    @test read_config(filename) isa AbstractDict
+    config = read_config(filename)
 
     @test isabspath(config[:out_path])
     @test isabspath(config[:gen_file])
