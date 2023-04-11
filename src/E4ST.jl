@@ -59,7 +59,7 @@ include("types/iterables/RunSequential.jl")
 include("io/config.jl")
 include("io/data.jl")
 include("io/adjust.jl")
-include("io/demand.jl")
+include("io/load.jl")
 include("io/util.jl")
 
 # Include model

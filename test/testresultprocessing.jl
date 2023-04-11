@@ -14,7 +14,7 @@
 
         # Check that data file is read in and identical.  Also check that other files aren't touched
         config[:data_file] = get_out_path(config, "data.jls")
-        config[:demand_file] = "blah.csv"
+        config[:nominal_load_file] = "blah.csv"
         data2 = read_data(config)
         @test data1 == data2
     end

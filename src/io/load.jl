@@ -1,22 +1,22 @@
 """
-    setup_table!(config, data, ::Val{:demand_table})
+    setup_table!(config, data, ::Val{:nominal_load})
 
 Set up the demand table.
 
 Also calls the following:
-* [`shape_demand!(config, data)`](@ref) - scales hourly demanded power by an hourly demand profile by arbitrary region
-* [`match_demand!(config, data)`](@ref) - matches annual demanded energy by arbitrary region
-* [`add_demand!(config, data)`](@ref) - adds hourly demanded power by arbitrary region
+* [`shape_nominal_load!(config, data)`](@ref) - scales hourly demanded power by an hourly demand profile by arbitrary region
+* [`match_nominal_load!(config, data)`](@ref) - matches annual demanded energy by arbitrary region
+* [`add_nominal_load!(config, data)`](@ref) - adds hourly demanded power by arbitrary region
 """
-function setup_table!(config, data, ::Val{:demand_table})
-    demand = get_table(data, :demand_table)
+function setup_table!(config, data, ::Val{:nominal_load})
+    demand = get_table(data, :nominal_load)
     ar = [demand.pdem0[i] for i in 1:nrow(demand), j in 1:get_num_years(data), k in 1:get_num_hours(data)] # ndemand * nyr * nhr
     data[:demand_array] = ar
 
     # Grab views of the demand for the pd column of the bus table
     pdem = map(i->view(ar, i, :, :), 1:nrow(demand))
 
-    add_table_col!(data, :demand_table, :pdem, pdem, MWDemanded, "Demanded power by the demand element")
+    add_table_col!(data, :nominal_load, :pdem, pdem, MWDemanded, "Demanded power by the demand element")
     bus = get_table(data, :bus)
     pdem_bus = [DemandContainer() for _ in 1:nrow(bus)]
 
@@ -28,37 +28,37 @@ function setup_table!(config, data, ::Val{:demand_table})
     end
 
     # Modify the demand by shaping, matching, and adding
-    haskey(config, :demand_shape_file) && shape_demand!(config, data)
-    haskey(config, :demand_match_file) && match_demand!(config, data)
-    haskey(config, :demand_add_file)   && add_demand!(config, data)
+    haskey(config, :load_shape_file) && shape_nominal_load!(config, data)
+    haskey(config, :load_match_file) && match_nominal_load!(config, data)
+    haskey(config, :load_add_file)   && add_nominal_load!(config, data)
 end
 
 """
-    shape_demand!(config, data)
+    shape_nominal_load!(config, data)
 
-Shapes the hourly demand to match profiles given in `config[:demand_shape_file]`.  See [`summarize_table(::Val{:demand_shape})`](@ref) for more details
+Shapes the hourly demand to match profiles given in `config[:load_shape_file]`.  See [`summarize_table(::Val{:load_shape})`](@ref) for more details
 
-Demanded power often changes on an hourly basis. The `demand_shape_table` allows the user to provide hourly demand profiles with which to scale the base demanded power for demand regions, types, or even specific demand elements.  Each row of the table represents a set of load elements, and the hourly demand profile with which to scale them.  For demand elements that fall in multiple sets, the hourly load will be scaled by each profile, in order.
+Demanded power often changes on an hourly basis. The `load_shape_table` allows the user to provide hourly demand profiles with which to scale the base demanded power for demand regions, types, or even specific demand elements.  Each row of the table represents a set of load elements, and the hourly demand profile with which to scale them.  For demand elements that fall in multiple sets, the hourly load will be scaled by each profile, in order.
 """
-function shape_demand!(config, data)
-    demand_shape_table = data[:demand_shape]
+function shape_nominal_load!(config, data)
+    load_shape_table = data[:load_shape]
     bus_table = get_table(data, :bus)
-    demand_table = data[:demand_table]
+    nominal_load = data[:nominal_load]
     demand_arr = get_demand_array(data)
     
     # Grab the hour index for later use
-    hr_idx = findfirst(s->s=="h1",names(demand_shape_table))
+    hr_idx = findfirst(s->s=="h1",names(load_shape_table))
 
     # Pull out year info that will be needed
     all_years = get_years(data)
     nyr = get_num_years(data)
 
 
-    # Add columns to the demand_table so we can group more easily
-    all_areas = unique(demand_shape_table.area)
+    # Add columns to the nominal_load so we can group more easily
+    all_areas = unique(load_shape_table.area)
     filter!(!isempty, all_areas)
-    demand_table_names = names(demand_table)
-    areas_to_join = setdiff(all_areas, demand_table_names)
+    nominal_load_names = names(nominal_load)
+    areas_to_join = setdiff(all_areas, nominal_load_names)
     bus_view = view(bus_table, :, ["bus_idx", areas_to_join...])
     leftjoin!(demand_table, bus_view, on=:bus_idx)
     
@@ -70,13 +70,13 @@ function shape_demand!(config, data)
     dropmissing!(demand_table, areas_to_join)
     grouping_variables = copy(all_areas)
 
-    "load_type" in demand_table_names && push!(grouping_variables, "load_type")
+    "load_type" in nominal_load_names && push!(grouping_variables, "load_type")
 
-    gdf = groupby(demand_table, grouping_variables)
+    gdf = groupby(nominal_load, grouping_variables)
 
-    # Loop through each row in the demand_shape_table
-    for i in 1:nrow(demand_shape_table)
-        row = demand_shape_table[i, :]
+    # Loop through each row in the load_shape_table
+    for i in 1:nrow(load_shape_table)
+        row = load_shape_table[i, :]
         shape = Float64[row[i_hr] for i_hr in hr_idx:length(row)]
 
 
@@ -109,19 +109,19 @@ function shape_demand!(config, data)
         end
     end
 end
-export shape_demand!
+export shape_nominal_load!
 
 """
-    match_demand!(config, data)
+    match_nominal_load!(config, data)
 
-Match the yearly demand by area given in `config[:demand_match_file]`, updates the `pd` field of the `data[:bus]`.  See [`summarize_table(::Val{:demand_match})`](@ref) for more details.
+Match the yearly demand by area given in `config[:load_match_file]`, updates the `pd` field of the `data[:bus]`.  See [`summarize_table(::Val{:load_match})`](@ref) for more details.
 
-Often, we want to force the total energy demanded for a set of demand elements over a year to match load projections from a data source.  The `demand_match_table` allows the user to provide yearly energy demanded targets, in \$MWh\$, to match.  The matching weights each hourly demand by the number of hours spent at each of the representative hours, as provided in the `hours` table, converting from \$MW\$ power demanded over the representative hour, into \$MWh\$.
+Often, we want to force the total energy demanded for a set of demand elements over a year to match load projections from a data source.  The `load_match_table` allows the user to provide yearly energy demanded targets, in \$MWh\$, to match.  The matching weights each hourly demand by the number of hours spent at each of the representative hours, as provided in the `hours` table, converting from \$MW\$ power demanded over the representative hour, into \$MWh\$.
 """
-function match_demand!(config, data) 
-    demand_match_table = data[:demand_match]
+function match_nominal_load!(config, data) 
+    load_match_table = data[:load_match]
     bus_table = get_table(data, :bus)
-    demand_table = data[:demand_table]
+    nominal_load = data[:nominal_load]
     demand_arr = get_demand_array(data)
 
     # Pull out year info that will be needed
@@ -129,16 +129,16 @@ function match_demand!(config, data)
     nyr = get_num_years(data)
 
 
-    # Add columns to the demand_table so we can group more easily
-    all_areas = unique(demand_match_table.area)
+    # Add columns to the nominal_load so we can group more easily
+    all_areas = unique(load_match_table.area)
     filter!(!isempty, all_areas)
-    demand_table_names = names(demand_table)
-    areas_to_join = setdiff(all_areas, demand_table_names)
+    nominal_load_names = names(nominal_load)
+    areas_to_join = setdiff(all_areas, nominal_load_names)
     
     if ~isempty(areas_to_join)
         bus_view = view(bus_table, :, ["bus_idx", areas_to_join...])
-        leftjoin!(demand_table, bus_view, on=:bus_idx)
-        dropmissing!(demand_table, areas_to_join)
+        leftjoin!(nominal_load, bus_view, on=:bus_idx)
+        dropmissing!(nominal_load, areas_to_join)
     end
 
     # Document in the summary table
@@ -148,8 +148,8 @@ function match_demand!(config, data)
 
     hr_weights = get_hour_weights(data)
     
-    for i = 1:nrow(demand_match_table)
-        row = demand_match_table[i, :]
+    for i = 1:nrow(load_match_table)
+        row = load_match_table[i, :]
         if get(row, :status, true) == false
             continue
         end
@@ -163,11 +163,11 @@ function match_demand!(config, data)
         end
         filters = parse_comparisons(row)
 
-        demand_table = get_table(data, :demand_table, filters)
+        nominal_load = get_table(data, :nominal_load, filters)
         
-        isempty(demand_table) && continue
+        isempty(nominal_load) && continue
 
-        row_idx = getfield(demand_table, :rows)
+        row_idx = getfield(nominal_load, :rows)
 
         for (yr_idx, match) in yr_idx_2_match
             _match_yearly!(demand_arr, match, row_idx, yr_idx, hr_weights)
@@ -175,19 +175,19 @@ function match_demand!(config, data)
     end
     return data
 end
-export match_demand!
+export match_nominal_load!
 
 """
-    add_demand!(config, data)
+    add_nominal_load!(config, data)
 
-Add demanded power in `config[:demand_add_file]` to demand elements after the annual match in [`match_demand!`](@ref)
+Add demanded power in `config[:load_add_file]` to demand elements after the annual match in [`match_nominal_load!`](@ref)
 
 We may wish to provide additional demand after the match so that we can compare the difference.
 """
-function add_demand!(config, data)
-    demand_add_table = data[:demand_add]
+function add_nominal_load!(config, data)
+    load_add_table = data[:load_add]
     bus_table = get_table(data, :bus)
-    demand_table = data[:demand_table]
+    nominal_load = data[:nominal_load]
     demand_arr = get_demand_array(data)
 
     # Pull out year info that will be needed
@@ -196,18 +196,18 @@ function add_demand!(config, data)
 
 
     # Grab the hour index for later use
-    hr_idx = findfirst(s->s=="h1",names(demand_add_table))
+    hr_idx = findfirst(s->s=="h1",names(load_add_table))
 
-    # Add columns to the demand_table so we can group more easily
-    all_areas = unique(demand_add_table.area)
+    # Add columns to the nominal_load so we can group more easily
+    all_areas = unique(load_add_table.area)
     filter!(!isempty, all_areas)
-    demand_table_names = names(demand_table)
-    areas_to_join = setdiff(all_areas, demand_table_names)
+    nominal_load_names = names(nominal_load)
+    areas_to_join = setdiff(all_areas, nominal_load_names)
     
     if ~isempty(areas_to_join)
         bus_view = view(bus_table, :, ["bus_idx", areas_to_join...])
-        leftjoin!(demand_table, bus_view, on=:bus_idx)
-        dropmissing!(demand_table, areas_to_join)
+        leftjoin!(nominal_load, bus_view, on=:bus_idx)
+        dropmissing!(nominal_load, areas_to_join)
     end
 
     # Document in the summary table
@@ -232,7 +232,7 @@ function add_demand!(config, data)
 
         filters = parse_comparisons(row)
 
-        sdf = get_table(data, :demand_table, filters)
+        sdf = get_table(data, :nominal_load, filters)
         
         isempty(sdf) && continue
 
@@ -250,16 +250,16 @@ function add_demand!(config, data)
     end
     return data
 end
-export add_demand!
+export add_nominal_load!
 
 
 # Table Summaries
 ################################################################################
 
 """
-    summarize_table(::Val{:demand_table}) -> summary
+    summarize_table(::Val{:nominal_load}) -> summary
 """
-function summarize_table(::Val{:demand_table})
+function summarize_table(::Val{:nominal_load})
     df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
     push!(df, 
         (:bus_idx, Int64, NA, true, "The bus index of the load element"),
@@ -270,9 +270,9 @@ function summarize_table(::Val{:demand_table})
 end
 
 """
-    summarize_table(::Val{:demand_shape}) -> summary
+    summarize_table(::Val{:load_shape}) -> summary
 """
-function summarize_table(::Val{:demand_shape})
+function summarize_table(::Val{:load_shape})
     df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
     push!(df, 
         (:area, String, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
@@ -286,9 +286,9 @@ function summarize_table(::Val{:demand_shape})
 end
 
 """
-    summarize_table(::Val{:demand_match}) -> summary
+    summarize_table(::Val{:load_match}) -> summary
 """
-function summarize_table(::Val{:demand_match})
+function summarize_table(::Val{:load_match})
     df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
     push!(df, 
         (:area, String, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
@@ -302,9 +302,9 @@ end
 
 
 """
-    summarize_table(::Val{:demand_add}) -> summary
+    summarize_table(::Val{:load_add}) -> summary
 """
-function summarize_table(::Val{:demand_add})
+function summarize_table(::Val{:load_add})
     df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
     push!(df, 
         (:area, String, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),

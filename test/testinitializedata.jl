@@ -51,6 +51,7 @@
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     @testset "Test load_demand_table! with shaping" begin
         config = load_config(config_file)
         #config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
@@ -59,8 +60,11 @@
         data = load_data(config)
 =======
     @testset "Test read_demand_table! with shaping" begin
+=======
+    @testset "Test read_nominal_load! with shaping" begin
+>>>>>>> c965430 (Update demand -> load)
         config = read_config(config_file)
-        config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
+        config[:load_shape_file] = abspath(@__DIR__, "data", "3bus","load_shape.csv")
         data = read_data(config)
 >>>>>>> 2b2079b (Change all load -> read)
         archenland_buses = findall(==("archenland"), data[:bus].country)
@@ -68,7 +72,7 @@
         all_buses = 1:nrow(data[:bus])
 
 
-        # Check that narnian demanded power is different across years (look at the demand_shape.csv)
+        # Check that narnian demanded power is different across years (look at the load_shape.csv)
         @testset "Test that bus $bus_idx demand is different across years $yr_idx and $(yr_idx+1)" for bus_idx in narnia_buses, yr_idx in 1:get_num_years(data)-1
             @test ~all(get_pdem(data, 1, yr_idx, hr_idx) ≈ get_pdem(data, 1, yr_idx+1, hr_idx) for hr_idx in 1:get_num_hours(data))
         end
@@ -84,6 +88,7 @@
     end
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     @testset "Test load_demand_table! with shaping and matching" begin
         config = load_config(config_file)
         # config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
@@ -92,9 +97,12 @@
         data = load_data(config)
 =======
     @testset "Test read_demand_table! with shaping and matching" begin
+=======
+    @testset "Test read_nominal_load! with shaping and matching" begin
+>>>>>>> c965430 (Update demand -> load)
         config = read_config(config_file)
-        config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
-        config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
+        config[:load_shape_file] = abspath(@__DIR__, "data", "3bus","load_shape.csv")
+        config[:load_match_file] = abspath(@__DIR__, "data", "3bus","load_match.csv")
         data = read_data(config)
 >>>>>>> 2b2079b (Change all load -> read)
         archenland_buses = findall(==("archenland"), data[:bus].country)
@@ -115,6 +123,7 @@
     end
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     @testset "Test load_demand_table! with shaping, matching and adding" begin
         config = load_config(config_file)
         # config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
@@ -123,10 +132,13 @@
         data = load_data(config)
 =======
     @testset "Test read_demand_table! with shaping, matching and adding" begin
+=======
+    @testset "Test read_nominal_load! with shaping, matching and adding" begin
+>>>>>>> c965430 (Update demand -> load)
         config = read_config(config_file)
-        config[:demand_shape_file] = abspath(@__DIR__, "data", "3bus","demand_shape.csv")
-        config[:demand_match_file] = abspath(@__DIR__, "data", "3bus","demand_match.csv")
-        config[:demand_add_file]   = abspath(@__DIR__, "data", "3bus","demand_add.csv")
+        config[:load_shape_file] = abspath(@__DIR__, "data", "3bus","load_shape.csv")
+        config[:load_match_file] = abspath(@__DIR__, "data", "3bus","load_match.csv")
+        config[:load_add_file]   = abspath(@__DIR__, "data", "3bus","load_add.csv")
         data = read_data(config)
 >>>>>>> 2b2079b (Change all load -> read)
 

@@ -14,7 +14,7 @@ makedocs(
             "Generator Table" => "inputs/gen.md",
             "Branch Table" => "inputs/branch.md",
             "Hours Table" => "inputs/hours.md",
-            "Demand" => "inputs/demand.md",
+            "Load" => "inputs/load.md",
             "Availability Factor Table" => "inputs/af.md",
             "Arbitrary Temporal Adjustments" => "inputs/adjust.md",
             "Logging" => "inputs/logging.md"

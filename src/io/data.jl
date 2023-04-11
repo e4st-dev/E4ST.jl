@@ -70,14 +70,14 @@ function read_data_files!(config, data)
     read_table!(config, data, :gen_file      => :gen)
     read_table!(config, data, :branch_file   => :branch)
     read_table!(config, data, :hours_file    => :hours)
-    read_table!(config, data, :demand_file   => :demand_table)
+    read_table!(config, data, :nominal_load_file   => :nominal_load)
     
 
     # Optional tables
     read_table!(config, data, :af_file       => :af_table, optional = true)
-    read_table!(config, data, :demand_shape_file=>:demand_shape, optional=true)
-    read_table!(config, data, :demand_match_file=>:demand_match, optional=true)
-    read_table!(config, data, :demand_add_file=>:demand_add, optional=true)
+    read_table!(config, data, :load_shape_file=>:load_shape, optional=true)
+    read_table!(config, data, :load_match_file=>:load_match, optional=true)
+    read_table!(config, data, :load_add_file=>:load_add, optional=true)
     read_table!(config, data, :build_gen_file => :build_gen, optional=true)
     read_table!(config, data, :gentype_genfuel_file => :genfuel, optional=true)
     read_table!(config, data, :adjust_yearly_file => :adjust_yearly, optional=true)
@@ -123,7 +123,7 @@ function setup_data!(config, data)
     setup_table!(config, data, :bus)
     setup_table!(config, data, :branch)
     setup_table!(config, data, :hours)
-    setup_table!(config, data, :demand_table)
+    setup_table!(config, data, :nominal_load)
     setup_table!(config, data, :gen) # needs to come after build_gen setup for newgens
     setup_table!(config, data, :af_table)
     setup_table!(config, data, :adjust_yearly)
@@ -1039,13 +1039,13 @@ function get_edem_demand(data, ::Colon, year_idx::Int64, hour_idxs)
 end
 
 function get_edem_demand(data, pairs, year_idx::Int64, hour_idxs)
-    demand_table = get_table(data, :demand_table, pairs...)
-    return get_edem_demand(data, getfield(demand_table, :rows), year_idx, hour_idxs)
+    nominal_load = get_table(data, :nominal_load, pairs...)
+    return get_edem_demand(data, getfield(nominal_load, :rows), year_idx, hour_idxs)
 end
 
 function get_edem_demand(data, pair::Pair, year_idx::Int64, hour_idxs)
-    demand_table = get_table(data, :demand_table, pair)
-    return get_edem_demand(data, getfield(demand_table, :rows), year_idx, hour_idxs)
+    nominal_load = get_table(data, :nominal_load, pair)
+    return get_edem_demand(data, getfield(nominal_load, :rows), year_idx, hour_idxs)
 end
 function get_edem_demand(data, demand_idxs, y::String, hr_idx)
     year_idx = findfirst(==(y), get_years(data))

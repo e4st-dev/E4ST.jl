@@ -36,7 +36,7 @@
     end
 
 
-    @testset "Test read_demand_table!" begin
+    @testset "Test read_nominal_load!" begin
         config = read_config(config_file)
         data = read_data(config)
 

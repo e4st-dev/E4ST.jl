@@ -6,7 +6,7 @@ using E4ST
 using JuMP
 using HiGHS
 
-function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n_hours=100, n_demand = 200, n_demand_shape=100, n_demand_match = 100, n_demand_add = 100, af_file=true, demand_shape_file=true, demand_match_file=true, demand_add_file=true)
+function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n_hours=100, n_demand = 200, n_load_shape=100, n_load_match = 100, n_load_add = 100, af_file=true, load_shape_file=true, load_match_file=true, load_add_file=true)
     Random.seed!(1)
 
 
@@ -79,8 +79,8 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
     n_years = length(years())
 
     demand = rand_demand(;n_bus, n_demand)
-    CSV.write(joinpath(@__DIR__, "data/demand.csv"), demand)
-    config[:demand_file] = abspath(@__DIR__, "data/demand.csv")
+    CSV.write(joinpath(@__DIR__, "data/load.csv"), demand)
+    config[:nominal_load_file] = abspath(@__DIR__, "data/load.csv")
 
     if af_file
         af = rand_af(;n_hours, n_af)
@@ -88,24 +88,24 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         config[:af_file] = abspath(@__DIR__, "data/af.csv")
     end
 
-    if demand_shape_file
-        demand_shape = rand_demand_shape(;n_hours, n_demand_shape)
-        CSV.write(joinpath(@__DIR__, "data/demand_shape.csv"), demand_shape)
-        config[:demand_shape_file] = abspath(@__DIR__, "data/demand_shape.csv")
+    if load_shape_file
+        load_shape = rand_load_shape(;n_hours, n_load_shape)
+        CSV.write(joinpath(@__DIR__, "data/load_shape.csv"), load_shape)
+        config[:load_shape_file] = abspath(@__DIR__, "data/load_shape.csv")
     end
 
-    if demand_match_file
-        demand_match = rand_demand_match(;n_years, n_demand_match)
-        CSV.write(joinpath(@__DIR__, "data/demand_match.csv"), demand_match)
-        config[:demand_match_file] = abspath(@__DIR__, "data/demand_match.csv")
+    if load_match_file
+        load_match = rand_load_match(;n_years, n_load_match)
+        CSV.write(joinpath(@__DIR__, "data/load_match.csv"), load_match)
+        config[:load_match_file] = abspath(@__DIR__, "data/load_match.csv")
     end
 
 
 
-    if demand_add_file
-        demand_add = rand_demand_add(;n_hours, n_demand_add)
-        CSV.write(joinpath(@__DIR__, "data/demand_add.csv"), demand_add)
-        config[:demand_add_file] = abspath(@__DIR__, "data/demand_add.csv")
+    if load_add_file
+        load_add = rand_load_add(;n_hours, n_load_add)
+        CSV.write(joinpath(@__DIR__, "data/load_add.csv"), load_add)
+        config[:load_add_file] = abspath(@__DIR__, "data/load_add.csv")
     end
     
     check_config!(config)
@@ -190,8 +190,8 @@ function rand_af(;n_hours, n_af)
     return af
 end
 
-function rand_demand_shape(;n_hours, n_demand_shape)
-    demand_shape = DataFrame(
+function rand_load_shape(;n_hours, n_load_shape)
+    load_shape = DataFrame(
         "area" => String[],
         "subarea" => String[],
         "load_type" => String[],
@@ -205,26 +205,26 @@ function rand_demand_shape(;n_hours, n_demand_shape)
     gt = gentypes()
     yrs = year_strs()
     lts = load_types()
-    while nrow(demand_shape) < n_demand_shape
+    while nrow(load_shape) < n_load_shape
         for country in countries()
             joint += 1
             for lt in lts
                 year = rand(yrs)
-                push!(demand_shape, ("country", country, lt, year, joint, true, rand(n_hours)...))
-                if nrow(demand_shape) == n_demand_shape
+                push!(load_shape, ("country", country, lt, year, joint, true, rand(n_hours)...))
+                if nrow(load_shape) == n_load_shape
                     break
                 end
             end
-            if nrow(demand_shape) == n_demand_shape
+            if nrow(load_shape) == n_load_shape
                 break
             end
         end
     end
-    return demand_shape
+    return load_shape
 end
 
-function rand_demand_match(;n_years, n_demand_match)
-    demand_match = DataFrame(
+function rand_load_match(;n_years, n_load_match)
+    load_match = DataFrame(
         "area" => String[],
         "subarea" => String[],
         "load_type" => String[],
@@ -236,25 +236,25 @@ function rand_demand_match(;n_years, n_demand_match)
     gf = genfuels()
     gt = gentypes()
     lts = load_types()
-    while nrow(demand_match) < n_demand_match
+    while nrow(load_match) < n_load_match
         for country in countries()
             joint += 1
             for lt in lts
-                push!(demand_match, ("country", country, lt, joint, true, rand(n_years)...))
-                if nrow(demand_match) == n_demand_match
+                push!(load_match, ("country", country, lt, joint, true, rand(n_years)...))
+                if nrow(load_match) == n_load_match
                     break
                 end
             end
-            if nrow(demand_match) == n_demand_match
+            if nrow(load_match) == n_load_match
                 break
             end
         end
     end
-    return demand_match
+    return load_match
 end
 
-function rand_demand_add(;n_hours, n_demand_add)
-    demand_add = DataFrame(
+function rand_load_add(;n_hours, n_load_add)
+    load_add = DataFrame(
         "area" => String[],
         "subarea" => String[],
         "load_type" => String[],
@@ -268,20 +268,20 @@ function rand_demand_add(;n_hours, n_demand_add)
     gt = gentypes()
     yrs = year_strs()
     lts = load_types()
-    while nrow(demand_add) < n_demand_add
+    while nrow(load_add) < n_load_add
         for country in countries()
             joint += 1
             for lt in lts
                 year = rand(yrs)
-                push!(demand_add, ("country", country, lt, year, joint, true, rand(n_hours)...))
-                if nrow(demand_add) == n_demand_add
+                push!(load_add, ("country", country, lt, year, joint, true, rand(n_hours)...))
+                if nrow(load_add) == n_load_add
                     break
                 end
             end
-            if nrow(demand_add) == n_demand_add
+            if nrow(load_add) == n_load_add
                 break
             end
         end
     end
-    return demand_add
+    return load_add
 end
