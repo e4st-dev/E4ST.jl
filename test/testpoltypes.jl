@@ -5,7 +5,8 @@
     # Setup reference case 
     ####################################################################
     config_file_ref = joinpath(@__DIR__, "config", "config_3bus.yml")
-    config_ref = load_config(config_file_ref)
+    config_file_res = joinpath(@__DIR__, "config", "config_res.yml")
+    config_ref = load_config(config_file_ref, config_file_res)
 
     data_ref = load_data(config_ref)
     model_ref = setup_model(config_ref, data_ref)
@@ -182,139 +183,141 @@
         end
     end
 
-@testset "Test Emission Price" begin
-    config_file = joinpath(@__DIR__, "config", "config_3bus_emisprc.yml")
-    config = load_config(config_file_ref, config_file)
-
-        data = load_data(config)
-        model = setup_model(config, data)
-
-        gen = get_table(data, :gen)
-
-        @testset "Adding Emis Prc to gen table" begin
-            @test hasproperty(gen, :example_emisprc)
-
-            # Test that there are byYear containers 
-            @test typeof(gen.example_emisprc) == Vector{Container}
-
-            # Check that there are ByYear containers
-            @test any(emisprc -> typeof(emisprc) == E4ST.ByYear, gen.example_emisprc)
-            
-            # test that ByYear containers have non zero values
-            @test sum(emisprc->sum(emisprc.v), gen.example_emisprc) > 0
-        end
-
-        @testset "Adding Emis Prc to the model" begin
-            #test that emis prc is added to the obj 
-            @test haskey(data[:obj_vars], :example_emisprc)
-            @test haskey(model, :example_emisprc) 
-
-            #make sure model still optimizes 
-            optimize!(model)
-            @test check(model)
-
-            # process results
-            parse_results!(config, data, model)
-            process_results!(config, data)
-
-            ## Check that policy impacts results 
-            gen = get_table(data, :gen)
-            years = get_years(data)
-            emis_prc_mod = config[:mods][:example_emisprc]
-            emis_co2_total = aggregate_result(total, data, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
-
-            gen_ref = get_table(data_ref, :gen)
-            emis_co2_total_ref = aggregate_result(total, data_ref, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
-
-        # check that emissions are reduced for qualifying gens
-        @test emis_co2_total < emis_co2_total_ref
-    end
-end
-
-
-@testset "Test Generation Standards" begin
-
-    @testset "Test RPS" begin
-
-        config_file = joinpath(@__DIR__, "config", "config_3bus_rps.yml")
+    @testset "Test Emission Price" begin
+        config_file = joinpath(@__DIR__, "config", "config_3bus_emisprc.yml")
         config = load_config(config_file_ref, config_file)
 
-        data = load_data(config)
-        model = setup_model(config, data)
-        gen = get_table(data, :gen)
-
-        #test that sorting happened correctly 
-        ranks = list_mod_ranks(config)
-        @test ranks[:example_rps] > 0.0
-
-        @testset "Test Crediting RPS" begin 
-            # columns added to the gen table
-            @test hasproperty(gen, :example_rps)
-            @test hasproperty(gen, :example_rps_gentype)
-
-            # check that some crediting was applied
-            @test any(credit -> credit > 0.0, gen[!,:example_rps])
-            @test any(credit -> credit > 0.0, gen[!,:example_rps_gentype])
-
-            @test ~any(credit -> credit > 1.0 || credit < 0.0, gen[!,:example_rps])
-            @test ~any(credit -> credit > 1.0 || credit < 0.0, gen[!,:example_rps_gentype])
-
-        end 
-
-        @testset "Adding RPS to model" begin
-
-            #make sure model still optimizes 
-            optimize!(model)
-            @test check(model)
-            
-            @test haskey(model, :p_gs_bus)
-            @test haskey(model, :cons_example_rps)
-            @test haskey(model, :cons_example_rps_gentype)
-
-            # process results
-            parse_results!(config, data, model)
-            process_results!(config, data)
-
-            ## Check that policy impacts results 
-            rps_mod = config[:mods][:example_rps]
+            data = load_data(config)
+            model = setup_model(config, data)
 
             gen = get_table(data, :gen)
 
-            gen_total = aggregate_result(total, data, :gen, :egen, :emis_co2=><(0.5))
+            @testset "Adding Emis Prc to gen table" begin
+                @test hasproperty(gen, :example_emisprc)
 
-            gen_ref = get_table(data_ref, :gen)
-            gen_total_ref = aggregate_result(total, data_ref, :gen, :egen, :emis_co2=><(0.5))
+                # Test that there are byYear containers 
+                @test typeof(gen.example_emisprc) == Vector{Container}
+
+                # Check that there are ByYear containers
+                @test any(emisprc -> typeof(emisprc) == E4ST.ByYear, gen.example_emisprc)
+                
+                # test that ByYear containers have non zero values
+                @test sum(emisprc->sum(emisprc.v), gen.example_emisprc) > 0
+            end
+
+            @testset "Adding Emis Prc to the model" begin
+                #test that emis prc is added to the obj 
+                @test haskey(data[:obj_vars], :example_emisprc)
+                @test haskey(model, :example_emisprc) 
+
+                #make sure model still optimizes 
+                optimize!(model)
+                @test check(model)
+
+                # process results
+                parse_results!(config, data, model)
+                process_results!(config, data)
+
+                ## Check that policy impacts results 
+                gen = get_table(data, :gen)
+                years = get_years(data)
+                emis_prc_mod = config[:mods][:example_emisprc]
+                emis_co2_total = aggregate_result(total, data, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
+
+                gen_ref = get_table(data_ref, :gen)
+                emis_co2_total_ref = aggregate_result(total, data_ref, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
 
             # check that emissions are reduced for qualifying gens
-            @test gen_total > gen_total_ref
-        
+            @test emis_co2_total < emis_co2_total_ref
         end
-
     end
 
-    @testset "Test CES" begin
 
-        config_file = joinpath(@__DIR__, "config", "config_3bus_ces.yml")
-        config = load_config(config_file_ref, config_file)
+    @testset "Test Generation Standards" begin
 
-        data = load_data(config)
-        gen = get_table(data, :gen)
-        
-        @testset "Test Crediting CES" begin
-            # columns added to the gen table
-            @test hasproperty(gen, :example_ces)
+        @testset "Test RPS" begin
 
-            # check that some crediting was applied
-            @test any(credit -> credit > 0.0, gen[!,:example_ces])
+            config_file = joinpath(@__DIR__, "config", "config_3bus_rps.yml")
+            config = load_config(config_file_ref, config_file_res, config_file)
 
-            @test ~any(credit -> credit > 1.0 || credit < 0.0, gen[!,:example_ces])
+            data = load_data(config)
+            model = setup_model(config, data)
+            gen = get_table(data, :gen)
 
-        end
+            #test that sorting happened correctly 
+            ranks = list_mod_ranks(config)
+            @test ranks[:example_rps] > 0.0
 
-        @testset "Adding CES to model" begin
+            @testset "Test Crediting RPS" begin 
+                # columns added to the gen table
+                @test hasproperty(gen, :example_rps)
+                @test hasproperty(gen, :example_rps_gentype)
+
+                # check that some crediting was applied
+                @test any(credit -> credit > 0.0, gen[!,:example_rps])
+                @test any(credit -> credit > 0.0, gen[!,:example_rps_gentype])
+
+                @test ~any(credit -> credit > 1.0 || credit < 0.0, gen[!,:example_rps])
+                @test ~any(credit -> credit > 1.0 || credit < 0.0, gen[!,:example_rps_gentype])
+
+            end 
+
+            @testset "Adding RPS to model" begin
+
+                #make sure model still optimizes 
+                optimize!(model)
+                @test check(model)
+                
+                @test haskey(model, :p_gs_bus)
+                @test haskey(model, :cons_example_rps)
+                @test haskey(model, :cons_example_rps_gentype)
+
+                # process results
+                parse_results!(config, data, model)
+                process_results!(config, data)
+
+                ## Check that policy impacts results for example_rps
+                rps_mod = config[:mods][:example_rps]
+
+                gen = get_table(data, :gen)
+
+                gen_total_qual = aggregate_result(total, data, :gen, :egen, [:emis_co2=><(0.5), :country=>"archenland"])
+                eserv_total_qual = aggregate_result(total, data, :bus, :eserv)
+
+                gen_ref = get_table(data_ref, :gen)
+                gen_total_ref = aggregate_result(total, data_ref, :gen, :egen, :emis_co2=><(0.5))
+
+                # check that generation is increased for qualifying gens
+                @test gen_total_qual > gen_total_ref
             
+            end
+
+        end
+
+        @testset "Test CES" begin
+
+            config_file = joinpath(@__DIR__, "config", "config_3bus_ces.yml")
+            config = load_config(config_file_ref, config_file)
+
+            data = load_data(config)
+            gen = get_table(data, :gen)
+            
+            @testset "Test Crediting CES" begin
+                # columns added to the gen table
+                @test hasproperty(gen, :example_ces)
+
+                # check that some crediting was applied
+                @test any(credit -> credit > 0.0, gen[!,:example_ces])
+
+                @test ~any(credit -> credit > 1.0 || credit < 0.0, gen[!,:example_ces])
+
+            end
+
+            @testset "Adding CES to model" begin
+                
+            end
+
         end
 
     end
-
 end

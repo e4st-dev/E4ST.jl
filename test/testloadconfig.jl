@@ -85,16 +85,17 @@
         stop_logging!(config)
         @test length(readlines(log_file)) > 6
 
-end
+    end
 
-@testset "Test mod sorting by rank" begin
-    config_file_base = joinpath(@__DIR__, "config", "config_3bus.yml")
-    config_RPS = joinpath(@__DIR__, "config", "config_3bus_rps.yml")
-    config_PTC = joinpath(@__DIR__, "config", "config_3bus_ptc.yml")
+    @testset "Test mod sorting by rank" begin
+        config_file_base = joinpath(@__DIR__, "config", "config_3bus.yml")
+        config_RPS = joinpath(@__DIR__, "config", "config_3bus_rps.yml")
+        config_PTC = joinpath(@__DIR__, "config", "config_3bus_ptc.yml")
 
-    config = load_config(config_file_base, config_RPS, config_PTC)
+        config = load_config(config_file_base, config_RPS, config_PTC)
 
-    ranks = list_mod_ranks(config)
-    @test ranks[:example_ptc] < ranks[:example_rps]
+        ranks = list_mod_ranks(config)
+        @test ranks[:example_ptc] < ranks[:example_rps]
 
+    end
 end
