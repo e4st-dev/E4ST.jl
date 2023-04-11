@@ -20,9 +20,9 @@ end
 """
     process_results!(config; processed=true) -> data
 
-This loads `data` in, then calls [`process_results!(config, data)`](@ref).  
-* `processed=false` - loads in `data` via [`read_parsed_results`](@ref)
-* `processed=true` - loads in `data` via [`read_processed_results`](@ref)
+This reads `data` in, then calls [`process_results!(config, data)`](@ref).  
+* `processed=false` - reads in `data` via [`read_parsed_results`](@ref)
+* `processed=true` - reads in `data` via [`read_processed_results`](@ref)
 """
 function process_results!(config; processed=true)
     if processed
@@ -38,8 +38,8 @@ export process_results!
     process_results!(mod_file::String, out_path::String; processed=true) -> data
 
 Processes the results the [`Modification`](@ref)s found in `mod_file`, a .yml file similar to a `config` file (see [`read_config`](@ref)), only requiring the `mods` field.
-* `processed=false` - loads in `data` via [`read_parsed_results`](@ref)
-* `processed=true` - loads in `data` via [`read_processed_results`](@ref)
+* `processed=false` - reads in `data` via [`read_parsed_results`](@ref)
+* `processed=true` - reads in `data` via [`read_processed_results`](@ref)
 """
 function process_results!(mod_file::String, out_path::String; processed=true)
 

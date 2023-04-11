@@ -60,7 +60,7 @@
         
         @test config[:iter] isa TargetAvgAnnualNGGen
 
-        # TODO: test saving and loading with iter
+        # TODO: test saving and reading with iter
         all_results = run_e4st(config)
         @test length(all_results) > 1
     end

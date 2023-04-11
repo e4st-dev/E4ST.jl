@@ -8,17 +8,17 @@
 Pulls in data found in files listed in the `config`, and stores into `data`.
 
 Calls the following functions:
-* [`read_data_files!(config, data)`](@ref) - load in the data from files
+* [`read_data_files!(config, data)`](@ref) - read in the data from files
 * [`modify_raw_data!(config, data)`](@ref) - Gives [`Modification`](@ref)s a chance to modify the raw data before the data gets setup.
 * [`setup_data!(config, data)`](@ref) - Sets up the data, modifying/adding to the tables as needed.
 * [`modify_setup_data!(config, data)`](@ref) - Gives [`Modification`](@ref)s a chance to modify the setup data before the model is built.
 """
 function read_data(config)
-    log_header("LOADING DATA")
+    log_header("READING DATA")
 
     # Try loading the data directly
     if haskey(config, :data_file)
-        @info "Loading data from $(config[:data_file])"
+        @info "Reading data from $(config[:data_file])"
         data = deserialize(config[:data_file])
         return data
     end
@@ -62,7 +62,7 @@ Loads in the data files presented in the `config`.
 function read_data_files!(config, data)
     read_summary_table!(config, data)
 
-    # Other things to load
+    # Other things to read in
     read_voll!(config, data)
     read_years!(config, data)
 
@@ -365,7 +365,7 @@ function setup_table!(config, data, ::Val{:gen})
 
     data[:gen_table_original_cols] = propertynames(gen)
 
-    #removes capex_obj if loaded in from previous sim
+    #removes capex_obj if read in from previous sim
     :capex_obj in propertynames(data[:gen]) && select!(data[:gen], Not(:capex_obj))
 
     #set build_status to 'built' for all gens marked 'new'. This marks gens built in a previous sim as 'built'.
@@ -921,7 +921,7 @@ export has_table
 """
     get_table_summary(data, table_name) -> summary::SubDataFrame
 
-Returns a summary of `table_name`, loaded in from [`summarize_table`](@ref) and [`read_summary_table!`](@ref).
+Returns a summary of `table_name`, read in from [`summarize_table`](@ref) and [`read_summary_table!`](@ref).
 """
 function get_table_summary(data, table_name)
     st = get_table(data, :summary_table)
@@ -1212,7 +1212,7 @@ export get_pflow_branch_max
 Returns the value of lost load at given bus and time
 """
 function get_voll(data, bus_idx, year_idx, hour_idx) 
-    # If we want voll to be by bus_idx this could be modified and load_voll() will need to be changed
+    # If we want voll to be by bus_idx this could be modified and read_voll() will need to be changed
     return data[:voll]
 end
 export get_voll

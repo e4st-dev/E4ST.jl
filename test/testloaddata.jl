@@ -1,12 +1,12 @@
 @testset "Test Loading Data" begin
             
 
-    # Test loading in the data to the model
+    # Test reading in the data to the model
 
     config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
     config = read_config(config_file)
 
-    @testset "Test Loading the Data" begin    
+    @testset "Test Reading the Data" begin    
         data = read_data(config)
         @test get_table(data, :gen) isa DataFrame
         @test get_table(data, :build_gen) isa DataFrame

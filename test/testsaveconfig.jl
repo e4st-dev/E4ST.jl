@@ -15,7 +15,7 @@
 
     @test ispath(outfilename)
 
-    # test if it can load in the saved config 
+    # test if it can read in the saved config
     newconfig = read_config(outfilename)
 
     @test isabspath(newconfig[:out_path])

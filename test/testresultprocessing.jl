@@ -2,24 +2,24 @@
     # Tests parsing, processing, and saving of results
     config_file =  joinpath(@__DIR__, "config", "config_3bus.yml")
 
-    @testset "Test loading/saving data from .jls file" begin
+    @testset "Test reading/saving data from .jls file" begin
         config = read_config(config_file)
         config[:base_out_path] = "../out/3bus1"
         E4ST.make_out_path!(config)
         data1 = read_data(config)
 
-        # Check that it is trying to load in the data file
+        # Check that it is trying to read in the data file
         config[:data_file] = get_out_path(config, "blah.jls")
         @test_throws Exception read_data(config)
 
-        # Check that data file is loaded in and identical.  Also check that other files aren't touched
+        # Check that data file is read in and identical.  Also check that other files aren't touched
         config[:data_file] = get_out_path(config, "data.jls")
         config[:demand_file] = "blah.csv"
         data2 = read_data(config)
         @test data1 == data2
     end
 
-    @testset "Test loading/saving model from .jls file" begin
+    @testset "Test reading/saving model from .jls file" begin
         config = read_config(config_file)
         config[:base_out_path] = "../out/3bus1"
         config[:save_model_presolve] = true
@@ -28,11 +28,11 @@
         data = read_data(config)
         model1 = setup_model(config, data)
 
-        # Check that it is trying to load in the model file
+        # Check that it is trying to read in the model file
         config[:model_presolve_file] = "bad/path/to/blah.jls"
         @test_throws Exception setup_model(config)
 
-        # Check that data file is loaded in and identical.  Also check that other files aren't touched
+        # Check that data file is read in and identical.  Also check that other files aren't touched
         config[:model_presolve_file] = get_out_path(config, "model_presolve.jls")
         E4ST.make_paths_absolute!(config, config_file)
         model2 = setup_model(config, data)
@@ -239,7 +239,7 @@
         ### Run E4ST
         out_path, _ = run_e4st(config_file)
 
-        # Now load the config from the out_path, with some results processing mods too.  Could also add the mods manually here.
+        # Now read the config from the out_path, with some results processing mods too.  Could also add the mods manually here.
         mod_file= joinpath(@__DIR__, "config/config_res.yml")
         config = read_config(out_path, mod_file)
         data = process_results!(config)
