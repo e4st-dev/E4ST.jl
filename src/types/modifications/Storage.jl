@@ -2,6 +2,10 @@
     struct Storage <: Modification
 
     Storage(;name, file, build_file="")
+
+Storage is represented over sets of time-weighted sequential representative hours for which the following must hold true, for a given storage device:
+* Net charge over the interval must equal zero.
+* Total charge of the device cannot exceed its maximum charge, or go below zero.
 """
 struct Storage <: Modification
     name::Symbol
@@ -36,20 +40,132 @@ function summarize_table(::Val{:storage})
     )
 end
 
+function summarize_table(::Val{:build_storage})
+    df = TableSummary()
+    push!(df, 
+        (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:status, Bool, NA, false, "Whether or not the storage device is in service"),
+        (:build_status, AbstractString, NA, true, "Whether the storage device is 'built', 'new', or 'unbuilt'. All storage devices marked 'new' when the gen file is read in will be changed to 'built'."),
+        (:build_type, AbstractString, NA, true, "Whether the storage device is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
+        (:year_on, AbstractString, Year, true, "The first year of operation for the storage device. (For new devices this is also the year it was built)"),
+        (:year_on_min, AbstractString, NA, true, "The first year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
+        (:year_on_max, AbstractString, NA, true, "The last year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
+        (:pcap0, Float64, MWCapacity, true, "Starting nameplate power discharge capacity for the storage device"),
+        (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power discharge capacity of the storage device (normally set to zero to allow for retirement)"),
+        (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power discharge capacity of the storage device"),
+        (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of energy discharged"),
+        (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of discharge capacity"),
+        (:capex, Float64, DollarsPerMWBuiltCapacity, true, "Hourly capital expenditures for a MW of discharge capacity"),
+        (:duration_discharge, Float64, Hours, true, "Number of hours to fully discharge the storage device, from full."),
+        (:duration_charge, Float64, Hours, false, "Number of hours to fully charge the empty storage device from empty. (Defaults to equal `duration_discharge`)"),
+        (:storage_efficiency, Float64, true, MWhDischargedPerMWhCharged, "The round-trip efficiency of the battery."),
+        (:side, String, true, NA, "The side of the power balance equation to add the charging/discharging to.  Can be \"gen\" or \"load\""),
+        (:hour_groupby, String, NA, true, "The column of the `hours` table to group by.  For example `day`"),
+        (:hour_duration, String, NA, true, "The column of the `hours` table specifying the duration of each representatibe hour"),
+        (:hour_order, String, NA, true, "The column of the `hours` table specifying the sequence of the hours."),
+    )
+end
+
 function modify_raw_data!(mod::Storage, config, data)
-    # TODO: Pull in the storage table
-    # TODO: Pull in the build_storage table
+    config[:storage_file] = mod.file
+    config[:build_storage_file] = mod.build_file
+
+    load_table!(config, data, :storage_file=>:storage)
+    load_table!(config, data, :build_storage_file=>:build_storage)
 end
 
 function modify_setup_data!(mod::Storage, config, data)
-    # TODO: Add the buildable storage devices to the storage table
-    # TODO: Add the following columns to the storage table:
+    storage = get_table(data, :storage)
+    hours = get_table(data, :hours)
+
+    add_buildable_storage!(config, data)
+
+    ### Add the following columns to the storage table:
     # num_intervals: number of time intervals for storage of this device
     # duration_charge (only if not provided)
     # intervals: each entry is a Vector{Vector{Int64}} - vector of vectors of hour indices
     # interval_hour_duration: each entry is a Dict{Int64, Float64} - lookup of hour index to duration.
-    # year_on
+
+    if !hasproperty(storage, :duration_charge)
+        storage.duration_charge = copy(storage.duration_discharge)
+    end
+
+    storage.num_intervals = fill(0, nrow(storage))
+    storage.intervals = fill(Vector{Int64}[], nrow(storage))
+    storage.interval_hour_duration = fill(Vector{Float64}(), nrow(storage))
+
+    # Add num_intervals
+    gdf_storage = groupby(storage, [:hour_groupby, :hour_duration, :hour_order])
+
+    for k in keys(gdf_storage)
+        hour_groupby, hour_duration, hour_order = k
+        sdf_storage = gdf[k]
+        gdf_hours = groupby(hours, hour_groupby)
+        sdf_storage.interval_hour_duration .= hours[!, hour_duration]
+        sdf_storage.num_intervals .= length(gdf_hours)
+
+        intervals = Vector{Int64}[]
+        for hk in keys(gdf_hours)
+            sdf_hours = gdf_hours[hk]
+            hour_idxs = getfield(sdf_hours, :rows)
+            hour_idxs_sorting = sortperm(df, hour_order)
+            hour_idxs_sorted = hour_idxs[hour_idxs_sorting]
+            push!(sdf_storage.intervals, hour_idxs_sorted)
+        end
+
+        sdf_storage.intervals .= intervals
+    end
 end
+
+"""
+    add_buildable_storage!(config, data)
+
+Add buildable storage from `build_storage` table to `storage` table.
+"""
+function add_buildable_storage!(config, data)
+    storage =       get_table(data, :storage)
+    build_storage = get_table(data, :build_storage)
+    bus =           get_table(data, :bus)
+
+    spec_names = filter!(!=(:bus_idx), propertynames(newgen))
+    years = get_years(data)
+
+    for spec_row in eachrow(build_storage)
+        area = spec_row.area
+        subarea = spec_row.subarea
+        bus_idxs = get_row_idxs(bus, (area=>subarea))
+
+        #set default min and max for year_on if blank
+        year_on_min = (spec_row.year_on_min == "" ? "y0" : spec_row.year_on_min)
+        year_on_max = (spec_row.year_on_max == "" ? "y9999" : spec_row.year_on_max)
+
+        for bus_idx in bus_idxs
+            if spec_row.build_type == "endog"
+                # For endogenous new builds a new storage device is created for each year
+                for year in years
+                    year < year_on_min && continue
+                    year > year_on_max && continue
+                    
+                    # Make row to add to the storage table
+                    new_row = Dict(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
+                    new_row[:year_on] = year
+                    push!(storage, new_row, promote=true)
+                end
+            else # exogenous
+                @assert !isempty(spec_row.year_on) "Exogenous storage devices must have a specified year_on value"
+
+                # Skip this build if it is after the simulation
+                spec_row.year_on > last(years) && continue
+
+                # for exogenously specified gens, only one generator is created with the specified year_on
+                new_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
+                push!(storage, new_row, promote=true)
+            end
+        end
+    end
+end
+export add_buildable_storage!
 
 function modify_model!(mod::Storage, config, data, model)
     storage = get_table(data, :storage)
@@ -127,7 +243,7 @@ function modify_model!(mod::Storage, config, data, model)
             ) * 
             storage.interval_hour_weights[stor_idx][hr_idx] 
             for hr_idx in storage.intervals[stor_idx][int_idx][1:_hr_idx]
-        ) >= -pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
+        ) >= 0 # -pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
     )
 
     ### Add build constraints for endogenous batteries
@@ -205,3 +321,12 @@ function modify_model!(mod::Storage, config, data, model)
     add_obj_exp!(data, model, PerMWCap(), capex_obj_stor, oper = +) 
 end
 
+"""
+    modify_results!(mod::Storage, config, data)
+
+Modify battery results
+"""
+function modify_results!(mod::Storage, config, data)
+    storage = get_table(data, :storage)
+end
+export modify_results!
