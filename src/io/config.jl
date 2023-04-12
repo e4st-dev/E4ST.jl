@@ -474,7 +474,7 @@ end
 
 function sort_mods_by_rank!(config)
     mods = config[:mods]
-    sort!(mods, by=m->mod_rank(mods[m]))
+    sort!(mods, by=mod_rank, byvalue=true)
 end
 
 function convert_iter!(config)

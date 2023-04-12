@@ -5,14 +5,9 @@
 Crediting is used to set the credit levels of generators for policies. It is primarily (possibly entirely) used for GenerationStandards (RPS, CES, carveouts, etc). 
 
 ## Setup inside config yaml
-Crediting is specified in the yaml file. A type key must be specified, along with the approriate keys for the credit typ eyou specified. 
+Crediting is specified in the yaml file. A type key must be specified, along with the approriate keys for the credit type you specified. Two examples are shown in the config below.
 ```yaml
-mod:
-    name: ...
-    ...
-    crediting:
-        type: CreditType
-        type_field: field_value
+$(read(joinpath(@__DIR__,"../../test/config/config_3bus_rps.yml"), String))
 ```
 
 ## Standard Crediting subtypes include:
@@ -40,7 +35,7 @@ export Crediting
     get_credit(c::Crediting, gen_row::DataFrame) -> 
 """
 function get_credit(c::Crediting, gen_row::DataFrame)
-    @error "No get_credit() defined for crediting type $(typeof(c)), no credits will be applied for this policy."
+    error("No get_credit() defined for crediting type $(typeof(c)), no credits will be applied for this policy.")
 end
 
 
@@ -60,7 +55,8 @@ export CreditByGentype
 Returns the credit level specified for the gentype in c.credits. If no credit is specified for that gentype, it defaults to 0. 
 """
 function get_credit(c::CreditByGentype, gen_row::DataFrameRow)
-    haskey(c.credits, Symbol(gen_row.gentype)) ? credit =  c.credits[Symbol(gen_row.gentype)] : credit = 0.0
+    #haskey(c.credits, Symbol(gen_row.gentype)) ? credit =  c.credits[Symbol(gen_row.gentype)] : credit = 0.0
+    credit = get(c.credits, Symbol(gen_row.gentype), 0.0)
     return Float64(credit)
 end
 

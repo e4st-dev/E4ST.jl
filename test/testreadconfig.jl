@@ -1,4 +1,4 @@
-@testset "Test Loading Config" begin
+@testset "Test Reading Config" begin
 
     Base.@kwdef struct ExamplePolicyType <: Policy
         name::Symbol
@@ -92,7 +92,7 @@
         config_RPS = joinpath(@__DIR__, "config", "config_3bus_rps.yml")
         config_PTC = joinpath(@__DIR__, "config", "config_3bus_ptc.yml")
 
-        config = load_config(config_file_base, config_RPS, config_PTC)
+        config = read_config(config_file_base, config_RPS, config_PTC)
 
         ranks = list_mod_ranks(config)
         @test ranks[:example_ptc] < ranks[:example_rps]

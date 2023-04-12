@@ -238,9 +238,9 @@
         @testset "Test RPS" begin
 
             config_file = joinpath(@__DIR__, "config", "config_3bus_rps.yml")
-            config = load_config(config_file_ref, config_file_res, config_file)
+            config = read_config(config_file_ref, config_file_res, config_file)
 
-            data = load_data(config)
+            data = read_data(config)
             model = setup_model(config, data)
             gen = get_table(data, :gen)
 
@@ -281,11 +281,24 @@
 
                 gen = get_table(data, :gen)
 
-                gen_total_qual = aggregate_result(total, data, :gen, :egen, [:emis_co2=><(0.5), :country=>"archenland"])
-                eserv_total_qual = aggregate_result(total, data, :bus, :eserv)
+                gen_total_qual = aggregate_result(total, data, :gen, :egen, [:emis_co2=>0, :country=>"archenland"])
+                eserv_total_qual = aggregate_result(total, data, :bus, :eserv, :state=>"stormness")
+
+                @show gen_total_qual_2035 = aggregate_result(total, data, :gen, :egen, [:emis_co2=>0, :country=>"archenland"], 2)
+                @show eserv_total_qual_2035 = aggregate_result(total, data, :bus, :eserv, :state=>"stormness", 2)
+
+                @test gen_total_qual_2035/eserv_total_qual_2035 ≈ rps_mod.values[:y2035]
+
+                @show gen_total_qual_2040 = aggregate_result(total, data, :gen, :egen, [:emis_co2=>0, :country=>"archenland"], 3)
+                @show eserv_total_qual_2040 = aggregate_result(total, data, :bus, :eserv, :state=>"stormness", 3)
+
+                @test gen_total_qual_2040/eserv_total_qual_2040 ≈ rps_mod.values[:y2040]
+
+                @show curt_2035 = aggregate_result(total, data, :bus, :ecurt, :state=>"stormness", 2)
+                @show curt_2040 = aggregate_result(total, data, :bus, :ecurt, :state=>"stormness", 3)
 
                 gen_ref = get_table(data_ref, :gen)
-                gen_total_ref = aggregate_result(total, data_ref, :gen, :egen, :emis_co2=><(0.5))
+                gen_total_ref = aggregate_result(total, data_ref, :gen, :egen, :emis_co2=>0)
 
                 # check that generation is increased for qualifying gens
                 @test gen_total_qual > gen_total_ref
@@ -297,9 +310,9 @@
         @testset "Test CES" begin
 
             config_file = joinpath(@__DIR__, "config", "config_3bus_ces.yml")
-            config = load_config(config_file_ref, config_file)
+            config = read_config(config_file_ref, config_file)
 
-            data = load_data(config)
+            data = read_data(config)
             gen = get_table(data, :gen)
             
             @testset "Test Crediting CES" begin

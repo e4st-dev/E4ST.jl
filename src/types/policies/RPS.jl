@@ -7,7 +7,7 @@
 
 ## Fields
 * `name` - Name of the policy 
-* `values` - The yearly values for the RPS
+* `targets` - The yearly targets for the RPS
 * `gen_filters` - Filters on which generation qualifies to fulfill the RPS. Sometimes qualifying generators may be outside of the RPS load region if they supply power to it. 
 * `crediting` - the crediting structure and related fields 
 * `load_bus_filters` - Filters on which buses fall into the RPS load region. The RPS will be applied to the load from these buses. 
@@ -15,7 +15,7 @@
 """
 struct RPS <: Policy
     name::Symbol
-    values::OrderedDict
+    targets::OrderedDict
     crediting::Crediting
     gen_filters::OrderedDict
     load_bus_filters::OrderedDict 
@@ -23,10 +23,10 @@ struct RPS <: Policy
 
 end
 
-function RPS(;name, values, crediting::OrderedDict, gen_filters, load_bus_filters)
+function RPS(;name, targets, crediting::OrderedDict, gen_filters, load_bus_filters)
     c = Crediting(crediting)
-    gen_stan = GenerationStandard(name, values, c, gen_filters, load_bus_filters, RPS)
-    return RPS(name, values, c, gen_filters, load_bus_filters, gen_stan)
+    gen_stan = GenerationStandard(name, targets, c, gen_filters, load_bus_filters, RPS)
+    return RPS(name, targets, c, gen_filters, load_bus_filters, gen_stan)
 end
 export RPS
 
