@@ -1,9 +1,9 @@
 ﻿hours,day,day_duration,day_order,time_of_day,season
-500,1,5,1,morning,summer
-1000,1,5,2,noon,summer
-1500,1,5,3,evening,summer
-1380,1,9,4,night,summer
-500,2,6,1,morning,winter
-1000,2,6,2,noon,winter
-1500,2,6,3,evening,winter
-1380,2,6,4,night,winter
+1460,1,6,1,morning,summer
+1460,1,6,2,noon,summer
+1460,1,6,3,evening,summer
+1460,1,6,4,night,summer
+486.6666666666667,2,4,1,morning,winter
+486.6666666666667,2,4,2,noon,winter
+486.6666666666667,2,4,3,evening,winter
+1460,2,12,4,night,winter

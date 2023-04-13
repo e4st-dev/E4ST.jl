@@ -90,6 +90,12 @@ end
 function total(::Type{MWhServed}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
 end
+function total(::Type{MWhCharged}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+    return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
+end
+function total(::Type{MWhDischarged}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+    return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
+end
 function total(::Type{MWhGenerated}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
 end

@@ -59,8 +59,8 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 # Objective
 
 The objective is a single expression that can be accessed via `model[:obj]`.  In general, we add things to the objective via:
-* [`add_obj_exp`](@ref)
-* [`add_obj_term`](@ref)
+* [`add_obj_exp!`](@ref)
+* [`add_obj_term!`](@ref)
 
 """
 function setup_model(config, data)
