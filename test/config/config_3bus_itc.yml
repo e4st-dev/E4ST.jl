@@ -2,7 +2,7 @@ base_out_path:    "../out/3bus_itc"
 mods:
   example_itc:
     type: "ITC"
-    value:
+    values:
       y2035: 0.7
       y2040: 0.6
     gen_filters:

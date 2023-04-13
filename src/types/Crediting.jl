@@ -15,7 +15,7 @@ $(read(joinpath(@__DIR__,"../../test/config/config_3bus_rps.yml"), String))
 *`CreditByGentype`
 
 ## Interfaces Implements
-*[`get_credit(c::Crediting, gen_row::DataFrameRow)`](@ref) - gets the appropriate credit level for the generator row for the given Crediting subtype.
+*[`get_credit(c::Crediting, data, gen_row::DataFrameRow)`](@ref) - gets the appropriate credit level for the generator row for the given Crediting subtype.
 """
 abstract type Crediting end 
 
@@ -32,9 +32,11 @@ end
 export Crediting
 
 """
-    get_credit(c::Crediting, gen_row::DataFrame) -> 
+    get_credit(c::Crediting, data, gen_row::DataFrame) -> 
+
+Return the credit value for the given generator and crediting type. 
 """
-function get_credit(c::Crediting, gen_row::DataFrame)
+function get_credit(c::Crediting, data, gen_row::DataFrame)
     error("No get_credit() defined for crediting type $(typeof(c)), no credits will be applied for this policy.")
 end
 
@@ -50,14 +52,13 @@ end
 export CreditByGentype
 
 """
-    get_credit(c::CreditByGentype, gen_row::DataFrameRow) -> Float64
+    get_credit(c::CreditByGentype, data, gen_row::DataFrameRow)
 
 Returns the credit level specified for the gentype in c.credits. If no credit is specified for that gentype, it defaults to 0. 
 """
-function get_credit(c::CreditByGentype, gen_row::DataFrameRow)
-    #haskey(c.credits, Symbol(gen_row.gentype)) ? credit =  c.credits[Symbol(gen_row.gentype)] : credit = 0.0
+function get_credit(c::CreditByGentype, data,  gen_row::DataFrameRow)
     credit = get(c.credits, Symbol(gen_row.gentype), 0.0)
-    return Float64(credit)
+    return ByNothing(credit)
 end
 
 @Base.kwdef struct CreditByBenchmark <: Crediting
@@ -67,14 +68,13 @@ end
 export CreditByBenchmark
 
 """
-    get_credit(c::CreditByBenchmark, gen_row::DataFrameRow) -> 
+    get_credit(c::CreditByBenchmark, data, gen_row::DataFrameRow) -> 
 
 Returns the credit level based on the formula `maximum([1.0 - (gen_emis_rate / c.benchmark), 0.0])`. 
 """
-function get_credit(c::CreditByBenchmark, gen_row::DataFrameRow)
+function get_credit(c::CreditByBenchmark, data, gen_row::DataFrameRow)
     gen_emis_rate = gen_row[c.gen_col]
     credit = maximum([1.0 - (gen_emis_rate / c.benchmark), 0.0]) 
-    return credit
+    return ByNothing(credit)
 end
 
-#TODO: define general method for get_credit that just errors/warms that no method for that type has been defined yet

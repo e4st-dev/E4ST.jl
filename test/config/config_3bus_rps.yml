@@ -2,7 +2,7 @@ base_out_path:    "../out/3bus_rps"
 mods:
   example_rps:
     type: "RPS"
-    values:
+    targets:
       y2035: 0.9
       y2040: 0.95
     crediting: 
@@ -13,7 +13,7 @@ mods:
       state: "stormness"
   example_rps_gentype:
     type: "RPS"
-    values:
+    targets:
       y2030: 0.7
       y2035: 0.8
       y2040: 0.9

@@ -3,7 +3,7 @@ mods:
   example_emiscap:
     type: "EmissionCap"
     emis_col: "emis_co2"
-    values: 
+    targets: 
       y2035: 4000
       y2040: 3000
     gen_filters:

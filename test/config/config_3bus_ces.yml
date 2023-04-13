@@ -2,7 +2,7 @@ base_out_path:    "../out/3bus_ces"
 mods:
   example_ces:
     type: "CES"
-    values:
+    targets:
       y2035: 0.9
       y2040: 0.95
     crediting: 

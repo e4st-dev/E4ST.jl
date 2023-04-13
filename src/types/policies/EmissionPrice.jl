@@ -6,18 +6,18 @@ Emission Price - A price on a certain emission for a given set of generators.
 
 *`name`: name of the policy (Symbol)
 *`emis_col`: name of the emission rate column in the gen table (ie. emis_co2) (Symbol)
-*`values`: OrderedDict of price values by year. Given as price per unit of emissions (ie. \$/short ton)
+*`prices`: OrderedDict of prices by year. Given as price per unit of emissions (ie. \$/short ton)
 *`gen_filters`: OrderedDict of generator filters
 """
 struct EmissionPrice <: Policy
     name::Symbol
     emis_col::Symbol
-    values::OrderedDict
+    prices::OrderedDict
     gen_filters::OrderedDict
 end
 
-function EmissionPrice(;name::Any, emis_col::Any, values, gen_filters=OrderedDict())
-    EmissionPrice(Symbol(name), Symbol(emis_col), values, gen_filters)
+function EmissionPrice(;name::Any, emis_col::Any, prices, gen_filters=OrderedDict())
+    EmissionPrice(Symbol(name), Symbol(emis_col), prices, gen_filters)
 end
 export EmissionPrice
 
@@ -37,12 +37,12 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
 
     years = get_years(data)
 
-    #create column of PTC values
+    #create column of Emission prices
     add_table_col!(data, :gen, pol.name, Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated,
         "Emission price per MWh generated for $(pol.name)")
     
     #update column for gen_idx 
-    price_yearly = [get(pol.values, Symbol(year), 0.0) for year in years] #values for the years in the sim
+    price_yearly = [get(pol.prices, Symbol(year), 0.0) for year in years] #prices for the years in the sim
     for gen_idx in gen_idxs
         gen[gen_idx, pol.name] = scale_yearly(gen[gen_idx, pol.emis_col], price_yearly) #emission rate [st/MWh] * price [$/st] 
     end

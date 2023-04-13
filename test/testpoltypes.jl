@@ -164,13 +164,13 @@
             idx_2035 = get_year_idxs(data, "y2035")
             emis_co2_total_2035 = aggregate_result(total, data, :gen, :emis_co2, :, idx_2035)
 
-            @test emis_co2_total_2035 <= config[:mods][:example_emiscap][:values][:y2035] + 0.001
+            @test emis_co2_total_2035 <= config[:mods][:example_emiscap][:targets][:y2035] + 0.001
             
 
             idx_2040 = get_year_idxs(data, "y2040")
             emis_co2_total_2040 = aggregate_result(total, data, :gen, :emis_co2, :, idx_2040)
 
-            @test emis_co2_total_2040 <= config[:mods][:example_emiscap][:values][:y2040] + 0.001
+            @test emis_co2_total_2040 <= config[:mods][:example_emiscap][:targets][:y2040] + 0.001
             
 
             
@@ -254,11 +254,11 @@
                 @test hasproperty(gen, :example_rps_gentype)
 
                 # check that some crediting was applied
-                @test any(credit -> credit > 0.0, gen[!,:example_rps])
-                @test any(credit -> credit > 0.0, gen[!,:example_rps_gentype])
+                @test any(credit -> get_original(credit) > 0.0, gen[!,:example_rps])
+                @test any(credit -> get_original(credit) > 0.0, gen[!,:example_rps_gentype])
 
-                @test ~any(credit -> credit > 1.0 || credit < 0.0, gen[!,:example_rps])
-                @test ~any(credit -> credit > 1.0 || credit < 0.0, gen[!,:example_rps_gentype])
+                @test ~any(credit -> get_original(credit) > 1.0 || get_original(credit) < 0.0, gen[!,:example_rps])
+                @test ~any(credit -> get_original(credit) > 1.0 || get_original(credit) < 0.0, gen[!,:example_rps_gentype])
 
             end 
 
@@ -268,7 +268,7 @@
                 optimize!(model)
                 @test check(model)
                 
-                @test haskey(model, :p_gs_bus)
+                @test haskey(model, :pl_gs_bus)
                 @test haskey(model, :cons_example_rps)
                 @test haskey(model, :cons_example_rps_gentype)
 
@@ -276,7 +276,15 @@
                 parse_results!(config, data, model)
                 process_results!(config, data)
 
-                ## Check that policy impacts results for example_rps
+                ## Check that policy is binding
+                rps_prices = get_raw_result(data, :cons_example_rps)
+                rps_gentype_prices = get_raw_result(data, :cons_example_rps_gentype)
+
+
+                @test abs(rps_prices[:y2035]) + abs(rps_prices[:y2040]) > 1e-6
+                # @test abs(rps_gentype_prices[:y2035]) + abs(rps_gentype_prices[:y2040]) > 1e-6 
+
+                ## Check that policy impacts results for example_rps (other rps isn't binding)
                 rps_mod = config[:mods][:example_rps]
 
                 gen = get_table(data, :gen)
@@ -287,12 +295,12 @@
                 @show gen_total_qual_2035 = aggregate_result(total, data, :gen, :egen, [:emis_co2=>0, :country=>"archenland"], 2)
                 @show eserv_total_qual_2035 = aggregate_result(total, data, :bus, :eserv, :state=>"stormness", 2)
 
-                @test gen_total_qual_2035/eserv_total_qual_2035 ≈ rps_mod.values[:y2035]
+                @test gen_total_qual_2035/eserv_total_qual_2035 ≈ rps_mod.targets[:y2035]
 
                 @show gen_total_qual_2040 = aggregate_result(total, data, :gen, :egen, [:emis_co2=>0, :country=>"archenland"], 3)
                 @show eserv_total_qual_2040 = aggregate_result(total, data, :bus, :eserv, :state=>"stormness", 3)
 
-                @test gen_total_qual_2040/eserv_total_qual_2040 ≈ rps_mod.values[:y2040]
+                @test gen_total_qual_2040/eserv_total_qual_2040 ≈ rps_mod.targets[:y2040]
 
                 @show curt_2035 = aggregate_result(total, data, :bus, :ecurt, :state=>"stormness", 2)
                 @show curt_2040 = aggregate_result(total, data, :bus, :ecurt, :state=>"stormness", 3)
@@ -320,9 +328,9 @@
                 @test hasproperty(gen, :example_ces)
 
                 # check that some crediting was applied
-                @test any(credit -> credit > 0.0, gen[!,:example_ces])
+                @test any(credit -> get_original(credit) > 0.0, gen[!,:example_ces])
 
-                @test ~any(credit -> credit > 1.0 || credit < 0.0, gen[!,:example_ces])
+                @test ~any(credit -> get_original(credit) > 1.0 || get_original(credit) < 0.0, gen[!,:example_ces])
 
             end
 

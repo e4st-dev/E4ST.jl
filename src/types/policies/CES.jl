@@ -22,6 +22,10 @@ struct CES <: Policy
     gen_stan::GenerationStandard
 end
 
+# const CES = GenerationStandard{:CES} where {CES <: Policy}
+
+# function CES(name, targets, crediting::OrderedDict, gen_filters, load_bus_filters) = CES(name, targets, crediting::OrderedDict, gen_filters, load_bus_filters)
+
 function CES(;name, targets, crediting::OrderedDict, gen_filters, load_bus_filters)
     c = Crediting(crediting)
     gen_stan = GenerationStandard(name, targets, c, gen_filters, load_bus_filters, CES)
