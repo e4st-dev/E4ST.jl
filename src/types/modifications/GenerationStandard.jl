@@ -12,21 +12,26 @@ To assign the credit (the portion of generation that can contribute) to generato
 * `load_bus_filters` - Filters on which buses fall into the GS load region. The GS will be applied to the load from these buses. 
 * `gs_type` - The original type the GS (RPS, CES, etc)
 """
-# struct GenerationStandard{T} <: Policy 
-struct GenerationStandard <: Policy 
+struct GenerationStandard{T} <: Policy 
+#struct GenerationStandard <: Policy 
     name::Symbol
     targets::OrderedDict
     crediting::Crediting
     gen_filters::OrderedDict
     load_bus_filters::OrderedDict
-    gs_type::DataType
+    #gs_type::DataType
 
 end
 
-function GenerationStandard(;name, targets, crediting::OrderedDict, gen_filters, load_bus_filters, gs_type)
-    @show "making gen stan"
+# function GenerationStandard(;name, targets, crediting::OrderedDict, gen_filters, load_bus_filters, gs_type)
+#     c = Crediting(crediting)
+#     return GenerationStandard(Symbol(name), targets, c, gen_filters, load_bus_filters, gs_type)
+# end
+
+
+function GenerationStandard(;name, targets, crediting::OrderedDict, gen_filters, load_bus_filters)
     c = Crediting(crediting)
-    return GenerationStandard(Symbol(name), targets, c, gen_filters, load_bus_filters, gs_type)
+    return GenerationStandard(Symbol(name), targets, c, gen_filters, load_bus_filters)
 end
 export GenerationStandard
 
@@ -41,7 +46,6 @@ mod_rank(::Type{GenerationStandard}) = 1.0 #not sure this matters because this i
 Adds column to the gen table with the credit level of the generation standard. Adds the name and type of the policy to the gs_pol_list in data. 
 """
 function modify_setup_data!(pol::GenerationStandard, config, data)
-    @show "GS modifying setup data"
     #add policy name and type to data[:gs_pol_list]
     add_to_gs_pol_list!(pol, config, data) 
 
@@ -69,7 +73,6 @@ Creates the expression :p_gs_bus, the load that generation standards are applied
 Creates a constraint that takes the general form: `sum(gs_egen * credit) <= gs_value * sum(gs_load)`
 """
 function E4ST.modify_model!(pol::GenerationStandard, config, data, model)
-    @show "GS modifying model"
     # get bus and gen idxs
     gen = get_table(data, :gen)
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
