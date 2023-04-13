@@ -23,11 +23,10 @@
 
 # end
 
-const RPS = GenerationStandard{:RPS} where {RPS <: Policy}
+const RPS = GenerationStandard{:RPS}
 
-function RPS(name, targets, gen_filter, load_bus_filters) 
-    c = Crediting(StandardRPSCrediting)
-    return RPS(name, targets, c, gen_filter, load_bus_filters)
+function RPS(;name, targets, crediting=StandardRPSCrediting(), gen_filters, load_bus_filters) 
+    return RPS(name, targets, Crediting(crediting), gen_filters, load_bus_filters)
 end
 
 # function RPS(;name, targets, crediting::OrderedDict, gen_filters, load_bus_filters)
@@ -38,7 +37,7 @@ end
 
 export RPS
 
-mod_rank(::Type{RPS}) = 1.0
+# mod_rank(::Type{RPS}) = 1.0
 
 # """
 #     modify_setup_data!(pol::RPS, config, data) -> 

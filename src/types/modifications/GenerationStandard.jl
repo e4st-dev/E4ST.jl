@@ -35,7 +35,7 @@ function GenerationStandard(;name, targets, crediting::OrderedDict, gen_filters,
 end
 export GenerationStandard
 
-mod_rank(::Type{GenerationStandard}) = 1.0 #not sure this matters because this isn't usually a type specified in the config or a super type of something specified in the config. 
+mod_rank(::Type{<:GenerationStandard}) = 1.0 #not sure this matters because this isn't usually a type specified in the config or a super type of something specified in the config. 
 
 
 ## Modifying Functions
@@ -117,13 +117,13 @@ export modify_model!
 
 Adds the generation standard policy name and type as a key value pair in an ordered dict `data[:gs_pol_list]`
 """
-function add_to_gs_pol_list!(pol::GenerationStandard, config, data)
+function add_to_gs_pol_list!(pol::GenerationStandard{T}, config, data) where T
     if haskey(data, :gs_pol_list) #TODO: could come up with better name
-        data[:gs_pol_list][pol.name] = pol.gs_type
+        data[:gs_pol_list][pol.name] = T
     else 
         #create gs_pol_list if it doesn't exist yet
         data[:gs_pol_list] = OrderedDict{}(
-            pol.name => pol.gs_type
+            pol.name => T
         )
     end
 end

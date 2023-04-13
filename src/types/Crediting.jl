@@ -29,6 +29,9 @@ function Crediting(d::OrderedDict)
     crediting = _discard_type(T; d...)
     return crediting
 end
+function Crediting(c::Crediting)
+    c
+end
 export Crediting
 
 """

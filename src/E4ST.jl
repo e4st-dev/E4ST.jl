@@ -201,6 +201,11 @@ end
 function reload_types!(::Type{T}) where T
     global STR2TYPE
     global SYM2TYPE
+    symtyperaw = Symbol(T)
+    strtyperaw = string(T)
+    SYM2TYPE[symtyperaw] = T
+    STR2TYPE[strtyperaw] = T
+
     symtype = Base.typename(T).name
     SYM2TYPE[symtype] = T
     strtype = string(symtype)

@@ -22,9 +22,9 @@ The number of credits for a type of generation depends on it's emission rates re
 #     gen_stan::GenerationStandard
 # end
 
-const CES = GenerationStandard{:CES} where {CES <: Policy}
+const CES = GenerationStandard{:CES}
 
-CES(name, targets, crediting::OrderedDict, gen_filters, load_bus_filters) = CES(name, targets, crediting, gen_filters, load_bus_filters)
+CES(;name, targets, crediting=StandardRPSCrediting(), gen_filters, load_bus_filters) = CES(name, targets, Crediting(crediting), gen_filters, load_bus_filters)
 
 # function CES(;name, targets, crediting::OrderedDict, gen_filters, load_bus_filters)
 #     c = Crediting(crediting)
@@ -33,7 +33,7 @@ CES(name, targets, crediting::OrderedDict, gen_filters, load_bus_filters) = CES(
 # end
 export CES
 
-mod_rank(::Type{CES}) = 1.0
+# mod_rank(::Type{CES}) = 1.0
 
 """
     modify_setup_data!(pol::CES, config, data) -> 
