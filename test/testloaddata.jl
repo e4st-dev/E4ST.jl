@@ -28,11 +28,11 @@
         # AF not specified for ng, should be default of 1.0
         @test all(get_af(data, 1, yr_idx, hr_idx) == 1.0 for yr_idx in 1:get_num_years(data), hr_idx in 1:get_num_hours(data))
 
-        # Generator 2 is a solar generator in narnia, should be equal to 0.5 in hours 1 and 4, 0.6 in hours 2 and 3 for 2040.
+        # Generator 2 is a solar generator in narnia, should be equal to 0.5 in hour 1, 0.6 in hours 2 and 3 for 2040, 0 in hour 4.
         @test get_af(data, 2, 3, 1) == 0.5
         @test get_af(data, 2, 3, 2) == 0.6
         @test get_af(data, 2, 3, 3) == 0.6
-        @test get_af(data, 2, 3, 4) == 0.5
+        @test get_af(data, 2, 3, 4) == 0.0
     end
 
     @testset "Test duplicate lines combination" begin

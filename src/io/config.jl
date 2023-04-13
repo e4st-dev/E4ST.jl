@@ -28,7 +28,7 @@ function summarize_config()
         (:nominal_load_file, true, nothing, "The filepath (relative or absolute) to the time representation.  See [`summarize_table(::Val{:nominal_load})`](@ref)"),
         (:years, true, nothing, "a list of years to run in the simulation specified as a string.  I.e. `\"y2030\"`"),
         (:optimizer, true, nothing, "The optimizer type and attributes to use in solving the linear program.  The `type` field should be always be given, (i.e. `type: HiGHS`) as well as each of the solver options you wish to set.  E4ST is a BYOS (Bring Your Own Solver :smile:) library, with default attributes for HiGHS and Gurobi.  For all other solvers, you're on your own to provide a reasonable set of attributes.  To see a full list of solvers with work with JuMP.jl, see [here](https://jump.dev/JuMP.jl/stable/installation/#Supported-solvers)."),
-        (:mods, true, nothing, "A list of `Modification`s specifying changes for how E4ST runs.  See the [`Modification`](@ref) for information on what they are, how to add them to a config file."),
+        (:mods, false, OrderedDict{Symbol, Modification}(), "A list of `Modification`s specifying changes for how E4ST runs.  See the [`Modification`](@ref) for information on what they are, how to add them to a config file."),
         
         ## Optional Fields:
         (:out_path, false, nothing, "the path to output to.  If this is not provided, an output path will be created [`make_out_path!`](@ref)."),
@@ -127,7 +127,7 @@ function _read_config(filenames; kwargs...)
     for i in 2:length(filenames)
         _read_config!(config, filenames[i])
     end
-
+    _merge_config!(config, kwargs)
     return config
 end
 
@@ -145,6 +145,9 @@ function _merge_config!(config::OrderedDict, config_new)
     merge!(config, config_new)
     config[:config_file] = config_file
     config[:mods] = mods
+
+    # Filter anything that is set to nothing
+    filter!(p->!isnothing(p.second), config)
     return nothing
 end
 

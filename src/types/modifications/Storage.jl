@@ -237,44 +237,44 @@ function modify_model!(mod::Storage, config, data, model)
         ) == 0.0
     )
 
-    # ### Constrain net charge after each hour in each interval is bounded by maximum charge
-    # # Constrain upper limit on charge
-    # @constraint(model,
-    #     cons_stor_charge_max[
-    #         stor_idx in axes(storage,1),
-    #         yr_idx in 1:nyr,
-    #         int_idx in 1:storage.num_intervals[stor_idx],
-    #         _hr_idx in 1:(length(storage.intervals[stor_idx][int_idx]) - 1)
-    #     ],
-    #     sum(
-    #         (
-    #             pdischarge_stor[stor_idx, yr_idx, hr_idx] -
-    #             pcharge_stor[stor_idx, yr_idx, hr_idx] * storage.storage_efficiency[stor_idx]
-    #         ) *
-    #         storage.interval_hour_duration[stor_idx][hr_idx]
-    #         for hr_idx in storage.intervals[stor_idx][int_idx][1:_hr_idx]
-    #     # ) <= pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
-    #     )  + e0_stor[stor_idx] <= pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
-    # )
+    ### Constrain net charge after each hour in each interval is bounded by maximum charge
+    # Constrain upper limit on charge
+    @constraint(model,
+        cons_stor_charge_max[
+            stor_idx in axes(storage,1),
+            yr_idx in 1:nyr,
+            int_idx in 1:storage.num_intervals[stor_idx],
+            _hr_idx in 1:(length(storage.intervals[stor_idx][int_idx]) - 1)
+        ],
+        sum(
+            (
+                pdischarge_stor[stor_idx, yr_idx, hr_idx] -
+                pcharge_stor[stor_idx, yr_idx, hr_idx] * storage.storage_efficiency[stor_idx]
+            ) *
+            storage.interval_hour_duration[stor_idx][hr_idx]
+            for hr_idx in storage.intervals[stor_idx][int_idx][1:_hr_idx]
+        # ) <= pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
+        )  + e0_stor[stor_idx] <= pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
+    )
     
-    # # Constrain lower limit on charge
-    # @constraint(model,
-    #     cons_stor_charge_min[
-    #         stor_idx in axes(storage,1),
-    #         yr_idx in 1:nyr,
-    #         int_idx in 1:storage.num_intervals[stor_idx],
-    #         _hr_idx in 1:(length(storage.intervals[stor_idx][int_idx]) - 1)
-    #     ],
-    #     sum(
-    #         (
-    #             pdischarge_stor[stor_idx, yr_idx, hr_idx] - 
-    #             pcharge_stor[stor_idx, yr_idx, hr_idx] * storage.storage_efficiency[stor_idx]
-    #         ) * 
-    #         storage.interval_hour_duration[stor_idx][hr_idx] 
-    #         for hr_idx in storage.intervals[stor_idx][int_idx][1:_hr_idx]
-    #     # ) >= 0 # -pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
-    #     ) + e0_stor[stor_idx] >= 0 # -pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
-    # )
+    # Constrain lower limit on charge
+    @constraint(model,
+        cons_stor_charge_min[
+            stor_idx in axes(storage,1),
+            yr_idx in 1:nyr,
+            int_idx in 1:storage.num_intervals[stor_idx],
+            _hr_idx in 1:(length(storage.intervals[stor_idx][int_idx]) - 1)
+        ],
+        sum(
+            (
+                pdischarge_stor[stor_idx, yr_idx, hr_idx] - 
+                pcharge_stor[stor_idx, yr_idx, hr_idx] * storage.storage_efficiency[stor_idx]
+            ) * 
+            storage.interval_hour_duration[stor_idx][hr_idx] 
+            for hr_idx in storage.intervals[stor_idx][int_idx][1:_hr_idx]
+        # ) >= 0 # -pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
+        ) + e0_stor[stor_idx] >= 0 # -pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
+    )
 
     ### Add build constraints for endogenous batteries
 
