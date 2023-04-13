@@ -21,9 +21,9 @@ function summarize_table(::Val{:storage})
     push!(df, 
         (:bus_idx, Int64, NA, true, "The index of the `bus` table that the storage device corresponds to"),
         (:status, Bool, NA, false, "Whether or not the storage device is in service"),
-        (:build_status, AbstractString, NA, true, "Whether the storage device is 'built', 'new', or 'unbuilt'. All storage devices marked 'new' when the gen file is read in will be changed to 'built'."),
+        (:build_status, AbstractString, NA, true, "Whether the storage device is 'built', 'new', or 'unbuilt'. All storage devices marked 'new' when the storage file is read in will be changed to 'built'."),
         (:build_type, AbstractString, NA, true, "Whether the storage device is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
-        (:year_on, AbstractString, Year, true, "The first year of operation for the storage device. (For new devices this is also the year it was built)"),
+        (:year_on, YearString, Year, true, "The first year of operation for the storage device. (For new devices this is also the year it was built)"),
         (:pcap0, Float64, MWCapacity, true, "Starting nameplate power discharge capacity for the storage device"),
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power discharge capacity of the storage device (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power discharge capacity of the storage device"),
@@ -48,9 +48,9 @@ function summarize_table(::Val{:build_storage})
         (:status, Bool, NA, false, "Whether or not the storage device is in service"),
         (:build_status, AbstractString, NA, true, "Whether the storage device is 'built', 'new', or 'unbuilt'. All storage devices marked 'new' when the gen file is read in will be changed to 'built'."),
         (:build_type, AbstractString, NA, true, "Whether the storage device is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
-        (:year_on, AbstractString, Year, true, "The first year of operation for the storage device. (For new devices this is also the year it was built)"),
-        (:year_on_min, AbstractString, NA, true, "The first year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
-        (:year_on_max, AbstractString, NA, true, "The last year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
+        (:year_on, YearString, Year, true, "The first year of operation for the storage device. (For new devices this is also the year it was built)"),
+        (:year_on_min, YearString, Year, true, "The first year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
+        (:year_on_max, YearString, Year, true, "The last year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
         (:pcap0, Float64, MWCapacity, true, "Starting nameplate power discharge capacity for the storage device"),
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power discharge capacity of the storage device (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power discharge capacity of the storage device"),
@@ -79,6 +79,8 @@ function modify_setup_data!(mod::Storage, config, data)
     storage = get_table(data, :storage)
     hours = get_table(data, :hours)
     years = get_years(data)
+
+    data[:storage_table_original_cols] = propertynames(storage)
 
     add_buildable_storage!(config, data)
 
@@ -148,7 +150,7 @@ function add_buildable_storage!(config, data)
     build_storage = get_table(data, :build_storage)
     bus =           get_table(data, :bus)
 
-    spec_names = filter!(!=(:bus_idx), propertynames(newgen))
+    spec_names = filter!(!=(:bus_idx), propertynames(storage))
     years = get_years(data)
 
     for spec_row in eachrow(build_storage)
@@ -166,7 +168,7 @@ function add_buildable_storage!(config, data)
                 for year in years
                     year < year_on_min && continue
                     year > year_on_max && continue
-                    
+
                     # Make row to add to the storage table
                     new_row = Dict(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
                     new_row[:year_on] = year
@@ -287,7 +289,7 @@ function modify_model!(mod::Storage, config, data, model)
                 # Only for years before the device came online
                 years[yr_idx] < storage.year_on[stor_idx]
             ],
-            stor_idx[stor_idx, yr_idx] == 0
+            pcap_stor[stor_idx, yr_idx] == 0
         ) 
     end
 
@@ -371,16 +373,57 @@ function modify_results!(mod::Storage, config, data)
     add_table_col!(data, :storage, :edischarge, edischarge_stor, MWhDischarged, "Energy that went was discharged by the storage device")
 
     transform!(storage,
-        [:pcharge, :storage_efficiency] => ByRow((p,η) -> p * (1-(1/η))) => :ploss
+        [:pcharge, :storage_efficiency] => ByRow((p,η) -> p * (1 - η)) => :ploss
     )
 
     add_table_col!(data, :storage, :ploss, storage.ploss, MWServed, "Power that was lost by the battery, counted as served load")
     eloss = weight_hourly(data, storage.ploss)
     add_table_col!(data, :storage, :eloss, eloss, MWhServed, "Energy that was lost by the battery, counted as served load")
 
-    
+    # Save out the updated storage table
+
+    save_updated_storage_table(config, data)
 
 
 
 end
 export modify_results!
+
+"""
+    save_updated_storage_table(config, data)
+
+Saves the updated storage table with any additional storage units, updated capacities, etc.
+"""
+function save_updated_storage_table(config, data)
+    storage = get_table(data, :storage)
+    original_cols = data[:storage_table_original_cols]
+
+    # Grab only the original columns, and return to their original values for any that may have been modified.
+    storage_tmp = storage[:, original_cols]
+    for col_name in original_cols
+        col = storage_tmp[!, col_name]
+        if eltype(col) <: Container
+            storage_tmp[!, col_name] = get_original.(storage_tmp[!, col_name])
+        end
+    end
+
+    # Update pcap0 to be the last value of pcap
+    storage_tmp.pcap0 = last.(storage.pcap)
+
+    # Filter anything with capacity below the threshold
+    thresh = config[:gen_pcap_threshold]
+    filter!(:pcap0 => >(thresh), storage_tmp)
+    storage_tmp.pcap_max = copy(storage_tmp.pcap0)
+
+
+    # Combine storage devices that are the same
+    gdf = groupby(storage_tmp, Not(:pcap0))
+    storage_tmp_combined = combine(gdf,
+        :pcap0 => sum => :pcap0
+    )
+    storage_tmp_combined.pcap_max = copy(storage_tmp_combined.pcap0)
+
+    CSV.write(get_out_path(config, "storage.csv"), storage_tmp_combined)
+    return nothing
+end
+export save_updated_storage_table

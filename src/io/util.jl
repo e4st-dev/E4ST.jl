@@ -39,6 +39,24 @@ end
 export get_year_idxs
 
 
+struct YearString end
+function YearString(s::AbstractString)
+    s # Assume that if a string is given, it is right
+
+    # yregex = r"y(\d{4}\.?\d*)+"
+    # ym = match(yregex, year)
+    # if isnothing(ym)
+    #     yregex = r"(\d{4}\.?\d*)+"
+    #     ym = match(yregex, year)
+    #     if isnothing(ym)
+    #         error("Year string $s cannot be converted to a YearString")
+    #     end
+    #     return "y$(ym.captures[1])"
+    # end
+    # return s
+end
+YearString(n::Number) = year2string(n)
+export YearString
 
 """
     year2int(year) -> 

@@ -82,7 +82,7 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | :bus | :plserv | MWServed | Average power served at this bus |
 | :bus | :eserv | MWhServed | Electricity served at this bus for the weighted representative hour |
 | :bus | :plcurt | MWCurtailed | Average power curtailed at this bus |
-| :bus | :ecurt | MWhCurtailed | Electricity curtailed at this bus for the weighted representative hour |
+| :bus | :elcurt | MWhCurtailed | Electricity curtailed at this bus for the weighted representative hour |
 | :bus | :elnom  | MWhLoad | Electricity load at this bus for the weighted representative hour |
 | :gen | :pgen | MWGenerated | Average power generated at this generator |
 | :gen | :egen | MWhGenerated | Electricity generated at this generator for the weighted representative hour |
@@ -107,7 +107,7 @@ function parse_power_results!(config, data)
     # Weight things by hour as needed
     egen_bus = weight_hourly(data, pgen_bus)
     eserv_bus = weight_hourly(data, plserv_bus)
-    ecurt_bus = weight_hourly(data, plcurt_bus)
+    elcurt_bus = weight_hourly(data, plcurt_bus)
     elnom_bus = weight_hourly(data, get_table_col(data, :bus, :plnom))
     
     # Create new things as needed
@@ -121,7 +121,7 @@ function parse_power_results!(config, data)
     add_table_col!(data, :bus, :plserv, plserv_bus, MWServed,"Average power served at this bus")
     add_table_col!(data, :bus, :eserv, eserv_bus, MWhServed,"Electricity served at this bus for the weighted representative hour")      
     add_table_col!(data, :bus, :plcurt, plcurt_bus, MWCurtailed,"Average power curtailed at this bus")
-    add_table_col!(data, :bus, :ecurt, ecurt_bus, MWhCurtailed,"Electricity curtailed at this bus for the weighted representative hour")   
+    add_table_col!(data, :bus, :elcurt, elcurt_bus, MWhCurtailed,"Electricity curtailed at this bus for the weighted representative hour")   
     add_table_col!(data, :bus, :elnom,  elnom_bus,  MWhLoad,"Electricity load at this bus for the weighted representative hour")   
 
     # Add things to the gen table
@@ -198,12 +198,13 @@ function save_updated_gen_table(config, data)
     thresh = config[:gen_pcap_threshold]
     filter!(:pcap0 => >(thresh), gen_tmp)
 
-
     # Combine generators that are the same
     gdf = groupby(gen_tmp, Not(:pcap0))
     gen_tmp_combined = combine(gdf,
         :pcap0 => sum => :pcap0
     )
+    gen_tmp_combined.pcap_max = copy(gen_tmp_combined.pcap0)
+
 
     CSV.write(get_out_path(config, "gen.csv"), gen_tmp_combined)
     return nothing

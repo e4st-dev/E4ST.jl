@@ -19,23 +19,26 @@
     obj = get_raw_result(data, :obj)
     cons_stor_charge_bal = get_raw_result(data, :cons_stor_charge_bal)
     e0_stor = get_raw_result(data, :e0_stor)
-    @show pcharge_stor = get_raw_result(data, :pcharge_stor)
-    @show pdischarge_stor = get_raw_result(data, :pdischarge_stor)
+    pcharge_stor = get_raw_result(data, :pcharge_stor)
+    pdischarge_stor = get_raw_result(data, :pdischarge_stor)    
 
-    @show pcap_stor
-    @show echarge
-    @show edischarge
-    @show obj
-    # @show cons_stor_charge_bal
-    @show e0_stor
-    
+    @test pcap_stor > 0.05
 
-    @test pcap_stor > 0.001
+    # Test that there is some endogenous storage being built
+    @test aggregate_result(total, data, :storage, :pcap, :build_type=>"endog") > 1e-6
+
+    # Test that there is more charging than discharging due to loss
     @test echarge > edischarge
+    @test aggregate_result(total, data, :bus, :elcurt) < 1e-6
+
 
     # Test that we are either charging or discharging in every hour, not both
     thresh = 1e-6
     @test all(i->(pcharge_stor[i] < thresh || pdischarge_stor[i] < thresh), eachindex(pcharge_stor))
 
+    # Test that we have positive loss
+    @test aggregate_result(total, data, :storage, :eloss) > 1e-6
+    @test aggregate_result(total, data, :storage, :eloss) ≈ aggregate_result(total, data, :storage, :echarge) - aggregate_result(total, data, :storage, :edischarge)
 
+    @test isfile(get_out_path(config, "storage.csv"))
 end
