@@ -97,5 +97,8 @@
         ranks = list_mod_ranks(config)
         @test ranks[:example_ptc] < ranks[:example_rps]
 
+        type_ranks = list_type_ranks()
+        @test type_ranks isa OrderedDict
+
     end
 end

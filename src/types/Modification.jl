@@ -186,7 +186,7 @@ export mod_rank
 
 function list_type_ranks()
     all_types = subtypes(Modification)
-    ranks = OrderedDict{DataType, Float64}()
+    ranks = OrderedDict{Any, Float64}()
     for t in all_types
         ranks[t] = mod_rank(t)
     end
@@ -194,6 +194,7 @@ function list_type_ranks()
     sort!(ranks; byvalue=true)
     return ranks
 end
+export list_type_ranks
 
 function list_mod_ranks(config)
     mods = config[:mods]
