@@ -111,48 +111,8 @@ function setup_dcopf!(config, data, model)
         ], 
         -pflow_branch[branch_idx, year_idx, hour_idx] <= get_pflow_branch_max(data, branch_idx, year_idx, hour_idx)
     )
-    
-    # Constrain Capacity to 0 before the start/build year 
-    if any(>(first(years)), gen.year_on)
-        @constraint(model, 
-            cons_pcap_prebuild[
-                gen_idx in 1:ngen, 
-                year_idx in 1:nyear;
-                # Only for years before the generator came online
-                years[year_idx] < get_table_val(data, :gen, :year_on, gen_idx)
-            ],
-            pcap_gen[gen_idx, year_idx] == 0
-        ) 
-    end
 
-    # Constrain existing capacity to only decrease (only retire, not add capacity)
-    if nyear > 1
-        @constraint(model, 
-            cons_pcap_noadd[
-                gen_idx in 1:ngen, 
-                year_idx in 1:(nyear-1);
-                years[year_idx] >= get_table_val(data, :gen, :year_on, gen_idx)
-            ],
-            pcap_gen[gen_idx, year_idx+1] <= pcap_gen[gen_idx, year_idx]
-        )
-    end
-
-    if any(row->(row.build_type==("exog") && row.build_status == "unbuilt" && last(years) >= row.year_on), eachrow(gen))
-        @constraint(model,
-            cons_pcap_gen_exog[
-                gen_idx in axes(gen,1),
-                yr_idx in 1:nyear;
-                # Only for exogenous, unbuilt generators, and only for the build year.
-                (
-                    gen.build_type[gen_idx] == "exog" && 
-                    gen.build_status[gen_idx] == "unbuilt" &&
-                    yr_idx == findfirst(year -> gen.year_on[gen_idx] >= year, years)
-                )
-            ],
-            pcap_gen[gen_idx, yr_idx] == gen.pcap0[gen_idx]
-        )
-    end
-
+    add_build_constraints!(data, model, :gen, :pcap_gen)
     
     ## Objective Function 
     @info "Building Objective"

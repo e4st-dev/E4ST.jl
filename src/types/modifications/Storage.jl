@@ -24,8 +24,8 @@ Storage is represented over sets of time-weighted sequential representative hour
 * `cons_stor_charge_bal[stor_idx, yr_idx, int_idx]` - the charge balancing equation - net charge in each interval is 0
 * `cons_stor_charge_max[stor_idx, yr_idx, int_idx, _hr_idx]` - constrain the stored energy in each hour of each interval to be less than the maximum (function of `pcap_stor` and the discharge duration column of the storage table).  Note `_hr_idx` is the index within the interval, not the normal `hr_idx`
 * `cons_stor_charge_min[stor_idx, yr_idx, int_idx, _hr_idx]` - constrain the stored energy in each hour of each interval to be greater than zero.  Note `_hr_idx` is the index within the interval, not the normal `hr_idx`
-* `cons_pcap_noadd_stor[stor_idx, yr_idx; years[yr_idx] >= storage.year_on[stor_idx]]` - constrain the capacity to be non-increasing after being built. (only in multi-year simulations)
-* `cons_pcap_prebuild_stor[stor_idx, yr_idx; years[yr_idx] < storage.year_on[stor_idx]]` - constrain the capacity to be zero before being built. (should only happen in multi-year simulations)
+* `cons_pcap_stor_noadd[stor_idx, yr_idx; years[yr_idx] >= storage.year_on[stor_idx]]` - constrain the capacity to be non-increasing after being built. (only in multi-year simulations)
+* `cons_pcap_stor_prebuild[stor_idx, yr_idx; years[yr_idx] < storage.year_on[stor_idx]]` - constrain the capacity to be zero before being built. (should only happen in multi-year simulations)
 * `cons_pcap_stor_exog[stor_idx, yr_idx]` - constrain the exogenous, unbuilt capacity to equal pcap0 for the first year >= its build year.
 
 # Objective Terms
@@ -315,46 +315,7 @@ function modify_model!(mod::Storage, config, data, model)
     )
 
     ### Add build constraints for endogenous batteries
-
-    # Constrain Capacity to 0 before the start/build year 
-    if any(>(first(years)), storage.year_on)
-        @constraint(model, 
-            cons_pcap_prebuild_stor[
-                stor_idx in axes(storage, 1),
-                yr_idx in 1:nyr;
-                # Only for years before the device came online
-                years[yr_idx] < storage.year_on[stor_idx]
-            ],
-            pcap_stor[stor_idx, yr_idx] == 0
-        ) 
-    end
-
-    # Constrain existing capacity to only decrease (only retire, not add capacity)
-    if nyr > 1
-        @constraint(model, 
-            cons_pcap_noadd_stor[
-                stor_idx in axes(storage,1),
-                yr_idx in 1:(nyr-1);
-                years[yr_idx] >= storage.year_on[stor_idx]
-            ], 
-            pcap_stor[stor_idx, yr_idx+1] <= pcap_stor[stor_idx, yr_idx])
-    end
-
-    if any(row->(row.build_type==("exog") && row.build_status == "unbuilt" && last(years) >= row.year_on), eachrow(storage))
-        @constraint(model,
-            cons_pcap_stor_exog[
-                stor_idx in axes(storage,1),
-                yr_idx in 1:nyr;
-                # Only for exogenous generators, and only for the build year.
-                (
-                    storage.build_type[stor_idx] == "exog" && 
-                    storage.build_status[stor_idx] == "unbuilt" &&
-                    yr_idx == findfirst(year -> storage.year_on[stor_idx] >= year, years)
-                )
-            ],
-            pcap_stor[stor_idx, yr_idx] == storage.pcap0[stor_idx]
-        )
-    end
+    add_build_constraints!(data, model, :storage, :pcap_stor)
     
     ### Add charge/discharge to appropriate expressions in power balancing equation
     plserv_bus = model[:plserv_bus]
