@@ -39,8 +39,6 @@ mod_rank(::Type{<:GenerationStandard}) = 1.0 #not sure this matters because this
 Adds column to the gen table with the credit level of the generation standard. Adds the name and type of the policy to the gs_pol_list in data. 
 """
 function modify_setup_data!(pol::GenerationStandard, config, data)
-    #add policy name and type to data[:gs_pol_list]
-    add_to_gs_pol_list!(pol, config, data) 
 
     #get gen idxs 
     gen = get_table(data, :gen)
@@ -105,19 +103,5 @@ export modify_model!
 ## Helper Functions
 #############################################################################################################
 
-"""
-    add_to_gs_pol_list!(pol, config, data) -> 
 
-Adds the generation standard policy name and type as a key value pair in an ordered dict `data[:gs_pol_list]`
-"""
-function add_to_gs_pol_list!(pol::GenerationStandard{T}, config, data) where T
-    if haskey(data, :gs_pol_list) #TODO: could come up with better name
-        data[:gs_pol_list][pol.name] = T
-    else 
-        #create gs_pol_list if it doesn't exist yet
-        data[:gs_pol_list] = OrderedDict{}(
-            pol.name => T
-        )
-    end
-end
 

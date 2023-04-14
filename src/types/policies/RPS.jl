@@ -35,6 +35,15 @@ Standard RPS crediting structure. Anything included in the RPS gentypes recieves
 struct StandardRPSCrediting <: Crediting end
 export StandardRPSCrediting
 
+StandardRPSCrediting() = CreditByGentype(OrderedDict(
+    "solar"=>1.0, 
+    "dist_solar"=>1.0,
+    "wind"=>1.0,
+    "oswind"=>1.0, 
+    "geothermal"=>1.0, 
+    "hcc_new"=>1.0, 
+    "hcc_ret"=>1.0 ))
+
 """
     get_credit(c::StandardRPSCrediting, data, gen_row::DataFrameRow)
 
@@ -43,9 +52,21 @@ Qualifying technologies include: hyrdogen, geothermal, solar, and wind (SUBJECT 
 Anything qualifying technology gets a credit of one. 
 """
 function get_credit(c::StandardRPSCrediting, data, gen_row::DataFrameRow)
-    rps_gentypes = ["solar", "dist_solar", "wind", "oswind", "geothermal", "hcc_new", "hcc_ret"]
-    gen_row.gentype in rps_gentypes && return ByNothing(1.0)
+    # rps_gentypes = ["solar", "dist_solar", "wind", "oswind", "geothermal", "hcc_new", "hcc_ret"]
+    # gen_row.gentype in rps_gentypes && return ByNothing(1.0)
+    
     #This could also be written to call the CreditByGentype method but probably not any better
+
+    c = CreditByGentype(OrderedDict(
+        "solar"=>1.0, 
+        "dist_solar"=>1.0,
+        "wind"=>1.0,
+        "oswind"=>1.0, 
+        "geothermal"=>1.0, 
+        "hcc_new"=>1.0, 
+        "hcc_ret"=>1.0 ))
+    get_credit(c, data, gen_row)
+
 end
 export get_credit
 

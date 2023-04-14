@@ -1,4 +1,4 @@
-@testset "Test Basic Policy Types" begin 
+@testset "Test Basic Policy Types" begin
     # Test basic poltypes 
     # Includes PTC, ITC, ...
 
@@ -21,7 +21,7 @@
     # Policy tests
     #####################################################################
 
-    @testset "Test PTC" begin 
+    @testset "Test PTC" begin
         config_file = joinpath(@__DIR__, "config", "config_3bus_ptc.yml")
         config = read_config(config_file_ref, config_file)
 
@@ -37,9 +37,9 @@
             @test typeof(gen.example_ptc) == Vector{Container}
 
             @test any(ptc -> typeof(ptc) == E4ST.ByYear, gen.example_ptc)
-            
+
             # test that ByYear containers have non zero values
-            @test sum(ptc->sum(ptc.v), gen.example_ptc) > 0
+            @test sum(ptc -> sum(ptc.v), gen.example_ptc) > 0
 
             #TODO: test that only has byYear for qualifying gens 
         end
@@ -47,7 +47,7 @@
         @testset "Adding PTC to model" begin
             #test that PTC is added to the obj 
             @test haskey(data[:obj_vars], :example_ptc)
-            @test haskey(model, :example_ptc) 
+            @test haskey(model, :example_ptc)
 
             #make sure model still optimizes 
             optimize!(model)
@@ -69,7 +69,7 @@
         model = setup_model(config, data)
 
         gen = get_table(data, :gen)
-        
+
         @testset "Adding ITC to gen table" begin
             @test hasproperty(gen, :example_itc)
 
@@ -78,15 +78,15 @@
 
             # Check that there are ByYear containers
             @test any(itc -> typeof(itc) == E4ST.ByYear, gen.example_itc)
-            
+
             # test that ByYear containers have non zero values
-            @test sum(itc->sum(itc.v), gen.example_itc) > 0
+            @test sum(itc -> sum(itc.v), gen.example_itc) > 0
         end
 
         @testset "Adding ITC to the model" begin
             #test that ITC is added to the obj 
             @test haskey(data[:obj_vars], :example_itc)
-            @test haskey(model, :example_itc) 
+            @test haskey(model, :example_itc)
 
             #make sure model still optimizes 
             optimize!(model)
@@ -113,8 +113,8 @@
             # read back into config yaml without the gen_cons
             save_config(config)
 
-            outfile = get_out_path(config,"config.yml")
-            savedconfig = YAML.load_file(outfile, dicttype=OrderedDict{Symbol, Any})
+            outfile = get_out_path(config, "config.yml")
+            savedconfig = YAML.load_file(outfile, dicttype=OrderedDict{Symbol,Any})
             savedmods = savedconfig[:mods]
 
             @test haskey(savedmods, :example_emiscap)
@@ -152,11 +152,11 @@
             ## Check that policy impacts results 
             gen = get_table(data, :gen)
             years = get_years(data)
-            emis_co2_total = aggregate_result(total, data, :gen, :emis_co2, :, [2,3])
+            emis_co2_total = aggregate_result(total, data, :gen, :emis_co2, :, [2, 3])
 
 
             gen_ref = get_table(data_ref, :gen)
-            emis_co2_total_ref = aggregate_result(total, data_ref, :gen, :emis_co2, :, [2,3])
+            emis_co2_total_ref = aggregate_result(total, data_ref, :gen, :emis_co2, :, [2, 3])
 
             # check that emissions are reduced
             @test emis_co2_total < emis_co2_total_ref
@@ -166,15 +166,15 @@
             emis_co2_total_2035 = aggregate_result(total, data, :gen, :emis_co2, :, idx_2035)
 
             @test emis_co2_total_2035 <= config[:mods][:example_emiscap][:targets][:y2035] + 0.001
-            
+
 
             idx_2040 = get_year_idxs(data, "y2040")
             emis_co2_total_2040 = aggregate_result(total, data, :gen, :emis_co2, :, idx_2040)
 
             @test emis_co2_total_2040 <= config[:mods][:example_emiscap][:targets][:y2040] + 0.001
-            
 
-            
+
+
 
             #check that policy is binding 
             cap_prices = get_raw_result(data, :cons_example_emiscap_max)
@@ -191,42 +191,42 @@
         data = read_data(config)
         model = setup_model(config, data)
 
+        gen = get_table(data, :gen)
+
+        @testset "Adding Emis Prc to gen table" begin
+            @test hasproperty(gen, :example_emisprc)
+
+            # Test that there are byYear containers 
+            @test typeof(gen.example_emisprc) == Vector{Container}
+
+            # Check that there are ByYear containers
+            @test any(emisprc -> typeof(emisprc) == E4ST.ByYear, gen.example_emisprc)
+
+            # test that ByYear containers have non zero values
+            @test sum(emisprc -> sum(emisprc.v), gen.example_emisprc) > 0
+        end
+
+        @testset "Adding Emis Prc to the model" begin
+            #test that emis prc is added to the obj 
+            @test haskey(data[:obj_vars], :example_emisprc)
+            @test haskey(model, :example_emisprc)
+
+            #make sure model still optimizes 
+            optimize!(model)
+            @test check(model)
+
+            # process results
+            parse_results!(config, data, model)
+            process_results!(config, data)
+
+            ## Check that policy impacts results 
             gen = get_table(data, :gen)
+            years = get_years(data)
+            emis_prc_mod = config[:mods][:example_emisprc]
+            emis_co2_total = aggregate_result(total, data, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
 
-            @testset "Adding Emis Prc to gen table" begin
-                @test hasproperty(gen, :example_emisprc)
-
-                # Test that there are byYear containers 
-                @test typeof(gen.example_emisprc) == Vector{Container}
-
-                # Check that there are ByYear containers
-                @test any(emisprc -> typeof(emisprc) == E4ST.ByYear, gen.example_emisprc)
-                
-                # test that ByYear containers have non zero values
-                @test sum(emisprc->sum(emisprc.v), gen.example_emisprc) > 0
-            end
-
-            @testset "Adding Emis Prc to the model" begin
-                #test that emis prc is added to the obj 
-                @test haskey(data[:obj_vars], :example_emisprc)
-                @test haskey(model, :example_emisprc) 
-
-                #make sure model still optimizes 
-                optimize!(model)
-                @test check(model)
-
-                # process results
-                parse_results!(config, data, model)
-                process_results!(config, data)
-
-                ## Check that policy impacts results 
-                gen = get_table(data, :gen)
-                years = get_years(data)
-                emis_prc_mod = config[:mods][:example_emisprc]
-                emis_co2_total = aggregate_result(total, data, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
-
-                gen_ref = get_table(data_ref, :gen)
-                emis_co2_total_ref = aggregate_result(total, data_ref, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
+            gen_ref = get_table(data_ref, :gen)
+            emis_co2_total_ref = aggregate_result(total, data_ref, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
 
             # check that emissions are reduced for qualifying gens
             @test emis_co2_total < emis_co2_total_ref
@@ -249,26 +249,26 @@
             ranks = list_mod_ranks(config)
             @test ranks[:example_rps] > 0.0
 
-            @testset "Test Crediting RPS" begin 
+            @testset "Test Crediting RPS" begin
                 # columns added to the gen table
                 @test hasproperty(gen, :example_rps)
                 @test hasproperty(gen, :example_rps_gentype)
 
                 # check that some crediting was applied
-                @test any(credit -> get_original(credit) > 0.0, gen[!,:example_rps])
-                @test any(credit -> get_original(credit) > 0.0, gen[!,:example_rps_gentype])
+                @test any(credit -> get_original(credit) > 0.0, gen[!, :example_rps])
+                @test any(credit -> get_original(credit) > 0.0, gen[!, :example_rps_gentype])
 
-                @test ~any(credit -> get_original(credit) > 1.0 || get_original(credit) < 0.0, gen[!,:example_rps])
-                @test ~any(credit -> get_original(credit) > 1.0 || get_original(credit) < 0.0, gen[!,:example_rps_gentype])
+                @test ~any(credit -> get_original(credit) > 1.0 || get_original(credit) < 0.0, gen[!, :example_rps])
+                @test ~any(credit -> get_original(credit) > 1.0 || get_original(credit) < 0.0, gen[!, :example_rps_gentype])
 
-            end 
+            end
 
             @testset "Adding RPS to model" begin
 
                 #make sure model still optimizes 
                 optimize!(model)
                 @test check(model)
-                
+
                 @test haskey(model, :pl_gs_bus)
                 @test haskey(model, :cons_example_rps)
                 @test haskey(model, :cons_example_rps_gentype)
@@ -290,25 +290,25 @@
 
                 gen = get_table(data, :gen)
 
-                gen_total_qual = aggregate_result(total, data, :gen, :egen, [:emis_co2=>0, :country=>"archenland"])
-                eserv_total_qual = aggregate_result(total, data, :bus, :eserv, :state=>"stormness")
+                gen_total_qual = aggregate_result(total, data, :gen, :egen, [:emis_co2 => 0, :country => "archenland"])
+                eserv_total_qual = aggregate_result(total, data, :bus, :eserv, :state => "stormness")
 
-                gen_total_qual_2035 = aggregate_result(total, data, :gen, :egen, [:emis_co2=>0, :country=>"archenland"], 2)
-                eserv_total_qual_2035 = aggregate_result(total, data, :bus, :eserv, :state=>"stormness", 2)
+                gen_total_qual_2035 = aggregate_result(total, data, :gen, :egen, [:emis_co2 => 0, :country => "archenland"], 2)
+                eserv_total_qual_2035 = aggregate_result(total, data, :bus, :eserv, :state => "stormness", 2)
 
-                @test gen_total_qual_2035/eserv_total_qual_2035 ≈ rps_mod.targets[:y2035]
+                @test gen_total_qual_2035 / eserv_total_qual_2035 ≈ rps_mod.targets[:y2035]
 
-                gen_total_qual_2040 = aggregate_result(total, data, :gen, :egen, [:emis_co2=>0, :country=>"archenland"], 3)
-                eserv_total_qual_2040 = aggregate_result(total, data, :bus, :eserv, :state=>"stormness", 3)
+                gen_total_qual_2040 = aggregate_result(total, data, :gen, :egen, [:emis_co2 => 0, :country => "archenland"], 3)
+                eserv_total_qual_2040 = aggregate_result(total, data, :bus, :eserv, :state => "stormness", 3)
 
-                @test gen_total_qual_2040/eserv_total_qual_2040 ≈ rps_mod.targets[:y2040]
+                @test gen_total_qual_2040 / eserv_total_qual_2040 ≈ rps_mod.targets[:y2040]
 
                 gen_ref = get_table(data_ref, :gen)
-                gen_total_ref = aggregate_result(total, data_ref, :gen, :egen, :emis_co2=>0)
+                gen_total_ref = aggregate_result(total, data_ref, :gen, :egen, :emis_co2 => 0)
 
                 # check that generation is increased for qualifying gens
                 @test gen_total_qual > gen_total_ref
-            
+
             end
 
         end
@@ -321,15 +321,15 @@
             data = read_data(config)
             gen = get_table(data, :gen)
             model = setup_model(config, data)
-            
+
             @testset "Test Crediting CES" begin
                 # columns added to the gen table
                 @test hasproperty(gen, :example_ces)
 
                 # check that some crediting was applied
-                @test any(credit -> get_original(credit) > 0.0, gen[!,:example_ces])
+                @test any(credit -> get_original(credit) > 0.0, gen[!, :example_ces])
 
-                @test ~any(credit -> get_original(credit) > 1.0 || get_original(credit) < 0.0, gen[!,:example_ces])
+                @test ~any(credit -> get_original(credit) > 1.0 || get_original(credit) < 0.0, gen[!, :example_ces])
 
             end
 
@@ -337,7 +337,7 @@
                 #make sure model still optimizes 
                 optimize!(model)
                 @test check(model)
-                
+
                 @test haskey(model, :pl_gs_bus)
                 @test haskey(model, :cons_example_ces)
 
@@ -352,19 +352,19 @@
                 ## Check that CES correctly impacts results
                 ces_mod = config[:mods][:example_ces]
 
-                gen_total_qual_2035 = aggregate_result(total, data, :gen, :egen, [:emis_co2=><(0.5), :country=>"archenland"], 2)
-                gen_total_qual_2035_ref = aggregate_result(total, data_ref, :gen, :egen, [:emis_co2=><(0.5), :country=>"archenland"], 2)
-                eserv_total_qual_2035 = aggregate_result(total, data, :bus, :eserv, :state=>"anvard", 2)
+                gen_total_qual_2035 = aggregate_result(total, data, :gen, :egen, [:emis_co2 => <(0.5), :country => "archenland"], 2)
+                gen_total_qual_2035_ref = aggregate_result(total, data_ref, :gen, :egen, [:emis_co2 => <(0.5), :country => "archenland"], 2)
+                eserv_total_qual_2035 = aggregate_result(total, data, :bus, :eserv, :state => "anvard", 2)
 
                 @test gen_total_qual_2035 > gen_total_qual_2035_ref
-                @test gen_total_qual_2035/eserv_total_qual_2035 >= ces_mod.targets[:y2035] - 0.001 #would use approx but need the > in case partial credit gen is used
+                @test gen_total_qual_2035 / eserv_total_qual_2035 >= ces_mod.targets[:y2035] - 0.001 #would use approx but need the > in case partial credit gen is used
 
-                gen_total_qual_2040 = aggregate_result(total, data, :gen, :egen, [:emis_co2=><(0.5), :country=>"archenland"], 3)
-                gen_total_qual_2040_ref = aggregate_result(total, data_ref, :gen, :egen, [:emis_co2=><(0.5), :country=>"archenland"], 3)
-                eserv_total_qual_2040 = aggregate_result(total, data, :bus, :eserv, :state=>"anvard", 3)
+                gen_total_qual_2040 = aggregate_result(total, data, :gen, :egen, [:emis_co2 => <(0.5), :country => "archenland"], 3)
+                gen_total_qual_2040_ref = aggregate_result(total, data_ref, :gen, :egen, [:emis_co2 => <(0.5), :country => "archenland"], 3)
+                eserv_total_qual_2040 = aggregate_result(total, data, :bus, :eserv, :state => "anvard", 3)
 
                 @test gen_total_qual_2040 > gen_total_qual_2040_ref
-                @test gen_total_qual_2040/eserv_total_qual_2040 >= ces_mod.targets[:y2040] - 0.001 #would use approx but need the > in case partial credit gen is used
+                @test gen_total_qual_2040 / eserv_total_qual_2040 >= ces_mod.targets[:y2040] - 0.001 #would use approx but need the > in case partial credit gen is used
 
             end
 

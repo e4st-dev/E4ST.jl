@@ -50,8 +50,17 @@ end
 Crediting method where credit levels are specified by gentypes. 
 """
 @Base.kwdef struct CreditByGentype <: Crediting
-    credits::OrderedDict
+    credits::OrderedDict{String,Float64}
+
+    function CreditByGentype(credits=OrderedDict{String,Float64}())
+        if !(credits isa OrderedDict{String, Float64})
+            credits = OrderedDict{String, Float64}(string(k)=>v for (k,v) in credits)
+        end
+        return new(credits)
+    end
 end
+
+CreditByGentype(;credits) = CreditByGentype(credits)
 export CreditByGentype
 
 """
@@ -60,7 +69,7 @@ export CreditByGentype
 Returns the credit level specified for the gentype in c.credits. If no credit is specified for that gentype, it defaults to 0. 
 """
 function get_credit(c::CreditByGentype, data,  gen_row::DataFrameRow)
-    credit = get(c.credits, Symbol(gen_row.gentype), 0.0)
+    credit = get(c.credits, gen_row.gentype, 0.0)
     return ByNothing(credit)
 end
 
@@ -77,7 +86,7 @@ Returns the credit level based on the formula `maximum([1.0 - (gen_emis_rate / c
 """
 function get_credit(c::CreditByBenchmark, data, gen_row::DataFrameRow)
     gen_emis_rate = gen_row[c.gen_col]
-    credit = maximum([1.0 - (gen_emis_rate / c.benchmark), 0.0]) 
+    credit = max(1.0-gen_emis_rate/c.benchmark, 0.0) 
     return ByNothing(credit)
 end
 
