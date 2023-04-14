@@ -216,7 +216,7 @@ function add_buildable_storage!(config, data)
                 # Skip this build if it is after the simulation
                 spec_row.year_on > last(years) && continue
 
-                # for exogenously specified gens, only one generator is created with the specified year_on
+                # for exogenously specified storage, only one storage device is created with the specified year_on
                 new_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
                 push!(storage, new_row, promote=true)
             end

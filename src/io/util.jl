@@ -38,10 +38,27 @@ function get_year_idxs(data, year_string_range::Tuple{<:AbstractString, <:Abstra
 end
 export get_year_idxs
 
+"""
+    struct YearString end
 
+    YearString(s) -> s
+
+    YearString(n::Number) -> year2string(n)
+
+This is a type that acts as a converter to ensure year columns are parsed correctly as strings.  If blank given, left blank.
+"""
 struct YearString end
 function YearString(s::AbstractString)
-    s # Assume that if a string is given, it is right
+    isempty(s) && return s
+    if startswith(s, "y")
+        return s
+    elseif startswith(s, "Y")
+        return lowercase(s)
+    elseif startswith(s, r"\d")
+        return string("y", s)
+    else
+        error("String $s cannot be converted to a year!")
+    end
 
     # yregex = r"y(\d{4}\.?\d*)+"
     # ym = match(yregex, year)
