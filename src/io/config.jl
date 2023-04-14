@@ -32,6 +32,7 @@ function summarize_config()
         
         ## Optional Fields:
         (:out_path, false, nothing, "the path to output to.  If this is not provided, an output path will be created [`make_out_path!`](@ref)."),
+        (:other_config_files, false, nothing, "A list of other config files to read.  Note that the options in the parent file will be honored."),
         (:af_file, false, nothing, "The filepath (relative or absolute) to the availability factor table.  See [`summarize_table(::Val{:af_table})`](@ref)"),
         (:iter, false, RunOnce(), "The [`Iterable`](@ref) object to specify the way the sim should iterate.  If nothing specified, defaults to run a single time via [`RunOnce`](@ref).  Specify the `Iterable` type, and all keyword arguments."),
         (:load_shape_file, false, nothing, "a file for specifying the hourly shape of load elements.  See [`summarize_table(::Val{:load_shape})`](@ref)"),
@@ -112,6 +113,13 @@ function _read_config(filename::AbstractString)
         config = YAML.load_file(filename, dicttype=OrderedDict{Symbol, Any})
         get!(config, :config_file, filename)
         make_paths_absolute!(config)
+        if haskey(config, :other_config_files)
+            other_files = pop!(config, :other_config_files)
+            other_config = _read_config(other_files)
+            _merge_config!(other_config, config)
+            other_config[:config_file] = config[:config_file]
+            return other_config
+        end
     elseif isdir(filename)
         filename_new = joinpath(filename, "config.yml")
         isfile(filename_new) || error("No config file found at the following location:\n  $filename_new")
@@ -139,7 +147,7 @@ end
 function _merge_config!(config::OrderedDict, config_new)
     config_file = config[:config_file]
 
-    mods = config[:mods]
+    mods = get(config, :mods, OrderedDict{Symbol, Any}())
     haskey(config_new, :mods) && merge!(mods, config_new[:mods])
 
     merge!(config, config_new)
@@ -407,6 +415,12 @@ function make_paths_absolute!(config, filename)
             make_paths_absolute!(v, filename)
         end
     end
+    if haskey(config, :other_config_files)
+        config[:other_config_files] = map(config[:other_config_files]) do fn
+            isabspath(fn) && return fn
+            abspath(path, fn)
+        end
+    end        
     return config
 end
 make_paths_absolute!(config) = make_paths_absolute!(config, config[:config_file])

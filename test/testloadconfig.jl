@@ -13,9 +13,10 @@
     end
 
     filename = joinpath(@__DIR__, "config/config_3bus_examplepol.yml")
+    
+    config=read_config(filename)
 
-    @test read_config(filename) isa AbstractDict
-    config = read_config(filename)
+    @test config isa AbstractDict
 
     @test isabspath(config[:out_path])
     @test isabspath(config[:gen_file])
@@ -24,6 +25,9 @@
 
     @test config[:mods] isa OrderedDict{Symbol, <:Modification}
     @test config[:mods][:example_policy].name == :example_policy
+
+    @test config[:test_param1] == "RIGHT"
+    @test config[:test_param2] == "RIGHT"
 
     @testset "Test Loading Optimizer from Config" begin
         attrib = E4ST.optimizer_attributes(config)
