@@ -48,3 +48,5 @@ function get_credit(c::StandardRPSCrediting, data, gen_row::DataFrameRow)
     #This could also be written to call the CreditByGentype method but probably not any better
 end
 export get_credit
+
+

@@ -3,7 +3,7 @@
     const CES = GenerationStandard{:CES}
 
 **Clean Energy Standard** - A policy in which the load serving entity must purchase a certain ampount of clean energy credits. 
-The number of credits for a type of generation depends on it's emission rates relative to a benchmark.
+The number of credits for a type of generation typically depends on it's emission rates relative to a benchmark.
 
 CES is defined as an alias of GenerationStandard. 
 
