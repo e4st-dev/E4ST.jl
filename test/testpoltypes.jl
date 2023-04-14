@@ -6,7 +6,8 @@
     ####################################################################
     config_file_ref = joinpath(@__DIR__, "config", "config_3bus.yml")
     config_file_res = joinpath(@__DIR__, "config", "config_res.yml")
-    config_ref = read_config(config_file_ref, config_file_res)
+    #config_ref = read_config(config_file_ref, config_file_res)
+    config_ref = read_config(config_file_ref)
 
     data_ref = read_data(config_ref)
     model_ref = setup_model(config_ref, data_ref)
@@ -238,7 +239,7 @@
         @testset "Test RPS" begin
 
             config_file = joinpath(@__DIR__, "config", "config_3bus_rps.yml")
-            config = read_config(config_file_ref, config_file_res, config_file)
+            config = read_config(config_file_ref, config_file)
 
             data = read_data(config)
             model = setup_model(config, data)
@@ -292,18 +293,15 @@
                 gen_total_qual = aggregate_result(total, data, :gen, :egen, [:emis_co2=>0, :country=>"archenland"])
                 eserv_total_qual = aggregate_result(total, data, :bus, :eserv, :state=>"stormness")
 
-                @show gen_total_qual_2035 = aggregate_result(total, data, :gen, :egen, [:emis_co2=>0, :country=>"archenland"], 2)
-                @show eserv_total_qual_2035 = aggregate_result(total, data, :bus, :eserv, :state=>"stormness", 2)
+                gen_total_qual_2035 = aggregate_result(total, data, :gen, :egen, [:emis_co2=>0, :country=>"archenland"], 2)
+                eserv_total_qual_2035 = aggregate_result(total, data, :bus, :eserv, :state=>"stormness", 2)
 
                 @test gen_total_qual_2035/eserv_total_qual_2035 ≈ rps_mod.targets[:y2035]
 
-                @show gen_total_qual_2040 = aggregate_result(total, data, :gen, :egen, [:emis_co2=>0, :country=>"archenland"], 3)
-                @show eserv_total_qual_2040 = aggregate_result(total, data, :bus, :eserv, :state=>"stormness", 3)
+                gen_total_qual_2040 = aggregate_result(total, data, :gen, :egen, [:emis_co2=>0, :country=>"archenland"], 3)
+                eserv_total_qual_2040 = aggregate_result(total, data, :bus, :eserv, :state=>"stormness", 3)
 
                 @test gen_total_qual_2040/eserv_total_qual_2040 ≈ rps_mod.targets[:y2040]
-
-                @show curt_2035 = aggregate_result(total, data, :bus, :ecurt, :state=>"stormness", 2)
-                @show curt_2040 = aggregate_result(total, data, :bus, :ecurt, :state=>"stormness", 3)
 
                 gen_ref = get_table(data_ref, :gen)
                 gen_total_ref = aggregate_result(total, data_ref, :gen, :egen, :emis_co2=>0)
@@ -322,6 +320,7 @@
 
             data = read_data(config)
             gen = get_table(data, :gen)
+            model = setup_model(config, data)
             
             @testset "Test Crediting CES" begin
                 # columns added to the gen table
@@ -335,7 +334,38 @@
             end
 
             @testset "Adding CES to model" begin
+                #make sure model still optimizes 
+                optimize!(model)
+                @test check(model)
                 
+                @test haskey(model, :pl_gs_bus)
+                @test haskey(model, :cons_example_ces)
+
+                # process results
+                parse_results!(config, data, model)
+                process_results!(config, data)
+
+                ## Check that policy is binding
+                ces_prices = get_raw_result(data, :cons_example_ces)
+                @test abs(ces_prices[:y2035]) + abs(ces_prices[:y2040]) > 1e-6
+
+                ## Check that CES correctly impacts results
+                ces_mod = config[:mods][:example_ces]
+
+                gen_total_qual_2035 = aggregate_result(total, data, :gen, :egen, [:emis_co2=><(0.5), :country=>"archenland"], 2)
+                gen_total_qual_2035_ref = aggregate_result(total, data_ref, :gen, :egen, [:emis_co2=><(0.5), :country=>"archenland"], 2)
+                eserv_total_qual_2035 = aggregate_result(total, data, :bus, :eserv, :state=>"anvard", 2)
+
+                @test gen_total_qual_2035 > gen_total_qual_2035_ref
+                @test gen_total_qual_2035/eserv_total_qual_2035 >= ces_mod.targets[:y2035] - 0.001 #would use approx but need the > in case partial credit gen is used
+
+                gen_total_qual_2040 = aggregate_result(total, data, :gen, :egen, [:emis_co2=><(0.5), :country=>"archenland"], 3)
+                gen_total_qual_2040_ref = aggregate_result(total, data_ref, :gen, :egen, [:emis_co2=><(0.5), :country=>"archenland"], 3)
+                eserv_total_qual_2040 = aggregate_result(total, data, :bus, :eserv, :state=>"anvard", 3)
+
+                @test gen_total_qual_2040 > gen_total_qual_2040_ref
+                @test gen_total_qual_2040/eserv_total_qual_2040 >= ces_mod.targets[:y2040] - 0.001 #would use approx but need the > in case partial credit gen is used
+
             end
 
         end

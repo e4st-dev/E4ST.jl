@@ -13,20 +13,13 @@ To assign the credit (the portion of generation that can contribute) to generato
 * `gs_type` - The original type the GS (RPS, CES, etc)
 """
 struct GenerationStandard{T} <: Policy 
-#struct GenerationStandard <: Policy 
     name::Symbol
     targets::OrderedDict
     crediting::Crediting
     gen_filters::OrderedDict
     load_bus_filters::OrderedDict
-    #gs_type::DataType
 
 end
-
-# function GenerationStandard(;name, targets, crediting::OrderedDict, gen_filters, load_bus_filters, gs_type)
-#     c = Crediting(crediting)
-#     return GenerationStandard(Symbol(name), targets, c, gen_filters, load_bus_filters, gs_type)
-# end
 
 
 function GenerationStandard(;name, targets, crediting::OrderedDict, gen_filters, load_bus_filters)
