@@ -137,6 +137,22 @@ function setup_dcopf!(config, data, model)
         )
     end
 
+    if any(row->(row.build_type==("exog") && row.build_status == "unbuilt" && last(years) >= row.year_on), eachrow(gen))
+        @constraint(model,
+            cons_pcap_gen_exog[
+                gen_idx in axes(gen,1),
+                yr_idx in 1:nyear;
+                # Only for exogenous, unbuilt generators, and only for the build year.
+                (
+                    gen.build_type[gen_idx] == "exog" && 
+                    gen.build_status[gen_idx] == "unbuilt" &&
+                    yr_idx == findfirst(year -> gen.year_on[gen_idx] >= year, years)
+                )
+            ],
+            pcap_gen[gen_idx, yr_idx] == gen.pcap0[gen_idx]
+        )
+    end
+
     
     ## Objective Function 
     @info "Building Objective"

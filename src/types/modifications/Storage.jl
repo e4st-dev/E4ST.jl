@@ -6,6 +6,41 @@
 Storage is represented over sets of time-weighted sequential representative hours for which the following must hold true, for a given storage device:
 * Net charge over the interval must equal zero.
 * Total charge of the device cannot exceed its maximum charge, or go below zero.
+* Initial charge over an interval can be anywhere between 0 and the maximum charge, and is the same initial charge for each time interval.
+
+# Arguments
+* `name` - the name of the [`Modification`](@ref).
+* `file` - the filename of the storage table, where each row represents a storage device
+.  See also [`summarize_table(::Val{:storage})`](@ref)
+* `build_file` - the filename of the buildable storage table, where each row represents a specification for buildable storage.  See also [`summarize_table(::Val{:build_storage})`](@ref)
+
+# Variables Introduced
+* `pcap_stor[stor_idx, yr_idx]` - The discharge power capacity, in MW, of the storage device.
+* `pcharge_stor[stor_idx, yr_idx, hr_idx]` - The charge power, in MW, for a given hour.
+* `pdischarge_stor[stor_idx, yr_idx, hr_idx]` - The discharged power, in MW, for a given hour.
+* `e0_stor[stor_idx]` - The starting charge energy (in MWh) for each interval.
+
+# Constraints Introduced
+* `cons_stor_charge_bal[stor_idx, yr_idx, int_idx]` - the charge balancing equation - net charge in each interval is 0
+* `cons_stor_charge_max[stor_idx, yr_idx, int_idx, _hr_idx]` - constrain the stored energy in each hour of each interval to be less than the maximum (function of `pcap_stor` and the discharge duration column of the storage table).  Note `_hr_idx` is the index within the interval, not the normal `hr_idx`
+* `cons_stor_charge_min[stor_idx, yr_idx, int_idx, _hr_idx]` - constrain the stored energy in each hour of each interval to be greater than zero.  Note `_hr_idx` is the index within the interval, not the normal `hr_idx`
+* `cons_pcap_noadd_stor[stor_idx, yr_idx; years[yr_idx] >= storage.year_on[stor_idx]]` - constrain the capacity to be non-increasing after being built. (only in multi-year simulations)
+* `cons_pcap_prebuild_stor[stor_idx, yr_idx; years[yr_idx] < storage.year_on[stor_idx]]` - constrain the capacity to be zero before being built. (should only happen in multi-year simulations)
+* `cons_pcap_stor_exog[stor_idx, yr_idx]` - constrain the exogenous, unbuilt capacity to equal pcap0 for the first year >= its build year.
+
+# Objective Terms
+* `capex_obj_stor` - the capital expenditures to build the storage device, only non-zero in the build year.  (function of `pcap_stor` and `capex`, and `year_on`)
+* `fom_stor` - the fixed operation and maintenance costs for the storage device (function of `pcap_stor` and `fom` from the storage table)
+* `vom_stor` - the variable operation and maintenance costs for the storage device (function of `pdischarge_stor`, the `vom` column of the storage table, and the hour weights [`get_hour_weights`](@ref))
+
+# Power Balancing Equation
+Each storage device can either be on the "gen" side or the "load" side, as specified by the `side` column.
+* "gen" side:
+    * `pcharge_stor` gets subtracted from `pgen_bus`
+    * `pdischarge_stor` gets added to `pgen_bus`
+* "load" side:
+    * `pcharge_stor` gets added to `plserv_bus`
+    * `pdischarge_stor` gets subtracted from `plserv_bus`
 """
 struct Storage <: Modification
     name::Symbol
@@ -16,6 +51,7 @@ function Storage(;name, file, build_file="")
     return Storage(name, file, build_file)
 end
 export Storage
+
 function summarize_table(::Val{:storage})
     df = TableSummary()
     push!(df, 
@@ -303,6 +339,22 @@ function modify_model!(mod::Storage, config, data, model)
             ], 
             pcap_stor[stor_idx, yr_idx+1] <= pcap_stor[stor_idx, yr_idx])
     end
+
+    if any(row->(row.build_type==("exog") && row.build_status == "unbuilt" && last(years) >= row.year_on), eachrow(storage))
+        @constraint(model,
+            cons_pcap_stor_exog[
+                stor_idx in axes(storage,1),
+                yr_idx in 1:nyr;
+                # Only for exogenous generators, and only for the build year.
+                (
+                    storage.build_type[stor_idx] == "exog" && 
+                    storage.build_status[stor_idx] == "unbuilt" &&
+                    yr_idx == findfirst(year -> storage.year_on[stor_idx] >= year, years)
+                )
+            ],
+            pcap_stor[stor_idx, yr_idx] == storage.pcap0[stor_idx]
+        )
+    end
     
     ### Add charge/discharge to appropriate expressions in power balancing equation
     plserv_bus = model[:plserv_bus]
@@ -355,7 +407,16 @@ end
 """
     modify_results!(mod::Storage, config, data)
 
-Modify battery results
+Modify battery results.  Add columns to the `storage` table for:
+* `pcap` - discharge capacity of the storage device, in MW.
+* `pcharge` - the charging rate, in MW
+* `pdischarge` - the discharging rate, in MW
+* `echarge` - the energy charged in each representative hour (including losses)
+* `edischarge` - Energy that was discharged by the storage device
+* `ploss` - Power that was lost by the battery, counted as served load equal to `pcharge * (1-η)`
+* `eloss` - Energy that was lost by the battery, counted as served load
+
+Also saves the updated storage table via [`save_updated_storage_table`](@ref).
 """
 function modify_results!(mod::Storage, config, data)
     storage = get_table(data, :storage)
@@ -370,22 +431,17 @@ function modify_results!(mod::Storage, config, data)
     add_table_col!(data, :storage, :pcharge, pcharge_stor, MWCharged, "Rate of charging, in MW")
     add_table_col!(data, :storage, :pdischarge, pcharge_stor, MWDischarged, "Rate of discharging, in MW")
     add_table_col!(data, :storage, :echarge, echarge_stor, MWhCharged, "Energy that went into charging the storage device (includes any round-trip storage losses)")
-    add_table_col!(data, :storage, :edischarge, edischarge_stor, MWhDischarged, "Energy that went was discharged by the storage device")
+    add_table_col!(data, :storage, :edischarge, edischarge_stor, MWhDischarged, "Energy that was discharged by the storage device")
 
     transform!(storage,
         [:pcharge, :storage_efficiency] => ByRow((p,η) -> p * (1 - η)) => :ploss
     )
 
-    add_table_col!(data, :storage, :ploss, storage.ploss, MWServed, "Power that was lost by the battery, counted as served load")
+    add_table_col!(data, :storage, :ploss, storage.ploss, MWServed, "Power that was lost by the battery, counted as served load equal to `pcharge * (1-η)`")
     eloss = weight_hourly(data, storage.ploss)
     add_table_col!(data, :storage, :eloss, eloss, MWhServed, "Energy that was lost by the battery, counted as served load")
 
-    # Save out the updated storage table
-
     save_updated_storage_table(config, data)
-
-
-
 end
 export modify_results!
 
