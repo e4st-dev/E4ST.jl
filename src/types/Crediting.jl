@@ -49,10 +49,10 @@ end
 
 Crediting method where credit levels are specified by gentypes. 
 """
-@Base.kwdef struct CreditByGentype <: Crediting
+struct CreditByGentype <: Crediting
     credits::OrderedDict{String,Float64}
 
-    function CreditByGentype(credits=OrderedDict{String,Float64}())
+    function CreditByGentype(credits)
         if !(credits isa OrderedDict{String, Float64})
             credits = OrderedDict{String, Float64}(string(k)=>v for (k,v) in credits)
         end

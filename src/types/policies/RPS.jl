@@ -26,38 +26,13 @@ end
 
 export RPS
 
-
 """
    struct StandardRPSCrediting <: Crediting
 
 Standard RPS crediting structure. Anything included in the RPS gentypes recieves a credit of 1. 
 """
-struct StandardRPSCrediting <: Crediting end
-export StandardRPSCrediting
-
-StandardRPSCrediting() = CreditByGentype(OrderedDict(
-    "solar"=>1.0, 
-    "dist_solar"=>1.0,
-    "wind"=>1.0,
-    "oswind"=>1.0, 
-    "geothermal"=>1.0, 
-    "hcc_new"=>1.0, 
-    "hcc_ret"=>1.0 ))
-
-"""
-    get_credit(c::StandardRPSCrediting, data, gen_row::DataFrameRow)
-
-Returns the credit for a given row in the generator table using standard RPS crediting. 
-Qualifying technologies include: hyrdogen, geothermal, solar, and wind (SUBJECT TO CHANGE)
-Anything qualifying technology gets a credit of one. 
-"""
-function get_credit(c::StandardRPSCrediting, data, gen_row::DataFrameRow)
-    # rps_gentypes = ["solar", "dist_solar", "wind", "oswind", "geothermal", "hcc_new", "hcc_ret"]
-    # gen_row.gentype in rps_gentypes && return ByNothing(1.0)
-    
-    #This could also be written to call the CreditByGentype method but probably not any better
-
-    c = CreditByGentype(OrderedDict(
+struct StandardRPSCrediting <: Crediting 
+    StandardRPSCrediting() = CreditByGentype(OrderedDict(
         "solar"=>1.0, 
         "dist_solar"=>1.0,
         "wind"=>1.0,
@@ -65,9 +40,35 @@ function get_credit(c::StandardRPSCrediting, data, gen_row::DataFrameRow)
         "geothermal"=>1.0, 
         "hcc_new"=>1.0, 
         "hcc_ret"=>1.0 ))
-    get_credit(c, data, gen_row)
-
 end
-export get_credit
+export StandardRPSCrediting
+
+
+
+# """
+#     get_credit(c::StandardRPSCrediting, data, gen_row::DataFrameRow)
+
+# Returns the credit for a given row in the generator table using standard RPS crediting. 
+# Qualifying technologies include: hyrdogen, geothermal, solar, and wind (SUBJECT TO CHANGE)
+# Anything qualifying technology gets a credit of one. 
+# """
+# function get_credit(c::StandardRPSCrediting, data, gen_row::DataFrameRow)
+#     # rps_gentypes = ["solar", "dist_solar", "wind", "oswind", "geothermal", "hcc_new", "hcc_ret"]
+#     # gen_row.gentype in rps_gentypes && return ByNothing(1.0)
+    
+#     #This could also be written to call the CreditByGentype method but probably not any better
+
+#     c = CreditByGentype(OrderedDict(
+#         "solar"=>1.0, 
+#         "dist_solar"=>1.0,
+#         "wind"=>1.0,
+#         "oswind"=>1.0, 
+#         "geothermal"=>1.0, 
+#         "hcc_new"=>1.0, 
+#         "hcc_ret"=>1.0 ))
+#     get_credit(c, data, gen_row)
+
+# end
+# export get_credit
 
 
