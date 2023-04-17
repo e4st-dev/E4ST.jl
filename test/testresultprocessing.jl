@@ -66,6 +66,8 @@
             
             # Provide an index(es) for filtering
             @test tot ≈ aggregate_result(total, data, :gen, :egen, 1 ) + aggregate_result(total, data, :gen, :egen, 2:nrow(data[:gen]))
+
+            @test aggregate_generation(data, :gentype, [:country=>"archenland"], "y2030", :season=>"summer") isa OrderedDict
         end
 
         @testset "Test year_idx filters" begin
