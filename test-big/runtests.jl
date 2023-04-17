@@ -14,11 +14,11 @@ using JuMP
             config_gurobi = joinpath(@__DIR__, "config/config_gurobi.yml")
             @time out_path, _ = run_e4st(config_2016, config_gurobi)
 
-            # @time config=load_config(config_file);
+            # @time config=read_config(config_file);
             # start_logging!(config)
             # @test config isa AbstractDict
 
-            # @time data=load_data(config)
+            # @time data=read_data(config)
             # @test data isa AbstractDict
 
             # @time model = setup_model(config, data)
@@ -30,7 +30,7 @@ using JuMP
             # model = nothing
             # results_user = process_results!(config, data, results_raw)
             
-            data = load_processed_results(out_path)
+            data = read_processed_results(out_path)
 
             @test aggregate_result(total, data, :bus, :ecurt) < 1
             # run_e4st(config_file)

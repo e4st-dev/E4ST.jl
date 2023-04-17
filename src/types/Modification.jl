@@ -18,7 +18,7 @@ When defining a concrete `Modification` type, you should know the following.
 * All `Modication`s are paired with a name in the config file.  That name is automatically passed in as a keyword argument to the `Modification` constructor if the type has a `name` field.  The `name` will be passed in as a `Symbol`.
 
 `Modification`'s can modify things in up to four places, with the default behavior of the methods being to make no changes:
-* [`modify_raw_data!(mod, config, data)`](@ref) - In the data preparation step, right after [`load_data_files!(config, data)`](@ref) before setting up the data
+* [`modify_raw_data!(mod, config, data)`](@ref) - In the data preparation step, right after [`read_data_files!(config, data)`](@ref) before setting up the data
 * [`modify_setup_data!(mod, config, data)`](@ref) - In the data preparation step, right after [`setup_data!(config, data)`](@ref) before setting up the `Model`
 * [`modify_model!(mod, config, data, model)`](@ref) - In the model setup step, after setting up the DC-OPF but before optimizing
 * [`modify_results!(mod, config, data)`](@ref) - After optimizing the model, in the results generation step
@@ -164,3 +164,46 @@ Returns value of the Modification for the given key (not index)
 function Base.getindex(mod::M, key::Symbol) where {M<:Modification}
     return getproperty(mod, key)
 end
+
+
+
+## Rank 
+
+"""
+    mod_rank(::Type{Modification}) -> 
+
+Returns the rank of the Modification. 
+Rank is the order in which the type of mod should be applied relative to other types of mods. 
+Defaults to 0, where 1 would come after other mods and -1 would come before. 
+Ranks is defined for mod types. 
+"""
+function mod_rank(::Type{<:Modification}) 
+   return 0.0
+end
+
+mod_rank(m::Modification) = mod_rank(typeof(m))
+export mod_rank
+
+function list_type_ranks()
+    all_types = subtypes(Modification)
+    ranks = OrderedDict{Any, Float64}()
+    for t in all_types
+        ranks[t] = mod_rank(t)
+    end
+    #ranks = DataFrame(:types = all_types, :rank = mod_rank.(all_types))
+    sort!(ranks; byvalue=true)
+    return ranks
+end
+export list_type_ranks
+
+function list_mod_ranks(config)
+    mods = config[:mods]
+    ranks = OrderedDict{Symbol, Float64}()
+    for (k,v) in mods
+        ranks[k] = mod_rank(v)
+    end
+    #ranks = DataFrame(:types = [k for (k,v) in mods], :rank = [mod_rank(v) for (k,v) in mods])
+    sort!(ranks; byvalue=true)
+    return ranks
+end
+export list_mod_ranks

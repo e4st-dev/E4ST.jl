@@ -17,7 +17,7 @@ struct AggregationTemplate <: Modification
     name::Symbol
     table::DataFrame
     function AggregationTemplate(;file, name)
-        table = load_table(file)
+        table = read_table(file)
         force_table_types!(table, name, 
             :operation=>Aggregation,
             :table_name=>Symbol,

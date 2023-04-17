@@ -398,13 +398,13 @@ function str2array(s::AbstractString)
 end
 
 """
-    scale_hourly!(demand_arr, shape, row_idx, yr_idx)
+    scale_hourly!(load_arr, shape, row_idx, yr_idx)
     
-Scales the hourly demand in `demand_arr` by `shape` for `row_idx` and `yr_idx`.
+Scales the hourly load in `load_arr` by `shape` for `row_idx` and `yr_idx`.
 """
-function scale_hourly!(demand_arr, shape, row_idxs, yr_idxs)
+function scale_hourly!(load_arr, shape, row_idxs, yr_idxs)
     for yr_idx in yr_idxs, row_idx in row_idxs
-        scale_hourly!(demand_arr, shape, row_idx, yr_idx)
+        scale_hourly!(load_arr, shape, row_idx, yr_idx)
     end
     return nothing
 end
@@ -430,7 +430,7 @@ end
 
     add_hourly!(ar, shape, row_idxs, yr_idxs)
     
-adds to the hourly demand in `ar` by `shape` for `row_idx` and `yr_idx`.
+adds to the hourly load in `ar` by `shape` for `row_idx` and `yr_idx`.
 """
 function add_hourly!(ar, shape, row_idxs, yr_idxs; kwargs...)
     for yr_idx in yr_idxs, row_idx in row_idxs
@@ -472,19 +472,19 @@ function add_hourly_scaled!(ar, shape, s, idxs1, idxs2)
 end
 
 """
-    _match_yearly!(demand_arr, match, row_idxs, yr_idx, hr_weights)
+    _match_yearly!(load_arr, match, row_idxs, yr_idx, hr_weights)
 
-Match the yearly demand represented by `demand_arr[row_idxs, yr_idx, :]` to `match`, with hourly weights `hr_weights`.
+Match the yearly load represented by `load_arr[row_idxs, yr_idx, :]` to `match`, with hourly weights `hr_weights`.
 """
-function _match_yearly!(demand_arr::Array{Float64, 3}, match::Float64, row_idxs, yr_idx::Int64, hr_weights)
-    # Select the portion of the demand_arr to match
-    _match_yearly!(view(demand_arr, row_idxs, yr_idx, :), match, hr_weights)
+function _match_yearly!(load_arr::Array{Float64, 3}, match::Float64, row_idxs, yr_idx::Int64, hr_weights)
+    # Select the portion of the load_arr to match
+    _match_yearly!(view(load_arr, row_idxs, yr_idx, :), match, hr_weights)
 end
-function _match_yearly!(demand_mat::SubArray{Float64, 2}, match::Float64, hr_weights)
-    # The demand_mat is now a 2d matrix indexed by [row_idx, hr_idx]
-    s = _sum_product(demand_mat, hr_weights)
+function _match_yearly!(load_mat::SubArray{Float64, 2}, match::Float64, hr_weights)
+    # The load_mat is now a 2d matrix indexed by [row_idx, hr_idx]
+    s = _sum_product(load_mat, hr_weights)
     scale_factor = match / s
-    demand_mat .*= scale_factor
+    load_mat .*= scale_factor
 end
 
 """
@@ -495,4 +495,19 @@ Computes the sum of M*v
 function _sum_product(M::AbstractMatrix, v::AbstractVector)
     @inbounds sum(M[row_idx, hr_idx]*v[hr_idx] for row_idx in 1:size(M,1), hr_idx in 1:size(M,2))
 end
+
+
+"""
+    replace_nans!(v, x) -> v
+
+Replaces all `NaN` values in `v` with `x`
+"""
+function replace_nans!(v, x)
+    for i in eachindex(v)
+        isnan(v[i]) || continue
+        v[i] = x
+    end
+    return v
+end
+export replace_nans!
 

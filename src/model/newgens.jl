@@ -71,7 +71,7 @@ function make_newgens!(config, data, newgen)
                     newgen_row[:year_on] = year
                     hasproperty(newgen, :gen_latitude) && (newgen_row[:gen_latitude] = bus.bus_latitude[bus_idx])
                     hasproperty(newgen, :gen_longitude) && (newgen_row[:gen_longitude] = bus.bus_longitude[bus_idx])
-                    push!(newgen, newgen_row)
+                    push!(newgen, newgen_row, promote=true)
                 end
             else 
                 # for exogenously specified gens, only one generator is created with the specified year_on
@@ -79,7 +79,7 @@ function make_newgens!(config, data, newgen)
                 hasproperty(newgen, :gen_latitude) && (newgen_row[:gen_latitude] = bus.bus_latitude[bus_idx])
                 hasproperty(newgen, :gen_longitude) && (newgen_row[:gen_longitude] = bus.bus_longitude[bus_idx])
 
-                push!(newgen, newgen_row)        
+                push!(newgen, newgen_row, promote=true)
             end
         end
     end
@@ -93,7 +93,7 @@ end
 Appends the newgen table to the gen table. 
 """
 function append_newgen_table!(data, newgen)
-    append!(get_table(data, :gen), newgen)
+    append!(get_table(data, :gen), newgen, promote = true)
 end
 
 

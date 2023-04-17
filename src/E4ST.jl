@@ -17,8 +17,8 @@ import JuMP.MOI.AbstractOptimizer
 # E4ST Packages
 using E4STUtil
 
-export save_config, load_config
-export load_data
+export save_config, read_config
+export read_data
 
 export setup_model, check
 export setup_dcopf!
@@ -35,17 +35,22 @@ include("types/Policy.jl")
 include("types/Unit.jl")
 include("types/Containers.jl")
 include("types/Iterable.jl")
+include("types/Term.jl")
+include("types/Crediting.jl")
 
 # Include Modifications
 include("types/modifications/DCLine.jl")
 include("types/modifications/AggregationTemplate.jl")
 include("types/modifications/GenerationConstraint.jl")
+include("types/modifications/GenerationStandard.jl")
 include("types/modifications/YearlyTable.jl")
+include("types/modifications/CCUS.jl")
 
 # Include Policies
 include("types/policies/ITC.jl")
 include("types/policies/PTC.jl")
-#include("types/policies/RPS.jl")
+include("types/policies/RPS.jl")
+include("types/policies/CES.jl")
 include("types/policies/EmissionCap.jl")
 include("types/policies/EmissionPrice.jl")
 
@@ -57,14 +62,15 @@ include("types/iterables/RunSequential.jl")
 include("io/config.jl")
 include("io/data.jl")
 include("io/adjust.jl")
+include("io/load.jl")
 include("io/util.jl")
-include("io/demand.jl")
 
 # Include model
 include("model/setup.jl")
 include("model/dcopf.jl")
 include("model/check.jl")
 include("model/newgens.jl")
+include("model/util.jl")
 
 # Include Results
 include("results/parse.jl")
@@ -80,11 +86,11 @@ include("results/util.jl")
 
 Top-level function for running E4ST.  Here is a general overview of what happens:
 1. Book-keeping
-    * [`load_config(config_file)`](@ref) - loads in the `config` from file, if not passed in directly.  
+    * [`read_config(config_file)`](@ref) - loads in the `config` from file, if not passed in directly.  
     * [`save_config(config)`](@ref) - the config is saved to `config[:out_path]`
     * [`start_logging!(config)`](@ref) - Logging is started, some basic information is logged via [`log_start`](@ref).
 2. Load Input Data
-    * [`load_data(config)`](@ref) - The data is loaded in from files specified in the `config`.
+    * [`read_data(config)`](@ref) - The data is loaded in from files specified in the `config`.
 3. Construct JuMP Model and optimize
     * [`setup_model(config, data)`](@ref) - The `model` (a JuMP Model) is set up.
     * [`JuMP.optimize!(model)`](https://jump.dev/JuMP.jl/stable/reference/solutions/#JuMP.optimize!) - The `model` is optimized.
@@ -92,7 +98,7 @@ Top-level function for running E4ST.  Here is a general overview of what happens
     * [`parse_results!(config, data, model)`](@ref) - Retrieves all necessary values and shadow prices from `model`, storing them into data[:results][:raw], (see [`get_raw_results`](@ref) and [`get_results`](@ref)) and saves `data` if `config[:save_data_parsed]` is `true` (default is `true`).  This is mostly stored in case the results processing throws an error before completion.  That way, there is no need to re-run the model.
     * [`process_results!(config, data)`](@ref) - Calls [`modify_results!(mod, config, data)`](@ref) for each `mod` in the `config`. Saves `data` if `config[:save_data_processeded]` is `true` (default is `true`)
 5. Iterate, running more simulations as needed.
-    * See [`Iterable`](@ref) and [`load_config`](@ref) for more information.
+    * See [`Iterable`](@ref) and [`read_config`](@ref) for more information.
 """
 function run_e4st(config::OrderedDict)
 
@@ -105,7 +111,7 @@ function run_e4st(config::OrderedDict)
     init!(iter, config)
 
     # Load in all the data
-    data  = load_data(config)
+    data  = read_data(config)
 
     # Initialize the results
     all_results = []
@@ -134,14 +140,14 @@ function run_e4st(config::OrderedDict)
         iterate!(iter, config, data)
 
         # Reload data as needed
-        should_reload_data(iter) && load_data!(config, data)
+        should_reread_data(iter) && read_data!(config, data)
     end
 
     stop_logging!(config)
     return get_out_path(config), all_results
 end
 
-run_e4st(path...) = run_e4st(load_config(path...))
+run_e4st(path...) = run_e4st(read_config(path...))
 
 global STR2TYPE = Dict{String, Type}()
 global SYM2TYPE = Dict{Symbol, Type}()
@@ -190,10 +196,16 @@ function reload_types!()
     reload_types!(AbstractString)
     reload_types!(AbstractFloat)
     reload_types!(Integer)
+    reload_types!(Crediting)
 end
 function reload_types!(::Type{T}) where T
     global STR2TYPE
     global SYM2TYPE
+    symtyperaw = Symbol(T)
+    strtyperaw = string(T)
+    SYM2TYPE[symtyperaw] = T
+    STR2TYPE[strtyperaw] = T
+
     symtype = Base.typename(T).name
     SYM2TYPE[symtype] = T
     strtype = string(symtype)

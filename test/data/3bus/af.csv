@@ -1,3 +1,4 @@
 ﻿area,subarea,genfuel,gentype,year,status,h1,h2,h3,h4,h5,h6,h7,h8
+country,narnia,solar,,,1,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5
 country,narnia,solar,,y2040,1,0.5,0.6,0.6,0.5,0.5,0.6,0.6,0.5
 country,archenland,solar,,,1,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4

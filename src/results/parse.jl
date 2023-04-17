@@ -63,6 +63,9 @@ end
 function value_or_shadow_price(ar::AbstractArray, obj_scalar)
     value_or_shadow_price.(ar, obj_scalar)
 end
+function value_or_shadow_price(v::Number, obj_scalar)
+    return v
+end
 export value_or_shadow_price
 
 
@@ -76,11 +79,11 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | :bus | :pgen | MWGenerated | Average Power Generated at this bus |
 | :bus | :egen | MWhGenerated | Electricity Generated at this bus for the weighted representative hour |
 | :bus | :pflow | MWFlow | Average power flowing out of this bus |
-| :bus | :pserv | MWServed | Average power served at this bus |
+| :bus | :plserv | MWServed | Average power served at this bus |
 | :bus | :eserv | MWhServed | Electricity served at this bus for the weighted representative hour |
-| :bus | :pcurt | MWCurtailed | Average power curtailed at this bus |
+| :bus | :plcurt | MWCurtailed | Average power curtailed at this bus |
 | :bus | :ecurt | MWhCurtailed | Electricity curtailed at this bus for the weighted representative hour |
-| :bus | :edem  | MWhDemanded | Electricity demanded at this bus for the weighted representative hour |
+| :bus | :elnom  | MWhLoad | Electricity load at this bus for the weighted representative hour |
 | :gen | :pgen | MWGenerated | Average power generated at this generator |
 | :gen | :egen | MWhGenerated | Electricity generated at this generator for the weighted representative hour |
 | :gen | :pcap | MWCapacity | Power capacity of this generator generated at this generator for the weighted representative hour |
@@ -96,16 +99,16 @@ function parse_power_results!(config, data)
 
     pflow_branch = res_raw[:pflow_branch]::Array{Float64, 3}
     
-    pserv_bus = res_raw[:pserv_bus]::Array{Float64, 3}
-    pcurt_bus = res_raw[:pcurt_bus]::Array{Float64, 3}
+    plserv_bus = res_raw[:plserv_bus]::Array{Float64, 3}
+    plcurt_bus = res_raw[:plcurt_bus]::Array{Float64, 3}
     pgen_bus = res_raw[:pgen_bus]::Array{Float64, 3}
     pflow_bus = res_raw[:pflow_bus]::Array{Float64, 3}
 
     # Weight things by hour as needed
     egen_bus = weight_hourly(data, pgen_bus)
-    eserv_bus = weight_hourly(data, pserv_bus)
-    ecurt_bus = weight_hourly(data, pcurt_bus)
-    edem_bus = weight_hourly(data, get_table_col(data, :bus, :pdem))
+    eserv_bus = weight_hourly(data, plserv_bus)
+    ecurt_bus = weight_hourly(data, plcurt_bus)
+    elnom_bus = weight_hourly(data, get_table_col(data, :bus, :plnom))
     
     # Create new things as needed
     cf = pgen_gen ./ pcap_gen
@@ -115,11 +118,11 @@ function parse_power_results!(config, data)
     add_table_col!(data, :bus, :pgen,  pgen_bus,  MWGenerated,"Average Power Generated at this bus")
     add_table_col!(data, :bus, :egen,  egen_bus,  MWhGenerated,"Electricity Generated at this bus for the weighted representative hour")   
     add_table_col!(data, :bus, :pflow, pflow_bus, MWFlow,"Average power flowing out of this bus")
-    add_table_col!(data, :bus, :pserv, pserv_bus, MWServed,"Average power served at this bus")
+    add_table_col!(data, :bus, :plserv, plserv_bus, MWServed,"Average power served at this bus")
     add_table_col!(data, :bus, :eserv, eserv_bus, MWhServed,"Electricity served at this bus for the weighted representative hour")      
-    add_table_col!(data, :bus, :pcurt, pcurt_bus, MWCurtailed,"Average power curtailed at this bus")
+    add_table_col!(data, :bus, :plcurt, plcurt_bus, MWCurtailed,"Average power curtailed at this bus")
     add_table_col!(data, :bus, :ecurt, ecurt_bus, MWhCurtailed,"Electricity curtailed at this bus for the weighted representative hour")   
-    add_table_col!(data, :bus, :edem,  edem_bus,  MWhDemanded,"Electricity demanded at this bus for the weighted representative hour")   
+    add_table_col!(data, :bus, :elnom,  elnom_bus,  MWhLoad,"Electricity load at this bus for the weighted representative hour")   
 
     # Add things to the gen table
     add_table_col!(data, :gen, :pgen,  pgen_gen,  MWGenerated,"Average power generated at this generator")
@@ -196,7 +199,13 @@ function save_updated_gen_table(config, data)
     filter!(:pcap0 => >(thresh), gen_tmp)
 
 
-    CSV.write(get_out_path(config, "gen.csv"), gen_tmp)
+    # Combine generators that are the same
+    gdf = groupby(gen_tmp, Not(:pcap0))
+    gen_tmp_combined = combine(gdf,
+        :pcap0 => sum => :pcap0
+    )
+
+    CSV.write(get_out_path(config, "gen.csv"), gen_tmp_combined)
     return nothing
 end
 export save_updated_gen_table

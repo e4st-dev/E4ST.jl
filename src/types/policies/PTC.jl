@@ -6,14 +6,14 @@ Production Tax Credit - A \$/MWh tax incentive for the generation of specific te
 # Keyword Arguments
 
 * `name`: policy name 
-* `value`: \$/MWh value of the PTC, stored as an OrderedDict with years and the value `(:y2020=>10)`, note `year` is a `Symbol`
+* `values`: \$/MWh values of the PTC, stored as an OrderedDict with years and the value `(:y2020=>10)`, note `year` is a `Symbol`
 * `gen_age_min`: minimum generator age to qualifying (inclusive)
 * `gen_age_max`: maximum generator age to qualify (inclusive)
 * `gen_filters`: filters for qualifying generators, stored as an OrderedDict with gen table columns and values (`:emis_co2=>"<=0.1"` for co2 emission rate less than or equal to 0.1)
 """
 Base.@kwdef struct PTC <: Policy
     name::Symbol
-    value::OrderedDict
+    values::OrderedDict
     gen_age_min::Float64
     gen_age_max::Float64
     gen_filters::OrderedDict
@@ -40,7 +40,7 @@ function E4ST.modify_model!(pol::PTC, config, data, model)
         "Production tax credit value for $(pol.name)")
 
     #update column for gen_idx 
-    credit_yearly = [get(pol.value, Symbol(year), 0.0) for year in years] #values for the years in the sim
+    credit_yearly = [get(pol.values, Symbol(year), 0.0) for year in years] #values for the years in the sim
     for gen_idx in gen_idxs
         g = gen[gen_idx, :]
         g_qual_year_idxs = findall(age -> pol.gen_age_min <= age <= pol.gen_age_max, g.age.v)

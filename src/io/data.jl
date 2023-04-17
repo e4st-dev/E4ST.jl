@@ -3,45 +3,45 @@
 ################################################################################
 
 """
-    load_data(config) -> data
+    read_data(config) -> data
 
 Pulls in data found in files listed in the `config`, and stores into `data`.
 
 Calls the following functions:
-* [`load_data_files!(config, data)`](@ref) - load in the data from files
+* [`read_data_files!(config, data)`](@ref) - read in the data from files
 * [`modify_raw_data!(config, data)`](@ref) - Gives [`Modification`](@ref)s a chance to modify the raw data before the data gets setup.
 * [`setup_data!(config, data)`](@ref) - Sets up the data, modifying/adding to the tables as needed.
 * [`modify_setup_data!(config, data)`](@ref) - Gives [`Modification`](@ref)s a chance to modify the setup data before the model is built.
 """
-function load_data(config)
-    log_header("LOADING DATA")
+function read_data(config)
+    log_header("READING DATA")
 
     # Try loading the data directly
     if haskey(config, :data_file)
-        @info "Loading data from $(config[:data_file])"
+        @info "Reading data from $(config[:data_file])"
         data = deserialize(config[:data_file])
         return data
     end
     data = OrderedDict{Symbol, Any}()
     
-    load_data!(config, data)
+    read_data!(config, data)
 
     return data
 end
 
 """
-    load_data!(config, data) -> data
+    read_data!(config, data) -> data
 
 Loads data specified by `config` into `data`. `data` can be empty or full.
 """
-function load_data!(config, data)
+function read_data!(config, data)
     # Check to see if data is empty
     if ~isempty(data)
-        @warn "Inside load_data! and `data` is not empty, clearing."
+        @warn "Inside read_data! and `data` is not empty, clearing."
         empty!(data)
     end
 
-    load_data_files!(config, data)
+    read_data_files!(config, data)
     modify_raw_data!(config, data)
     setup_data!(config, data)  
     modify_setup_data!(config, data)
@@ -52,38 +52,38 @@ function load_data!(config, data)
     end
     return data
 end
-export load_data!
+export read_data!
 
 """
-    load_data_files!(config, data)
+    read_data_files!(config, data)
 
 Loads in the data files presented in the `config`.
 """
-function load_data_files!(config, data)
-    load_summary_table!(config, data)
+function read_data_files!(config, data)
+    read_summary_table!(config, data)
 
-    # Other things to load
-    load_voll!(config, data)
-    load_years!(config, data)
+    # Other things to read in
+    read_voll!(config, data)
+    read_years!(config, data)
 
-    load_table!(config, data, :bus_file      => :bus)
-    load_table!(config, data, :gen_file      => :gen)
-    load_table!(config, data, :branch_file   => :branch)
-    load_table!(config, data, :hours_file    => :hours)
-    load_table!(config, data, :demand_file   => :demand_table)
+    read_table!(config, data, :bus_file      => :bus)
+    read_table!(config, data, :gen_file      => :gen)
+    read_table!(config, data, :branch_file   => :branch)
+    read_table!(config, data, :hours_file    => :hours)
+    read_table!(config, data, :nominal_load_file   => :nominal_load)
     
 
     # Optional tables
-    load_table!(config, data, :af_file       => :af_table, optional = true)
-    load_table!(config, data, :demand_shape_file=>:demand_shape, optional=true)
-    load_table!(config, data, :demand_match_file=>:demand_match, optional=true)
-    load_table!(config, data, :demand_add_file=>:demand_add, optional=true)
-    load_table!(config, data, :build_gen_file => :build_gen, optional=true)
-    load_table!(config, data, :gentype_genfuel_file => :genfuel, optional=true)
-    load_table!(config, data, :adjust_yearly_file => :adjust_yearly, optional=true)
-    load_table!(config, data, :adjust_hourly_file => :adjust_hourly, optional=true)
+    read_table!(config, data, :af_file       => :af_table, optional = true)
+    read_table!(config, data, :load_shape_file=>:load_shape, optional=true)
+    read_table!(config, data, :load_match_file=>:load_match, optional=true)
+    read_table!(config, data, :load_add_file=>:load_add, optional=true)
+    read_table!(config, data, :build_gen_file => :build_gen, optional=true)
+    read_table!(config, data, :gentype_genfuel_file => :genfuel, optional=true)
+    read_table!(config, data, :adjust_yearly_file => :adjust_yearly, optional=true)
+    read_table!(config, data, :adjust_hourly_file => :adjust_hourly, optional=true)
 end
-export load_data_files!
+export read_data_files!
 
 """
     modify_raw_data!(config, data)
@@ -123,7 +123,7 @@ function setup_data!(config, data)
     setup_table!(config, data, :bus)
     setup_table!(config, data, :branch)
     setup_table!(config, data, :hours)
-    setup_table!(config, data, :demand_table)
+    setup_table!(config, data, :nominal_load)
     setup_table!(config, data, :gen) # needs to come after build_gen setup for newgens
     setup_table!(config, data, :af_table)
     setup_table!(config, data, :adjust_yearly)
@@ -151,7 +151,7 @@ export setup_table!
 
 Returns a summary of the table `s`.  Note that more information can be provided in the the `summary_table`, which contains a summary of all tables, including all information from `summarize_table`, plus additional columns specified.
 
-See also [`get_table(data, name)`](@ref), [`load_summary_table!(config, data)`](@ref), [`get_table_summary(data, name)`](@ref)
+See also [`get_table(data, name)`](@ref), [`read_summary_table!(config, data)`](@ref), [`get_table_summary(data, name)`](@ref)
 """
 function summarize_table(s::Symbol)
     return summarize_table(Val(s))
@@ -164,27 +164,27 @@ export summarize_table
 ################################################################################
 
 """
-    load_table(filename) -> table
+    read_table(filename) -> table
 
 Loads a table from filename, where filename is a csv.
 """
-function load_table(filename::String)
+function read_table(filename::String)
     CSV.read(filename, DataFrame, missingstring=nothing, stripwhitespace=true)
 end
-export load_table
+export read_table
 
 
 """
-    load_table!(config, data, p::Pair)
+    read_table!(config, data, p::Pair)
     
 Loads the table from the file in `config[p[1]]` into `data[p[2]]`
 """
-function load_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
+function read_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
     optional===true && !haskey(config, first(p)) && return
     @info "Loading data[:$(last(p))] from $(config[first(p)])"
     table_file = config[first(p)]::String
     table_name = last(p)
-    table = load_table(table_file)
+    table = read_table(table_file)
     st = get_table_summary(data, table_name)
     force_table_types!(table, table_name, st)
     
@@ -219,11 +219,11 @@ end
 
 
 """
-    load_summary_table!(config, data)
+    read_summary_table!(config, data)
 
 Loads in the summary table for each of the other tables.
 """
-function load_summary_table!(config, data)
+function read_summary_table!(config, data)
     st = DataFrame(
         :table_name => Symbol[],
         :column_name => Symbol[],
@@ -243,7 +243,7 @@ function load_summary_table!(config, data)
     rows_to_add = DataFrameRow[]
     if haskey(config, :summary_table_file)
         gst = groupby(st, [:table_name, :column_name])
-        df = load_table(config[:summary_table_file])
+        df = read_table(config[:summary_table_file])
 
         force_table_types!(df, :summary_table,
             (cn=>eltype(st[!,cn]) for cn in propertynames(st))...
@@ -273,7 +273,7 @@ function load_summary_table!(config, data)
     
     return
 end
-export load_summary_table!
+export read_summary_table!
 
 """
     append_to_summary_table!(summary_table::DataFrame, v::Val)
@@ -287,25 +287,25 @@ function append_to_summary_table!(summary_table::DataFrame, v::V) where {s, V<:V
 end
 
 """
-    load_voll!(config, data)
+    read_voll!(config, data)
 
 Return the marginal cost of load curtailment / VOLL as a variable in data
 """
-function load_voll!(config, data)
+function read_voll!(config, data)
     data[:voll] = Float64(config[:voll]) 
 end
-export load_voll!
+export read_voll!
 
 """
-    load_years!(config, data)
+    read_years!(config, data)
 
 Loads the years from config into data
 """
-function load_years!(config, data)
+function read_years!(config, data)
     data[:years] = config[:years]
     return
 end
-export load_years!
+export read_years!
 
 """
     force_table_types!(df::DataFrame, name, pairs...)
@@ -336,7 +336,7 @@ function force_table_types!(df::DataFrame, name, row::DataFrameRow; kwargs...)
     req = row["required"]
     T = row["data_type"]
     if ~hasproperty(df, col)
-        # Return for special column identifiers - these will get checked inside load_table!
+        # Return for special column identifiers - these will get checked inside read_table!
         col === :h_ && return
         col === :y_ && return
         col === :filter_ && return
@@ -371,7 +371,7 @@ function setup_table!(config, data, ::Val{:gen})
 
     data[:gen_table_original_cols] = propertynames(gen)
 
-    #removes capex_obj if loaded in from previous sim
+    #removes capex_obj if read in from previous sim
     :capex_obj in propertynames(data[:gen]) && select!(data[:gen], Not(:capex_obj))
 
     #set build_status to 'built' for all gens marked 'new'. This marks gens built in a previous sim as 'built'.
@@ -597,7 +597,9 @@ function summarize_table(::Val{:gen})
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
         (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
         (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
-        (:af, Float64, MWhGeneratedPerMWhCapacity, false, "The availability factor, or maximum available ratio of pewer generation to nameplate capacity for the generator.")
+        (:af, Float64, MWhGeneratedPerMWhCapacity, false, "The availability factor, or maximum available ratio of pewer generation to nameplate capacity for the generator."),
+        (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The emission rate per MWh of CO2"),
+        (:capt_co2_percent, Float64, ShortTonsPerMWhGenerated, false, "The percentage of co2 emissions captured, to be sequestered."),
     )
     return df
 end
@@ -683,6 +685,8 @@ function summarize_table(::Val{:build_gen})
         (:year_on, AbstractString, NA, true, "The first year of operation for the generator. (For new gens this is also the year it was built). Endogenous unbuilt generators will be left blank"),
         (:year_on_min, AbstractString, NA, true, "The first year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
         (:year_on_max, AbstractString, NA, true, "The last year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
+        (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The CO2 emission rate of the generator, in short tons per MWh generated.  This is the net emissions. (i.e. not including captured CO2 that gets captured)"),
+        (:capt_co2_percent, Float64, ShortTonsPerMWhGenerated, false, "The percentage of co2 emissions captured, to be sequestered."),
     )
     return df
 end
@@ -726,12 +730,22 @@ Return a subset of the table `table_name` for which the row passes the `conditio
 * `:genfuel => ["ng", "solar", "wind"]` - All rows for which `row.genfuel` is either "ng", "solar", or "wind"
 * `:emis_co2 => f::Function` - All rows for which f(row.emis_co2) returns `true`.  For example `>(0)`, or `x->(0<x<=0.5)`
 """
-function get_table(data, table_name, conditions...)
+function get_table(data, table_name::Union{Symbol, AbstractString}, conditions...)
     table = get_table(data, table_name)
+    get_subtable(table, conditions...)
+end
+export get_table
+
+"""
+    get_subtable(table::DataFrame, conditions...)
+
+Returns a `SubDataFrame` of `table`, based on `conditions`.  See [`get_table`](@ref) for ideas of appropriate `conditions`
+"""
+function get_subtable(table::DataFrame, conditions...)
     row_idxs = get_row_idxs(table, conditions...)
     return view(table, row_idxs, :)
 end
-export get_table
+export get_subtable
 
 """
     get_table_row_idxs(data, table_name, conditions...) -> row_idxs::Vector{Int64}
@@ -754,16 +768,15 @@ function get_table_col(data, table_name, col_name)
     return col::AbstractVector
 end
 export get_table_col
-
 """
     add_table_col!(data, table_name, col_name, col, unit, description)
 
 Adds `col` to `data[table_name][!, col_name]`, also adding the description and unit to the summary table.
 """
-function add_table_col!(data, table_name, column_name, col::AbstractVector, unit, description)
+function add_table_col!(data, table_name, column_name, col::AbstractVector, unit, description; warn_overwrite = true)
     # Add col to table
     table = get_table(data, table_name)
-    hasproperty(table, column_name) && @warn "Table data[$table_name] already has column $column_name, overwriting"
+    hasproperty(table, column_name) && warn_overwrite == true && @warn "Table data[$table_name] already has column $column_name, overwriting"
     table[!, column_name] = col
 
     # Document in the summary table
@@ -774,14 +787,14 @@ function add_table_col!(data, table_name, column_name, col::AbstractVector, unit
     data[:unit_lookup][(table_name, column_name)] = unit
     data[:desc_lookup][(table_name, column_name)] = description
 end
-function add_table_col!(data, table_name, column_name, ar::AbstractArray{<:Real, 3}, unit, description)
-    v = [view(ar, i, :, :) for i in axes(ar, 1)]
-    return add_table_col!(data, table_name, column_name, v, unit, description)
+function add_table_col!(data, table_name, column_name, ar::AbstractArray{<:Real, 3}, unit, description; warn_overwrite = true)
+    v = [view(ar, i, :, :) for i in 1:size(ar, 1)]
+    return add_table_col!(data, table_name, column_name, v, unit, description; warn_overwrite)
 end
-function add_table_col!(data, table_name, column_name, ar::AbstractMatrix{<:Real}, unit, description)
+function add_table_col!(data, table_name, column_name, ar::AbstractMatrix{<:Real}, unit, description; warn_overwrite = true)
     # Might need to make this into a container.
-    v = [view(ar, i, :) for i in axes(ar, 1)]
-    return add_table_col!(data, table_name, column_name, v, unit, description)
+    v = [view(ar, i, :) for i in 1:size(ar, 1)]
+    return add_table_col!(data, table_name, column_name, v, unit, description; warn_overwrite)
 end
 export add_table_col!
 
@@ -796,7 +809,7 @@ function get_table_col_unit(data, table_name::Symbol, column_name::Symbol)
         if contains(cn, r"h\d*")
             haskey(ul, (table_name, :h_)) && return ul[(table_name, :h_)]
         elseif contains(cn, r"y\d*")
-            haskey(ul, (table_name, :h_)) && return ul[(table_name, :y_)]
+            haskey(ul, (table_name, :y_)) && return ul[(table_name, :y_)]
         end
         error("No unit found for table column $table_name[:$column_name].\nConsider defining the column in the summary_table.")
     end::Type{<:Unit}
@@ -817,7 +830,7 @@ function get_table_col_description(data, table_name::Symbol, column_name::Symbol
         if contains(cn, r"h\d*")
             haskey(ul, (table_name, :h_)) && return ul[(table_name, :h_)]
         elseif contains(cn, r"y\d*")
-            haskey(ul, (table_name, :h_)) && return ul[(table_name, :y_)]
+            haskey(ul, (table_name, :y_)) && return ul[(table_name, :y_)]
         end
         error("No description found for table column $table_name[:$column_name].\nConsider defining the column in the summary_table.")
     end::String
@@ -912,9 +925,9 @@ end
 export has_table
 
 """
-    get_table_summary(config, data, table_name) -> summary::SubDataFrame
+    get_table_summary(data, table_name) -> summary::SubDataFrame
 
-Returns a summary of `table_name`, loaded in from [`summarize_table`](@ref)` and [`load_summary_table!`](@ref).
+Returns a summary of `table_name`, read in from [`summarize_table`](@ref) and [`read_summary_table!`](@ref).
 """
 function get_table_summary(data, table_name)
     st = get_table(data, :summary_table)
@@ -923,14 +936,14 @@ end
 export get_table_summary
 
 """
-    get_demand_array(data)
+    get_load_array(data)
 
-Returns the demand array, a 3d array of demand indexed by [demand_idx, yr_idx, hr_idx]
+Returns the load array, a 3d array of load indexed by [load_idx, yr_idx, hr_idx]
 """
-function get_demand_array(data)
-    return data[:demand_array]::Array{Float64,3}
+function get_load_array(data)
+    return data[:load_array]::Array{Float64,3}
 end
-export get_demand_array
+export get_load_array
 
 """
     get_generator(data, gen_idx) -> row
@@ -973,78 +986,78 @@ end
 export get_af
 
 """
-    get_pdem(data, bus_idx, year_idx, hour_idx) -> pdem
+    get_plnom(data, bus_idx, year_idx, hour_idx) -> plnom
 
-Retrieves the demanded power for a bus at a year and a time.
+Retrieves the load power for a bus at a year and a time.
 """
-function get_pdem(data, bus_idx, year_idx, hour_idx)
-    return get_table_num(data, :bus, :pdem, bus_idx, year_idx, hour_idx)
+function get_plnom(data, bus_idx, year_idx, hour_idx)
+    return get_table_num(data, :bus, :plnom, bus_idx, year_idx, hour_idx)
 end
-export get_pdem
+export get_plnom
 
 """
-    get_edem(data, bus_idx, year_idx, hour_idx) -> ed::Float64 (MWh)
+    get_elnom(data, bus_idx, year_idx, hour_idx) -> ed::Float64 (MWh)
 
-    get_edem(data, bus_idx, year_idx, hour_idxs) -> ed::Float64 (MWh)
+    get_elnom(data, bus_idx, year_idx, hour_idxs) -> ed::Float64 (MWh)
 
-Retrieve the total energy demanded for a bus at a given year and hour(s).
+Retrieve the total energy load for a bus at a given year and hour(s).
 """
-function get_edem(data, bus_idx::Int64, year_idx::Int64, hour_idx::Int64)
-    return get_hour_weight(data, hour_idx) * get_pdem(data, bus_idx, year_idx, hour_idx)
+function get_elnom(data, bus_idx::Int64, year_idx::Int64, hour_idx::Int64)
+    return get_hour_weight(data, hour_idx) * get_plnom(data, bus_idx, year_idx, hour_idx)
 end
-function get_edem(data, bus_idx::Int64, year_idx::Int64, hour_idxs)
-    return sum(get_hour_weight(data, hour_idx) * get_pdem(data, bus_idx, year_idx, hour_idx) for hour_idx in hour_idxs)
+function get_elnom(data, bus_idx::Int64, year_idx::Int64, hour_idxs)
+    return sum(get_hour_weight(data, hour_idx) * get_plnom(data, bus_idx, year_idx, hour_idx) for hour_idx in hour_idxs)
 end
-function get_edem(data, bus_idx::Int64, year_idx::Int64, hour_idxs::Colon)
+function get_elnom(data, bus_idx::Int64, year_idx::Int64, hour_idxs::Colon)
     hour_weights = get_hour_weights(data)
-    return sum(hour_weights[hour_idx] * get_pdem(data, bus_idx, year_idx, hour_idx) for hour_idx in eachindex(hour_weights))
+    return sum(hour_weights[hour_idx] * get_plnom(data, bus_idx, year_idx, hour_idx) for hour_idx in eachindex(hour_weights))
 end
-function get_edem(data, bus_idx=(:), year_idx=(:), hour_idx=(:))
+function get_elnom(data, bus_idx=(:), year_idx=(:), hour_idx=(:))
     _bus_idxs = get_table_row_idxs(data, :bus, bus_idx)
     _year_idxs = get_year_idxs(data, year_idx)
     _hour_idxs = get_hour_idxs(data, hour_idx)
     hour_weights = get_hour_weights(data)
-    return sum(hour_weights[h] * get_pdem(data, b, y, h) for h in _hour_idxs, y in _year_idxs, b in _bus_idxs)
+    return sum(hour_weights[h] * get_plnom(data, b, y, h) for h in _hour_idxs, y in _year_idxs, b in _bus_idxs)
 end
 
 """
-    get_edem_demand(data, demand_idx, year_idx, hour_idxs) -> ed::Float64 (MWh)
+    get_elnom_load(data, load_idx, year_idx, hour_idxs) -> ed::Float64 (MWh)
 
-    get_edem_demand(data, demand_idxs, year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
+    get_elnom_load(data, load_idxs, year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
 
-    get_edem_demand(data, pair(s), year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
+    get_elnom_load(data, pair(s), year_idx, hour_idxs) -> ed::Float64 (MWh) (sum)
 
-Return the energy demanded by demand elements corresponding to `demand_idx` or `demand_idxs`, for `year_idx` and `hour_idx`.  Note `year_idx` can be the index or the year string (i.e. "y2030").
+Return the energy load by load elements corresponding to `load_idx` or `load_idxs`, for `year_idx` and `hour_idx`.  Note `year_idx` can be the index or the year string (i.e. "y2030").
 
-If pair(s) are given, filters the demand elements by pair.  i.e. pairs = ("country"=>"narnia", "load_type"=>"residential").
+If pair(s) are given, filters the load elements by pair.  i.e. pairs = ("country"=>"narnia", "read_type"=>"residential").
 """
-function get_edem_demand(data, demand_idxs::AbstractVector{Int64}, year_idx::Int64, hour_idxs)
-    demand_arr = get_demand_array(data)
-    demand_mat = view(demand_arr, demand_idxs, year_idx, hour_idxs)
+function get_elnom_load(data, load_idxs::AbstractVector{Int64}, year_idx::Int64, hour_idxs)
+    load_arr = get_load_array(data)
+    load_mat = view(load_arr, load_idxs, year_idx, hour_idxs)
     hour_weights = get_hour_weights(data, hour_idxs)
-    return _sum_product(demand_mat, hour_weights)
+    return _sum_product(load_mat, hour_weights)
 end
-function get_edem_demand(data, ::Colon, year_idx::Int64, hour_idxs)
-    demand_arr = get_demand_array(data)
-    demand_mat = view(demand_arr, :, year_idx, hour_idxs)
+function get_elnom_load(data, ::Colon, year_idx::Int64, hour_idxs)
+    load_arr = get_load_array(data)
+    load_mat = view(load_arr, :, year_idx, hour_idxs)
     hour_weights = get_hour_weights(data, hour_idxs)
-    return _sum_product(demand_mat, hour_weights)
+    return _sum_product(load_mat, hour_weights)
 end
 
-function get_edem_demand(data, pairs, year_idx::Int64, hour_idxs)
-    demand_table = get_table(data, :demand_table, pairs...)
-    return get_edem_demand(data, getfield(demand_table, :rows), year_idx, hour_idxs)
+function get_elnom_load(data, pairs, year_idx::Int64, hour_idxs)
+    nominal_load = get_table(data, :nominal_load, pairs...)
+    return get_elnom_load(data, getfield(nominal_load, :rows), year_idx, hour_idxs)
 end
 
-function get_edem_demand(data, pair::Pair, year_idx::Int64, hour_idxs)
-    demand_table = get_table(data, :demand_table, pair)
-    return get_edem_demand(data, getfield(demand_table, :rows), year_idx, hour_idxs)
+function get_elnom_load(data, pair::Pair, year_idx::Int64, hour_idxs)
+    nominal_load = get_table(data, :nominal_load, pair)
+    return get_elnom_load(data, getfield(nominal_load, :rows), year_idx, hour_idxs)
 end
-function get_edem_demand(data, demand_idxs, y::String, hr_idx)
+function get_elnom_load(data, load_idxs, y::String, hr_idx)
     year_idx = findfirst(==(y), get_years(data))
-    return get_edem_demand(data, demand_idxs, year_idx, hr_idx)
+    return get_elnom_load(data, load_idxs, year_idx, hr_idx)
 end
-export get_edem, get_edem_demand
+export get_elnom, get_elnom_load
 
 
 """
@@ -1205,7 +1218,7 @@ export get_pflow_branch_max
 Returns the value of lost load at given bus and time
 """
 function get_voll(data, bus_idx, year_idx, hour_idx) 
-    # If we want voll to be by bus_idx this could be modified and load_voll() will need to be changed
+    # If we want voll to be by bus_idx this could be modified and read_voll() will need to be changed
     return data[:voll]
 end
 export get_voll

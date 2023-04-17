@@ -9,3 +9,4 @@ bus,buildsolar,Bool,NA,0,Whether or not solar units can be built in the bus
 hours,day,Int64,NA,0,Which representative day the hour is in
 hours,time_of_day,String,NA,0,"Time of day of the representative hour, i.e. morning, noon, evening, or night"
 hours,season,String,NA,0,"Season of the representative hour, i.e. summer or winter"
+bus,state,AbstractString,NA,0,State that the bus is in

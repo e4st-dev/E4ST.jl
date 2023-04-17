@@ -9,12 +9,19 @@ Abstract type for containers that can be indexed by year and time.  i.e. `c[yr_i
 abstract type Container end
 export Container
 
+Container(x::Number) = OriginalContainer(x, ByNothing(x))
+
+Container(c::Container) = c
+
 Base.isempty(c::Container) = false
 
 mutable struct OriginalContainer{C} <: Container where {C<:Container}
     original::Float64
     v::C
 end
+
+OriginalContainer(x::Bool, v::Container) = OriginalContainer(Float64(x), v)
+
 struct ByNothing <: Container 
     v::Float64
 end
@@ -31,6 +38,16 @@ struct HoursContainer <: Container
     v::Vector{Float64}
 end
 
+Base.:-(c::ByNothing, n::Number) = ByNothing(c.v-n)
+Base.:+(c::ByNothing, n::Number) = ByNothing(c.v+n)
+Base.:*(c::ByNothing, n::Number) = ByNothing(c.v*n)
+Base.:/(c::ByNothing, n::Number) = ByNothing(c.v/n)
+
+Base.:-(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v-n))
+Base.:+(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v+n))
+Base.:*(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v*n))
+Base.:/(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v/n))
+
 
 """
     get_original(c::Container) -> original::Float64
@@ -43,7 +60,7 @@ end
 function get_original(c::ByNothing)
     return c.v
 end
-
+export get_original
 """
     Base.getindex(c::Container, year_idx, hour_idx) -> val::Float64
 
@@ -83,14 +100,20 @@ function Base.getindex(c::HoursContainer, i::Int64, y::Int64, h::Int64)
 end
 
 # For vector of AbstractMatrixes
-function Base.getindex(v::Vector{<:AbstractMatrix{<:Real}}, i::Int64, y::Int64, h::Int64)
+function _getindex(v::Vector{<:AbstractMatrix{<:Real}}, i::Int64, y::Int64, h::Int64)
     return v[i][y,h]
 end
 
 # Assume that if we are trying to index into a vector of vectors, it is for yearly data only
-function Base.getindex(v::Vector{<:AbstractVector{<:Real}}, i::Int64, y::Int64, h::Int64)
+# _getindex is to protect us from having to overwrite getindex in a bad way for common types.
+function _getindex(v::Vector{<:AbstractVector{<:Real}}, i::Int64, y::Int64, h::Int64)
     return v[i][y]
 end
+function _getindex(v::Vector{<:AbstractVector{<:Real}}, i::Int64, y::Int64)
+    return v[i][y]
+end
+_getindex(args...) = getindex(args...)
+
 
 # Assume that if we are trying to index into a vector of vectors, it is for yearly data only
 function Base.getindex(v::Vector{<:Real}, i::Int64, y::Int64, h::Int64)
@@ -411,27 +434,27 @@ end
 
 
 """
-    DemandContainer()
+    LoadContainer()
 
-Contains a vector of views of the demand_array, so that it is possible to access by 
+Contains a vector of views of the load_array, so that it is possible to access by 
 """
-struct DemandContainer <: Container
+struct LoadContainer <: Container
     v::Vector{SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}}
 end
 
-_add_view!(c::DemandContainer, v) = push!(c.v, v)
+_add_view!(c::LoadContainer, v) = push!(c.v, v)
 
-DemandContainer() = DemandContainer(SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}[])
-function Base.getindex(c::DemandContainer, year_idx, hour_idx)
+LoadContainer() = LoadContainer(SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}[])
+function Base.getindex(c::LoadContainer, year_idx, hour_idx)
     isempty(c.v) && return 0.0
     return sum(vv->vv[year_idx, hour_idx], c.v)::Float64
 end
 
-function Base.show(io::IO, c::DemandContainer)
-    isempty(c.v) && return print(io, "empty DemandContainer")
+function Base.show(io::IO, c::LoadContainer)
+    isempty(c.v) && return print(io, "empty LoadContainer")
     l,m = size(c.v[1])
     n = length(c.v)
-    print(io, "$n-element DemandContainer of $(l)×$m Matrix")
+    print(io, "$n-element LoadContainer of $(l)×$m Matrix")
 end
 
 

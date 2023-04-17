@@ -23,7 +23,7 @@ Loads `mod.file => data[:dc_line]`
 """
 function modify_raw_data!(mod::DCLine, config, data)
     config[:dc_line_file] = mod.file
-    load_table!(config, data, :dc_line_file=>:dc_line)
+    read_table!(config, data, :dc_line_file=>:dc_line)
     return nothing
 end
 

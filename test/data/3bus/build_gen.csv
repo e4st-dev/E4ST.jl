@@ -1,8 +1,8 @@
-name,source,area,subarea,status,build_status,build_type,genfuel,gentype,pcap0,pcap_min,pcap_max,cf_min,vom,fuel_cost,fom,capex,year_on,year_on_min,year_on_max,emis_co2
-test_solar_build,none,country,narnia,1,unbuilt,endog,solar,solar,0,0,5,0,2,0,2,5,,y2015,,0
-test_wind_build,none,country,archenland,1,unbuilt,endog,wind,wind,0,0,3,0,2,0,6,6,,y2015,,0
-test_oswind_build,none,country,archenland,1,unbuilt,endog,wind,oswind,0,0,3,0,5,0,6,6,,y2035,,0
-test_coal_build,none,country,narnia,1,unbuilt,endog,coal,coal,0,0,1,0.6,2,5,6,7,,,y2030,0.6
-test_ngcc_build,none,buildngcc,1,1,unbuilt,endog,ng,ngcc,0,0,1,0.6,1,1,5,5,,y2015,,0.45
-test_exog_nuc_build,none,bus_idx,1,1,unbuilt,exog,nuclear,nuclear,2,0,2,0.6,10,5,5,10,y2020,,,0
-test_exog_solar_build,none,bus_idx,2,1,unbuilt,exog,solar,solar,1,0,1,0,2,0,4,5,y2060,,,0
+name,source,area,subarea,status,build_status,build_type,genfuel,gentype,pcap0,pcap_min,pcap_max,cf_min,vom,fuel_cost,fom,capex,year_on,year_on_min,year_on_max,emis_co2,capt_co2_percent
+test_solar_build,none,country,narnia,1,unbuilt,endog,solar,solar,0,0,0.5,0,2,0,1.5,6,,y2015,,0,0
+test_wind_build,none,country,archenland,1,unbuilt,endog,wind,wind,0,0,0.5,0,2,0,6,6,,y2015,,0,0
+test_oswind_build,none,country,archenland,1,unbuilt,endog,wind,oswind,0,0,0.5,0,5,0,6,6,,y2035,,0,0
+test_coal_build,none,country,narnia,1,unbuilt,endog,coal,coal,0,0,1,0.6,2,5,6,7,,,y2030,1,0
+test_ngcc_build,none,buildngcc,1,1,unbuilt,endog,ng,ngcc,0,0,1,0,1,1,5,5,,y2015,,0.6,0
+test_exog_nuc_build,none,bus_idx,1,1,unbuilt,exog,nuclear,nuclear,0.5,0,0.5,0.6,10,5,5,10,y2020,,,0,0
+test_exog_solar_build,none,bus_idx,2,1,unbuilt,exog,solar,solar,0.5,0,1,0,2,0,2.5,5,y2060,,,0,0
