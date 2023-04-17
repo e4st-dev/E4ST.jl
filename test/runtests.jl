@@ -18,9 +18,9 @@ rm(joinpath(@__DIR__, "out"), force=true, recursive=true)
 
 
 @testset "Test E4ST" begin
-    include("testloadconfig.jl")
+    include("testreadconfig.jl")
     include("testsaveconfig.jl")
-    include("testloaddata.jl")
+    include("testreaddata.jl")
     include("testinitializedata.jl")
     include("testsetupmodel.jl")
     include("testpoltypes.jl")

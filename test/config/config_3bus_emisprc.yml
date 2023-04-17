@@ -3,7 +3,7 @@ mods:
   example_emisprc:
     type: "EmissionPrice"
     emis_col: "emis_co2"
-    values: 
+    prices: 
       y2035: 1.0
       y2040: 1.2
     gen_filters:

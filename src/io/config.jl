@@ -104,6 +104,7 @@ function read_config(filenames...; kwargs...)
     check_years!(config)
     make_out_path!(config)
     convert_mods!(config)
+    sort_mods_by_rank!(config)
     convert_iter!(config)
     return config
 end
@@ -491,6 +492,11 @@ function convert_mods!(config)
     end
     config[:mods] = OrderedDict{Symbol, Modification}(key=>Modification(key=>val) for (key,val) in config[:mods])
     return
+end
+
+function sort_mods_by_rank!(config)
+    mods = config[:mods]
+    sort!(mods, by=mod_rank, byvalue=true)
 end
 
 function convert_iter!(config)
