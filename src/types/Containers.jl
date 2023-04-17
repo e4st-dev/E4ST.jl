@@ -11,12 +11,17 @@ export Container
 
 Container(x::Number) = OriginalContainer(x, ByNothing(x))
 
+Container(c::Container) = c
+
 Base.isempty(c::Container) = false
 
 mutable struct OriginalContainer{C} <: Container where {C<:Container}
     original::Float64
     v::C
 end
+
+OriginalContainer(x::Bool, v::Container) = OriginalContainer(Float64(x), v)
+
 struct ByNothing <: Container 
     v::Float64
 end
@@ -44,7 +49,6 @@ Base.:*(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v*n)
 Base.:/(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v/n))
 
 
-
 """
     get_original(c::Container) -> original::Float64
 
@@ -56,7 +60,7 @@ end
 function get_original(c::ByNothing)
     return c.v
 end
-
+export get_original
 """
     Base.getindex(c::Container, year_idx, hour_idx) -> val::Float64
 

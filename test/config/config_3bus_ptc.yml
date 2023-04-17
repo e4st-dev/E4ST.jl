@@ -2,7 +2,7 @@ base_out_path:    "../out/3bus_ptc"
 mods:
   example_ptc:
     type: "PTC"
-    value: 
+    values: 
       y2035: 12
       y2040: 12
     gen_age_min: 0

@@ -1,4 +1,4 @@
-@testset "Test Loading Data" begin
+@testset "Test Reading Data" begin
             
 
     # Test reading in the data to the model

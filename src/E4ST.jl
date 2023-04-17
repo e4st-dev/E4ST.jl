@@ -36,18 +36,21 @@ include("types/Unit.jl")
 include("types/Containers.jl")
 include("types/Iterable.jl")
 include("types/Term.jl")
+include("types/Crediting.jl")
 
 # Include Modifications
 include("types/modifications/DCLine.jl")
 include("types/modifications/AggregationTemplate.jl")
 include("types/modifications/GenerationConstraint.jl")
+include("types/modifications/GenerationStandard.jl")
 include("types/modifications/YearlyTable.jl")
 include("types/modifications/CCUS.jl")
 
 # Include Policies
 include("types/policies/ITC.jl")
 include("types/policies/PTC.jl")
-#include("types/policies/RPS.jl")
+include("types/policies/RPS.jl")
+include("types/policies/CES.jl")
 include("types/policies/EmissionCap.jl")
 include("types/policies/EmissionPrice.jl")
 
@@ -193,10 +196,16 @@ function reload_types!()
     reload_types!(AbstractString)
     reload_types!(AbstractFloat)
     reload_types!(Integer)
+    reload_types!(Crediting)
 end
 function reload_types!(::Type{T}) where T
     global STR2TYPE
     global SYM2TYPE
+    symtyperaw = Symbol(T)
+    strtyperaw = string(T)
+    SYM2TYPE[symtyperaw] = T
+    STR2TYPE[strtyperaw] = T
+
     symtype = Base.typename(T).name
     SYM2TYPE[symtype] = T
     strtype = string(symtype)

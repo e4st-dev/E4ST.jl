@@ -164,3 +164,46 @@ Returns value of the Modification for the given key (not index)
 function Base.getindex(mod::M, key::Symbol) where {M<:Modification}
     return getproperty(mod, key)
 end
+
+
+
+## Rank 
+
+"""
+    mod_rank(::Type{Modification}) -> 
+
+Returns the rank of the Modification. 
+Rank is the order in which the type of mod should be applied relative to other types of mods. 
+Defaults to 0, where 1 would come after other mods and -1 would come before. 
+Ranks is defined for mod types. 
+"""
+function mod_rank(::Type{<:Modification}) 
+   return 0.0
+end
+
+mod_rank(m::Modification) = mod_rank(typeof(m))
+export mod_rank
+
+function list_type_ranks()
+    all_types = subtypes(Modification)
+    ranks = OrderedDict{Any, Float64}()
+    for t in all_types
+        ranks[t] = mod_rank(t)
+    end
+    #ranks = DataFrame(:types = all_types, :rank = mod_rank.(all_types))
+    sort!(ranks; byvalue=true)
+    return ranks
+end
+export list_type_ranks
+
+function list_mod_ranks(config)
+    mods = config[:mods]
+    ranks = OrderedDict{Symbol, Float64}()
+    for (k,v) in mods
+        ranks[k] = mod_rank(v)
+    end
+    #ranks = DataFrame(:types = [k for (k,v) in mods], :rank = [mod_rank(v) for (k,v) in mods])
+    sort!(ranks; byvalue=true)
+    return ranks
+end
+export list_mod_ranks
