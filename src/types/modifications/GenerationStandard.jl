@@ -79,10 +79,7 @@ function E4ST.modify_model!(pol::GenerationStandard, config, data, model)
 
     # The qualifying load should follow the formula `nominal load - curtailment + DAC load + net battery load + T&D losses`
     # Most of this is covered in `plserv_bus` except possibly battery load
-    if ~haskey(model, :pl_gs_bus)
-        model[:pl_gs_bus] = @expression(model, [bus_idx in 1:nrow(bus), year_idx in 1:nyear, hour_idx in 1:nhour], 
-                model[:plserv_bus][bus_idx, year_idx, hour_idx])   
-    end
+    add_pl_gs_bus!(data, model)
 
     # create yearly constraint that qualifying generation meeting qualifying load
     # takes the form sum(gs_egen * credit) <= gs_value * sum(gs_load)
@@ -103,5 +100,46 @@ export modify_model!
 ## Helper Functions
 #############################################################################################################
 
+"""
+    add_pl_gs_bus!(data, model)
+
+Add the `pl_gs_bus` expression to the model which is load power that qualifies for generation standards.  This includes:
+* Nominal load net any curtailed load `plnom_bus - plcurt_bus`
+* Battery loss (i.e. difference between charge and discharge)
+"""
+function add_pl_gs_bus!(data, model)
+    haskey(model, :pl_gs_bus) && return
+
+    # Pull out necessary tables
+    bus = get_table(data, :bus)
+    nyear = get_num_years(data)
+    nhour = get_num_hours(data)
+
+
+    plcurt_bus = model[:plcurt_bus]
+    hour_weights = get_hour_weights(data)
+
+    @expression(model, 
+        pl_gs_bus[bus_idx in 1:nrow(bus), year_idx in 1:nyear, hour_idx in 1:nhour], 
+        get_plnom(data, bus_idx, year_idx, hour_idx) - plcurt_bus[bus_idx, year_idx, hour_idx]
+    )
+
+    if haskey(data, :storage)
+        pdischarge_stor = model[:pdischarge_stor]
+        pcharge_stor = model[:pcharge_stor]
+        hour_weights = get_hour_weights(data)
+        storage = get_table(data, :storage)
+        for (stor_idx, row) in enumerate(eachrow(storage))
+            bus_idx = row.bus_idx
+            for yr_idx in 1:nyear, hr_idx in 1:nhour
+                add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pdischarge_stor[stor_idx, yr_idx, hr_idx], -1)
+                add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pcharge_stor[stor_idx, yr_idx, hr_idx], 1)
+            end
+        end
+    end
+
+    # TODO: think about line losses
+end
+export add_pl_gs_bus!
 
 
