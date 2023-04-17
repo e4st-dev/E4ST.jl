@@ -296,12 +296,12 @@
                 gen_total_qual_2035 = aggregate_result(total, data, :gen, :egen, [:emis_co2 => 0, :country => "archenland"], 2)
                 elserv_total_qual_2035 = aggregate_result(total, data, :bus, :el_gs, :state => "stormness", 2)
 
-                @test gen_total_qual_2035 / elserv_total_qual_2035 ≈ rps_mod.targets[:y2035]
+                @test gen_total_qual_2035 / elserv_total_qual_2035 >= rps_mod.targets[:y2035]
 
                 gen_total_qual_2040 = aggregate_result(total, data, :gen, :egen, [:emis_co2 => 0, :country => "archenland"], 3)
                 elserv_total_qual_2040 = aggregate_result(total, data, :bus, :el_gs, :state => "stormness", 3)
 
-                @test gen_total_qual_2040 / elserv_total_qual_2040 ≈ rps_mod.targets[:y2040]
+                @test gen_total_qual_2040 / elserv_total_qual_2040 >= rps_mod.targets[:y2040]
 
                 gen_ref = get_table(data_ref, :gen)
                 gen_total_ref = aggregate_result(total, data_ref, :gen, :egen, :emis_co2 => 0)

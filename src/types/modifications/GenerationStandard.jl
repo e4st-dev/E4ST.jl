@@ -45,7 +45,7 @@ function modify_setup_data!(pol::GenerationStandard, config, data)
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
 
     #create get table column for policy, set to zeros to start
-    add_table_col!(data, :gen, pol.name, Container[ByNothing(0.0) for i in 1:nrow(gen)], Ratio,
+    add_table_col!(data, :gen, pol.name, Container[ByNothing(0.0) for i in 1:nrow(gen)], CreditsPerMWhGenerated,
         "Credit level for generation standard: $(pol.name)")
 
     #set credit level in the gen table
@@ -169,6 +169,7 @@ function add_pl_gs_bus!(config, data, model)
             add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pl_gs_bus[bus_idx, yr_idx, hr_idx], loss_scalar)
         end
     elseif line_loss_type == "pflow"
+        pflow_out_bus = model[:pflow_out_bus]
         for bus_idx in axes(bus, 1), yr_idx in 1:nyear, hr_idx in 1:nhour
             add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pflow_out_bus[bus_idx, yr_idx, hr_idx], line_loss_rate)
         end

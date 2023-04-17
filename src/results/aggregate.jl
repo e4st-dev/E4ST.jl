@@ -81,6 +81,9 @@ end
 function total(::Type{DollarsPerMWhGenerated}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :egen], idxs, yr_idxs, hr_idxs)
 end
+function total(::Type{CreditsPerMWhGenerated}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+    return weighted_sum(table[!, column_name], table[!, :egen], idxs, yr_idxs, hr_idxs)
+end
 function total(::Type{DollarsPerMWCapacity}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :pcap], idxs, yr_idxs, hr_idxs)
 end
@@ -130,6 +133,9 @@ end
 
 
 function average(::Type{ShortTonsPerMWhGenerated}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+    return weighted_avg(table[!, column_name], table[!, :egen], idxs, yr_idxs, hr_idxs)
+end
+function average(::Type{CreditsPerMWhGenerated}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_avg(table[!, column_name], table[!, :egen], idxs, yr_idxs, hr_idxs)
 end
 export average

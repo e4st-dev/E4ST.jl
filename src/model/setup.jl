@@ -127,11 +127,11 @@ function constrain_pbal!(config, data, model)
     line_loss_rate = config[:line_loss_rate]::Float64
     line_loss_type = config[:line_loss_type]::String
     if line_loss_type == "pflow"
+        pflow_out_bus = model[:pflow_out_bus]
+        pflow_in_bus = model[:pflow_in_bus]
         pflow_bus = model[:pflow_bus]
-
-        # Make variables for positive and negative power flowing out of the bus.
-        @variable(model, pflow_out_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], lower_bound = 0)
-        @variable(model, pflow_in_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], lower_bound = 0)
+        pgen_bus = model[:pgen_bus]
+        plserv_bus = model[:plserv_bus]
 
         # Constrain power flowing out of the bus.
         @constraint(model, cons_pflow_in_out[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
@@ -139,7 +139,7 @@ function constrain_pbal!(config, data, model)
         )
         @constraint(model, 
             cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] - model[:pflow_out_bus][bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * model[:pflow_in_bus][bus_idx, year_idx, hour_idx] == 0.0
+            pgen_bus[bus_idx, year_idx, hour_idx] - plserv_bus[bus_idx, year_idx, hour_idx] - pflow_out_bus[bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * pflow_in_bus[bus_idx, year_idx, hour_idx] == 0.0
         )
     elseif line_loss_type == "plserv"
         plserv_scalar = 1/(1-line_loss_rate)
