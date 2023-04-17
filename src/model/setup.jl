@@ -107,21 +107,22 @@ end
 
 Constrain the power balancing equation to equal zero for each bus, at each year and hour.
 
-<<<<<<< HEAD
-`pgen_bus - pserv_bus / (1 - line_loss_rate) - pflow_bus == 0`
-=======
-`pgen_bus - plserv_bus - pflow_bus == 0`
->>>>>>> main
+Depending on `config[:line_loss_type]`, the power balancing equation can be implemented in 2 ways:
 
+* `pflow_in`:  `plgen_bus - plserv_bus + pflow_in_bus * (1 - line_loss_rate) - pflow_out_bus == 0`
+* `plserv`:  `plgen_bus - plserv_bus / (1 - line_loss_rate) - pflow_bus == 0`
+
+Where:
 * `pgen_bus` is the power generated at the bus
 * `plserv_bus` is the power served/consumed at the bus
-* `pflow_bus` is the power flowing out of the bus
+* `pflow_bus` is the power flowing out of the bus (positive or negative)
+* `pflow_in_bus` is the (positive) power flowing into the bus
+* `pflow_out_bus` is the (positive) power flowing out of the bus
 """
 function constrain_pbal!(config, data, model)
     nyear = get_num_years(data)
     nhour = get_num_hours(data)
     nbus = nrow(get_table(data, :bus))
-<<<<<<< HEAD
     line_loss_rate = config[:line_loss_rate]::Float64
     line_loss_type = config[:line_loss_type]::String
     if line_loss_type == "pflow_in"
@@ -137,23 +138,17 @@ function constrain_pbal!(config, data, model)
         )
         @constraint(model, 
             cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:pserv_bus][bus_idx, year_idx, hour_idx] - model[:pflow_out_bus][bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * model[:pflow_in_bus][bus_idx, year_idx, hour_idx] == 0.0
+            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] - model[:pflow_out_bus][bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * model[:pflow_in_bus][bus_idx, year_idx, hour_idx] == 0.0
         )
-    elseif line_loss_type == "pserv"
-        pserv_scalar = 1/(1-line_loss_rate)
+    elseif line_loss_type == "plserv"
+        plserv_scalar = 1/(1-line_loss_rate)
         @constraint(model, 
             cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:pserv_bus][bus_idx, year_idx, hour_idx] * pserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] == 0.0
+            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] * plserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] == 0.0
         )
     else
-        error("config[:line_loss_type] must be `pserv` or `pflow_in`, but $line_loss_type was given")
+        error("config[:line_loss_type] must be `plserv` or `pflow_in`, but $line_loss_type was given")
     end
-=======
-    @constraint(model, 
-        cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-        model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] - model[:pflow_bus][bus_idx, year_idx, hour_idx] == 0.0
-    )
->>>>>>> main
     return nothing
 end
 export constrain_pbal!
