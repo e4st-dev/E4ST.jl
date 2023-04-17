@@ -119,8 +119,8 @@
             @test elec_cost ≈ elec_price * elec_quantity
         
             # Test that there is no curtailment across all time
-            ecurt = aggregate_result(total, data, :bus, :ecurt, :, :, :)
-            @test ecurt < 1e-6
+            elcurt = aggregate_result(total, data, :bus, :elcurt, :, :, :)
+            @test elcurt < 1e-6
         
             # Test that total power capacity is greater than or equal to average load
             pcap = aggregate_result(total, data, :gen, :pcap)

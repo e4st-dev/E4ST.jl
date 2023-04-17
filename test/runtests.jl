@@ -27,6 +27,7 @@ rm(joinpath(@__DIR__, "out"), force=true, recursive=true)
     include("testoptimizemodel.jl")
     include("testresultprocessing.jl")
     include("testiteration.jl")
+    include("teststorage.jl")
     include("testccus.jl")
     include("testutil.jl")
 end

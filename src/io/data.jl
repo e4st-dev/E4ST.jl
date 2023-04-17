@@ -158,6 +158,11 @@ function summarize_table(s::Symbol)
 end
 export summarize_table
 
+function TableSummary()
+    DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[],  "required"=>Bool[],"description"=>String[])
+end
+export TableSummary
+
 
 ################################################################################
 # Data Loading
@@ -573,13 +578,13 @@ end
     summarize_table(::Val{:gen}) -> summary
 """
 function summarize_table(::Val{:gen})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[],  "required"=>Bool[],"description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:bus_idx, Int64, NA, true, "The index of the `bus` table that the generator corresponds to"),
         (:status, Bool, NA, false, "Whether or not the generator is in service"),
         (:build_status, AbstractString, NA, true, "Whether the generator is 'built', 'new', or 'unbuilt'. All generators marked 'new' when the gen file is read in will be changed to 'built'."),
         (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
-        (:year_on, AbstractString, Year, true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
+        (:year_on, YearString, Year, true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses"),
         (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses"),
         (:pcap0, Float64, MWCapacity, true, "Starting nameplate power generation capacity for the generator"),
@@ -603,7 +608,7 @@ end
     summarize_table(::Val{:bus}) -> summary
 """
 function summarize_table(::Val{:bus})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:ref_bus, Bool, NA, true, "Whether or not the bus is a reference bus.  There should be a single reference bus for each island."),
     )
@@ -614,7 +619,7 @@ end
     summarize_table(::Val{:branch}) -> summary
 """
 function summarize_table(::Val{:branch})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:f_bus_idx, Int64, NA, true, "The index of the `bus` table that the branch originates **f**rom"),
         (:t_bus_idx, Int64, NA, true, "The index of the `bus` table that the branch goes **t**o"),
@@ -629,7 +634,7 @@ end
     summarize_table(::Val{:hours}) -> summary
 """
 function summarize_table(::Val{:hours})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:hours, Float64, Hours, true, "The number of hours spent in each representative hour over the course of a year (must sum to 8760)"),
     )
@@ -640,13 +645,13 @@ end
     summarize_table(::Val{:af_table}) -> summary
 """
 function summarize_table(::Val{:af_table})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
         (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
-        (:year, AbstractString, Year, true, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
+        (:year, YearString, Year, true, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
         (:status, Bool, NA, false, "Whether or not to use this AF adjustment"),
         (:h_, Float64, MWhGeneratedPerMWhCapacity, true, "Availability factor of hour _.  Include 1 column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
     )
@@ -658,7 +663,7 @@ end
     summarize_table(::Val{:build_gen}) -> summary
 """
 function summarize_table(::Val{:build_gen})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
@@ -676,9 +681,9 @@ function summarize_table(::Val{:build_gen})
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
         (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
         (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
-        (:year_on, AbstractString, NA, true, "The first year of operation for the generator. (For new gens this is also the year it was built). Endogenous unbuilt generators will be left blank"),
-        (:year_on_min, AbstractString, NA, true, "The first year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
-        (:year_on_max, AbstractString, NA, true, "The last year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
+        (:year_on, YearString, Year, true, "The first year of operation for the generator. (For new gens this is also the year it was built). Endogenous unbuilt generators will be left blank"),
+        (:year_on_min, YearString, Year, true, "The first year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
+        (:year_on_max, YearString, Year, true, "The last year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
         (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The CO2 emission rate of the generator, in short tons per MWh generated.  This is the net emissions. (i.e. not including captured CO2 that gets captured)"),
         (:capt_co2_percent, Float64, ShortTonsPerMWhGenerated, false, "The percentage of co2 emissions captured, to be sequestered."),
     )
@@ -689,7 +694,7 @@ end
     summarize_table(::Val{:genfuel}) -> 
 """
 function summarize_table(::Val{:genfuel})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:gentype, AbstractString, NA, true, "The generator type (ie. ngcc, dist_solar, os_wind)"),
         (:genfuel, AbstractString, NA, true, "The corresponding generator fuel or renewable type (ie. ng, solar, wind)"),
@@ -1110,43 +1115,6 @@ function get_num_years(data)
 end
 export get_num_years, get_years
 
-
-"""
-    get_prebuild_year_idxs(data, gen_idx) -> prebuild_year_idxs::Array
-
-Returns an array of the year indexes for years in the simulation before the start year of the specified generator. 
-"""
-function get_prebuild_year_idxs(data, gen_idx)
-    years = get_years(data)
-    year_on = get_table_val(data, :gen, :year_on, gen_idx)
-    idxs = findall(x -> years[x] < year_on, 1:length(years))
-    return idxs
-end
-export get_prebuild_year_idxs
-
-"""
-    get_year_on_sim_idx(data, gen_idx) -> year_on_sim_idx
-
-Gets the index for the generator on year. 
-If the on_year is in the set of sim years, it returns that index. 
-If this year is not part of the set of year, it returns the index of the next closest year. (ie. years = [2020, 2025, 2030], year_on = 2022, year_on_sim = 2025, year_on_sim_idx = 2)
-If this year is after the simulation years it returns length(years)+1 indicating that it is in the future.
-"""
-function get_year_on_sim_idx(data, gen_idx)
-    years = get_years(data)
-    year_on = get_table_val(data, :gen, :year_on, gen_idx)
-    year_on_sim_idx = findfirst(x -> years[x] >= year_on, 1:length(years)) 
-    if year_on_sim_idx === nothing
-        year_on_sim_idx = length(years)+1
-    end
-    return year_on_sim_idx
-end
-export get_year_on_sim_idx
-
-## Moved from dcopf, will organize later
-
-### System mapping helper functions
-
 """
     get_bus_gens(data, bus_idx)
 
@@ -1154,7 +1122,7 @@ Returns an array of the gen_idx of all the gens at the bus.
 """
 function get_bus_gens(data, bus_idx) 
     gen = get_table(data, :gen)
-    return findall(x -> x == bus_idx, gen.bus_idx)
+    return findall(==(bus_idx), gen.bus_idx)
 end
 export get_bus_gens
 

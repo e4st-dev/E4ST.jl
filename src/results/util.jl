@@ -110,7 +110,7 @@ function weight_hourly(data, ar::AbstractArray{<:Real, I}, s=+) where I
     w = get_hour_weights(data)
     return [s(ar[ci]) * w[ci[I]] for ci in CartesianIndices(ar)]
 end
-function weight_hourly(data, v::Vector{<:Container}, s=+)
+function weight_hourly(data, v::Vector{<:Union{Container, AbstractMatrix}}, s=+)
     w = get_hour_weights(data)
     ny = get_num_years(data)
     nh = get_num_hours(data)

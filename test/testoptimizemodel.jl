@@ -20,9 +20,9 @@
         total_eserv = aggregate_result(total, data, :bus, :eserv)
         total_elnom = aggregate_result(total, data, :bus, :elnom)
         # total_plserv = sum(rep_hours.hours[hour_idx].*value.(model[:plserv_bus][bus_idx, year_idx, hour_idx]) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
-        total_ecurt = aggregate_result(total, data, :bus, :ecurt)
+        total_elcurt = aggregate_result(total, data, :bus, :elcurt)
         @test total_eserv ≈ total_elnom
-        @test all(p->abs(p)<1e-6, total_ecurt)
+        @test all(p->abs(p)<1e-6, total_elcurt)
     end
 
     @testset "Test DC lines" begin
