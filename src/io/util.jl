@@ -528,7 +528,7 @@ end
 Computes the sum of M*v
 """
 function _sum_product(M::AbstractMatrix, v::AbstractVector)
-    @inbounds sum(M[row_idx, hr_idx]*v[hr_idx] for row_idx in 1:size(M,1), hr_idx in 1:size(M,2))
+    @inbounds sum(M[row_idx, hr_idx]*v[hr_idx] for row_idx in axes(M,1), hr_idx in axes(M,2))
 end
 
 

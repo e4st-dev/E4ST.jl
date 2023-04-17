@@ -113,9 +113,9 @@
             @test 0 <= aggregate_result(average, data, :gen, :cf, :gentype=>"solar", :, :) <= aggregate_result(average, data, :gen, :af, :gentype=>"solar", :, :)
         
             # Test that the average LMP times energy served equals the sum of LMP
-            elec_cost = aggregate_result(total, data, :bus, :lmp_eserv, :, :, :)
-            elec_price = aggregate_result(average, data, :bus, :lmp_eserv, :, :, :)
-            elec_quantity = aggregate_result(total, data, :bus, :eserv, :, :, :)
+            elec_cost = aggregate_result(total, data, :bus, :lmp_elserv, :, :, :)
+            elec_price = aggregate_result(average, data, :bus, :lmp_elserv, :, :, :)
+            elec_quantity = aggregate_result(total, data, :bus, :elserv, :, :, :)
             @test elec_cost ≈ elec_price * elec_quantity
         
             # Test that there is no curtailment across all time

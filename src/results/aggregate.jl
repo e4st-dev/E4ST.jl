@@ -76,7 +76,7 @@ function total(::Type{Dollars}, data, table, column_name, idxs, yr_idxs, hr_idxs
     end
 end
 function total(::Type{DollarsPerMWhServed}, data, table, column_name, idxs, yr_idxs, hr_idxs)
-    return weighted_sum(table[!, column_name], table[!, :eserv], idxs, yr_idxs, hr_idxs)
+    return weighted_sum(table[!, column_name], table[!, :elserv], idxs, yr_idxs, hr_idxs)
 end
 function total(::Type{DollarsPerMWhGenerated}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :egen], idxs, yr_idxs, hr_idxs)
@@ -100,6 +100,9 @@ function total(::Type{MWhGenerated}, data, table, column_name, idxs, yr_idxs, hr
     return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
 end
 function total(::Type{MWhLoad}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+    return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
+end
+function total(::Type{MWhFlow}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
 end
 function total(::Type{MWhCurtailed}, data, table, column_name, idxs, yr_idxs, hr_idxs)
@@ -131,7 +134,7 @@ function average(::Type{ShortTonsPerMWhGenerated}, data, table, column_name, idx
 end
 export average
 function average(::Type{DollarsPerMWhServed}, data, table, column_name, idxs, yr_idxs, hr_idxs)
-    return weighted_avg(table[!, column_name], table[!, :eserv], idxs, yr_idxs, hr_idxs)
+    return weighted_avg(table[!, column_name], table[!, :elserv], idxs, yr_idxs, hr_idxs)
 end
 
 """

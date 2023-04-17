@@ -17,11 +17,11 @@
         bus = get_table(data, :bus)
         years = get_years(data)
         rep_hours = get_table(data, :hours)
-        total_eserv = aggregate_result(total, data, :bus, :eserv)
+        total_elserv = aggregate_result(total, data, :bus, :elserv)
         total_elnom = aggregate_result(total, data, :bus, :elnom)
         # total_plserv = sum(rep_hours.hours[hour_idx].*value.(model[:plserv_bus][bus_idx, year_idx, hour_idx]) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
         total_elcurt = aggregate_result(total, data, :bus, :elcurt)
-        @test total_eserv ≈ total_elnom
+        @test total_elserv ≈ total_elnom
         @test all(p->abs(p)<1e-6, total_elcurt)
     end
 
@@ -54,5 +54,24 @@
             aggregate_result(total, data, :gen, :egen, (:genfuel=>"ng", :country=>"narnia")) + 
             aggregate_result(total, data, :gen, :egen, (:genfuel=>"ng", :country=>"archenland"))
         
+    end
+
+    @testset "Test line losses on plserv" begin
+        egen = aggregate_result(total, data, :gen, :egen)
+        elserv = aggregate_result(total, data, :bus, :elserv)
+        @test egen ≈ elserv / (1-config[:line_loss_rate]) 
+    end
+    
+    @testset "Test line losses with pflow" begin
+        config = read_config(config_file, line_loss_type="pflow")
+        data = read_data(config)
+        model = setup_model(config, data)
+        optimize!(model)
+        parse_results!(config, data, model)
+
+        egen = aggregate_result(total, data, :gen, :egen)
+        elserv = aggregate_result(total, data, :bus, :elserv)
+        eflow_in = aggregate_result(total, data, :bus, :eflow_in)
+        @test egen ≈ (config[:line_loss_rate] * eflow_in) + elserv
     end
 end
