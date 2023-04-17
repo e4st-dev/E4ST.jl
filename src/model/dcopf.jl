@@ -307,9 +307,14 @@ function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper)
     #write expression for the term
     gen = get_table(data, :gen)
     years = get_years(data)
+    hours_per_year = sum(get_hour_weights(data))
 
-    model[s] = @expression(model, [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
-        get_table_num(data, :gen, s, gen_idx, year_idx, :) .* model[:pcap_gen][gen_idx, year_idx])
+    model[s] = @expression(model, 
+        [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
+        get_table_num(data, :gen, s, gen_idx, year_idx, :) .* 
+        model[:pcap_gen][gen_idx, year_idx] *
+        hours_per_year
+    )
 
     # add or subtract the expression from the objective function
     add_obj_exp!(data, model, PerMWCap(), s; oper = oper) 
