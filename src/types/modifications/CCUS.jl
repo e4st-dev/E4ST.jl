@@ -68,7 +68,7 @@ export CCUS
     summarize_table(::Val{:ccus_paths}) -> summary
 """
 function summarize_table(::Val{:ccus_paths})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:producing_region, String, NA, true, "The name of the producing region (type of regions specified by groupby kwarg of CCUS mod"),
         (:storing_region, String, NA, true, "The name of the sequestering region (type of regions specified by groupby kwarg of CCUS mod"),

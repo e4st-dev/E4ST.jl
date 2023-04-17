@@ -91,7 +91,7 @@ function setup_dcopf!(config, data, model)
         fix(model[:θ_bus][ref_bus_idx, year_idx, hour_idx], 0.0, force=true)
     end
 
-    # Constrain Transmission Lines 
+    # Constrain Transmission Lines, positive and negative
     @constraint(model,
         cons_branch_pflow_pos[
             branch_idx in 1:nbranch,
@@ -111,20 +111,8 @@ function setup_dcopf!(config, data, model)
         ], 
         -pflow_branch[branch_idx, year_idx, hour_idx] <= get_pflow_branch_max(data, branch_idx, year_idx, hour_idx)
     )
-    
-    # Constrain Capacity to 0 before the start/build year 
-    prebuild_year_idxs = map(gen_idx -> get_prebuild_year_idxs(data, gen_idx), 1:ngen)
-    if any(!isempty, prebuild_year_idxs)
-        @constraint(model, cons_pcap_prebuild[gen_idx in 1:ngen, year_idx in prebuild_year_idxs[gen_idx]],
-            pcap_gen[gen_idx, year_idx] == 0) 
-    end
 
-    # Constrain existing capacity to only decrease (only retire, not add capacity)
-    if nyear > 1
-        @constraint(model, cons_pcap_noadd[gen_idx in 1:ngen, year_idx in get_year_on_sim_idx(data, gen_idx):(nyear-1)], 
-                pcap_gen[gen_idx, year_idx+1] <= pcap_gen[gen_idx, year_idx])
-    end
-
+    add_build_constraints!(data, model, :gen, :pcap_gen)
     
     ## Objective Function 
     @info "Building Objective"

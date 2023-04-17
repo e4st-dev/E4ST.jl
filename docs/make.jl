@@ -36,7 +36,8 @@ makedocs(
         ],
         "Technologies"=>Any[
             "CO₂ Capture, Utilization & Storage"=>"types/modifications/ccus.md",
-            "DC Transmission Lines" => "types/modifications/dcline.md"
+            "DC Transmission Lines" => "types/modifications/dcline.md",
+            "Storage" => "types/modifications/storage.md",
         ],
         
     ],

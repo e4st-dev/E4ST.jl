@@ -27,3 +27,7 @@ mods:
       country: "narnia"
     load_bus_filters:
       country: "narnia"
+  storage:
+    type: Storage
+    file: "../data/3bus/storage.csv"
+

@@ -53,14 +53,15 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 | $C_{PC_{g}}^{\text{max}}$ | $P_{C_{g,y}} \leq P_{C_{g,y}}^{\text{max}}\quad \forall y = y_{S_g}$ | `:cons_pcap_max` | MW | Constrain the power generation capacity to be less than or equal to its minimum for its starting year. |
 | $C_{PL_{l,y,h}}^{+}$ | $P_{F_{l,y,h}} \leq P_{L_{l,y,h}}^{\text{max}}$ | `:cons_branch_pflow_pos` | MW | Constrain the branch power flow to be less than or equal to its maximum. |
 | $C_{PL_{l,y,h}}^{-}$ | $-P_{F_{l,y,h}} \leq P_{L_{l,y,h}}^{\text{max}}$ | `:cons_branch_pflow_neg` | MW | Constrain the negative branch power flow to be less than or equal to its maximum. |
-| $C_{PCPB_{g,y}}$ | $P_{C_{g,y}} = 0 \quad \forall \left\{ y<y_{S_g} \right\}$ | `:cons_pcap_prebuild` | MW | Constraint the power generation capacity to be zero before the start year. |
-| $C_{PCNA_{g,y}}$ | $P_{C_{g,y+1}} <= P_{C_{g,y}} \quad \forall \left\{ y >= y_{S_g} \right\}$ | `:cons_pcap_noadd` | MW | Constraint the power generation capacity to be non-increasing after the start year. Generation capacity is only added when building new generators in their start year.|
+| $C_{PCGPB_{g,y}}$ | $P_{C_{g,y}} = 0 \quad \forall \left\{ y<y_{S_g} \right\}$ | `:cons_pcap_gen_prebuild` | MW | Constrain the power generation capacity to be zero before the start year. |
+| $C_{PCGNA_{g,y}}$ | $P_{C_{g,y+1}} <= P_{C_{g,y}} \quad \forall \left\{ y >= y_{S_g} \right\}$ | `:cons_pcap_gen_noadd` | MW | Constrain the power generation capacity to be non-increasing after the start year. Generation capacity is only added when building new generators in their start year.|
+| $C_{PCGE_{g,y}}$ | $P_{C_{g,y}} == P_{C_{0_{g}}} \quad \forall \left\{ first y >= y_{S_g} \right\}$ | `:cons_pcap_gen_exog` | MW | Constrain unbuilt exogenous generators to be built to `pcap0` in the first year after `year_on`. |
 
 # Objective
 
 The objective is a single expression that can be accessed via `model[:obj]`.  In general, we add things to the objective via:
-* [`add_obj_exp`](@ref)
-* [`add_obj_term`](@ref)
+* [`add_obj_exp!`](@ref)
+* [`add_obj_term!`](@ref)
 
 """
 function setup_model(config, data)

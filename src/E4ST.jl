@@ -45,6 +45,7 @@ include("types/modifications/GenerationConstraint.jl")
 include("types/modifications/GenerationStandard.jl")
 include("types/modifications/YearlyTable.jl")
 include("types/modifications/CCUS.jl")
+include("types/modifications/Storage.jl")
 
 # Include Policies
 include("types/policies/ITC.jl")

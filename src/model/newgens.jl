@@ -57,8 +57,8 @@ function make_newgens!(config, data, newgen)
         end
         
         #set default min and max for year_on if blank
-        spec_row.year_on_min == "" ? year_on_min = "y0" : year_on_min = spec_row.year_on_min
-        spec_row.year_on_max == "" ? year_on_max = "y9999" : year_on_max = spec_row.year_on_max
+        year_on_min = (spec_row.year_on_min == "" ? "y0" : spec_row.year_on_min)
+        year_on_max = (spec_row.year_on_max == "" ? "y9999" : spec_row.year_on_max)
 
         for bus_idx in bus_idxs
             if spec_row.build_type == "endog"
@@ -73,7 +73,12 @@ function make_newgens!(config, data, newgen)
                     hasproperty(newgen, :gen_longitude) && (newgen_row[:gen_longitude] = bus.bus_longitude[bus_idx])
                     push!(newgen, newgen_row, promote=true)
                 end
-            else 
+            else
+                @assert !isempty(spec_row.year_on) "Exogenous generators must have a specified year_on value" 
+
+                # Skip this build if it is after the simulation
+                spec_row.year_on > last(years) && continue
+                
                 # for exogenously specified gens, only one generator is created with the specified year_on
                 newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
                 hasproperty(newgen, :gen_latitude) && (newgen_row[:gen_latitude] = bus.bus_latitude[bus_idx])

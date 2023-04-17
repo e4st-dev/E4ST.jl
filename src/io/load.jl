@@ -260,7 +260,7 @@ export add_nominal_load!
     summarize_table(::Val{:nominal_load}) -> summary
 """
 function summarize_table(::Val{:nominal_load})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:bus_idx, Int64, NA, true, "The bus index of the load element"),
         (:plnom0, Float64, MWLoad, true, "The nominal load power of the load element"),
@@ -273,7 +273,7 @@ end
     summarize_table(::Val{:load_shape}) -> summary
 """
 function summarize_table(::Val{:load_shape})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:area, String, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, String, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
@@ -289,7 +289,7 @@ end
     summarize_table(::Val{:load_match}) -> summary
 """
 function summarize_table(::Val{:load_match})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:area, String, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, String, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
@@ -305,7 +305,7 @@ end
     summarize_table(::Val{:load_add}) -> summary
 """
 function summarize_table(::Val{:load_add})
-    df = DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[], "required"=>Bool[], "description"=>String[])
+    df = TableSummary()
     push!(df, 
         (:area, String, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, String, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),

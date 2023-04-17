@@ -28,10 +28,11 @@ function summarize_config()
         (:nominal_load_file, true, nothing, "The filepath (relative or absolute) to the time representation.  See [`summarize_table(::Val{:nominal_load})`](@ref)"),
         (:years, true, nothing, "a list of years to run in the simulation specified as a string.  I.e. `\"y2030\"`"),
         (:optimizer, true, nothing, "The optimizer type and attributes to use in solving the linear program.  The `type` field should be always be given, (i.e. `type: HiGHS`) as well as each of the solver options you wish to set.  E4ST is a BYOS (Bring Your Own Solver :smile:) library, with default attributes for HiGHS and Gurobi.  For all other solvers, you're on your own to provide a reasonable set of attributes.  To see a full list of solvers with work with JuMP.jl, see [here](https://jump.dev/JuMP.jl/stable/installation/#Supported-solvers)."),
-        (:mods, true, nothing, "A list of `Modification`s specifying changes for how E4ST runs.  See the [`Modification`](@ref) for information on what they are, how to add them to a config file."),
+        (:mods, false, OrderedDict{Symbol, Modification}(), "A list of `Modification`s specifying changes for how E4ST runs.  See the [`Modification`](@ref) for information on what they are, how to add them to a config file."),
         
         ## Optional Fields:
         (:out_path, false, nothing, "the path to output to.  If this is not provided, an output path will be created [`make_out_path!`](@ref)."),
+        (:other_config_files, false, nothing, "A list of other config files to read.  Note that the options in the parent file will be honored."),
         (:af_file, false, nothing, "The filepath (relative or absolute) to the availability factor table.  See [`summarize_table(::Val{:af_table})`](@ref)"),
         (:iter, false, RunOnce(), "The [`Iterable`](@ref) object to specify the way the sim should iterate.  If nothing specified, defaults to run a single time via [`RunOnce`](@ref).  Specify the `Iterable` type, and all keyword arguments."),
         (:load_shape_file, false, nothing, "a file for specifying the hourly shape of load elements.  See [`summarize_table(::Val{:load_shape})`](@ref)"),
@@ -82,13 +83,13 @@ table_element(x) = x
 table_element(x::Symbol) = "`$x`"
 
 @doc """
-    read_config(filename) -> config::OrderedDict{Symbol,Any}
+    read_config(filename; kwargs...) -> config::OrderedDict{Symbol,Any}
 
-    read_config(filenames) -> config::OrderedDict{Symbol,Any}
+    read_config(filenames; kwargs...) -> config::OrderedDict{Symbol,Any}
 
-    read_config(path) -> config::OrderedDict{Symbol, Any}
+    read_config(path; kwargs...) -> config::OrderedDict{Symbol, Any}
 
-Load the config file from `filename`, inferring any necessary settings as needed.  If `path` given, checks for `joinpath(path, "config.yml")`.  This can be used with the `out_path` returned by [`run_e4st`](@ref)  See [`read_data`](@ref) to see how the `config` is used.  If multiple filenames given, (in a vector, or separated by commas) merges them, preserving the settings found in the last file, when there are conflicts, appending the list of [`Modification`](@ref)s.  Uses [`summarize_config`](@ref) to infer defaults, when applicable.
+Load the config file from `filename`, inferring any necessary settings as needed.  If `path` given, checks for `joinpath(path, "config.yml")`.  This can be used with the `out_path` returned by [`run_e4st`](@ref)  See [`read_data`](@ref) to see how the `config` is used.  If multiple filenames given, (in a vector, or separated by commas) merges them, preserving the settings found in the last file, when there are conflicts, appending the list of [`Modification`](@ref)s.  Uses [`summarize_config`](@ref) to infer defaults, when applicable.  Any specified `kwargs` are added to the config, over-writing anything except the list of [`Modification`](@ref)s.  Note
 
 The Config File is a file that fully specifies all the necessary information.  Note that when filenames are given as a relative path, they are assumed to be relative to the location of the config file.
 
@@ -99,8 +100,8 @@ $(table2markdown(summarize_config()))
 $(read_sample_config_file())
 ```
 """
-function read_config(filenames...)
-    config = _read_config(filenames)
+function read_config(filenames...; kwargs...)
+    config = _read_config(filenames; kwargs...)
     check_config!(config)
     check_years!(config)
     make_out_path!(config)
@@ -115,6 +116,13 @@ function _read_config(filename::AbstractString)
         config = YAML.load_file(filename, dicttype=OrderedDict{Symbol, Any})
         get!(config, :config_file, filename)
         make_paths_absolute!(config)
+        if haskey(config, :other_config_files)
+            other_files = pop!(config, :other_config_files)
+            other_config = _read_config(other_files)
+            _merge_config!(other_config, config)
+            other_config[:config_file] = config[:config_file]
+            return other_config
+        end
     elseif isdir(filename)
         filename_new = joinpath(filename, "config.yml")
         isfile(filename_new) || error("No config file found at the following location:\n  $filename_new")
@@ -125,24 +133,32 @@ function _read_config(filename::AbstractString)
     return config
 end
 
-function _read_config(filenames)
+function _read_config(filenames; kwargs...)
     config = _read_config(first(filenames))
     for i in 2:length(filenames)
         _read_config!(config, filenames[i])
     end
+    _merge_config!(config, kwargs)
     return config
 end
 
 function _read_config!(config::OrderedDict, filename::AbstractString)
     config_new = _read_config(filename)
+    _merge_config!(config, config_new)
+end
+
+function _merge_config!(config::OrderedDict, config_new)
     config_file = config[:config_file]
 
-    mods = config[:mods]
+    mods = get(config, :mods, OrderedDict{Symbol, Any}())
     haskey(config_new, :mods) && merge!(mods, config_new[:mods])
 
     merge!(config, config_new)
     config[:config_file] = config_file
     config[:mods] = mods
+
+    # Filter anything that is set to nothing
+    filter!(p->!isnothing(p.second), config)
     return nothing
 end
 
@@ -402,6 +418,12 @@ function make_paths_absolute!(config, filename)
             make_paths_absolute!(v, filename)
         end
     end
+    if haskey(config, :other_config_files)
+        config[:other_config_files] = map(config[:other_config_files]) do fn
+            isabspath(fn) && return fn
+            abspath(path, fn)
+        end
+    end        
     return config
 end
 make_paths_absolute!(config) = make_paths_absolute!(config, config[:config_file])

@@ -1,0 +1,5 @@
+mods:
+  stor:
+    type: Storage
+    file: ../data/3bus/storage.csv
+    build_file: ../data/3bus/build_storage.csv
