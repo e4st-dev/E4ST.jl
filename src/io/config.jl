@@ -54,7 +54,7 @@ function summarize_config()
         (:logging, false, true, "This specifies whether or not E4ST will log to [`get_out_path(config, \"E4ST.log\")`](@ref). Options include `true`, `false`, or `\"debug\"`.  See [`start_logging!`](@ref) for more info."),
         (:eor_leakage_rate, false, 0.5, "The assumed rate (between 0 and 1) at which CO₂ stored in Enhanced Oil Recovery (EOR) leaks back into the atmosphere."),
         (:line_loss_rate, false, 0.1, "The assumed electrical loss rate from generation to consumption, given as a ratio between 0 and 1.  Default is 0.1, or 10% energy loss"),
-        (:line_loss_type, false, "plserv", "The term in the power balancing equation that gets penalized with line losses.  Can be \"pflow_in\" or \"plserv\". Using \"pflow_in\" is more accurate in that it accounts for only losses on power coming from somewhere else, at the expense of a larger problem size and greater solve time."),
+        (:line_loss_type, false, "plserv", "The term in the power balancing equation that gets penalized with line losses.  Can be \"pflow\" or \"plserv\". Using \"pflow\" is more accurate in that it accounts for only losses on power coming from somewhere else, at the expense of a larger problem size and greater solve time."),
     )
     return df
 end

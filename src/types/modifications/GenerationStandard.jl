@@ -79,7 +79,7 @@ function E4ST.modify_model!(pol::GenerationStandard, config, data, model)
 
     # The qualifying load should follow the formula `nominal load - curtailment + DAC load + net battery load + T&D losses`
     # Most of this is covered in `plserv_bus` except possibly battery load
-    add_pl_gs_bus!(data, model)
+    add_pl_gs_bus!(config, data, model)
 
     # create yearly constraint that qualifying generation meeting qualifying load
     # takes the form sum(gs_egen * credit) <= gs_value * sum(gs_load)
@@ -89,25 +89,60 @@ function E4ST.modify_model!(pol::GenerationStandard, config, data, model)
     hour_weights = get_hour_weights(data)
 
     @info "Creating a generation constraint for the Generation Standard $(pol.name)."
-    model[Symbol(cons_name)] = @constraint(model, [y = target_years], 
-            sum(get_egen_gen(data, model, gen_idx, findfirst(==(y), years), hour_idx)*get_table_num(data, :gen, pol.name, gen_idx, findfirst(==(y), years), hour_idx) for gen_idx=gen_idxs, hour_idx=1:nhour) >= 
-            pol.targets[y]*sum(model[:pl_gs_bus][bus_idx, findfirst(==(y), years), hour_idx]*hour_weights[hour_idx] for bus_idx=bus_idxs, hour_idx=1:nhour))
-
+    model[Symbol(cons_name)] = @constraint(model, 
+        [
+            yr_idx in 1:nyear;
+            haskey(pol.targets, years[yr_idx])
+        ],
+        sum(
+            get_egen_gen(data, model, gen_idx, yr_idx, hr_idx) * 
+            get_table_num(data, :gen, pol.name, gen_idx, yr_idx, hr_idx)
+            for gen_idx=gen_idxs, hr_idx=1:nhour
+        ) >= (
+            pol.targets[years[yr_idx]] * 
+            sum(model[:pl_gs_bus][bus_idx, yr_idx, hr_idx]*hour_weights[hr_idx]
+            for bus_idx=bus_idxs, hr_idx=1:nhour)
+        )
+    )
 end
 export modify_model!
+
+"""
+    modify_results!(mod::GenerationStandard, config, data)
+
+Modifies the results by adding the following columns to the bus table:
+* `pl_gs` - GS-qualifying load power, in MW
+* `el_gs` - GS-qualifying load energy, in MWh.
+"""
+function modify_results!(mod::GenerationStandard, config, data)
+    bus = get_table(data, :bus)
+
+    # TODO: do any other results processing here
+
+    # Add pl_gs and el_gs to the bus
+    hasproperty(bus, :pl_gs) && return
+    pl_gs_bus = get_raw_result(data, :pl_gs_bus)
+    el_gs_bus = weight_hourly(data, pl_gs_bus)
+
+    add_table_col!(data, :bus, :pl_gs, pl_gs_bus, MWServed, "Served Load Power that qualifies for generation standards")
+    add_table_col!(data, :bus, :el_gs, el_gs_bus, MWhServed, "Served Load Energy that qualifies for generation standards")
+    return
+end
+export modify_results!
 
 
 ## Helper Functions
 #############################################################################################################
 
 """
-    add_pl_gs_bus!(data, model)
+    add_pl_gs_bus!(config, data, model)
 
 Add the `pl_gs_bus` expression to the model which is load power that qualifies for generation standards.  This includes:
 * Nominal load net any curtailed load `plnom_bus - plcurt_bus`
 * Battery loss (i.e. difference between charge and discharge)
+* Line losses
 """
-function add_pl_gs_bus!(data, model)
+function add_pl_gs_bus!(config, data, model)
     haskey(model, :pl_gs_bus) && return
 
     # Pull out necessary tables
@@ -120,10 +155,29 @@ function add_pl_gs_bus!(data, model)
     hour_weights = get_hour_weights(data)
 
     @expression(model, 
-        pl_gs_bus[bus_idx in 1:nrow(bus), year_idx in 1:nyear, hour_idx in 1:nhour], 
-        get_plnom(data, bus_idx, year_idx, hour_idx) - plcurt_bus[bus_idx, year_idx, hour_idx]
+        pl_gs_bus[bus_idx in 1:nrow(bus), yr_idx in 1:nyear, hr_idx in 1:nhour], 
+        get_plnom(data, bus_idx, yr_idx, hr_idx) - plcurt_bus[bus_idx, yr_idx, hr_idx]
+        # Add DAC here
     )
 
+    # Add line losses
+    line_loss_type = config[:line_loss_type]
+    line_loss_rate = config[:line_loss_rate]
+    if line_loss_type == "plserv"
+        loss_scalar = 1/(1-line_loss_rate) - 1
+        for bus_idx in axes(bus, 1), yr_idx in 1:nyear, hr_idx in 1:nhour
+            add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pl_gs_bus[bus_idx, yr_idx, hr_idx], loss_scalar)
+        end
+    elseif line_loss_type == "pflow"
+        for bus_idx in axes(bus, 1), yr_idx in 1:nyear, hr_idx in 1:nhour
+            add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pflow_out_bus[bus_idx, yr_idx, hr_idx], line_loss_rate)
+        end
+    else
+        error("config[:line_loss_type] must be `plserv` or `pflow`, but $line_loss_type was given")
+
+    end
+
+    # Add storage to the expression.  Note this must come after line losses so that the generation-side storage doesn't get penalized for line losses.
     if haskey(data, :storage)
         pdischarge_stor = model[:pdischarge_stor]
         pcharge_stor = model[:pcharge_stor]
@@ -131,14 +185,17 @@ function add_pl_gs_bus!(data, model)
         storage = get_table(data, :storage)
         for (stor_idx, row) in enumerate(eachrow(storage))
             bus_idx = row.bus_idx
+
+            # Only add line losses here if we're acconting for losses on plserv and with load-side storage devices
+            line_loss_scalar = ((line_loss_type == "plserv" && row.side == "load") ? 1.0/(1.0-line_loss_rate) : 1.0)
             for yr_idx in 1:nyear, hr_idx in 1:nhour
-                add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pdischarge_stor[stor_idx, yr_idx, hr_idx], -1)
-                add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pcharge_stor[stor_idx, yr_idx, hr_idx], 1)
+                add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pdischarge_stor[stor_idx, yr_idx, hr_idx], -line_loss_scalar)
+                add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pcharge_stor[stor_idx, yr_idx, hr_idx], line_loss_scalar)
             end
         end
     end
 
-    # TODO: think about line losses
+    return
 end
 export add_pl_gs_bus!
 

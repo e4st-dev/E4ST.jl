@@ -110,7 +110,7 @@ Constrain the power balancing equation to equal zero for each bus, at each year 
 
 Depending on `config[:line_loss_type]`, the power balancing equation can be implemented in 2 ways:
 
-* `pflow_in`:  `plgen_bus - plserv_bus + pflow_in_bus * (1 - line_loss_rate) - pflow_out_bus == 0`
+* `pflow`:  `plgen_bus - plserv_bus + pflow_in_bus * (1 - line_loss_rate) - pflow_out_bus == 0`
 * `plserv`:  `plgen_bus - plserv_bus / (1 - line_loss_rate) - pflow_bus == 0`
 
 Where:
@@ -126,7 +126,7 @@ function constrain_pbal!(config, data, model)
     nbus = nrow(get_table(data, :bus))
     line_loss_rate = config[:line_loss_rate]::Float64
     line_loss_type = config[:line_loss_type]::String
-    if line_loss_type == "pflow_in"
+    if line_loss_type == "pflow"
         pflow_bus = model[:pflow_bus]
 
         # Make variables for positive and negative power flowing out of the bus.
@@ -148,7 +148,7 @@ function constrain_pbal!(config, data, model)
             model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] * plserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] == 0.0
         )
     else
-        error("config[:line_loss_type] must be `plserv` or `pflow_in`, but $line_loss_type was given")
+        error("config[:line_loss_type] must be `plserv` or `pflow`, but $line_loss_type was given")
     end
     return nothing
 end
