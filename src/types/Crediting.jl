@@ -89,7 +89,7 @@ struct CreditByBenchmark <: Crediting
     benchmark::Float64
 
     function CreditByBenchmark(gen_col, benchmark)
-        return new(string(gen_col), Float64(benchmark))
+        return new(Symbol(gen_col), Float64(benchmark))
     end
 end
 export CreditByBenchmark
