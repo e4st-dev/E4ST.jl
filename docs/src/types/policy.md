@@ -27,6 +27,15 @@ modify_setup_data!(pol::GenerationStandard, config, data)
 modify_model!(pol::GenerationStandard, config, data, model)
 ```
 
+## Crediting
+```@docs
+Crediting
+get_credit
+StandardRPSCrediting
+CreditByGentype
+CreditByBenchmark
+```
+
 ## CES
 CES is an alias for GenerationStandard. Modifying functions called on a CES will use the GenerationStandard method. 
 ```@docs
@@ -53,7 +62,7 @@ modify_model!(pol::EmissionCap, config, data, model)
 ```
 
 ## EmissionPrice
-```@doc
+```@docs
 EmissionPrice
 modify_model!(pol::EmissionPrice, config, data, model)
 ```

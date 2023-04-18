@@ -256,8 +256,10 @@ export add_nominal_load!
 # Table Summaries
 ################################################################################
 
-"""
-    summarize_table(::Val{:nominal_load}) -> summary
+@doc """
+    summarize_table(::Val{:nominal_load})
+
+$(table2markdown(summarize_table(Val(:nominal_load))))
 """
 function summarize_table(::Val{:nominal_load})
     df = TableSummary()
@@ -269,8 +271,10 @@ function summarize_table(::Val{:nominal_load})
     return df
 end
 
-"""
-    summarize_table(::Val{:load_shape}) -> summary
+@doc """
+    summarize_table(::Val{:load_shape})
+
+$(table2markdown(summarize_table(Val(:load_shape))))
 """
 function summarize_table(::Val{:load_shape})
     df = TableSummary()
@@ -285,8 +289,10 @@ function summarize_table(::Val{:load_shape})
     return df
 end
 
-"""
-    summarize_table(::Val{:load_match}) -> summary
+@doc """
+    summarize_table(::Val{:load_match})
+
+$(table2markdown(summarize_table(Val(:load_match))))
 """
 function summarize_table(::Val{:load_match})
     df = TableSummary()
@@ -301,8 +307,10 @@ function summarize_table(::Val{:load_match})
 end
 
 
-"""
-    summarize_table(::Val{:load_add}) -> summary
+@doc """
+    summarize_table(::Val{:load_add})
+
+$(table2markdown(summarize_table(Val(:load_add))))
 """
 function summarize_table(::Val{:load_add})
     df = TableSummary()

@@ -29,6 +29,8 @@ export modify_raw_data!, modify_setup_data!, modify_model!, modify_results!, fie
 export run_e4st
 export setup_new_gens!
 
+include("io/util.jl")
+
 # Include types
 include("types/Modification.jl")
 include("types/Policy.jl")
@@ -64,7 +66,6 @@ include("io/config.jl")
 include("io/data.jl")
 include("io/adjust.jl")
 include("io/load.jl")
-include("io/util.jl")
 
 # Include model
 include("model/setup.jl")

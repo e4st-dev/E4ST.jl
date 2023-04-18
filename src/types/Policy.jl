@@ -11,7 +11,7 @@ There are currently six basic policy types. Novel policy types can also be added
 * [`ITC`](@ref)
 * [`PTC`](@ref)
 * [`EmissionCap`](@ref)
-* [`EmissionPrc`](@ref)
+* [`EmissionPrice`](@ref)
 * [`RPS`](@ref)
 * [`CES`](@ref)
 """

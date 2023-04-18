@@ -64,8 +64,10 @@ function CCUS(;file, groupby)
 end
 export CCUS
 
-"""
-    summarize_table(::Val{:ccus_paths}) -> summary
+@doc """
+    summarize_table(::Val{:ccus_paths})
+
+$(table2markdown(summarize_table(Val(:ccus_paths))))
 """
 function summarize_table(::Val{:ccus_paths})
     df = TableSummary()

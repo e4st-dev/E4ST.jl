@@ -24,7 +24,7 @@ Creates a column in the gen table with the ITC value in each simulation year for
  
 ITC values are calculated based on `capex_obj` so ITC values only apply in `year_on` for a generator.
     
-Subtracts the ITC price * Capacity in that year from the objective function using `add_obj_term!(data, model, PerMWCap(), pol.name, oper = -)`
+Subtracts the ITC price * Capacity in that year from the objective function using [`add_obj_term!(data, model, PerMWCap(), pol.name, oper = -)`](@ref)
 """
 function E4ST.modify_model!(pol::ITC, config, data, model)
     gen = get_table(data, :gen)

@@ -27,8 +27,10 @@ function modify_raw_data!(mod::DCLine, config, data)
     return nothing
 end
 
-"""
-    summarize_table(::Val{:dc_line}) -> summary
+@doc """
+    summarize_table(::Val{:dc_line})
+
+$(table2markdown(summarize_table(Val(:dc_line))))
 """
 function summarize_table(::Val{:dc_line})
     df = TableSummary()

@@ -11,11 +11,11 @@ $(read(joinpath(@__DIR__,"../../test/config/config_3bus_rps.yml"), String))
 ```
 
 ## Standard Crediting subtypes include:
-*`CreditByBenchmark`
-*`CreditByGentype`
+* [`CreditByBenchmark`](@ref)
+* [`CreditByGentype`](@ref)
 
 ## Interfaces Implements
-*[`get_credit(c::Crediting, data, gen_row::DataFrameRow)`](@ref) - gets the appropriate credit level for the generator row for the given Crediting subtype.
+* [`get_credit(c::Crediting, data, gen_row::DataFrameRow)`](@ref) - gets the appropriate credit level for the generator row for the given Crediting subtype.
 """
 abstract type Crediting end 
 
@@ -42,10 +42,11 @@ Return the credit value for the given generator and crediting type.
 function get_credit(c::Crediting, data, gen_row::DataFrame)
     error("No get_credit() defined for crediting type $(typeof(c)), no credits will be applied for this policy.")
 end
+export get_credit
 
 
 """
-    struct CreditByGentype
+    CreditByGentype(;credits::OrderedDict{String, Float64})
 
 Crediting method where credit levels are specified by gentypes. 
 """
@@ -73,16 +74,32 @@ function get_credit(c::CreditByGentype, data,  gen_row::DataFrameRow)
     return ByNothing(credit)
 end
 
-@Base.kwdef struct CreditByBenchmark <: Crediting
-    gen_col::Symbol = :emis_co2
+"""
+    CreditByBenchmark(;gen_col, benchmark)
+
+Awards credit of each generator based on how that generator's `gen_col` compares to `benchmark`, using the following formula.
+
+    max(1.0 - (gen_row[gen_col] / benchmark), 0.0)
+
+* `gen_col::Symbol` - the column of the `gen` table to compare against
+* `benchmark::Float64` - the benchmark rate to compare with, in the same units as the `gen_col`.
+"""
+struct CreditByBenchmark <: Crediting
+    gen_col::Symbol
     benchmark::Float64
+
+    function CreditByBenchmark(gen_col, benchmark)
+        return new(string(gen_col), Float64(benchmark))
+    end
 end
 export CreditByBenchmark
+
+CreditByBenchmark(;gen_col = :emis_co2, benchmark) = CreditByBenchmark(gen_col, benchmark)
 
 """
     get_credit(c::CreditByBenchmark, data, gen_row::DataFrameRow) -> 
 
-Returns the credit level based on the formula `maximum([1.0 - (gen_emis_rate / c.benchmark), 0.0])`. 
+Returns the credit level based on the formula `max(1.0 - (gen_row[gen_col] / c.benchmark), 0.0)`. 
 """
 function get_credit(c::CreditByBenchmark, data, gen_row::DataFrameRow)
     gen_emis_rate = gen_row[c.gen_col]

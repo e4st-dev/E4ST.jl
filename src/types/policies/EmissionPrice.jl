@@ -4,10 +4,10 @@
 
 Emission Price - A price on a certain emission for a given set of generators.
 
-*`name`: name of the policy (Symbol)
-*`emis_col`: name of the emission rate column in the gen table (ie. emis_co2) (Symbol)
-*`prices`: OrderedDict of prices by year. Given as price per unit of emissions (ie. \$/short ton)
-*`gen_filters`: OrderedDict of generator filters
+* `name`: name of the policy (Symbol)
+* `emis_col`: name of the emission rate column in the gen table (ie. emis_co2) (Symbol)
+* `prices`: OrderedDict of prices by year. Given as price per unit of emissions (ie. \$/short ton)
+* `gen_filters`: OrderedDict of generator filters
 """
 struct EmissionPrice <: Policy
     name::Symbol
@@ -26,7 +26,7 @@ export EmissionPrice
     E4ST.modify_model!(pol::EmissionPrice, config, data, model)
 
 Adds a column to the gen table containing the emission price as a per MWh value (gen emission rate * emission price). 
-Adds this as a PerMWhGen price to the objective function using `add_obj_term!`
+Adds this as a `PerMWhGen` price to the objective function using [`add_obj_term!`](@ref)
 """
 function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
 

@@ -158,11 +158,6 @@ function summarize_table(s::Symbol)
 end
 export summarize_table
 
-function TableSummary()
-    DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[],  "required"=>Bool[],"description"=>String[])
-end
-export TableSummary
-
 
 ################################################################################
 # Data Loading
@@ -580,8 +575,10 @@ end
 
 # Table Summaries
 ################################################################################
-"""
-    summarize_table(::Val{:gen}) -> summary
+@doc """
+    summarize_table(::Val{:gen})
+
+$(table2markdown(summarize_table(Val(:gen))))
 """
 function summarize_table(::Val{:gen})
     df = TableSummary()
@@ -610,8 +607,10 @@ function summarize_table(::Val{:gen})
 end
 
 
-"""
-    summarize_table(::Val{:bus}) -> summary
+@doc """
+    summarize_table(::Val{:bus})
+
+$(table2markdown(summarize_table(Val(:bus))))
 """
 function summarize_table(::Val{:bus})
     df = TableSummary()
@@ -621,8 +620,10 @@ function summarize_table(::Val{:bus})
     return df
 end
 
-"""
-    summarize_table(::Val{:branch}) -> summary
+@doc """
+    summarize_table(::Val{:branch})
+
+$(table2markdown(summarize_table(Val(:branch))))
 """
 function summarize_table(::Val{:branch})
     df = TableSummary()
@@ -636,8 +637,10 @@ function summarize_table(::Val{:branch})
     return df
 end
 
-"""
-    summarize_table(::Val{:hours}) -> summary
+@doc """
+    summarize_table(::Val{:hours})
+
+$(table2markdown(summarize_table(Val(:hours))))
 """
 function summarize_table(::Val{:hours})
     df = TableSummary()
@@ -647,8 +650,10 @@ function summarize_table(::Val{:hours})
     return df
 end
 
-"""
-    summarize_table(::Val{:af_table}) -> summary
+@doc """
+    summarize_table(::Val{:af_table})
+
+$(table2markdown(summarize_table(Val(:af_table))))
 """
 function summarize_table(::Val{:af_table})
     df = TableSummary()
@@ -665,8 +670,10 @@ function summarize_table(::Val{:af_table})
 end
 
 
-"""
-    summarize_table(::Val{:build_gen}) -> summary
+@doc """
+    summarize_table(::Val{:build_gen})
+
+$(table2markdown(summarize_table(Val(:build_gen))))
 """
 function summarize_table(::Val{:build_gen})
     df = TableSummary()
@@ -696,8 +703,10 @@ function summarize_table(::Val{:build_gen})
     return df
 end
 
-"""
-    summarize_table(::Val{:genfuel}) -> 
+@doc """
+    summarize_table(::Val{:genfuel})
+
+$(table2markdown(summarize_table(Val(:genfuel))))
 """
 function summarize_table(::Val{:genfuel})
     df = TableSummary()

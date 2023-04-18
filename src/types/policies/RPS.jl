@@ -26,10 +26,12 @@ end
 
 export RPS
 
-"""
-   struct StandardRPSCrediting <: Crediting
+@doc """
+    struct StandardRPSCrediting <: Crediting
 
-Standard RPS crediting structure. Anything included in the RPS gentypes recieves a credit of 1. 
+Standard RPS crediting structure. Anything included in the RPS gentypes recieves a credit of 1.  Creates a [`CreditByGentype`](@ref)
+
+`$(collect(keys(StandardRPSCrediting().credits)))`
 """
 struct StandardRPSCrediting <: Crediting 
     StandardRPSCrediting() = CreditByGentype(OrderedDict(
