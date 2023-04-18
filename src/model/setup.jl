@@ -36,7 +36,7 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 | Name | Symbol | Unit | Description |
 | :--- | :--- | :--- | :--- |
 | $P_{F_{l,y,h}}$ | `:pflow_branch` | MW | Hourly avg. power flowing through each branch |
-| $P_{F_{b,y,h}}$ | `:pflow_bus` | MW | Hourly avg. power flowing out of each bus |
+| $P_{F_{b,y,h}}$ | `:pflow_bus` | MW | Hourly avg. net power flowing out of each bus |
 | $P_{U_{b,y,h}}$ | `:plcurt_bus` | MW | Hourly avg. power curtailed at each bus |
 | $P_{G_{b,y,h}}$ | `:pgen_bus` | MW | Hourly avg. power generated at each bus |
 
@@ -116,7 +116,7 @@ Depending on `config[:line_loss_type]`, the power balancing equation can be impl
 Where:
 * `pgen_bus` is the power generated at the bus
 * `plserv_bus` is the power served/consumed at the bus
-* `pflow_bus` is the power flowing out of the bus (positive or negative)
+* `pflow_bus` is the net power flowing out of the bus (positive or negative)
 * `pflow_in_bus` is the (positive) power flowing into the bus
 * `pflow_out_bus` is the (positive) power flowing out of the bus
 """

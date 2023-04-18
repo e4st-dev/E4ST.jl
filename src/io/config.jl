@@ -7,7 +7,30 @@ function read_sample_config_file()
     read(joinpath(@__DIR__,"../../test/config/config_3bus_examplepol.yml"), String)
 end
 
-"""
+
+function table2markdown(df::DataFrame)
+    io = IOBuffer()
+    print(io, "|")
+    for n in names(df)
+        print(io, " ", n, " |")
+    end
+    println(io)
+    print(io, "|")
+    foreach(x->print(io, " :-- |"), 1:ncol(df))
+    println(io)
+    for row in eachrow(df)
+        print(io, "|")
+        foreach(x->print(io, " ", table_element(x), " |"), row)
+        println(io)
+    end
+    return String(take!(io))
+end
+export table2markdown
+
+table_element(x) = x
+table_element(x::Symbol) = "`$x`"
+
+@doc """
     summarize_config() -> summary::DataFrame
 
 Summarizes the `config`, with columns for:
@@ -15,6 +38,8 @@ Summarizes the `config`, with columns for:
 * `required` - whether or not the property is required
 * `default` - default value of this property
 * `description`
+
+$(table2markdown(summarize_config()))
 """
 function summarize_config()
     df = DataFrame("name"=>Symbol[], "required"=>Bool[], "default"=>[], "description"=>String[])
@@ -54,33 +79,11 @@ function summarize_config()
         (:logging, false, true, "This specifies whether or not E4ST will log to [`get_out_path(config, \"E4ST.log\")`](@ref). Options include `true`, `false`, or `\"debug\"`.  See [`start_logging!`](@ref) for more info."),
         (:eor_leakage_rate, false, 0.5, "The assumed rate (between 0 and 1) at which CO₂ stored in Enhanced Oil Recovery (EOR) leaks back into the atmosphere."),
         (:line_loss_rate, false, 0.1, "The assumed electrical loss rate from generation to consumption, given as a ratio between 0 and 1.  Default is 0.1, or 10% energy loss"),
-        (:line_loss_type, false, "plserv", "The term in the power balancing equation that gets penalized with line losses.  Can be \"pflow\" or \"plserv\". Using \"pflow\" is more accurate in that it accounts for only losses on power coming from somewhere else, at the expense of a larger problem size and greater solve time."),
+        (:line_loss_type, false, "plserv", "The term in the power balancing equation that gets penalized with line losses.  Can be \"pflow\" or \"plserv\". Using \"pflow\" is more accurate in that it accounts for only losses on power coming from somewhere else, at the expense of a larger problem size and greater solve time.  Default is `plserv` due to increased runtime with `pflow`"),
     )
     return df
 end
 export summarize_config
-
-function table2markdown(df::DataFrame)
-    io = IOBuffer()
-    print(io, "|")
-    for n in names(df)
-        print(io, " ", n, " |")
-    end
-    println(io)
-    print(io, "|")
-    foreach(x->print(io, " :-- |"), 1:ncol(df))
-    println(io)
-    for row in eachrow(df)
-        print(io, "|")
-        foreach(x->print(io, " ", table_element(x), " |"), row)
-        println(io)
-    end
-    return String(take!(io))
-end
-export table2markdown
-
-table_element(x) = x
-table_element(x::Symbol) = "`$x`"
 
 @doc """
     read_config(filename; kwargs...) -> config::OrderedDict{Symbol,Any}
