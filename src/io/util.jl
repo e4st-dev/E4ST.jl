@@ -72,7 +72,7 @@ function YearString(s::AbstractString)
     # end
     # return s
 end
-YearString(n::Number) = year2string(n)
+YearString(n::Number) = year2str(n)
 export YearString
 
 """
@@ -103,13 +103,26 @@ export year2float
 """
     year2str(year) -> 
 
-Converts the year given as an Int to a String in the standard "yXXXX" format.
+Converts the year given as a Number to a String in the standard "yXXXX" format.
 """
-function year2str(year::Int)
+function year2str(year::Number)
     str_year = "y"*string(year)
     return str_year
 end
 export year2str
+
+"""
+    add_to_year(y::AbstractString, nyr::Number) -> y'
+
+Adds `nyr` to `y`
+"""
+function add_to_year(y::AbstractString, nyr::Number)
+    f = year2float(y)
+    fnew = f+nyr
+    isinteger(fnew) && return year2str(Int(fnew))
+    return year2str(fnew) 
+end
+export add_to_year
 
 """
     get_hour_idxs(data, hour_idxs)

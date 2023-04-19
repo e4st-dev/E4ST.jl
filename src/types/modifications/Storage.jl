@@ -65,6 +65,7 @@ function summarize_table(::Val{:storage})
         (:build_status, AbstractString, NA, true, "Whether the storage device is 'built', 'new', or 'unbuilt'. All storage devices marked 'new' when the storage file is read in will be changed to 'built'."),
         (:build_type, AbstractString, NA, true, "Whether the storage device is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
         (:year_on, YearString, Year, true, "The first year of operation for the storage device. (For new devices this is also the year it was built)"),
+        (:year_off, YearString, Year, true, "The first year that the storage device is no longer operating."),
         (:pcap0, Float64, MWCapacity, true, "Starting nameplate power discharge capacity for the storage device"),
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power discharge capacity of the storage device (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power discharge capacity of the storage device"),
@@ -95,8 +96,9 @@ function summarize_table(::Val{:build_storage})
         (:build_status, AbstractString, NA, true, "Whether the storage device is 'built', 'new', or 'unbuilt'. All storage devices marked 'new' when the gen file is read in will be changed to 'built'."),
         (:build_type, AbstractString, NA, true, "Whether the storage device is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
         (:year_on, YearString, Year, true, "The first year of operation for the storage device. (For new devices this is also the year it was built)"),
-        (:year_on_min, YearString, Year, true, "The first year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
-        (:year_on_max, YearString, Year, true, "The last year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
+        (:age_off, Float64, NumYears, true, "The age at which the storage device is no longer operating.  I.e. if `year_on` = `y2030` and `age_off` = `20`, then capacity will be 0 in `y2040`."),
+        (:year_on_min, YearString, Year, true, "The first year in which a storage device can be built/come online (inclusive). Storage device with no restriction and exogenously built gens will be left blank"),
+        (:year_on_max, YearString, Year, true, "The last year in which a storage device can be built/come online (inclusive). Storage devices with no restriction and exogenously built gens will be left blank"),
         (:pcap0, Float64, MWCapacity, true, "Starting nameplate power discharge capacity for the storage device"),
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power discharge capacity of the storage device (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power discharge capacity of the storage device"),
@@ -105,7 +107,7 @@ function summarize_table(::Val{:build_storage})
         (:capex, Float64, DollarsPerMWBuiltCapacity, true, "Hourly capital expenditures for a MW of discharge capacity"),
         (:duration_discharge, Float64, Hours, true, "Number of hours to fully discharge the storage device, from full."),
         (:duration_charge, Float64, Hours, false, "Number of hours to fully charge the empty storage device from empty. (Defaults to equal `duration_discharge`)"),
-        (:storage_efficiency, Float64, MWhDischargedPerMWhCharged, true, "The round-trip efficiency of the battery."),
+        (:storage_efficiency, Float64, MWhDischargedPerMWhCharged, true, "The round-trip efficiency of the device."),
         (:side, String, NA, true, "The side of the power balance equation to add the charging/discharging to.  Can be \"gen\" or \"load\""),
         (:hour_groupby, String, NA, true, "The column of the `hours` table to group by.  For example `day`"),
         (:hour_duration, String, NA, true, "The column of the `hours` table specifying the duration of each representatibe hour"),
@@ -196,7 +198,7 @@ function add_buildable_storage!(config, data)
     build_storage = get_table(data, :build_storage)
     bus =           get_table(data, :bus)
 
-    spec_names = filter!(!=(:bus_idx), propertynames(storage))
+    spec_names = filter!(!in((:bus_idx,:year_off)), propertynames(storage))
     years = get_years(data)
 
     for spec_row in eachrow(build_storage)
@@ -218,6 +220,7 @@ function add_buildable_storage!(config, data)
                     # Make row to add to the storage table
                     new_row = Dict(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
                     new_row[:year_on] = year
+                    new_row[:year_off] = add_to_year(year, spec_row.age_off)
                     push!(storage, new_row, promote=true)
                 end
             else # exogenous
@@ -228,6 +231,7 @@ function add_buildable_storage!(config, data)
 
                 # for exogenously specified storage, only one storage device is created with the specified year_on
                 new_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
+                new_row[:year_off] = add_to_year(spec_row.year_on, spec_row.age_off)
                 push!(storage, new_row, promote=true)
             end
         end

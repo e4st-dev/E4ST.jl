@@ -240,7 +240,7 @@ function set_new_gen_build_status!(config, data)
     gen = get_table(data, :gen)
 
     #Threshold capacity to be saved into the next run
-    thresh = get(config, :gen_pcap_threshold, eps())
+    thresh = config[:gen_pcap_threshold]
 
     for idx in 1:nrow(gen)
         gen[idx, :build_status] =="unbuilt" && aggregate_result(total, data, :gen, :pcap, idx) >= thresh ? gen[idx, :build_status] = "new" : continue
