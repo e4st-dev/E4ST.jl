@@ -52,7 +52,7 @@ function summarize_config()
         (:save_data_parsed, false, true, "A boolean specifying whether or not to save the raw results after solving the model.  This could be useful for calling [`process_results!(config)`](@ref) in the future. Defaults to `true`"),
         (:save_data_processed, false, true, "A boolean specifying whether or not to save the processed results after solving the model.  Defaults to `true`."),
         (:objective_scalar, false, 1e6, "This is specifies how much to scale the objective by for the sake of the solver.  Does not impact any user-created expressions or shadow prices from the raw results, as they get scaled back.  (Defaults to 1e6)"),
-        (:gen_pcap_threshold, false, 1e-6, "This is the minimum `pcap` threshold (in MW) for new generators to be kept.  Defaults to 1e-6 (i.e. 1W).  See also [`save_updated_gen_table`](@ref)"),
+        (:pcap_retirement_threshold, false, 1e-6, "This is the minimum `pcap` threshold (in MW) for new generators to be kept.  Defaults to 1e-6 (i.e. 1W).  See also [`save_updated_gen_table`](@ref)"),
         (:voll, false, 5000, "This is the assumed value of lost load for which the objective function will be penalized for every MWh of curtailed load."),
         (:logging, false, true, "This specifies whether or not E4ST will log to [`get_out_path(config, \"E4ST.log\")`](@ref). Options include `true`, `false`, or `\"debug\"`.  See [`start_logging!`](@ref) for more info."),
         (:eor_leakage_rate, false, 0.5, "The assumed rate (between 0 and 1) at which CO₂ stored in Enhanced Oil Recovery (EOR) leaks back into the atmosphere."),
@@ -139,7 +139,7 @@ function _merge_config!(config::OrderedDict, config_new)
     merge!(config, config_new)
     config[:config_file] = config_file
     config[:mods] = mods
-    
+
     # Filter anything that is set to nothing
     filter!(p->!isnothing(p.second), config)
     return nothing

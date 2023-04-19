@@ -39,6 +39,11 @@
         @test aggregate_result(total, data, :gen, :egen, gen_idx) >= 0
     end
 
+    @testset "Test exogenous retirement" begin
+        @test count(==("retired_exog"), gen.build_status) == 1
+        @test count(==("retired_endog"), gen.build_status) > 1
+    end
+
     @testset "Test Accessor methods" begin
         @test aggregate_result(total, data, :gen, :egen, :genfuel=>"ng", "y2040", 1:3) ≈ 
             aggregate_result(total, data, :gen, :egen, :genfuel=>"ng", 3, [1,2,3])
@@ -74,4 +79,5 @@
         eflow_in = aggregate_result(total, data, :bus, :eflow_in)
         @test egen ≈ (config[:line_loss_rate] * eflow_in) + elserv
     end
+
 end

@@ -62,7 +62,7 @@ function summarize_table(::Val{:storage})
     push!(df, 
         (:bus_idx, Int64, NA, true, "The index of the `bus` table that the storage device corresponds to"),
         (:status, Bool, NA, false, "Whether or not the storage device is in service"),
-        (:build_status, AbstractString, NA, true, "Whether the storage device is 'built', 'new', or 'unbuilt'. All storage devices marked 'new' when the storage file is read in will be changed to 'built'."),
+        (:build_status, String15, NA, true, "Whether the storage device is `built`, '`new`, or `unbuilt`. All storage devices marked `new` when the storage file is read in will be changed to `built`.  Can also be changed to `retired_exog` or `retired_endog` after the simulation is run.  See [`update_build_status!`](@ref)"),
         (:build_type, AbstractString, NA, true, "Whether the storage device is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
         (:year_on, YearString, Year, true, "The first year of operation for the storage device. (For new devices this is also the year it was built)"),
         (:year_off, YearString, Year, true, "The first year that the storage device is no longer operating."),
@@ -93,7 +93,7 @@ function summarize_table(::Val{:build_storage})
         (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:status, Bool, NA, false, "Whether or not the storage device is in service"),
-        (:build_status, AbstractString, NA, true, "Whether the storage device is 'built', 'new', or 'unbuilt'. All storage devices marked 'new' when the gen file is read in will be changed to 'built'."),
+        (:build_status, String15, NA, true, "Whether the storage device is `built`, '`new`, or `unbuilt`. All storage devices marked `new` when the storage file is read in will be changed to `built`.  Can also be changed to `retired_exog` or `retired_endog` after the simulation is run.  See [`update_build_status!`](@ref)"),
         (:build_type, AbstractString, NA, true, "Whether the storage device is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
         (:year_on, YearString, Year, true, "The first year of operation for the storage device. (For new devices this is also the year it was built)"),
         (:age_off, Float64, NumYears, true, "The age at which the storage device is no longer operating.  I.e. if `year_on` = `y2030` and `age_off` = `20`, then capacity will be 0 in `y2040`."),
@@ -416,6 +416,8 @@ function modify_results!(mod::Storage, config, data)
     eloss = weight_hourly(data, storage.ploss)
     add_table_col!(data, :storage, :eloss, eloss, MWhServed, "Energy that was lost by the battery, counted as served load")
 
+    update_build_status!(config, data, :storage)
+
     save_updated_storage_table(config, data)
 end
 export modify_results!
@@ -442,7 +444,7 @@ function save_updated_storage_table(config, data)
     storage_tmp.pcap0 = last.(storage.pcap)
 
     # Filter anything with capacity below the threshold
-    thresh = config[:gen_pcap_threshold]
+    thresh = config[:pcap_retirement_threshold]
     filter!(:pcap0 => >(thresh), storage_tmp)
     storage_tmp.pcap_max = copy(storage_tmp.pcap0)
 
