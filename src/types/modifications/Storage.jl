@@ -52,6 +52,11 @@ function Storage(;name, file, build_file="")
 end
 export Storage
 
+@doc """
+    summarize_table(::Val{:storage})
+
+$(table2markdown(summarize_table(Val(:storage))))
+"""
 function summarize_table(::Val{:storage})
     df = TableSummary()
     push!(df, 
@@ -76,6 +81,11 @@ function summarize_table(::Val{:storage})
     )
 end
 
+@doc """
+    summarize_table(::Val{:build_storage})
+
+$(table2markdown(summarize_table(Val(:build_storage))))
+"""
 function summarize_table(::Val{:build_storage})
     df = TableSummary()
     push!(df, 

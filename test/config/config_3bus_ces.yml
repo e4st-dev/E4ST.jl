@@ -1,4 +1,5 @@
 base_out_path:    "../out/3bus_ces"
+line_loss_type: pflow  # Need to test that this type of line loss works with generation standards
 mods:
   example_ces:
     type: "CES"

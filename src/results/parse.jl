@@ -57,7 +57,7 @@ end
 function value_or_shadow_price(x::AbstractJuMPScalar, obj_scalar)
     value(x)
 end
-function value_or_shadow_price(x::Float64)
+function value_or_shadow_price(x::Float64, obj_scalar)
     return x
 end
 function value_or_shadow_price(ar::AbstractArray, obj_scalar)
@@ -79,8 +79,13 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | :bus | :pgen | MWGenerated | Average Power Generated at this bus |
 | :bus | :egen | MWhGenerated | Electricity Generated at this bus for the weighted representative hour |
 | :bus | :pflow | MWFlow | Average power flowing out of this bus |
+| :bus | :eflow | MWhFlow | Electricity flowing out of this bus |
+| :bus | :pflow_in | MWFlow | Average power flowing into this bus |
+| :bus | :eflowin | MWhFlow | Electricity flowing out of this bus |
+| :bus | :pflow_out | MWFlow | Average power flowing into this bus |
+| :bus | :eflow_out | MWhFlow | Electricity flowing out of this bus |
 | :bus | :plserv | MWServed | Average power served at this bus |
-| :bus | :eserv | MWhServed | Electricity served at this bus for the weighted representative hour |
+| :bus | :elserv | MWhServed | Electricity served at this bus for the weighted representative hour |
 | :bus | :plcurt | MWCurtailed | Average power curtailed at this bus |
 | :bus | :elcurt | MWhCurtailed | Electricity curtailed at this bus for the weighted representative hour |
 | :bus | :elnom  | MWhLoad | Electricity load at this bus for the weighted representative hour |
@@ -106,9 +111,17 @@ function parse_power_results!(config, data)
 
     # Weight things by hour as needed
     egen_bus = weight_hourly(data, pgen_bus)
-    eserv_bus = weight_hourly(data, plserv_bus)
+    elserv_bus = weight_hourly(data, plserv_bus)
     elcurt_bus = weight_hourly(data, plcurt_bus)
     elnom_bus = weight_hourly(data, get_table_col(data, :bus, :plnom))
+    eflow_bus = weight_hourly(data, pflow_bus)
+    eflow_branch = weight_hourly(data, pflow_branch)
+
+    pflow_out_bus = map(x-> max(x,0), pflow_bus)
+    pflow_in_bus = map(x-> max(-x,0), pflow_bus)
+    eflow_out_bus = map(x-> max(x,0), eflow_bus)
+    eflow_in_bus = map(x-> max(-x,0), eflow_bus)
+
     
     # Create new things as needed
     cf = pgen_gen ./ pcap_gen
@@ -117,9 +130,14 @@ function parse_power_results!(config, data)
     # Add things to the bus table
     add_table_col!(data, :bus, :pgen,  pgen_bus,  MWGenerated,"Average Power Generated at this bus")
     add_table_col!(data, :bus, :egen,  egen_bus,  MWhGenerated,"Electricity Generated at this bus for the weighted representative hour")   
-    add_table_col!(data, :bus, :pflow, pflow_bus, MWFlow,"Average power flowing out of this bus")
+    add_table_col!(data, :bus, :pflow, pflow_bus, MWFlow,"Average power flowing out of this bus, positive or negative")
+    add_table_col!(data, :bus, :eflow, eflow_bus, MWhFlow,"Electricity flowing out of this bus, positive or negative")
+    add_table_col!(data, :bus, :pflow_out, pflow_out_bus, MWFlow,"Average power flowing out of this bus, positive")
+    add_table_col!(data, :bus, :pflow_in, pflow_in_bus, MWFlow,"Average power flowing into this bus, positive")
+    add_table_col!(data, :bus, :eflow_out, eflow_out_bus, MWhFlow,"Electricity flowing out of this bus, positive")
+    add_table_col!(data, :bus, :eflow_in, eflow_in_bus, MWhFlow,"Electricity flowing into this bus, positive")
     add_table_col!(data, :bus, :plserv, plserv_bus, MWServed,"Average power served at this bus")
-    add_table_col!(data, :bus, :eserv, eserv_bus, MWhServed,"Electricity served at this bus for the weighted representative hour")      
+    add_table_col!(data, :bus, :elserv, elserv_bus, MWhServed,"Electricity served at this bus for the weighted representative hour")      
     add_table_col!(data, :bus, :plcurt, plcurt_bus, MWCurtailed,"Average power curtailed at this bus")
     add_table_col!(data, :bus, :elcurt, elcurt_bus, MWhCurtailed,"Electricity curtailed at this bus for the weighted representative hour")   
     add_table_col!(data, :bus, :elnom,  elnom_bus,  MWhLoad,"Electricity load at this bus for the weighted representative hour")   
@@ -132,6 +150,7 @@ function parse_power_results!(config, data)
 
     # Add things to the branch table
     add_table_col!(data, :branch, :pflow, pflow_branch, MWFlow,"Average Power flowing through branch")    
+    add_table_col!(data, :branch, :pflow, eflow_branch, MWhFlow,"Electricity flowing through branch")    
 
     return
 end
@@ -144,7 +163,7 @@ Adds the locational marginal prices of electricity and power flow.
 
 | table_name | col_name | unit | description |
 | :-- | :-- | :-- | :-- |
-| :bus | :lmp_eserv | DollarsPerMWhServed | Locational Marginal Price of Energy Served |
+| :bus | :lmp_elserv | DollarsPerMWhServed | Locational Marginal Price of Energy Served |
 | :branch | :lmp_pflow | DollarsPerMWFlow | Locational Marginal Price of Power Flow |
 """
 function parse_lmp_results!(config, data)
@@ -154,11 +173,11 @@ function parse_lmp_results!(config, data)
     cons_pbal = res_raw[:cons_pbal]::Array{Float64,3}
 
     # Divide by number of hours because we want $/MWh, not $/MW
-    lmp_eserv = unweight_hourly(data, cons_pbal, -)
+    lmp_elserv = unweight_hourly(data, cons_pbal, -)
     
     # Add the LMP's to the results and to the bus table
-    res_raw[:lmp_eserv_bus] = lmp_eserv
-    add_table_col!(data, :bus, :lmp_eserv, lmp_eserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
+    res_raw[:lmp_elserv_bus] = lmp_elserv
+    add_table_col!(data, :bus, :lmp_elserv, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
 
     # # Get the shadow price of the positive and negative branch power flow constraints ($/(MW incremental transmission))      
     # cons_branch_pflow_neg = res_raw[:cons_branch_pflow_neg]::Containers.SparseAxisArray{Float64, 3, Tuple{Int64, Int64, Int64}}

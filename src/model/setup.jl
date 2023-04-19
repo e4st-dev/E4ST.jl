@@ -36,7 +36,7 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 | Name | Symbol | Unit | Description |
 | :--- | :--- | :--- | :--- |
 | $P_{F_{l,y,h}}$ | `:pflow_branch` | MW | Hourly avg. power flowing through each branch |
-| $P_{F_{b,y,h}}$ | `:pflow_bus` | MW | Hourly avg. power flowing out of each bus |
+| $P_{F_{b,y,h}}$ | `:pflow_bus` | MW | Hourly avg. net power flowing out of each bus |
 | $P_{U_{b,y,h}}$ | `:plcurt_bus` | MW | Hourly avg. power curtailed at each bus |
 | $P_{G_{b,y,h}}$ | `:pgen_bus` | MW | Hourly avg. power generated at each bus |
 
@@ -65,6 +65,8 @@ The objective is a single expression that can be accessed via `model[:obj]`.  In
 
 """
 function setup_model(config, data)
+    @info summarize(data)
+
     log_header("SETTING UP MODEL")
 
     if haskey(config, :model_presolve_file)
@@ -98,7 +100,6 @@ function setup_model(config, data)
 
     add_optimizer!(config, data, model)
 
-    @info "Model Summary:\n$(summarize(model))"
     return model
 end
 
@@ -107,20 +108,48 @@ end
 
 Constrain the power balancing equation to equal zero for each bus, at each year and hour.
 
-`pgen_bus - plserv_bus - pflow_bus == 0`
+Depending on `config[:line_loss_type]`, the power balancing equation can be implemented in 2 ways:
 
+* `pflow`:  `plgen_bus - plserv_bus + pflow_in_bus * (1 - line_loss_rate) - pflow_out_bus == 0`
+* `plserv`:  `plgen_bus - plserv_bus / (1 - line_loss_rate) - pflow_bus == 0`
+
+Where:
 * `pgen_bus` is the power generated at the bus
 * `plserv_bus` is the power served/consumed at the bus
-* `pflow_bus` is the power flowing out of the bus
+* `pflow_bus` is the net power flowing out of the bus (positive or negative)
+* `pflow_in_bus` is the (positive) power flowing into the bus
+* `pflow_out_bus` is the (positive) power flowing out of the bus
 """
 function constrain_pbal!(config, data, model)
     nyear = get_num_years(data)
     nhour = get_num_hours(data)
     nbus = nrow(get_table(data, :bus))
-    @constraint(model, 
-        cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-        model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] - model[:pflow_bus][bus_idx, year_idx, hour_idx] == 0.0
-    )
+    line_loss_rate = config[:line_loss_rate]::Float64
+    line_loss_type = config[:line_loss_type]::String
+    if line_loss_type == "pflow"
+        pflow_out_bus = model[:pflow_out_bus]
+        pflow_in_bus = model[:pflow_in_bus]
+        pflow_bus = model[:pflow_bus]
+        pgen_bus = model[:pgen_bus]
+        plserv_bus = model[:plserv_bus]
+
+        # Constrain power flowing out of the bus.
+        @constraint(model, cons_pflow_in_out[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
+            pflow_out_bus[bus_idx, year_idx, hour_idx] - pflow_in_bus[bus_idx, year_idx, hour_idx] == pflow_bus[bus_idx, year_idx, hour_idx]
+        )
+        @constraint(model, 
+            cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+            pgen_bus[bus_idx, year_idx, hour_idx] - plserv_bus[bus_idx, year_idx, hour_idx] - pflow_out_bus[bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * pflow_in_bus[bus_idx, year_idx, hour_idx] == 0.0
+        )
+    elseif line_loss_type == "plserv"
+        plserv_scalar = 1/(1-line_loss_rate)
+        @constraint(model, 
+            cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] * plserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] == 0.0
+        )
+    else
+        error("config[:line_loss_type] must be `plserv` or `pflow`, but $line_loss_type was given")
+    end
     return nothing
 end
 export constrain_pbal!
@@ -131,13 +160,19 @@ function add_optimizer!(config, data, model)
 end
 
 """
-    summarize(model::Model) -> summary::String
-
-Returns the string that would be output by show(model).
+    summarize(data) -> summary::String
 """
-function summarize(model::Model)
-    buf = IOBuffer() 
-    show(buf, model)
+function summarize(data)
+    buf = IOBuffer()
+    df = DataFrame(:Table=>String[], :Rows=>Int64[])
+    
+    push!(df, ("gen", nrow(get_table(data, :gen))))
+    push!(df, ("bus", nrow(get_table(data, :bus))))
+    push!(df, ("branch", nrow(get_table(data, :branch))))
+    push!(df, ("hours", nrow(get_table(data, :hours))))
+    println(buf, "Data Summary:")
+
+    println(buf, df)
     summary = String(take!(buf))
     return summary
 end

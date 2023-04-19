@@ -24,7 +24,7 @@ export PTC
     function E4ST.modify_model!(pol::PTC, config, data, model)
 
 Creates a column in the gen table with the PTC value in each simulation year for the qualifying generators.
-Subtracts the PTC price * generation in that year from the objective function using `add_obj_term!(data, model, PerMWhGen(), pol.name, oper = -)`
+Subtracts the PTC price * generation in that year from the objective function using [`add_obj_term!(data, model, PerMWhGen(), pol.name, oper = -)`](@ref)
 """
 function E4ST.modify_model!(pol::PTC, config, data, model)
     

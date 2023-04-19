@@ -66,6 +66,14 @@ function setup_dcopf!(config, data, model)
     # Power flowing out of a given bus
     @expression(model, pflow_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pflow_bus(data, model, bus_idx, year_idx, hour_idx))
 
+    # Power flowing in/out of buses, only necessary if modeling line losses from pflow.
+    if config[:line_loss_type] == "pflow"
+
+        # Make variables for positive and negative power flowing out of the bus.
+        @variable(model, pflow_out_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], lower_bound = 0)
+        @variable(model, pflow_in_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], lower_bound = 0)
+    end
+
     # Served power of a given bus
     @expression(model, plserv_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_plnom(data, bus_idx, year_idx, hour_idx) - plcurt_bus[bus_idx, year_idx, hour_idx])
 
@@ -177,7 +185,7 @@ Returns net power flow out of the bus
 """ 
 function get_pflow_bus(data, model, bus_idx, year_idx, hour_idx) 
     branch_idxs = get_table(data, :bus)[bus_idx, :connected_branch_idxs] #vector of the connecting branches with positive values for branches going out (branch f_bus = bus_idx) and negative values for branches coming in (branch t_bus = bus_idx)
-    isempty(branch_idxs) && return 0.0
+    isempty(branch_idxs) && return AffExpr(0.0)
     return sum(get_pflow_branch(data, model, branch_idx, year_idx, hour_idx) for branch_idx in branch_idxs)
 end
 export get_pflow_bus
@@ -307,9 +315,14 @@ function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper)
     #write expression for the term
     gen = get_table(data, :gen)
     years = get_years(data)
+    hours_per_year = sum(get_hour_weights(data))
 
-    model[s] = @expression(model, [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
-        get_table_num(data, :gen, s, gen_idx, year_idx, :) .* model[:pcap_gen][gen_idx, year_idx])
+    model[s] = @expression(model, 
+        [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
+        get_table_num(data, :gen, s, gen_idx, year_idx, :) .* 
+        model[:pcap_gen][gen_idx, year_idx] *
+        hours_per_year
+    )
 
     # add or subtract the expression from the objective function
     add_obj_exp!(data, model, PerMWCap(), s; oper = oper) 

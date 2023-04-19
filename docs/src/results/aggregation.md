@@ -3,7 +3,8 @@ Results Aggregation
 
 ```@docs
 aggregate_result
-AggregationTemplate
+aggregate_generation
 total
 average
+AggregationTemplate
 ```

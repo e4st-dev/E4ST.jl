@@ -6,8 +6,10 @@ function Operation(s::AbstractString)
     error("Operation \"$s\" invalid, please choose from add, scale, and set")
 end
 
-"""
-    summarize_table(::Val{:adjust_hourly}) -> summary
+@doc """
+    summarize_table(::Val{:adjust_hourly})
+
+$(table2markdown(summarize_table(Val(:adjust_hourly))))
 """
 function summarize_table(::Val{:adjust_hourly})
     df = TableSummary()
@@ -23,8 +25,10 @@ function summarize_table(::Val{:adjust_hourly})
     return df
 end
 
-"""
-    summarize_table(::Val{:adjust_yearly}) -> summary
+@doc """
+    summarize_table(::Val{:adjust_yearly})
+
+$(table2markdown(summarize_table(Val(:adjust_yearly))))
 """
 function summarize_table(::Val{:adjust_yearly})
     df = TableSummary()

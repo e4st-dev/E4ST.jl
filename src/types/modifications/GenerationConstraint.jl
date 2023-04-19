@@ -1,14 +1,14 @@
 
 @doc raw"""
-struct GenerationCons <: Modification
+    struct GenerationConstraint <: Modification
 
-Generation Cap - A Modification that applies a constraint based on (yearly generation) * (a column from the gen table). 
+**Generation Constraint** - A Modification that applies a constraint based on (yearly generation) * (a column from the gen table). 
 
-*`name`: modification name 
-*`col`: gen table column
-*`max_values`: maximum values for a year (defaults as an empty OrderedDict if no maxs)
-*`min_values`: minimum values for a year (defaults as an empty OrderedDict if no mins)
-*`gen_filters`: OrderedDict of the generator filters
+* `name`: modification name 
+* `col`: gen table column
+* `max_values`: maximum values for a year (defaults as an empty OrderedDict if no maxs)
+* `min_values`: minimum values for a year (defaults as an empty OrderedDict if no mins)
+* `gen_filters`: OrderedDict of the generator filters
 """
 Base.@kwdef struct GenerationConstraint <: Modification
     name::Symbol
@@ -20,6 +20,11 @@ Base.@kwdef struct GenerationConstraint <: Modification
 end
 export GenerationConstraint
 
+"""
+    modify_model!(cons::GenerationConstraint, config, data, model)
+
+Creates upper and lower bound constraints on the generators.  See also [`GenerationConstraint`](@ref) for more details
+"""
 function E4ST.modify_model!(cons::GenerationConstraint, config, data, model)
     gen = get_table(data, :gen)
     years = Symbol.(get_years(data))

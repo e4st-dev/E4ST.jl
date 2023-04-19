@@ -11,4 +11,5 @@ Manifest.toml
 /test/out
 /test/config/out
 /debug*
+*/out*/*
 /out

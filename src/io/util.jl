@@ -528,7 +528,7 @@ end
 Computes the sum of M*v
 """
 function _sum_product(M::AbstractMatrix, v::AbstractVector)
-    @inbounds sum(M[row_idx, hr_idx]*v[hr_idx] for row_idx in 1:size(M,1), hr_idx in 1:size(M,2))
+    @inbounds sum(M[row_idx, hr_idx]*v[hr_idx] for row_idx in axes(M,1), hr_idx in axes(M,2))
 end
 
 
@@ -545,4 +545,33 @@ function replace_nans!(v, x)
     return v
 end
 export replace_nans!
+
+
+function table2markdown(df::DataFrame)
+    io = IOBuffer()
+    print(io, "|")
+    for n in names(df)
+        print(io, " ", n, " |")
+    end
+    println(io)
+    print(io, "|")
+    foreach(x->print(io, " :-- |"), 1:ncol(df))
+    println(io)
+    for row in eachrow(df)
+        print(io, "|")
+        foreach(x->print(io, " ", table_element(x), " |"), row)
+        println(io)
+    end
+    return String(take!(io))
+end
+export table2markdown
+
+table_element(x) = x
+table_element(x::Symbol) = "`$x`"
+
+function TableSummary()
+    DataFrame("column_name"=>Symbol[], "data_type"=>Type[], "unit"=>Type{<:Unit}[],  "required"=>Bool[],"description"=>String[])
+end
+export TableSummary
+
 

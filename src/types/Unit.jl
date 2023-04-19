@@ -23,6 +23,7 @@ struct DollarsPerMWhGenerated <: Unit end; export DollarsPerMWhGenerated
 struct DollarsPerMWFlow <: Unit end; export DollarsPerMWFlow
 struct DollarsPerShortTon <: Unit end; export DollarsPerShortTon
 struct DollarsPerShortTonCO2Captured <: Unit end; export DollarsPerShortTonCO2Captured
+struct CreditsPerMWhGenerated <: Unit end; export CreditsPerMWhGenerated
 struct MWhGeneratedPerMWhCapacity <: Unit end; export MWhGeneratedPerMWhCapacity
 struct MWhDischargedPerMWhCharged <: Unit end; export MWhDischargedPerMWhCharged
 struct MWhGenerated <: Unit end; export MWhGenerated
@@ -30,7 +31,9 @@ struct MWhServed <: Unit end; export MWhServed
 struct MWhCurtailed <: Unit end; export MWhCurtailed
 struct MWhCharged <: Unit end; export MWhCharged
 struct MWhDischarged <: Unit end; export MWhDischarged
-        
+struct MWhLoad <: Unit end; export MWhLoad
+struct MWhFlow <: Unit end; export MWhFlow
+    
 struct NA <: Unit end; export NA
 struct PU <: Unit end; export PU
 struct MWFlow <: Unit end; export MWFlow
@@ -42,8 +45,6 @@ struct MWCurtailed <: Unit end; export MWCurtailed
 struct MWCharged <: Unit end; export MWCharged
 struct MWDischarged <: Unit end; export MWDischarged
 
-
-struct MWhLoad <: Unit end; export MWhLoad
 
 struct Hours <: Unit end; export Hours
 struct Year <: Unit end; export Year
