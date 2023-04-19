@@ -55,8 +55,8 @@
         end
         E4ST.should_reread_data(::TargetAvgAnnualNGGen) = false
         
-        config_file = joinpath(@__DIR__, "config", "config_3bus_iter.yml")
-        config = read_config(config_file)
+        config_iter_file = joinpath(@__DIR__, "config", "config_3bus_iter.yml")
+        config = read_config(config_file, config_iter_file)
         
         @test config[:iter] isa TargetAvgAnnualNGGen
 

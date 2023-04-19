@@ -95,6 +95,8 @@ end
 function _read_config(filename::AbstractString)
     if contains(filename, ".yml")
         config = YAML.load_file(filename, dicttype=OrderedDict{Symbol, Any})
+        # Filter anything that is set to nothing
+        filter!(p->!isnothing(p.second), config)
         get!(config, :config_file, filename)
         make_paths_absolute!(config)
         if haskey(config, :other_config_files)
@@ -137,7 +139,7 @@ function _merge_config!(config::OrderedDict, config_new)
     merge!(config, config_new)
     config[:config_file] = config_file
     config[:mods] = mods
-
+    
     # Filter anything that is set to nothing
     filter!(p->!isnothing(p.second), config)
     return nothing
