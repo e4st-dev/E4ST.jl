@@ -1,32 +1,32 @@
 """
-    match_capacity!(data, model, sets::Vector{Vector{Int64}}, name::Symbol)
+    match_capacity!(data, model, table_name::Symbol, pcap_name::Symbol, name::Symbol, sets::Vector{Vector{Int64}})
 
 Constrains `sets` of generator indices so that their `pcap_gen` values sum to the max and min specified in the first member of the set.  The names of the constraints are:
 * `Symbol("cons_pcap_max_\$name")`
 * `Symbol("cons_pcap_min_\$name")`
 """
-function match_capacity!(data, model, sets::Vector{Vector{Int64}}, name::Symbol)
+function match_capacity!(data, model, table_name::Symbol, pcap_name::Symbol, name::Symbol, sets::Vector{Vector{Int64}})
     nset = length(sets)
     nhour = get_num_hours(data)
     nyear = get_num_years(data)
-    gen = get_table(data, :gen)
+    gen = get_table(data, table_name)
+    pcap = model[pcap_name]
 
     # Set up the names of the constraints
-    name_max = Symbol("cons_pcap_max_$name")
-    name_min = Symbol("cons_pcap_min_$name")
+    name_max = Symbol("cons_$(pcap_name)_match_max_$name")
+    name_min = Symbol("cons_$(pcap_name)_match_min_$name")
 
     # Constrain the max capacity to add up to the desired max capacity
     model[name_max] = @constraint(model,
         [set_idx=1:nset, yr_idx = 1:nyear],
-        sum(model[:pcap_gen][gen_idx, yr_idx] for gen_idx in sets[set_idx]) <= get_pcap_max(data, first(sets[set_idx]), yr_idx)
+        sum(pcap[idx, yr_idx] for idx in sets[set_idx]) <= get_table_num(data, table_name, :pcap_max, first(sets[set_idx]), yr_idx, :)
     )
     
     # Lower bound the capacities with zero
-    pcap_gen = model[:pcap_gen]
     for set in sets
-        for gen_idx in set
+        for idx in set
             for yr_idx in 1:nyear
-                set_lower_bound(pcap_gen[gen_idx, yr_idx], 0.0)
+                set_lower_bound(pcap[idx, yr_idx], 0.0)
             end
         end
     end
@@ -34,7 +34,7 @@ function match_capacity!(data, model, sets::Vector{Vector{Int64}}, name::Symbol)
     # Constrain the minimum capacities to add up to the desired min capacity
     model[name_min] = @constraint(model,
         [set_idx=1:nset, yr_idx = 1:nyear],
-        sum(model[:pcap_gen][gen_idx, yr_idx] for gen_idx in sets[set_idx]) >= get_pcap_min(data, first(sets[set_idx]), yr_idx)
+        sum(pcap[idx, yr_idx] for idx in sets[set_idx]) >= get_table_num(data, table_name, :pcap_min, first(sets[set_idx]), yr_idx, :)
     )
 
     return nothing
@@ -49,7 +49,8 @@ Adds constraints to the model for:
 * `cons_<pcap_name>_prebuild` - Constrain Capacity to 0 before the start/build year 
 * `cons_<pcap_name>_noadd` - Constrain existing capacity to only decrease (only retire, not add capacity)
 * `cons_<pcap_name>_exog` - Constrain unbuilt exogenous generators to be built to pcap0 in the first year after year_on
-
+* `cons_<pcap_name>_match_min_build` - Constrain minimum capacity of generators at the same site to add up to the >= minimum capacity.
+* `cons_<pcap_name>_match_min_build` - Constrain minimum capacity of generators at the same site to add up to the <= maximum capacity. 
 """
 function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symbol)
     @info "Adding build constraints for table $table_name"
@@ -114,6 +115,21 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
         for yr_idx in yr_off_idx:nyr
             fix(pcap[i, yr_idx], 0.0, force=true)
         end
+    end
+
+    # Make capacities of sites add up
+    matching_rows = Vector{Int64}[]
+    gdf = groupby(table, [:bus_idx, :build_id])
+    for key in keys(gdf)
+        isempty(key.build_id) && continue
+        sdf = gdf[key]
+        nrow(sdf) <= 1 && continue
+        row_idxs = getfield(sdf, :rows)
+        push!(matching_rows, row_idxs)
+    end
+
+    if !isempty(matching_rows)
+        match_capacity!(data, model, table_name, pcap_name, :build, matching_rows)
     end
 end
 export add_build_constraints!
