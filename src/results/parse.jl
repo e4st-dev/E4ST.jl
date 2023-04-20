@@ -24,7 +24,7 @@ function parse_results!(config, data, model)
     parse_power_results!(config, data)
 
     #change build_status to 'new' for generators built in the sim
-    set_new_gen_build_status!(config, data)
+    update_build_status!(config, data, :gen)
 
     save_updated_gen_table(config, data)
 
@@ -214,7 +214,7 @@ function save_updated_gen_table(config, data)
     gen_tmp.pcap0 = last.(gen.pcap)
 
     # Filter anything with capacity below the threshold
-    thresh = config[:gen_pcap_threshold]
+    thresh = config[:pcap_retirement_threshold]
     filter!(:pcap0 => >(thresh), gen_tmp)
 
     # Combine generators that are the same
@@ -232,19 +232,36 @@ export save_updated_gen_table
 
 
 """
-    set_new_gen_build_status!(config, data) -> 
+    update_build_status!(config, data, table_name)
 
-Change the build_status of generators built in the simulation to 'new'
+Change the build_status of generators built in the simulation.
+* `unbuilt -> new` if `last(pcap)` is above threshold
+* `built -> retired_exog` if retired due to surpassing `year_off`
+* `built -> retired_endog` if retired due before `year_off`
 """
-function set_new_gen_build_status!(config, data)
-    gen = get_table(data, :gen)
+function update_build_status!(config, data, table_name)
+    years = get_years(data)
+    gen = get_table(data, table_name)
 
     #Threshold capacity to be saved into the next run
-    thresh = get(config, :gen_pcap_threshold, eps())
+    thresh = config[:pcap_retirement_threshold]
 
-    for idx in 1:nrow(gen)
-        gen[idx, :build_status] =="unbuilt" && aggregate_result(total, data, :gen, :pcap, idx) >= thresh ? gen[idx, :build_status] = "new" : continue
+    for row in eachrow(gen)
+        bs = row.build_status
+        if bs == "unbuilt"
+            last(row.pcap) >= thresh || continue
+            row.build_status = "new"
+        elseif bs == "built"
+            yr_idx_ret = findfirst(<(thresh), row.pcap)
+            isnothing(yr_idx_ret) && continue
+
+            # Check to see if we retired because of being >= year_off
+            if years[yr_idx_ret] >= row.year_off
+                row.build_status = "retired_exog"
+            else
+                row.build_status = "retired_endog"
+            end
+        end
     end
-
-
 end
+export update_build_status!

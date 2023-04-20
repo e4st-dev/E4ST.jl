@@ -11,6 +11,7 @@ using Pkg
 import Dates: @dateformat_str, format, now
 import OrderedCollections: OrderedDict
 import CSV
+import CSV: String15
 import YAML
 import JuMP.MOI.AbstractOptimizer
 

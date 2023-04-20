@@ -41,7 +41,7 @@ Exogenously specified generators are also added to newgen through the build_gen 
 function make_newgens!(config, data, newgen)
     build_gen = get_table(data, :build_gen)
     bus = get_table(data, :bus)
-    spec_names = filter!(!in((:bus_idx, :gen_latitude, :gen_longitude)), propertynames(newgen)) #this needs to be updated if there is anything else in gen that isn't a spec
+    spec_names = filter!(!in((:bus_idx, :gen_latitude, :gen_longitude, :year_off)), propertynames(newgen)) #this needs to be updated if there is anything else in gen that isn't a spec
     years = get_years(data)
 
     for spec_row in eachrow(build_gen)
@@ -69,6 +69,8 @@ function make_newgens!(config, data, newgen)
                     #populate newgen_row with specs
                     newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
                     newgen_row[:year_on] = year
+                    newgen_row[:year_off] = add_to_year(year, spec_row.age_off)
+
                     hasproperty(newgen, :gen_latitude) && (newgen_row[:gen_latitude] = bus.bus_latitude[bus_idx])
                     hasproperty(newgen, :gen_longitude) && (newgen_row[:gen_longitude] = bus.bus_longitude[bus_idx])
                     push!(newgen, newgen_row, promote=true)
@@ -83,6 +85,7 @@ function make_newgens!(config, data, newgen)
                 newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
                 hasproperty(newgen, :gen_latitude) && (newgen_row[:gen_latitude] = bus.bus_latitude[bus_idx])
                 hasproperty(newgen, :gen_longitude) && (newgen_row[:gen_longitude] = bus.bus_longitude[bus_idx])
+                newgen_row[:year_off] = add_to_year(spec_row.year_on, spec_row.age_off)
 
                 push!(newgen, newgen_row, promote=true)
             end

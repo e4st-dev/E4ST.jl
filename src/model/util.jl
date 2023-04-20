@@ -104,5 +104,16 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
             pcap[row_idx, yr_idx] == table.pcap0[row_idx]
         )
     end
+
+    # Enforce retirement
+    for (i, row) in enumerate(eachrow(table))
+        year_off = row.year_off
+        isempty(year_off) && continue
+        year_off > last(years) && continue
+        yr_off_idx = findfirst(>=(year_off), years)
+        for yr_idx in yr_off_idx:nyr
+            fix(pcap[i, yr_idx], 0.0, force=true)
+        end
+    end
 end
 export add_build_constraints!

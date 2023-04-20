@@ -8,10 +8,3 @@ Note that the Branch Table does not contain DC transmission lines.
 setup_table!(config, data, ::Val{:branch})
 summarize_table(::Val{:branch})
 ```
-
-#### Column Summary
-
-```@example
-using E4ST # hide
-summarize_table(:branch) # hide
-```
