@@ -64,28 +64,28 @@ end
 
         @testset "Test Hourly Adjustments" begin
             # Hourly adjusting for specific year (year 3)
-            c1 = E4ST.set_hourly(c, v_hr, 3; nyr)
+            c1 = E4ST.set_hourly(c, v_hr, 3, nyr)
             @test container_compare(c1, [orig_hr, orig_hr, v_hr], nyr, nhr)
             @test get_original(c1) == orig
 
-            c1 = E4ST.scale_hourly(c, v_hr, 3; nyr)
+            c1 = E4ST.scale_hourly(c, v_hr, 3, nyr)
             @test container_compare(c1, [orig_hr, orig_hr, v_hr.*orig_hr], nyr, nhr)
             @test get_original(c1) == orig
 
-            c1 = E4ST.add_hourly(c, v_hr, 3; nyr)
+            c1 = E4ST.add_hourly(c, v_hr, 3, nyr)
             @test container_compare(c1, [orig_hr, orig_hr, v_hr.+orig_hr], nyr, nhr)
             @test get_original(c1) == orig
 
             # Hourly adjusting for all years
-            c1 = E4ST.set_hourly(c, v_hr, :; nyr)
+            c1 = E4ST.set_hourly(c, v_hr, :, nyr)
             @test container_compare(c1, [v_hr, v_hr, v_hr], nyr, nhr)
             @test get_original(c1) == orig
 
-            c1 = E4ST.scale_hourly(c, v_hr, :; nyr)
+            c1 = E4ST.scale_hourly(c, v_hr, :, nyr)
             @test container_compare(c1, orig_yr .* v_hr', nyr, nhr)
             @test get_original(c1) == orig
 
-            c1 = E4ST.add_hourly(c, v_hr, :; nyr)
+            c1 = E4ST.add_hourly(c, v_hr, :, nyr)
             @test container_compare(c1, orig_yr .+ v_hr', nyr, nhr)
             @test get_original(c1) == orig
         end
@@ -94,35 +94,35 @@ end
             c_yr = E4ST.set_yearly(c, v_yr)
 
             # Hourly adjusting for specific year (year 3)
-            c1 = E4ST.set_hourly(c_yr, v_hr, 3; nyr)
+            c1 = E4ST.set_hourly(c_yr, v_hr, 3, nyr)
             @test container_compare(c1, [ones(nhr)*v_yr[1], ones(nhr)*v_yr[2], v_hr], nyr, nhr)
             @test get_original(c1) == orig
 
-            c1 = E4ST.scale_hourly(c_yr, v_hr, 3; nyr)
+            c1 = E4ST.scale_hourly(c_yr, v_hr, 3, nyr)
             @test container_compare(c1, [ones(nhr)*v_yr[1], ones(nhr)*v_yr[2], v_hr.*v_yr[3]], nyr, nhr)
             @test get_original(c1) == orig
 
-            c1 = E4ST.add_hourly(c_yr, v_hr, 3; nyr)
+            c1 = E4ST.add_hourly(c_yr, v_hr, 3, nyr)
             @test container_compare(c1, [ones(nhr)*v_yr[1], ones(nhr)*v_yr[2], v_hr.+v_yr[3]], nyr, nhr)
             @test get_original(c1) == orig
 
             # Hourly adjusting for all years
-            c1 = E4ST.set_hourly(c_yr, v_hr, :; nyr)
+            c1 = E4ST.set_hourly(c_yr, v_hr, :, nyr)
             @test container_compare(c1, [v_hr, v_hr, v_hr], nyr, nhr)
             @test get_original(c1) == orig
 
-            c1 = E4ST.scale_hourly(c_yr, v_hr, :; nyr)
+            c1 = E4ST.scale_hourly(c_yr, v_hr, :, nyr)
             @test container_compare(c1, v_yr .* v_hr', nyr, nhr)
             @test get_original(c1) == orig
 
-            c1 = E4ST.add_hourly(c_yr, v_hr, :; nyr)
+            c1 = E4ST.add_hourly(c_yr, v_hr, :, nyr)
             @test container_compare(c1, v_yr .+ v_hr', nyr, nhr)
             @test get_original(c1) == orig
             
         end
 
         @testset "Test Hourly, then Yearly Adjustments" begin
-            c_hr = E4ST.set_hourly(c, v_hr, :; nyr)
+            c_hr = E4ST.set_hourly(c, v_hr, :, nyr)
 
             # Yearly adjusting
             c1 = E4ST.set_yearly(c_hr, v_yr)

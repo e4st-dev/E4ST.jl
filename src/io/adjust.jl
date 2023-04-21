@@ -83,9 +83,7 @@ function adjust_hourly!(config, data, row)
         key = Symbol(variable_name)
         vals = [row["h$h"] for h in 1:get_num_hours(data)]
         c = get(data, key, ByNothing(0.0))
-        oper == "add"   && (data[key] = add_hourly(c, vals, yr_idx; nyr))
-        oper == "scale" && (data[key] = scale_hourly(c, vals, yr_idx; nyr))
-        oper == "set"   && (data[key] = set_hourly(c, vals, yr_idx; nyr))
+        data[key] = oper_hourly(oper, c, vals, yr_idx, nyr)
         return
     end
 
@@ -102,9 +100,7 @@ function adjust_hourly!(config, data, row)
     # Make sure the appropriate column is a Vector{Container}
     _to_container!(table, variable_name)
     for r in eachrow(table)
-        oper == "add"   && (r[variable_name] = add_hourly(r[variable_name], vals, yr_idx; nyr))
-        oper == "scale" && (r[variable_name] = scale_hourly(r[variable_name], vals, yr_idx; nyr))
-        oper == "set"   && (r[variable_name] = set_hourly(r[variable_name], vals, yr_idx; nyr))
+        r[variable_name] = oper_hourly(oper, r[variable_name], vals, yr_idx, nyr)
     end
     return
 end
@@ -137,9 +133,7 @@ function adjust_yearly!(config, data, row)
         key = Symbol(variable_name)
         vals = [row[y] for y in get_years(data)]
         c = get(data, key, ByNothing(0.0))
-        oper == "add"   && (data[key] = add_yearly(c, vals))
-        oper == "scale" && (data[key] = scale_yearly(c, vals))
-        oper == "set"   && (data[key] = set_yearly(c, vals))
+        data[key] = oper_yearly(oper, c, vals)
         return
     end
 
@@ -156,9 +150,96 @@ function adjust_yearly!(config, data, row)
     _to_container!(table, variable_name) 
 
     for r in eachrow(table)
-        oper == "add"   && (r[variable_name] = add_yearly(r[variable_name], vals))
-        oper == "scale" && (r[variable_name] = scale_yearly(r[variable_name], vals))
-        oper == "set"   && (r[variable_name] = set_yearly(r[variable_name], vals))
+        r[variable_name] = oper_yearly(oper, r[variable_name], vals)
+    end
+    return
+end
+
+@doc """
+    summarize_table(::Val{:adjust_by_age})
+
+$(table2markdown(summarize_table(Val(:adjust_by_age))))
+"""
+function summarize_table(::Val{:adjust_by_age})
+    df = TableSummary()
+    push!(df, 
+        (:table_name, AbstractString, NA, true, "The name of the table to adjust.  Leave blank if this adjustment is intended for a variable in `data`"),
+        (:variable_name, AbstractString, NA, true, "The name of the variable/column to adjust"),
+        (:operation, Operation, NA, true, "The operation to perform.  Could be add, scale, or set."),
+        (:filter_, String, NA, true, "There can be multiple filter conditions - `filter1`, `filter2`, etc.  It denotes a comparison used for selecting the table rows to apply the adjustment to.  See `parse_comparison` for examples"),
+        (:status, Bool, NA, false, "Whether or not to use this adjustment"),
+        (:age_type, String, NA, true, "The type of age specified, can be `exact` or `trigger`.  If `exact`, then adjustment is applied only when the age in question is between `[age, age+1)`.  If `trigger`, then adjustment is applied for the first simulation year for which the age has been exceeded."),
+        (:age, Float64, NumYears, true, "The age at which to apply this adjustment.  Applies depending on `age_type`"),
+        (:value, Float64, NA, true, "Value to adjust by."),
+    )
+    return df
+end
+
+"""
+    setup_table!(config, data, ::Val{:adjust_hourly})
+
+Performs yearly adjustments specified in each row of the `:adjust_yearly` table.  Each row specifies the table to adjust (if any), the variable (or column) to adjust, the operation to adjust by, and the amount to adjust by for each year.
+"""
+function setup_table!(config, data, ::Val{:adjust_hourly})
+    adjust_table = get_table(data, :adjust_hourly)
+    for row in eachrow(adjust_table)
+        adjust_hourly!(config, data, row)
+    end
+end
+
+"""
+    adjust_by_age!(config, data, row)
+
+Apply an adjustment based on given `row` from the `adjust_by_age` table.
+"""
+function adjust_by_age!(config, data, row)
+    # TODO: make warning if you are trying to modify the same column of the same table hourly and yearly.
+    table_name = row.table_name::AbstractString
+    variable_name = row.variable_name::AbstractString
+    oper = row.operation::AbstractString
+
+    if isempty(table_name)
+        @warn "adjust_by_age table requires non-empty table_name to adjust by age"
+        return
+    end
+
+    # Get the filtered table with which to perform the adjustment
+    pairs = parse_comparisons(row)
+    table = get_table(data, table_name, pairs)
+    isempty(table) && return
+    hasproperty(table, variable_name) || error("Table $table_name has no column $variable_name to adjust in `adjust_hourly!`")
+
+    # Perform the adjustment on each row of the table
+    val = row.value
+    age = row.age
+    age_type = row.age_type
+
+    # Make sure the appropriate column is a Vector{Container}
+    _to_container!(table, variable_name)
+
+    last_sim_year = get(config, :year_previous_sim, config[:year_gen_data])
+
+    for r in eachrow(table)
+        ages = r.age::ByYear
+
+        if age_type == "trigger"
+            # If the ages of the row are before the triggering age, don't apply adjustment
+            last(ages) < age && continue
+
+            # Check to see if the trigger has already been triggered
+            age_at_last_sim_year = diff_years(last_sim_year, row.year_on)
+            age_at_last_sim_year > age && continue
+
+            yr_idx = findfirst(>=(age), ages)
+            @assert yr_idx !== nothing "unable to find an age to trigger adjustment, there should be a trigger year...  Something is wrong with this code/logic"
+        elseif age_type == "exact"
+            yr_idx = findfirst(a->(age <= a < age+1), ages)
+            yr_idx === nothing && return
+        else
+            error("`age_type` must be `trigger` or `exact` in adjust_by_age table")
+        end
+
+        r[variable_name] = oper_yearly(oper, r[variable_name], val, yr_idx, nyr)
     end
     return
 end

@@ -125,6 +125,16 @@ end
 export add_to_year
 
 """
+    diff_years(y1, y2) -> diff
+
+Compute the difference between two year strings `y1 - y2`
+"""
+function diff_years(y1::AbstractString, y2::AbstractString)
+    return year2float(y1) - year2float(y2)
+end
+export diff_years
+
+"""
     get_hour_idxs(data, hour_idxs)
 
 Converts `hour_idxs` into a usable set of indices that can index into hourly data.  `hour_idxs` can be any of the following types:
