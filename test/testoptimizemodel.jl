@@ -44,6 +44,19 @@
         @test count(==("retired_endog"), gen.build_status) > 1
     end
 
+    @testset "Test site constraints" begin
+        build_gen = get_table(data, :build_gen)
+        bus = get_table(data, :bus)
+        nyr = get_num_years(data)
+        @test all(
+            aggregate_result(total, data, :gen, :pcap, [:build_id=>row.build_id, :bus_idx=>bus_idx], yr_idx) <= row.pcap_max
+            for row in eachrow(build_gen), bus_idx in 1:nrow(bus), yr_idx in 1:nyr
+        )
+        res_raw = get_raw_results(data)
+        @test haskey(res_raw, Symbol("cons_pcap_gen_match_max_build"))
+        @test haskey(res_raw, Symbol("cons_pcap_gen_match_min_build"))
+    end
+
     @testset "Test Accessor methods" begin
         @test aggregate_result(total, data, :gen, :egen, :genfuel=>"ng", "y2040", 1:3) ≈ 
             aggregate_result(total, data, :gen, :egen, :genfuel=>"ng", 3, [1,2,3])

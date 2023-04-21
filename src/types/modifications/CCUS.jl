@@ -243,9 +243,7 @@ function modify_model!(mod::CCUS, config, data, model)
     nsend = nrow(ccus_producers)
 
     # Add capacity matching constraints for the sets of ccus_paths generators
-    match_capacity!(data, model, ccus_gen_sets, :ccus)
-
-
+    match_capacity!(data, model, :gen, :pcap_gen, :ccus, ccus_gen_sets)
 
     # Make variables for amount of captured carbon going into each of the carbon markets bounded by [0, maximum co2 storage]
     @variable(model, 
