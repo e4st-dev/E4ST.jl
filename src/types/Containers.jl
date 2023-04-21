@@ -127,7 +127,7 @@ end
 ###############################################################################
 # Yearly Adjust
 ###############################################################################
-function oper_yearly(oper::AbstractString, args...)
+function operate_yearly(oper::AbstractString, args...)
     oper == "add"   && return add_yearly(args...)
     oper == "scale" && return scale_yearly(args...)
     oper == "set"   && return set_yearly(args...)
@@ -304,7 +304,7 @@ end
 ###############################################################################
 # Hourly Adjust
 ###############################################################################
-function oper_hourly(oper::AbstractString, args...)
+function operate_hourly(oper::AbstractString, args...)
     oper == "add"   && return add_hourly(args...)
     oper == "scale" && return scale_hourly(args...)
     oper == "set"   && return set_hourly(args...)

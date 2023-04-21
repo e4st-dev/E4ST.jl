@@ -82,6 +82,7 @@ function read_data_files!(config, data)
     read_table!(config, data, :gentype_genfuel_file => :genfuel, optional=true)
     read_table!(config, data, :adjust_yearly_file => :adjust_yearly, optional=true)
     read_table!(config, data, :adjust_hourly_file => :adjust_hourly, optional=true)
+    read_table!(config, data, :adjust_by_age_file => :adjust_by_age, optional=true)
 end
 export read_data_files!
 
@@ -128,6 +129,7 @@ function setup_data!(config, data)
     setup_table!(config, data, :af_table)
     setup_table!(config, data, :adjust_yearly)
     setup_table!(config, data, :adjust_hourly)
+    setup_table!(config, data, :adjust_by_age)
 end
 export setup_data!
 
@@ -558,7 +560,7 @@ function setup_table!(config, data, ::Val{:af_table})
         
         af = [row[i_hr] for i_hr in hr_idx:ncol(af_table)]
         foreach(eachrow(gens)) do gen
-            gen.af = set_hourly(gen.af, af, yr_idx, nyr)
+            gen.af = set_hourly(gen.af, copy(af), yr_idx, nyr)
         end
     end
     return data
@@ -881,10 +883,13 @@ Related functions:
 * [`get_table_val(data, table_name, col_name, row_idx)`](@ref): retrieves the raw value from the table (without indexing by year/hour).
 * [`get_num(data, name, yr_idx, hr_idx)`](@ref): retrieves a `Float64` from `data`, indexing by year and hour.
 """
-function get_table_num(data, table_name, col_name, row_idx, yr_idx, hr_idx)
+function get_table_num(data, table_name, col_name, row_idx::Int64, yr_idx::Int64, hr_idx)
     table = get_table(data, table_name)
     container = table[row_idx, col_name]
     return container[yr_idx, hr_idx]::Float64
+end
+function get_table_num(data, table_name, col_name, row_idx::Int64, yr_idx::AbstractString, hr_idx)
+    return get_table_num(data, table_name, col_name, row_idx, get_year_idxs(data, yr_idx), hr_idx)
 end
 export get_table_num
 
