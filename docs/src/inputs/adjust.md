@@ -11,3 +11,10 @@ summarize_table(::Val{:adjust_yearly})
 setup_table!(config, data, ::Val{:adjust_hourly})
 summarize_table(::Val{:adjust_hourly})
 ```
+
+# Adjustments By Age
+
+```@docs
+setup_table!(config, data, ::Val{:adjust_by_age})
+summarize_table(::Val{:adjust_by_age})
+```

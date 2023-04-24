@@ -8,6 +8,7 @@ nominal_load_file:     "../data/3bus/load.csv"
 gentype_genfuel_file: "../data/3bus/gentype_genfuel.csv"
 build_gen_file: "../data/3bus/build_gen.csv"
 test_param1: "RIGHT" # This should not get overwritten by config_other
+year_gen_data: y2020
 other_config_files:
   - "config_other.yml"
 years:

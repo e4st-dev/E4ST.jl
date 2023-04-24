@@ -127,6 +127,12 @@ end
 ###############################################################################
 # Yearly Adjust
 ###############################################################################
+function operate_yearly(oper::AbstractString, args...)
+    oper == "add"   && return add_yearly(args...)
+    oper == "scale" && return scale_yearly(args...)
+    oper == "set"   && return set_yearly(args...)
+end
+
 """
     set_yearly(c::Container, v::Vector{Float64}) -> Container 
 
@@ -149,6 +155,34 @@ function set_yearly(c::ByYearAndHour, v::Vector{Float64})
 end
 
 """
+    set_yearly(c::Container, v::Float64, yr_idx::Int64, nyr::Int64) -> c'
+"""
+function set_yearly(c::OriginalContainer, v::Float64, yr_idx::Int64, nyr::Int64)
+    return OriginalContainer(c.original, set_yearly(c.v, v, yr_idx, nyr))
+end
+function set_yearly(c::ByNothing, x::Float64, yr_idx::Int64, nyr::Int64)
+    v = fill(c.v, nyr)
+    v[yr_idx] = x
+    return OriginalContainer(c.v, ByYear(v))
+end
+function set_yearly(c::ByYear, x::Float64, yr_idx::Int64, nyr::Int64)
+    v = copy(c.v)
+    v[yr_idx] = x
+    return ByYear(v)
+end
+function set_yearly(c::ByYearAndHour, x::Float64, yr_idx::Int64, nyr::Int64)
+    v = map(copy, c.v)
+    v[yr_idx] .= x
+    return ByYearAndHour(v)
+end
+function set_yearly(c::ByHour, x::Float64, yr_idx::Int64, nyr::Int64)
+    v = [copy(c.v) for _ in 1:nyr]
+    v[yr_idx] .= x
+    return ByYearAndHour(v)
+end
+
+
+"""
     add_yearly(c::Container, v::Vector{Float64}) -> Container 
 
 adds the yearly values for `c`.
@@ -169,11 +203,42 @@ function add_yearly(c::ByHour, v::Vector{Float64})
     return ByYearAndHour(vv)
 end
 function add_yearly(c::ByYearAndHour, v::Vector{Float64})
-    for _v in c.v
+    v′ = map(copy, c.v)
+    for _v in v′
         _v .+= v
     end
-    return c
+    return ByYearAndHour(v′)
 end
+
+"""
+    add_yearly(c::Container, v::Float64, yr_idx::Int64, nyr) -> c'
+"""
+function add_yearly(c::OriginalContainer, v::Float64, yr_idx::Int64, nyr::Int64)
+    return OriginalContainer(c.original, add_yearly(c.v, v, yr_idx, nyr))
+end
+function add_yearly(c::ByNothing, x::Float64, yr_idx::Int64, nyr::Int64)
+    v = fill(c.v, nyr)
+    v[yr_idx] += x
+    return OriginalContainer(c.v, ByYear(v))
+end
+function add_yearly(c::ByYear, x::Float64, yr_idx::Int64, nyr::Int64)
+    v = copy(c.v)
+    v[yr_idx] += x
+    return ByYear(v)
+end
+function add_yearly(c::ByYearAndHour, x::Float64, yr_idx::Int64, nyr::Int64)
+    v = map(copy, c.v)
+    v[yr_idx] .+= x
+    return ByYearAndHour(v)
+end
+function add_yearly(c::ByHour, x::Float64, yr_idx::Int64, nyr::Int64)
+    v = [copy(c.v) for _ in 1:nyr]
+    v[yr_idx] .+= x
+    return ByYearAndHour(v)
+end
+
+
+
 
 
 """
@@ -197,14 +262,43 @@ function scale_yearly(c::ByHour, v::Vector{Float64})
     return ByYearAndHour(vv)
 end
 function scale_yearly(c::ByYearAndHour, v::Vector{Float64})
-    for _v in c.v
+    v′ = map(copy, c.v)
+    for _v in v′
         _v .*= v
     end
-    return c
+    return ByYearAndHour(v′)
 end
 function scale_yearly(c::Number, v::Vector{Float64})
     return ByYear(c .* v)
 end
+
+"""
+    scale_yearly(c::Container, v::Float64, yr_idx::Int64, nyr) -> c'
+"""
+function scale_yearly(c::OriginalContainer, v::Float64, yr_idx::Int64, nyr::Int64)
+    return OriginalContainer(c.original, scale_yearly(c.v, v, yr_idx, nyr))
+end
+function scale_yearly(c::ByNothing, x::Float64, yr_idx::Int64, nyr::Int64)
+    v = fill(c.v, nyr)
+    v[yr_idx] *= x
+    return OriginalContainer(c.v, ByYear(v))
+end
+function scale_yearly(c::ByYear, x::Float64, yr_idx::Int64, nyr::Int64)
+    v = copy(c.v)
+    v[yr_idx] *= x
+    return ByYear(v)
+end
+function scale_yearly(c::ByYearAndHour, x::Float64, yr_idx::Int64, nyr::Int64)
+    v = map(copy,c.v)
+    v[yr_idx] .*= x
+    return ByYearAndHour(v)
+end
+function scale_yearly(c::ByHour, x::Float64, yr_idx::Int64, nyr::Int64)
+    v = [copy(c.v) for _ in 1:nyr]
+    v[yr_idx] .*= x
+    return ByYearAndHour(v)
+end
+
 
 
 
@@ -212,42 +306,44 @@ end
 ###############################################################################
 # Hourly Adjust
 ###############################################################################
+function operate_hourly(oper::AbstractString, args...)
+    oper == "add"   && return add_hourly(args...)
+    oper == "scale" && return scale_hourly(args...)
+    oper == "set"   && return set_hourly(args...)
+end
 
 """
-    set_hourly(c::Container, v::Vector{Float64}, yr_idx; default, nyr) -> Container
+    set_hourly(c::Container, v::Vector{Float64}, yr_idx, nyr) -> Container
 
 Sets the hourly values for `c` (creating a new Container of a different type as needed) for `yr_idx` to be `v`.
 
 If `yr_idx::Colon`, sets the hourly values for all years to be `v`.
 
 # keyword arguments
-* `default` - the default hourly values for years not specified, if they aren't already set.
 * `nyr` - the total number of years.
 """
-function set_hourly(c::ByNothing, v, yr_idx::Colon; kwargs...)
+function set_hourly(c::ByNothing, v, yr_idx::Colon, nyr)
     return OriginalContainer(c.v, ByHour(v))
 end
-function set_hourly(c::OriginalContainer, args...; kwargs...)
-    return OriginalContainer(c.original, set_hourly(c.v, args...; kwargs...))
+function set_hourly(c::OriginalContainer, args...)
+    return OriginalContainer(c.original, set_hourly(c.v, args...))
 end
-function set_hourly(c::ByNothing, v, yr_idx; nyr=nothing)
-    @assert nyr !== nothing error("Attempting to set hourly values for year index $yr_idx, but no nyr provided!")
+function set_hourly(c::ByNothing, v, yr_idx, nyr)
     if all(in(yr_idx), 1:nyr)
-        return set_hourly(c, v, (:); nyr)
+        return set_hourly(c, v, (:), nyr)
     end
-    default_hourly = fill(c.v, size(v))
     vv = [fill(c.v, size(v)) for i in 1:nyr]
     foreach(i->(vv[i] = v), yr_idx)
     return OriginalContainer(c.v, ByYearAndHour(vv))
 end
 
-function set_hourly(c::ByYear, v, yr_idx::Colon; kwargs...)
+function set_hourly(c::ByYear, v, yr_idx::Colon, nyr)
     return ByHour(v)
 end
-function set_hourly(c::ByYear, v, yr_idx; nyr=nothing)
+function set_hourly(c::ByYear, v, yr_idx, nyr)
     # Check to see if all the years are represented by yr_idx
     if all(in(yr_idx), 1:length(c.v))
-        return set_hourly(c, v, (:); nyr)
+        return set_hourly(c, v, (:), nyr)
     end
 
     # Set the default hourly values to be the original values
@@ -258,32 +354,32 @@ function set_hourly(c::ByYear, v, yr_idx; nyr=nothing)
     return ByYearAndHour(vv)
 end
 
-function set_hourly(c::ByHour, v, yr_idx::Colon; kwargs...)
+function set_hourly(c::ByHour, v, yr_idx::Colon, nyr)
     return ByHour(v)
 end
-function set_hourly(c::ByHour, v, yr_idx; nyr=nothing, kwargs...)
-    @assert nyr !== nothing error("Attempting to set hourly values for year index $yr_idx, but no nyr provided!")
+function set_hourly(c::ByHour, v, yr_idx, nyr)
     if all(in(yr_idx), 1:nyr)
-        return set_hourly(c, v, (:); default, kwargs...)
+        return set_hourly(c, v, (:), nyr)
     end
     vv = [copy(c.v) for i in 1:nyr]
     foreach(i->(vv[i] = v), yr_idx)
     return ByYearAndHour(vv)
 end
 
-function set_hourly(c::ByYearAndHour, v, yr_idx::Colon; kwargs...)
+function set_hourly(c::ByYearAndHour, v, yr_idx::Colon, nyr)
     return ByHour(v)
 end
-function set_hourly(c::ByYearAndHour, v, yr_idx; kwargs...)
+function set_hourly(c::ByYearAndHour, v, yr_idx, nyr)
     if all(in(yr_idx), 1:length(c.v))
-        return set_hourly(c, v, (:); default, kwargs...)
+        return set_hourly(c, v, (:), nyr)
     end
-    foreach(i->(c.v[i] = v), yr_idx)
-    return c
+    v′ = map(copy, c.v)
+    foreach(i->(v′[i] = v), yr_idx)
+    return ByYearAndHour(v′)
 end
 
 """
-    add_hourly(c::Container, v::Vector{Float64}, yr_idx; nyr)
+    add_hourly(c::Container, v::Vector{Float64}, yr_idx, nyr)
 
 Adds the hourly values for `c` (creating a new Container of a different type as needed) for `yr_idx` to be `v`.
 
@@ -292,32 +388,30 @@ If `yr_idx::Colon`, sets the hourly values for all years to be `v`.
 # keyword arguments
 * `nyr` - the total number of years.
 """
-function add_hourly(c::ByNothing, v, yr_idx::Colon; kwargs...)
+function add_hourly(c::ByNothing, v, yr_idx::Colon, nyr)
     return OriginalContainer(c.v, ByHour(c.v .+ v))
 end
-function add_hourly(c::OriginalContainer, args...; kwargs...)
-    return OriginalContainer(c.original, add_hourly(c.v, args...; kwargs...))
+function add_hourly(c::OriginalContainer, args...)
+    return OriginalContainer(c.original, add_hourly(c.v, args...))
 end
-function add_hourly(c::ByNothing, v, yr_idx; nyr=nothing)
-    @assert nyr !== nothing error("Attempting to add hourly values for year index $yr_idx, but no nyr provided!")
+function add_hourly(c::ByNothing, v, yr_idx, nyr)
     if all(in(yr_idx), 1:nyr)
-        return add_hourly(c, v, (:); nyr)
+        return add_hourly(c, v, (:), nyr)
     end
-    default_hourly = fill(c.v, size(v))
     vv = [fill(c.v, size(v)) for i in 1:nyr]
     foreach(i->(vv[i] .+= v), yr_idx)
     return OriginalContainer(c.v, ByYearAndHour(vv))
 end
 
-function add_hourly(c::ByYear, v, yr_idx::Colon; kwargs...)
+function add_hourly(c::ByYear, v, yr_idx::Colon, nyr)
     vv = [_v .+ v for _v in c.v]
     return ByYearAndHour(vv)
 end
 
-function add_hourly(c::ByYear, v, yr_idx; kwargs...)
+function add_hourly(c::ByYear, v, yr_idx, nyr)
     # Check to see if all the years are represented by yr_idx
     if all(in(yr_idx), 1:length(c.v))
-        return add_hourly(c, v, (:); kwargs...)
+        return add_hourly(c, v, (:), nyr)
     end
 
     # Set the default hourly values to be the original values
@@ -328,29 +422,29 @@ function add_hourly(c::ByYear, v, yr_idx; kwargs...)
     return ByYearAndHour(vv)
 end
 
-function add_hourly(c::ByHour, v, yr_idx::Colon; kwargs...)
+function add_hourly(c::ByHour, v, yr_idx::Colon, nyr)
     return ByHour(c.v .+ v)
 end
-function add_hourly(c::ByHour, v, yr_idx; nyr=nothing, kwargs...)
-    @assert nyr !== nothing error("Attempting to set hourly values for year index $yr_idx, but no nyr provided!")
+function add_hourly(c::ByHour, v, yr_idx, nyr)
     if all(in(yr_idx), 1:nyr)
-        return add_hourly(c, v, (:); default, kwargs...)
+        return add_hourly(c, v, (:), nyr)
     end
     vv = [copy(c.v) for i in 1:nyr]
     foreach(i->(vv[i] .+= v), yr_idx)
     return ByYearAndHour(vv)
 end
 
-function add_hourly(c::ByYearAndHour, v, yr_idx::Colon; kwargs...)
+function add_hourly(c::ByYearAndHour, v, yr_idx::Colon, nyr)
     foreach(_v->_v .+= v, c.v)
     return c
 end
-function add_hourly(c::ByYearAndHour, v, yr_idx; kwargs...)
+function add_hourly(c::ByYearAndHour, v, yr_idx, nyr)
     if all(in(yr_idx), 1:length(c.v))
-        return add_hourly(c, v, (:); default, kwargs...)
+        return add_hourly(c, v, (:), nyr)
     end
-    foreach(i->(c.v[i] .+= v), yr_idx)
-    return c
+    v′ = map(copy, c.v)
+    foreach(i->(v′[i] .+= v), yr_idx)
+    return ByYearAndHour(v′)
 end
 
 
@@ -360,7 +454,7 @@ end
 
 
 """
-    scale_hourly(c::Container, v::Vector{Float64}, yr_idx; nyr)
+    scale_hourly(c::Container, v::Vector{Float64}, yr_idx, nyr)
 
 Scales the hourly values for `c` (creating a new Container of a different type as needed) for `yr_idx` to be `v`.
 
@@ -369,32 +463,30 @@ If `yr_idx::Colon`, sets the hourly values for all years to be `v`.
 # keyword arguments
 * `nyr` - the total number of years.
 """
-function scale_hourly(c::ByNothing, v, yr_idx::Colon; kwargs...)
+function scale_hourly(c::ByNothing, v, yr_idx::Colon, nyr)
     return OriginalContainer(c.v, ByHour(c.v .* v))
 end
-function scale_hourly(c::OriginalContainer, args...; kwargs...)
-    return OriginalContainer(c.original, scale_hourly(c.v, args...; kwargs...))
+function scale_hourly(c::OriginalContainer, args...)
+    return OriginalContainer(c.original, scale_hourly(c.v, args...))
 end
-function scale_hourly(c::ByNothing, v, yr_idx; nyr=nothing)
-    @assert nyr !== nothing error("Attempting to scale hourly values for year index $yr_idx, but no nyr provided!")
+function scale_hourly(c::ByNothing, v, yr_idx, nyr)
     if all(in(yr_idx), 1:nyr)
-        return scale_hourly(c, v, (:); nyr)
+        return scale_hourly(c, v, (:), nyr)
     end
-    default_hourly = fill(c.v, size(v))
     vv = [fill(c.v, size(v)) for i in 1:nyr]
     foreach(i->(vv[i] .*= v), yr_idx)
     return OriginalContainer(c.v, ByYearAndHour(vv))
 end
 
-function scale_hourly(c::ByYear, v, yr_idx::Colon; kwargs...)
+function scale_hourly(c::ByYear, v, yr_idx::Colon, kwargs...)
     vv = [_v .* v for _v in c.v]
     return ByYearAndHour(vv)
 end
 
-function scale_hourly(c::ByYear, v, yr_idx; nyr=nothing)
+function scale_hourly(c::ByYear, v, yr_idx, nyr)
     # Check to see if all the years are represented by yr_idx
     if all(in(yr_idx), 1:length(c.v))
-        return scale_hourly(c, v, (:); nyr)
+        return scale_hourly(c, v, (:), nyr)
     end
 
     # Set the default hourly values to be the original values
@@ -405,29 +497,29 @@ function scale_hourly(c::ByYear, v, yr_idx; nyr=nothing)
     return ByYearAndHour(vv)
 end
 
-function scale_hourly(c::ByHour, v, yr_idx::Colon; kwargs...)
+function scale_hourly(c::ByHour, v, yr_idx::Colon, nyr)
     return ByHour(c.v .* v)
 end
-function scale_hourly(c::ByHour, v, yr_idx; nyr=nothing, kwargs...)
-    @assert nyr !== nothing error("Attempting to set hourly values for year index $yr_idx, but no nyr provided!")
+function scale_hourly(c::ByHour, v, yr_idx, nyr)
     if all(in(yr_idx), 1:nyr)
-        return scale_hourly(c, v, (:); default, kwargs...)
+        return scale_hourly(c, v, (:), kwargs...)
     end
     vv = [copy(c.v) for i in 1:nyr]
     foreach(i->(vv[i] .*= v), yr_idx)
     return ByYearAndHour(vv)
 end
 
-function scale_hourly(c::ByYearAndHour, v, yr_idx::Colon; kwargs...)
+function scale_hourly(c::ByYearAndHour, v, yr_idx::Colon, nyr)
     foreach(_v->_v .*= v, c.v)
     return c
 end
-function scale_hourly(c::ByYearAndHour, v, yr_idx; kwargs...)
+function scale_hourly(c::ByYearAndHour, v, yr_idx, nyr)
     if all(in(yr_idx), 1:length(c.v))
-        return scale_hourly(c, v, (:); default, kwargs...)
+        return scale_hourly(c, v, (:), nyr)
     end
-    foreach(i->(c.v[i] .*= v), yr_idx)
-    return c
+    v′ = map(copy, c.v)
+    foreach(i->(v′[i] .*= v), yr_idx)
+    return ByYearAndHour(v′)
 end
 
 

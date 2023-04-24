@@ -3,8 +3,9 @@
         config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
         config = read_config(config_file)
         data0 = read_data(config)
-        config[:adjust_yearly_file] = joinpath(@__DIR__, "data","3bus","adjust_yearly.csv")
-        config[:adjust_hourly_file] = joinpath(@__DIR__, "data","3bus","adjust_hourly.csv")
+        config[:adjust_yearly_file] = joinpath(@__DIR__, "data", "3bus", "adjust_yearly.csv")
+        config[:adjust_hourly_file] = joinpath(@__DIR__, "data", "3bus", "adjust_hourly.csv")
+        config[:adjust_by_age_file] = joinpath(@__DIR__, "data", "3bus", "adjust_by_age.csv")
         data = read_data(config)
         @test data isa AbstractDict
 
@@ -56,6 +57,31 @@
             # Test that all values for winter NOX damages values are zero
             hr_idx_winter = get_hour_idxs(data, "season"=>"winter")
             @test all(hr_idx->(all(yr_idx->(get_num(data, :r_dam_nox, yr_idx, hr_idx) == 0.0), get_year_idxs(data, :))), hr_idx_winter)
+        end
+
+        @testset "Test adjusting by age" begin
+            @testset "Test age triggers" begin
+                # Test age triggers
+                coal_idxs = get_table_row_idxs(data, :gen, :genfuel=>"coal")
+                coal_idx = first(coal_idxs)
+                @test get_table_num(data, :gen, :capex_obj, coal_idx, "y2030", :) == 0
+                @test get_table_num(data, :gen, :capex_obj, coal_idx, "y2035", :) == 0
+                @test get_table_num(data, :gen, :capex_obj, coal_idx, "y2040", :) > 0
+
+                wind_idxs = get_table_row_idxs(data, :gen, [:genfuel=>"wind", :build_status=>"built"])
+                wind_idx = first(wind_idxs)
+                @test get_table_num(data, :gen, :capex_obj, wind_idx, "y2030", :) > 0
+                @test get_table_num(data, :gen, :capex_obj, wind_idx, "y2035", :) == 0
+                @test get_table_num(data, :gen, :capex_obj, wind_idx, "y2040", :) == 0
+            end
+
+            @testset "Test exact age and after age" begin
+                solar_idxs = get_table_row_idxs(data, :gen, [:genfuel=>"solar", :build_status=>"built"])
+                solar_idx = first(solar_idxs)
+                @test get_table_num(data, :gen, :af, solar_idx, "y2030", 1) ≈ 0.5 * (1-0.03)
+                @test get_table_num(data, :gen, :af, solar_idx, "y2035", 1) ≈ 0.5 * (1-0.08)
+                @test get_table_num(data, :gen, :af, solar_idx, "y2040", 1) ≈ 0.5 * (1-0.10)
+            end
         end
     end
 end
