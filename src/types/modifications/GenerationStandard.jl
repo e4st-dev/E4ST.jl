@@ -110,8 +110,8 @@ function E4ST.modify_model!(pol::GenerationStandard, config, data, model)
             curr_tgt_load_expr = tgt_load_expr[yr_idx]
             for bus_idx in bus_idxs, hr_idx in 1:nhour
                 add_to_expression!(curr_tgt_load_expr,
-                    targets[year] * 
-                    pl_gs_bus[bus_idx, yr_idx, hr_idx]*hour_weights[hr_idx]
+                    pl_gs_bus[bus_idx, yr_idx, hr_idx],
+                    targets[year] * hour_weights[hr_idx]
                 )
             end
         end
