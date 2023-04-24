@@ -20,7 +20,7 @@ No default crediting is specified although the standard crediting will be [`Cred
 """
 const CES = GenerationStandard{:CES}
 
-CES(;name, targets, crediting, gen_filters, load_bus_filters) = CES(name, targets, Crediting(crediting), gen_filters, load_bus_filters)
+CES(;name, crediting, gen_filters, load_targets) = CES(name, crediting, gen_filters, load_targets)
 
 export CES
 

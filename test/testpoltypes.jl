@@ -296,12 +296,14 @@
                 gen_total_qual_2035 = aggregate_result(total, data, :gen, :egen, [:emis_co2 => 0, :country => "archenland"], 2)
                 elserv_total_qual_2035 = aggregate_result(total, data, :bus, :el_gs, :state => "stormness", 2)
 
-                @test gen_total_qual_2035 / elserv_total_qual_2035 >= rps_mod.targets[:y2035]
+                targets = first(values(rps_mod.load_targets))[:targets]
+
+                @test gen_total_qual_2035 / elserv_total_qual_2035 >= targets[:y2035]
 
                 gen_total_qual_2040 = aggregate_result(total, data, :gen, :egen, [:emis_co2 => 0, :country => "archenland"], 3)
                 elserv_total_qual_2040 = aggregate_result(total, data, :bus, :el_gs, :state => "stormness", 3)
 
-                @test gen_total_qual_2040 / elserv_total_qual_2040 >= rps_mod.targets[:y2040]
+                @test gen_total_qual_2040 / elserv_total_qual_2040 >= targets[:y2040]
 
                 gen_ref = get_table(data_ref, :gen)
                 gen_total_ref = aggregate_result(total, data_ref, :gen, :egen, :emis_co2 => 0)
@@ -351,20 +353,21 @@
 
                 ## Check that CES correctly impacts results
                 ces_mod = config[:mods][:example_ces]
+                targets = first(values(ces_mod.load_targets))[:targets]
 
                 gen_total_qual_2035 = aggregate_result(total, data, :gen, :egen, [:emis_co2 => <(0.5), :country => "archenland"], 2)
                 gen_total_qual_2035_ref = aggregate_result(total, data_ref, :gen, :egen, [:emis_co2 => <(0.5), :country => "archenland"], 2)
                 elserv_total_qual_2035 = aggregate_result(total, data, :bus, :el_gs, :state => "anvard", 2)
 
                 @test gen_total_qual_2035 > gen_total_qual_2035_ref
-                @test gen_total_qual_2035 / elserv_total_qual_2035 >= ces_mod.targets[:y2035] - 0.001 #would use approx but need the > in case partial credit gen is used
+                @test gen_total_qual_2035 / elserv_total_qual_2035 >= targets[:y2035] - 0.001 #would use approx but need the > in case partial credit gen is used
 
                 gen_total_qual_2040 = aggregate_result(total, data, :gen, :egen, [:emis_co2 => <(0.5), :country => "archenland"], 3)
                 gen_total_qual_2040_ref = aggregate_result(total, data_ref, :gen, :egen, [:emis_co2 => <(0.5), :country => "archenland"], 3)
                 elserv_total_qual_2040 = aggregate_result(total, data, :bus, :el_gs, :state => "anvard", 3)
 
                 @test gen_total_qual_2040 > gen_total_qual_2040_ref
-                @test gen_total_qual_2040 / elserv_total_qual_2040 >= ces_mod.targets[:y2040] - 0.001 #would use approx but need the > in case partial credit gen is used
+                @test gen_total_qual_2040 / elserv_total_qual_2040 >= targets[:y2040] - 0.001 #would use approx but need the > in case partial credit gen is used
 
             end
 

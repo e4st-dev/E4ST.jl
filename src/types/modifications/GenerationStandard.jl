@@ -6,25 +6,31 @@ This encompasses RPSs, CESs, and technology carveouts.
 To assign the credit (the portion of generation that can contribute) to generators, the [Crediting](@ref) type is used.
 
 * `name` - Name of the policy 
-* `targets` - The yearly targets for the Generation Standard
 * `gen_filters` - Filters on which generation qualifies to fulfill the GS. Sometimes qualifying generators may be outside of the GS load region if they supply power to it. 
 * `crediting` - the crediting structure and related fields
-* `load_bus_filters` - Filters on which buses fall into the GS load region. The GS will be applied to the load from these buses. 
-* `gs_type` - The original type the GS (RPS, CES, etc)
+* `load_targets` - OrderedDict containing key-value pairs where each key is the name of a requirement (not currently used), and each value is an OrderedDict with the following keys:
+    * `filters` - Filters on which buses fall into the GS load region. The GS will be applied to the load from these buses. 
+    * `targets` - The yearly percent targets of the qualifying load that must be covered by the qualifying generation.
 """
 struct GenerationStandard{T} <: Policy 
     name::Symbol
-    targets::OrderedDict
     crediting::Crediting
-    gen_filters::OrderedDict
-    load_bus_filters::OrderedDict
+    gen_filters::OrderedDict{Symbol, Any}
+    load_targets::OrderedDict{Symbol, Any}
+
+    function GenerationStandard{T}(name, crediting, gen_filters::OrderedDict{Symbol, Any}, load_targets::OrderedDict{Symbol, Any}) where T
+        for (k,v) in load_targets
+            @assert haskey(v, :targets)
+            @assert haskey(v, :filters)
+        end
+        return new{T}(Symbol(name), Crediting(crediting), gen_filters, load_targets)
+    end
 
 end
 
 
-function GenerationStandard(;name, targets, crediting::OrderedDict, gen_filters, load_bus_filters)
-    c = Crediting(crediting)
-    return GenerationStandard(Symbol(name), targets, c, gen_filters, load_bus_filters)
+function GenerationStandard(;name, crediting::OrderedDict, gen_filters, load_targets)
+    return GenerationStandard(name, crediting, gen_filters, load_targets)
 end
 export GenerationStandard
 
@@ -69,8 +75,6 @@ function E4ST.modify_model!(pol::GenerationStandard, config, data, model)
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
 
     bus = get_table(data, :bus)
-    bus_idxs = get_row_idxs(bus, parse_comparisons(pol.load_bus_filters))
-
     years = Symbol.(get_years(data))
 
     # create expression for qualifying load, only created if it hasn't already been defined in the model
@@ -84,24 +88,51 @@ function E4ST.modify_model!(pol::GenerationStandard, config, data, model)
     # create yearly constraint that qualifying generation meeting qualifying load
     # takes the form sum(gs_egen * credit) <= gs_value * sum(gs_load)
 
-    cons_name = "cons_$(pol.name)"
-    target_years = collect(keys(pol.targets))
+    cons_name = Symbol("cons_$(pol.name)")
+    tgt_load_name = Symbol("tgt_load_$(pol.name)")
     hour_weights = get_hour_weights(data)
 
+    pl_gs_bus = model[:pl_gs_bus]
+
+    # Construct expression for target load
+    tgt_load_expr = @expression(model,
+        [yr_idx in 1:nyear],
+        AffExpr(0.0)
+    )
+
+    for (k,d) in pol.load_targets
+        targets = d[:targets]
+        filters = d[:filters]
+        bus_idxs = get_row_idxs(bus, parse_comparisons(d[:filters]))
+        for yr_idx in 1:nyear
+            year = years[yr_idx]
+            haskey(targets, year) || continue
+            curr_tgt_load_expr = tgt_load_expr[yr_idx]
+            for bus_idx in bus_idxs, hr_idx in 1:nhour
+                add_to_expression!(curr_tgt_load_expr,
+                    pl_gs_bus[bus_idx, yr_idx, hr_idx],
+                    targets[year] * hour_weights[hr_idx]
+                )
+            end
+        end
+    end
+
+
+    model[tgt_load_name] = tgt_load_expr
+
+
     @info "Creating a generation constraint for the Generation Standard $(pol.name)."
-    model[Symbol(cons_name)] = @constraint(model, 
+    model[cons_name] = @constraint(model, 
         [
             yr_idx in 1:nyear;
-            haskey(pol.targets, years[yr_idx])
+            tgt_load_expr[yr_idx] != 0
         ],
         sum(
             get_egen_gen(data, model, gen_idx, yr_idx, hr_idx) * 
             get_table_num(data, :gen, pol.name, gen_idx, yr_idx, hr_idx)
             for gen_idx=gen_idxs, hr_idx=1:nhour
         ) >= (
-            pol.targets[years[yr_idx]] * 
-            sum(model[:pl_gs_bus][bus_idx, yr_idx, hr_idx]*hour_weights[hr_idx]
-            for bus_idx=bus_idxs, hr_idx=1:nhour)
+            tgt_load_expr[yr_idx]
         )
     )
 end

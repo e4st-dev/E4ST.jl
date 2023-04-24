@@ -19,10 +19,7 @@ mod_rank for RPS will be 1.0 because that is the rank of GenerationStandards
 """
 const RPS = GenerationStandard{:RPS}
 
-function RPS(;name, targets, crediting=StandardRPSCrediting(), gen_filters, load_bus_filters) 
-    return RPS(name, targets, Crediting(crediting), gen_filters, load_bus_filters)
-end
-
+RPS(;name, crediting=StandardRPSCrediting(), gen_filters, load_targets) = RPS(name, crediting, gen_filters, load_targets)
 
 export RPS
 

@@ -3,14 +3,16 @@ line_loss_type: pflow  # Need to test that this type of line loss works with gen
 mods:
   example_ces:
     type: "CES"
-    targets:
-      y2035: 0.9
-      y2040: 0.95
     crediting: 
       type: "CreditByBenchmark"
       benchmark: 0.5
     gen_filters:
       country: "archenland"
-    load_bus_filters:
-      state: "anvard"
+    load_targets:
+      anvard_ces:
+        targets:
+          y2035: 0.9
+          y2040: 0.95
+        filters:
+          state: "anvard"
 
