@@ -166,14 +166,14 @@ function set_yearly(c::ByNothing, x::Float64, yr_idx::Int64, nyr::Int64)
     return OriginalContainer(c.v, ByYear(v))
 end
 function set_yearly(c::ByYear, x::Float64, yr_idx::Int64, nyr::Int64)
-    v = c.v
+    v = copy(c.v)
     v[yr_idx] = x
-    return c
+    return ByYear(v)
 end
 function set_yearly(c::ByYearAndHour, x::Float64, yr_idx::Int64, nyr::Int64)
-    v = c.v
+    v = map(copy, c.v)
     v[yr_idx] .= x
-    return c
+    return ByYearAndHour(v)
 end
 function set_yearly(c::ByHour, x::Float64, yr_idx::Int64, nyr::Int64)
     v = [copy(c.v) for _ in 1:nyr]
@@ -203,10 +203,11 @@ function add_yearly(c::ByHour, v::Vector{Float64})
     return ByYearAndHour(vv)
 end
 function add_yearly(c::ByYearAndHour, v::Vector{Float64})
-    for _v in c.v
+    v′ = map(copy, c.v)
+    for _v in v′
         _v .+= v
     end
-    return c
+    return ByYearAndHour(v′)
 end
 
 """
@@ -221,14 +222,14 @@ function add_yearly(c::ByNothing, x::Float64, yr_idx::Int64, nyr::Int64)
     return OriginalContainer(c.v, ByYear(v))
 end
 function add_yearly(c::ByYear, x::Float64, yr_idx::Int64, nyr::Int64)
-    v = c.v
+    v = copy(c.v)
     v[yr_idx] += x
-    return c
+    return ByYear(v)
 end
 function add_yearly(c::ByYearAndHour, x::Float64, yr_idx::Int64, nyr::Int64)
-    v = c.v
+    v = map(copy, c.v)
     v[yr_idx] .+= x
-    return c
+    return ByYearAndHour(v)
 end
 function add_yearly(c::ByHour, x::Float64, yr_idx::Int64, nyr::Int64)
     v = [copy(c.v) for _ in 1:nyr]
@@ -261,10 +262,11 @@ function scale_yearly(c::ByHour, v::Vector{Float64})
     return ByYearAndHour(vv)
 end
 function scale_yearly(c::ByYearAndHour, v::Vector{Float64})
-    for _v in c.v
+    v′ = map(copy, c.v)
+    for _v in v′
         _v .*= v
     end
-    return c
+    return ByYearAndHour(v′)
 end
 function scale_yearly(c::Number, v::Vector{Float64})
     return ByYear(c .* v)
@@ -282,14 +284,14 @@ function scale_yearly(c::ByNothing, x::Float64, yr_idx::Int64, nyr::Int64)
     return OriginalContainer(c.v, ByYear(v))
 end
 function scale_yearly(c::ByYear, x::Float64, yr_idx::Int64, nyr::Int64)
-    v = c.v
+    v = copy(c.v)
     v[yr_idx] *= x
-    return c
+    return ByYear(v)
 end
 function scale_yearly(c::ByYearAndHour, x::Float64, yr_idx::Int64, nyr::Int64)
-    v = c.v
+    v = map(copy,c.v)
     v[yr_idx] .*= x
-    return c
+    return ByYearAndHour(v)
 end
 function scale_yearly(c::ByHour, x::Float64, yr_idx::Int64, nyr::Int64)
     v = [copy(c.v) for _ in 1:nyr]
@@ -371,8 +373,9 @@ function set_hourly(c::ByYearAndHour, v, yr_idx, nyr)
     if all(in(yr_idx), 1:length(c.v))
         return set_hourly(c, v, (:), nyr)
     end
-    foreach(i->(c.v[i] = v), yr_idx)
-    return c
+    v′ = map(copy, c.v)
+    foreach(i->(v′[i] = v), yr_idx)
+    return ByYearAndHour(v′)
 end
 
 """
@@ -439,8 +442,9 @@ function add_hourly(c::ByYearAndHour, v, yr_idx, nyr)
     if all(in(yr_idx), 1:length(c.v))
         return add_hourly(c, v, (:), nyr)
     end
-    foreach(i->(c.v[i] .+= v), yr_idx)
-    return c
+    v′ = map(copy, c.v)
+    foreach(i->(v′[i] .+= v), yr_idx)
+    return ByYearAndHour(v′)
 end
 
 
@@ -513,8 +517,9 @@ function scale_hourly(c::ByYearAndHour, v, yr_idx, nyr)
     if all(in(yr_idx), 1:length(c.v))
         return scale_hourly(c, v, (:), nyr)
     end
-    foreach(i->(c.v[i] .*= v), yr_idx)
-    return c
+    v′ = map(copy, c.v)
+    foreach(i->(v′[i] .*= v), yr_idx)
+    return ByYearAndHour(v′)
 end
 
 

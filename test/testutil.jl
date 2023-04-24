@@ -137,6 +137,74 @@ end
             @test container_compare(c1, v_yr .+ v_hr', nyr, nhr)
             @test get_original(c1) == orig
         end
+
+        @testset "Test Yearly adjustments by single value" begin
+            nyr = 3
+            nhr = 4
+            bn = ByNothing(rand())
+            by = ByYear(rand(nyr))
+            byh = ByYearAndHour(map(x->rand(nhr), 1:nyr))
+            bh = ByHour(rand(nhr))
+
+            @testset "Test add_yearly" begin
+                x = rand()
+                by_new =  add_yearly(by, x, 2, nyr)
+                @test by[1,:] == by_new[1,:]
+                @test by[2,:] + x == by_new[2,:]
+
+                bn_new = add_yearly(bn, x, 2, nyr)
+                @test bn[1,:] == bn_new[1, :]
+                @test bn[2,:] + x == bn_new[2,:]
+
+                byh_new = add_yearly(byh, x, 2, nyr)
+                @test all(byh[1,h] == byh_new[1,h] for h in 1:nhr)
+                @test all(byh[2,h] + x == byh_new[2,h] for h in 1:nhr)
+
+                bh_new = add_yearly(bh, x, 2, nyr)
+                @test all(bh[1,h] == bh_new[1,h] for h in 1:nhr)
+                @test all(bh[2,h] + x == bh_new[2,h] for h in 1:nhr)
+            end
+
+            @testset "Test scale_yearly" begin
+                x = rand()
+                by_new =  scale_yearly(by, x, 2, nyr)
+                @test by[1,:] == by_new[1,:]
+                @test by[2,:] * x == by_new[2,:]
+
+                bn_new = scale_yearly(bn, x, 2, nyr)
+                @test bn[1,:] == bn_new[1, :]
+                @test bn[2,:] * x == bn_new[2,:]
+
+                byh_new = scale_yearly(byh, x, 2, nyr)
+                @test all(byh[1,h] == byh_new[1,h] for h in 1:nhr)
+                @test all(byh[2,h] * x == byh_new[2,h] for h in 1:nhr)
+
+                bh_new = scale_yearly(bh, x, 2, nyr)
+                @test all(bh[1,h] == bh_new[1,h] for h in 1:nhr)
+                @test all(bh[2,h] * x == bh_new[2,h] for h in 1:nhr)
+            end
+
+            @testset "Test set_yearly" begin
+                x = rand()
+                by_new =  set_yearly(by, x, 2, nyr)
+                @test by[1,:] == by_new[1,:]
+                @test x == by_new[2,:]
+
+                bn_new = set_yearly(bn, x, 2, nyr)
+                @test bn[1,:] == bn_new[1, :]
+                @test x == bn_new[2,:]
+
+                byh_new = set_yearly(byh, x, 2, nyr)
+                @test all(byh[1,h] == byh_new[1,h] for h in 1:nhr)
+                @test all(x == byh_new[2,h] for h in 1:nhr)
+
+                bh_new = set_yearly(bh, x, 2, nyr)
+                @test all(bh[1,h] == bh_new[1,h] for h in 1:nhr)
+                @test all(x == bh_new[2,h] for h in 1:nhr)
+            end
+
+
+        end
     end
     
     @testset "Test Util Helper Functions" begin

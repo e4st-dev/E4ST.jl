@@ -560,7 +560,7 @@ function setup_table!(config, data, ::Val{:af_table})
         
         af = [row[i_hr] for i_hr in hr_idx:ncol(af_table)]
         foreach(eachrow(gens)) do gen
-            gen.af = set_hourly(gen.af, copy(af), yr_idx, nyr)
+            gen.af = set_hourly(gen.af, af, yr_idx, nyr)
         end
     end
     return data
