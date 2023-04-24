@@ -125,6 +125,8 @@ end
 Apply an hourly adjustment given `row` from the `adjust_hourly` table.
 """
 function adjust_yearly!(config, data, row)
+    get(row, :status, true) || return
+    
     # TODO: make warning if you are trying to modify the same column of the same table hourly and yearly.
     table_name = row.table_name::AbstractString
     variable_name = row.variable_name::AbstractString

@@ -214,6 +214,9 @@ function read_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
     # Add other columns to the summary, with NA unit and empty descriptions
     for name in propertynames(table)
         name in st.column_name && continue
+        name_str = string(name)
+        match(r"h\d+", name_str) !== nothing && continue
+        match(r"y\d+", name_str) !== nothing && continue
         add_table_col!(data, table_name, name, table[!, name], NA, "")
     end
     return
