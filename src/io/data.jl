@@ -170,6 +170,21 @@ Loads a table from filename, where filename is a csv.
 function read_table(filename::String)
     CSV.read(filename, DataFrame, missingstring=nothing, stripwhitespace=true)
 end
+
+"""
+    read_table(filenames::AbstractVector) -> table
+
+Reads tables in from `filenames`, appending them together.
+"""
+function read_table(filenames::AbstractVector)
+    table = read_table(first(filenames))
+    for i in 2:length(filenames)
+        filename = filenames[i]
+        tmp = read_table(filename)
+        append!(table, tmp)
+    end
+    return table
+end
 export read_table
 
 
