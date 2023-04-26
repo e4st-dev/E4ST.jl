@@ -217,7 +217,7 @@ function read_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
         name_str = string(name)
         match(r"h\d+", name_str) !== nothing && continue
         match(r"y\d+", name_str) !== nothing && continue
-        add_table_col!(data, table_name, name, table[!, name], NA, "")
+        add_table_col!(data, table_name, name, table[!, name], NA, "", warn_overwrite=false)
     end
     return
 end
@@ -420,7 +420,7 @@ function setup_table!(config, data, ::Val{:gen})
 
     for name in names_after
         name in names_before && continue
-        add_table_col!(data, :gen, name, gen[!,name], get_table_col_unit(data, :bus, name), get_table_col_description(data, :bus, name))
+        add_table_col!(data, :gen, name, gen[!,name], get_table_col_unit(data, :bus, name), get_table_col_description(data, :bus, name), warn_overwrite=false)
     end
 
     # Add necessary columns if they don't exist.
@@ -541,6 +541,7 @@ function setup_table!(config, data, ::Val{:af_table})
     hr_idx = findfirst(s->s=="h1",names(af_table))
     all_years = get_years(data)
     nyr = get_num_years(data)
+    nhr = get_num_hours(data)
 
     for i = 1:nrow(af_table)
         row = af_table[i, :]
@@ -561,7 +562,7 @@ function setup_table!(config, data, ::Val{:af_table})
 
         isempty(gens) && continue
         
-        af = [row[i_hr] for i_hr in hr_idx:ncol(af_table)]
+        af = [row[i_hr] for i_hr in hr_idx:(hr_idx + nhr - 1)]
         foreach(eachrow(gens)) do gen
             gen.af = set_hourly(gen.af, af, yr_idx, nyr)
         end
