@@ -548,7 +548,7 @@ function setup_table!(config, data, ::Val{:af_table})
             continue
         end
 
-        if isempty(row.year)
+        if !haskey(row, :year) || isempty(row.year)
             yr_idx = (:)
         elseif row.year ∈ all_years
             yr_idx = findfirst(==(row.year), all_years)
@@ -669,7 +669,7 @@ function summarize_table(::Val{:af_table})
         (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
         (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
-        (:year, YearString, Year, true, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
+        (:year, YearString, Year, false, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
         (:status, Bool, NA, false, "Whether or not to use this AF adjustment"),
         (:h_, Float64, MWhGeneratedPerMWhCapacity, true, "Availability factor of hour _.  Include 1 column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
     )
