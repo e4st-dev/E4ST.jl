@@ -11,3 +11,4 @@ hours,season,String,NA,0,"Season of the representative hour, i.e. summer or wint
 hours,day_order,Int64,NA,0,The ordering of the hour within each day
 hours,day_duration,Float64,Hours,0,The number of hours spent at this representative hour within each day
 bus,state,AbstractString,NA,0,State that the bus is in
+gen,chp_co2_multi,Float64,NA,0,"The percentage of CO2 emissions from CHP attributed to the power generation. Used to calculate CO2e"

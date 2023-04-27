@@ -27,3 +27,5 @@ mods:
   dc_line:
     type: DCLine
     file: "../data/3bus/dc_line.csv"
+  co2ecalc:
+    type: CO2eCalc

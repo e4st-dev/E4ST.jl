@@ -16,6 +16,8 @@ Base.@kwdef struct DCLine <: Modification
 end
 export DCLine
 
+mod_rank(::Type{<:DCLine}) = -3.0
+
 """
     modify_raw_data!(mod::DCLine, config, data)
 

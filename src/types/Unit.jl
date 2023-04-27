@@ -45,6 +45,8 @@ struct MWCurtailed <: Unit end; export MWCurtailed
 struct MWCharged <: Unit end; export MWCharged
 struct MWDischarged <: Unit end; export MWDischarged
 
+struct MMBtuPerMWh <: Unit end; export MMBtuPerMWh
+
 
 struct Hours <: Unit end; export Hours
 struct Year <: Unit end; export Year

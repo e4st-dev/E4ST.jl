@@ -64,6 +64,8 @@ function CCUS(;file, groupby)
 end
 export CCUS
 
+mod_rank(::Type{<:CCUS}) = -3.0
+
 @doc """
     summarize_table(::Val{:ccus_paths})
 
