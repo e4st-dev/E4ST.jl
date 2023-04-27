@@ -395,9 +395,7 @@ function make_paths_absolute!(config, filename)
     path = dirname(filename)
     for key in path_keys
         fn = config[key]
-        if ~isabspath(fn)
-            config[key] = abspath(path, fn)
-        end
+        config[key] = _abspath(path, fn)
     end
     for (k,v) in config
         k === :optimizer && continue
@@ -415,6 +413,8 @@ function make_paths_absolute!(config, filename)
 end
 make_paths_absolute!(config) = make_paths_absolute!(config, config[:config_file])
 
+_abspath(path, fn::AbstractString) = abspath(path, fn)
+_abspath(path, fns::AbstractVector{<:AbstractString}) = map(fn->(isabspath(fn) ? fn : abspath(path, fn)), fns)
 """
     contains_file_or_path(s) -> Bool
 

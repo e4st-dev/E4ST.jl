@@ -3,14 +3,16 @@
         config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
         config = read_config(config_file)
         data0 = read_data(config)
-        config[:adjust_yearly_file] = joinpath(@__DIR__, "data", "3bus", "adjust_yearly.csv")
-        config[:adjust_hourly_file] = joinpath(@__DIR__, "data", "3bus", "adjust_hourly.csv")
-        config[:adjust_by_age_file] = joinpath(@__DIR__, "data", "3bus", "adjust_by_age.csv")
+
+        mods = config[:mods]
+        mods[:adj_yearly] = AdjustYearly(file=joinpath(@__DIR__, "data", "3bus", "adjust_yearly.csv"), name=:adj_yearly)
+        mods[:adj_hourly] = AdjustHourly(file=joinpath(@__DIR__, "data", "3bus", "adjust_hourly.csv"), name=:adj_hourly)
+        mods[:adj_by_age] = AdjustByAge(file=joinpath(@__DIR__, "data", "3bus", "adjust_by_age.csv"), name=:adj_by_age)
         data = read_data(config)
         @test data isa AbstractDict
 
         @testset "Test Yearly Adjustments" begin
-            @test get_table(data, :adjust_yearly) isa DataFrame
+            @test get_table(data, :adj_yearly) isa DataFrame
 
             # Test that FOM is reduced in narnia for solar generators
             gen_idxs = get_table_row_idxs(data, :gen, "country"=>"narnia", "genfuel"=>"solar")
@@ -25,7 +27,7 @@
             @test get_num(data, :r_dam_co2, 1, 1) ≈ 183.56
         end
         @testset "Test Hourly Adjustments" begin
-            @test get_table(data, :adjust_hourly) isa DataFrame
+            @test get_table(data, :adj_hourly) isa DataFrame
 
 
             # Test that wind af is different

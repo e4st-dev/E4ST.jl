@@ -10,7 +10,9 @@ load_match_file: "../data/3bus/load_match.csv"
 load_add_file: "../data/3bus/load_add.csv"
 gentype_genfuel_file: "../data/3bus/gentype_genfuel.csv"
 build_gen_file: "../data/3bus/build_gen.csv"
-summary_table_file: "../data/3bus/summary_table.csv"
+summary_table_file: 
+  - "../data/3bus/summary_table.csv"
+  - "../data/3bus/summary_table2.csv"
 year_gen_data: y2020
 logging: true
 voll: 5000

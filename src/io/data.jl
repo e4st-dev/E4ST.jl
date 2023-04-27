@@ -80,9 +80,6 @@ function read_data_files!(config, data)
     read_table!(config, data, :load_add_file=>:load_add, optional=true)
     read_table!(config, data, :build_gen_file => :build_gen, optional=true)
     read_table!(config, data, :gentype_genfuel_file => :genfuel, optional=true)
-    read_table!(config, data, :adjust_yearly_file => :adjust_yearly, optional=true)
-    read_table!(config, data, :adjust_hourly_file => :adjust_hourly, optional=true)
-    read_table!(config, data, :adjust_by_age_file => :adjust_by_age, optional=true)
 end
 export read_data_files!
 
@@ -173,6 +170,21 @@ Loads a table from filename, where filename is a csv.
 function read_table(filename::String)
     CSV.read(filename, DataFrame, missingstring=nothing, stripwhitespace=true)
 end
+
+"""
+    read_table(filenames::AbstractVector) -> table
+
+Reads tables in from `filenames`, appending them together.
+"""
+function read_table(filenames::AbstractVector)
+    table = read_table(first(filenames))
+    for i in 2:length(filenames)
+        filename = filenames[i]
+        tmp = read_table(filename)
+        append!(table, tmp)
+    end
+    return table
+end
 export read_table
 
 
@@ -186,6 +198,25 @@ function read_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
     @info "Loading data[:$(last(p))] from $(config[first(p)])"
     table_file = config[first(p)]::String
     table_name = last(p)
+    table = read_table(data, table_file, table_name)
+    st = get_table_summary(data, table_name)
+    
+    data[table_name] = table
+
+    # Add other columns to the summary, with NA unit and empty descriptions
+    for name in propertynames(table)
+        name in st.column_name && continue
+        add_table_col!(data, table_name, name, table[!, name], NA, "")
+    end
+    return
+end
+
+"""
+    read_table(data, table_file, table_name) -> table
+
+Reads a table from `table_file`, pulling in the summary from `data[:summary_table]`, and forcing types.  Returns the resulting `table`.
+"""
+function read_table(data, table_file, table_name)
     table = read_table(table_file)
     st = get_table_summary(data, table_name)
     force_table_types!(table, table_name, st)
@@ -209,15 +240,9 @@ function read_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
             end
         end
     end
-    data[table_name] = table
-
-    # Add other columns to the summary, with NA unit and empty descriptions
-    for name in propertynames(table)
-        name in st.column_name && continue
-        add_table_col!(data, table_name, name, table[!, name], NA, "")
-    end
-    return
+    return table
 end
+export read_table
 
 
 """
