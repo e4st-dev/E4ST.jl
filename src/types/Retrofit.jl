@@ -1,0 +1,158 @@
+
+"""
+    Retrofit <: Modification
+
+Abstract supertype for retrofits.  Must implement the following interfaces:
+* (optional) [`init(ret::Retrofit, config, data)`](@ref) - initialize data with the `Retrofit` by adding any necessary columns to the gen table, etc.  Defaults to do nothing.
+* (required) [`can_retrofit(ret::Retrofit, gen::DataFrameRow)`](@ref)` -> ::Bool` - returns whether or not a generator row can be retrofitted.
+* (required) [`get_retrofit(ret::Retrofit, gen)`](@ref)` -> newgen::AbstractDict` - returns a new row to be added to the gen table.
+
+The following methods are defined for `Retrofit`, so you do not define any of the ordinary `Modification` methods for any subtype of `Retrofit` - only implement the above interfaces.
+* [`setup_processed_data!(ret::Retrofit, config, data)`](@ref)
+* [`setup_model!(ret::Retrofit, config, data)`](@ref)
+"""
+abstract type Retrofit <: Modification end
+export Retrofit
+
+"""
+    can_retrofit(ret::Retrofit, row) -> ::Bool
+
+Returns whether or not a generator row can be retrofitted.
+"""
+function can_retrofit end
+
+"""
+    get_retrofit(ret::Retrofit, row) -> ::AbstractDict
+
+Returns a new retrofit based off of `row`, to be added to the gen table.  Note that the `capex` should be included in the retrofitted generator WITHOUT the existing generator's capex.  I.e. capex for the retrofit should be only the capital costs for the retrofit, not including the initial capital costs for building the generator.
+"""
+function get_retrofit end
+
+"""
+    init!(ret::Retrofit, config, data)
+
+initialize data with the `Retrofit` by adding any necessary columns to the gen table, etc.  Defaults to do nothing.
+"""
+function init!(ret::Retrofit, config, data) end
+
+"""
+    setup_processed_data!(ret::Retrofit, config, data)
+
+* Calls [`init!(ret::Retrofit, config, data)`](@ref) to initialize the data.
+* Makes a `Dict` in `data[:retrofits]` to keep track of the retrofits being produced for each retrofit.
+* Loops through the rows of the `gen` table
+    * Checks to see if the can be retrofitted via [`can_retrofit(ret::Retrofit, row)`](@ref)
+    * Constructs the new retrofitted generator via [`get_retrofit(ret::Retrofit, row)`](@ref)
+"""
+function setup_processed_data!(ret::Retrofit, config, data)
+
+    @info "Setting up retrofits for $ret"
+
+    # Add year_retrofit column to the gen table
+    gen = get_table(data, :gen)
+    hasproperty(gen, :year_retrofit) || add_table_col!(data, :gen, :year_retrofit, fill("", nrow(gen)), Year, "Year in which the unit was retrofit, or blank if not a retrofit.")
+
+    # Initialize with the Retrofit type
+    init!(ret, config, data)
+    years = get_years(data)
+    retrofits = get(data, :retrofits, OrderedDict{Int64, Vector{Int64}}())::OrderedDict{Int64, Vector{Int64}}
+    ngen = nrow(gen)
+
+    # Loop through generators and add retrofits
+    for gen_idx in 1:ngen
+        row = gen[gen_idx, :]
+        row.build_status == "built" || continue
+        can_retrofit(ret, row) || continue
+        newgen = get_retrofit(ret, row)
+
+        # Add a retrofit candidate for each year
+        for yr_idx in 1:nyr
+            # Set year_retrofit
+            year = years[yr_idx]
+            newgen[:year_retrofit] = year
+            
+            # Set capex_obj
+            v = zeros(nyr)
+            v[yr_idx] = newgen[:capex]
+            newgen[:capex_obj] = ByYear(v)
+
+            # Add newgen to the gen table, add it to retrofits.
+            push!(gen, newgen)
+            current_gen_retrofit_idxs = get!(retrofits, gen_idx, Int64[])
+            push!(current_gen_retrofit_idxs, nrow(gen))
+        end
+    end
+
+    @info "Added $(nrow(gen) - ngen) retrofit generators to gen table"
+end
+
+
+function setup_model!(ret::Retrofit, config, data, model)
+    # Only add constraints if it hasn't been done yet.  This will add constraints for all the Retrofit types
+    haskey(model, :cons_pcap_retro) && return
+
+    # Fetch necessary data
+    nyr = get_num_years(data)
+    gen = get_table(data, :gen)
+    retrofits = data[:retrofits]::OrderedDict{Int64, Vector{Int64}}
+    pcap_gen = model[:pcap_gen]::Array{VariableRef, 2}
+    pcap_max = gen.pcap_max
+    pcap_min = gen.pcap_min
+
+    # Make constraint
+    @constraint(model, 
+        cons_pcap_gen_retro_max[
+            gen_idx in keys(retrofits),
+            yr_idx in 1:nyr
+        ],
+        sum(ret_idx-> pcap_gen[ret_idx, yr_idx] * (pcap_max[gen_idx] / pcap_max[ret_idx]), retrofits[gen_idx]) + pcap_gen[ret_idx, yr_idx] <= pcap_max[gen_idx]
+    )
+
+    # Lower bound the capacities with zero
+    for gen_idx in keys(retrofits)
+        ret_idxs = retrofits[gen_idx]
+        for yr_idx in 1:nyr
+            set_lower_bound(pcap_gen[gen_idx, yr_idx], 0.0)
+            for ret_idx in ret_idxs
+                set_lower_bound(pcap_gen[ret_idx, yr_idx], 0.0)
+            end
+        end
+    end
+
+    # Constrain the capacities to add up to the desired min capacity
+    @constraint(model, 
+        cons_pcap_gen_retro_min[
+            gen_idx in keys(retrofits),
+            yr_idx in 1:nyr
+        ],
+        sum(ret_idx-> pcap_gen[ret_idx, yr_idx] * (pcap_max[gen_idx] / pcap_max[ret_idx]), retrofits[gen_idx]) + pcap_gen[ret_idx, yr_idx] >= pcap_min[gen_idx]
+    )
+
+    # Constrain their capacities to be zero before year_retrofit
+    @constraint(model,
+        cons_pcap_gen_preretro[
+            gen_idx = axes(gen, 1),
+            yr_idx = 1:nyr;
+            (!isempty(gen.year_retro[gen_idx]) && years[yr_idx] < gen.year_retro[gen_idx])
+        ],
+        pcap_gen[gen_idx, yr_idx] == 0.0
+    )
+
+    # Remove noadd constraints before retrofit
+    cons = model[:cons_pcap_gen_noadd]
+    for gen_idx in 1:nrow(gen)
+        row = gen[gen_idx, :]
+
+        # Check to see if this is a retrofit generator
+        isempty(row.year_retrofit) && continue
+        retro_yr_idx = findfirst(==(row.year_retrofit), years)
+        retro_yr_idx === nothing && continue # Must be a previously retrofit generator, no need to remove constraints
+
+        for yr_idx in 1:(retro_yr_idx-1)
+            delete(model, cons[gen_idx, yr_idx])
+        end
+    end
+
+    return nothing
+end
+
