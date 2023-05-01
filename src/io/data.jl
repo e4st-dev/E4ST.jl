@@ -643,7 +643,8 @@ function summarize_table(::Val{:gen})
         (:af, Float64, MWhGeneratedPerMWhCapacity, false, "The availability factor, or maximum available ratio of pewer generation to nameplate capacity for the generator."),
         (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The emission rate per MWh of CO2"),
         (:capt_co2_percent, Float64, ShortTonsPerMWhGenerated, false, "The percentage of co2 emissions captured, to be sequestered."),
-        (:HR, Float64, MMBtuPerMWh, true, "The heat rate of a generator, the MMBtu of fuel required for 1 MWh of energy generated."),
+        (:hr, Float64, MMBtuPerMWh, true, "The heat rate of a generator, the MMBtu of fuel required for 1 MWh of energy generated."),
+        (:chp_co2_multi,Float64,NA,false,"The percentage of CO2 emissions from CHP attributed to the power generation. Used to calculate CO2e")
     )
     return df
 end

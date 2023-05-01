@@ -29,8 +29,8 @@ function modify_setup_data!(mod::CO2eCalc, config, data)
     for row in eachrow(gen)
 
         # add methane from fuels TODO: add DAC when we add it
-        if (row.genfuel == "ng") row[:emis_co2e] = row[:emis_co2] + ng_ch4_fuel_content*row[:HR]*ch4_gwp end
-        if (row.genfuel == "coal") row[:emis_co2e] = row[:emis_co2] + coal_ch4_fuel_content*row[:HR]*ch4_gwp end
+        if (row.genfuel == "ng") row[:emis_co2e] = row[:emis_co2] + ng_ch4_fuel_content*row[:hr]*ch4_gwp end
+        if (row.genfuel == "coal") row[:emis_co2e] = row[:emis_co2] + coal_ch4_fuel_content*row[:hr]*ch4_gwp end
 
         # update biomass CO2e with percentage that we want to reduce from upstream carbon sequestering from plants 
         if (row.genfuel == "biomass") row[:emis_co2e] = row.emis_co2*bio_pctco2e end
@@ -46,17 +46,17 @@ function modify_setup_data!(mod::CO2eCalc, config, data)
 
     # ng_ch4_fuel_content = get_val(data, :ng_ch4_fuel_content)
     # ng_rows = get_subtable(gen, :genfuel=>"ng") #when DAC is added it can be grouped into this for loop because it uses ng ch4 fuel content
-    # #ng_rows.emis_co2e .= ByYear([ng_rows.emis_co2 + ng_ch4_fuel_content*ng_rows.HR*ch4_gwp[year_idx] for year_idx in 1:nyears])
+    # #ng_rows.emis_co2e .= ByYear([ng_rows.emis_co2 + ng_ch4_fuel_content*ng_rows.hr*ch4_gwp[year_idx] for year_idx in 1:nyears])
     # for row in eachrow(ng_rows)
-    #     co2e = row.emis_co2 + ng_ch4_fuel_content*row.HR*ch4_gwp
+    #     co2e = row.emis_co2 + ng_ch4_fuel_content*row.hr*ch4_gwp
     #     row[:emis_co2e] = co2e
     # end
 
     # coal_ch4_fuel_content = get_val(data, :coal_ch4_fuel_content)
     # coal_rows = get_subtable(gen, :genfuel=>"coal")
-    # #coal_rows.emis_co2e .= ByYear([coal_rows.emis_co2 + coal_ch4_fuel_content*ng_rows.HR*ch4_gwp[year_idx] for year_idx in 1:nyears])
+    # #coal_rows.emis_co2e .= ByYear([coal_rows.emis_co2 + coal_ch4_fuel_content*ng_rows.hr*ch4_gwp[year_idx] for year_idx in 1:nyears])
     # for row in eachrow(coal_rows)
-    #     co2e = row.emis_co2 + coal_ch4_fuel_content*ch4_gwp*row.HR
+    #     co2e = row.emis_co2 + coal_ch4_fuel_content*ch4_gwp*row.hr
     #     row[:emis_co2e] = ByYear(co2e)
     # end
 
