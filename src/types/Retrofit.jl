@@ -88,7 +88,7 @@ function modify_setup_data!(ret::Retrofit, config, data)
 end
 
 
-function modify_setup_model!(ret::Retrofit, config, data, model)
+function modify_model!(ret::Retrofit, config, data, model)
     # Only add constraints if it hasn't been done yet.  This will add constraints for all the Retrofit types
     haskey(model, :cons_pcap_gen_retro_max) && return
 
