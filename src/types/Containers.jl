@@ -38,17 +38,6 @@ struct HoursContainer <: Container
     v::Vector{Float64}
 end
 
-Base.:-(c::ByNothing, n::Number) = ByNothing(c.v-n)
-Base.:+(c::ByNothing, n::Number) = ByNothing(c.v+n)
-Base.:*(c::ByNothing, n::Number) = ByNothing(c.v*n)
-Base.:/(c::ByNothing, n::Number) = ByNothing(c.v/n)
-
-Base.:-(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v-n))
-Base.:+(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v+n))
-Base.:*(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v*n))
-Base.:/(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v/n))
-
-
 """
     get_original(c::Container) -> original::Float64
 
@@ -60,7 +49,115 @@ end
 function get_original(c::ByNothing)
     return c.v
 end
+function get_original(c::ByYear)
+    return c.v
+end
+function get_original(n::Number)
+    return n
+end
 export get_original
+
+function get_c_from_orig(c::OriginalContainer)
+    return c.v
+end
+function get_c_from_orig(n::Number)
+    return n
+end
+export get_c_from_orig
+
+
+
+
+#########################################################
+# Basic Functions
+#########################################################
+
+# Base.:-(c::ByNothing, n::Number) = ByNothing(c.v-n)
+# Base.:+(c::ByNothing, n::Number) = ByNothing(c.v+n)
+# Base.:*(c::ByNothing, n::Number) = ByNothing(c.v*n)
+# Base.:/(c::ByNothing, n::Number) = ByNothing(c.v/n)
+
+Base.:-(c1::ByNothing, c2::ByYear) = ByYear(c1.v .- c2.v)
+Base.:+(c1::ByNothing, c2::ByYear) = ByYear(c1.v .+ c2.v)
+Base.:*(c1::ByNothing, c2::ByYear) = ByYear(c1.v .* c2.v)
+Base.:/(c1::ByNothing, c2::ByYear) = ByYear(c1.v ./ c2.v)
+
+Base.:-(c1::ByYear, c2::ByNothing) = ByYear(c1.v .- c2.v)
+Base.:+(c1::ByYear, c2::ByNothing) = ByYear(c1.v .+ c2.v)
+Base.:*(c1::ByYear, c2::ByNothing) = ByYear(c1.v .* c2.v)
+Base.:/(c1::ByYear, c2::ByNothing) = ByYear(c1.v ./ c2.v)
+
+Base.:-(c::C, n::Number) where {C<:Container} = C(c.v .- n)
+Base.:+(c::C, n::Number) where {C<:Container} = C(c.v .+ n)
+Base.:*(c::C, n::Number) where {C<:Container} = C(c.v .* n)
+Base.:/(c::C, n::Number) where {C<:Container} = C(c.v ./ n)
+
+Base.:-(n::Number, c::C) where {C<:Container} = C(n .- c.v)
+Base.:+(n::Number, c::C) where {C<:Container} = C(c.v .+ n)
+Base.:*(n::Number, c::C) where {C<:Container} = C(c.v .* n)
+Base.:/(n::Number, c::C) where {C<:Container} = C(n ./ c.v)
+
+Base.:-(c1::ByYear, c2::ByYear) = ByYear(c1.v .- c2.v)
+Base.:+(c1::ByYear, c2::ByYear) = ByYear(c1.v .+ c2.v)
+Base.:*(c1::ByYear, c2::ByYear) = ByYear(c1.v .* c2.v)
+Base.:/(c1::ByYear, c2::ByYear) = ByYear(c1.v ./ c2.v)
+
+Base.:-(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v-n))
+Base.:+(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v+n))
+Base.:*(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v*n))
+Base.:/(c::OriginalContainer, n::Number) = OriginalContainer(c.original, (c.v/n))
+
+Base.:-(n::Number, c::OriginalContainer) = OriginalContainer(c.original, (n-c.v))
+Base.:+(n::Number, c::OriginalContainer) = OriginalContainer(c.original, (c.v+n))
+Base.:*(n::Number, c::OriginalContainer) = OriginalContainer(c.original, (c.v*n))
+Base.:/(n::Number, c::OriginalContainer) = OriginalContainer(c.original, (n/c.v))
+
+Base.:-(c1::OriginalContainer, c2::OriginalContainer) = Base.:-(c1.v, c2.v)
+Base.:+(c1::OriginalContainer, c2::OriginalContainer) = Base.:+(c1.v, c2.v)
+Base.:*(c1::OriginalContainer, c2::OriginalContainer) = Base.:*(c1.v, c2.v)
+Base.:/(c1::OriginalContainer, c2::OriginalContainer) = Base.:/(c1.v, c2.v)
+
+#(f::Function)(c::OriginalContainer, n::Number) = OriginalContainer(c.original, f(c.v, n))
+
+# #TODO: this is not how c.original works, doesn't give the type just the original value so need to updated how this is done
+# Base.:-(c1::OriginalContainer, c2::OriginalContainer) = oper_on_containers(c1, c2, -)
+# Base.:+(c1::OriginalContainer, c2::OriginalContainer) = oper_on_containers(c1, c2, +)
+# Base.:*(c1::OriginalContainer, c2::OriginalContainer) = oper_on_containers(c1, c2, *)
+# Base.:/(c1::OriginalContainer, c2::OriginalContainer) = oper_on_containers(c1, c2, /)
+# #TODO: possibly add warnings about adding or subtracting ByYear and ByHour from each other. Also maybe add something so ByYear and ByHour need to be multiplied in the right order. 
+
+
+
+# function oper_on_containers(c1::Container, c2::Container, oper)
+#     #calculate container values
+#     oper == - && v = c1.v .- c2.v 
+#     oper == + && v = c1.v .+ c2.v
+#     oper == * && v = c1.v .* c2.v
+#     oper == / && v = c1.v ./ c2.v
+
+#     t1 = typeof(c1)
+#     t2 = typeof(c2)
+
+#     # determine the type of the resulting container
+#     if t1 == t2
+#         return t1
+#     elseif t1 == ByYearAndHour || t2 == ByYearAndHour
+#         return ByYearAndHour(v)
+#     elseif (t1 == ByYear && t2 == ByHour) || (t2 == ByYear && t1 == ByHour)
+#         return ByYearAndHour(v)
+#     elseif t1 == ByYear || t2 == ByYear
+#         return ByYear(v)
+#     elseif t1 == ByHour || t2 == ByHour
+#         return ByHour(v)
+#     else
+#         return ByNothing(v)
+#     end
+
+# end
+
+
+
+
 """
     Base.getindex(c::Container, year_idx, hour_idx) -> val::Float64
 
@@ -123,6 +220,55 @@ end
 function Base.getindex(v::Vector{<:Container}, i::Int64, y::Int64, h::Int64)
     return v[i][y,h]
 end
+
+
+
+
+function Base.max(n::Number, c::ByYear)
+    maxs = zeros(length(c.v))
+    for i in size(c.v)
+        maxs[i] = max(n, c.v[i])
+    end
+    return ByYear(maxs)
+end
+function Base.max(n::Number, c::ByNothing)
+    m = max(n, c.v)
+    return ByNothing(m)
+end
+Base.max(n::Number, c::OriginalContainer) = max(n, c.v)
+Base.max(c::OriginalContainer, n::Number) = max(n, c.v)
+
+function Base.min(n::Number, c::ByYear)
+    mins = zeros(length(c.v))
+    for i in size(c.v)
+        mins[i] = min(n, c.v[i])
+    end
+    return ByYear(mins)
+end
+function Base.min(n::Number, c::ByNothing)
+    m = min(n, c.v)
+    return ByNothing(m)
+end
+Base.min(n::Number, c::OriginalContainer) = min(n, c.v)
+Base.min(c::OriginalContainer, n::Number) = min(n, c.v)
+
+
+
+
+function Base.isless(n::Number, c::ByYear)
+    x = zeros(length(c.v))
+    for i in size(c.v)
+        x[i] = isless(n, c.v[i]) 
+    end
+    return x
+end
+Base.isless(n::Number, c::OriginalContainer) = isless(n, c.v)
+Base.isless(c::OriginalContainer, n::Number) = isless(n, c.v)
+
+
+function Base.length(c::Container)
+    return length(c.v)   
+end   
 
 ###############################################################################
 # Yearly Adjust

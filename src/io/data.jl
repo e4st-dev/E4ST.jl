@@ -449,7 +449,7 @@ function setup_table!(config, data, ::Val{:gen})
     ### Map bus characteristics to generators
     names_before = propertynames(gen)
     leftjoin!(gen, bus, on=:bus_idx)
-    #disallowmissing!(gen)
+    disallowmissing!(gen)
     names_after = propertynames(gen)
 
     for name in names_after

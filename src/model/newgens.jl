@@ -47,9 +47,6 @@ function make_newgens!(config, data, newgen)
     #get the names of specifications that will be pulled from the build_gen table
     spec_names = filter!(!in((:source, :area, :subarea, :bus_idx, :gen_latitude, :gen_longitude, :year_off, :age_off, :year_on_min, :year_on_max)), propertynames(build_gen)) #this needs to be updated if there is anything else in gen that isn't a spec
 
-    # get the names of the columns in the gen table that aren't in the the newgen table
-    extra_gen_cols = filter!(n -> !in(n, spec_names) && !in(n, (:bus_idx, :gen_latitude, :gen_longitude, :year_off)), propertynames(gen))
-
     for spec_row in eachrow(build_gen)
         # continue if status is false
         get(spec_row, :status, true) || continue
@@ -83,11 +80,6 @@ function make_newgens!(config, data, newgen)
                     hasproperty(newgen, :gen_latitude) && (newgen_row[:gen_latitude] = bus.bus_latitude[bus_idx])
                     hasproperty(newgen, :gen_longitude) && (newgen_row[:gen_longitude] = bus.bus_longitude[bus_idx])
 
-                    # fill additional columns from gen row with `missing` value
-                    for col in extra_gen_cols 
-                        newgen_row[Symbol(col)] = missing
-                    end
-                    
                     push!(newgen, newgen_row, promote=true)
                 end
             else
@@ -102,11 +94,6 @@ function make_newgens!(config, data, newgen)
                 hasproperty(newgen, :gen_longitude) && (newgen_row[:gen_longitude] = bus.bus_longitude[bus_idx])
                 newgen_row[:year_off] = add_to_year(spec_row.year_on, spec_row.age_off)
 
-                # fill additional columns from gen row with `missing` value
-                for col in extra_gen_cols 
-                    newgen_row[Symbol(col)] = missing
-                end
-            
                 push!(newgen, newgen_row, promote=true)
             end
 

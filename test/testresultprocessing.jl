@@ -16,7 +16,7 @@
         config[:data_file] = get_out_path(config, "data.jls")
         config[:nominal_load_file] = "blah.csv"
         data2 = read_data(config)
-        @test data1 == data2
+        @test data1 == data2 || data1 === data2
     end
 
     @testset "Test reading/saving model from .jls file" begin

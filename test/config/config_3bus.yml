@@ -31,3 +31,6 @@ mods:
     file: "../data/3bus/dc_line.csv"
   co2ecalc:
     type: CO2eCalc
+  standard_yearly:
+    type: AdjustYearly
+    file: "../data/3bus/adjust_yearly_limited.csv"
