@@ -100,6 +100,8 @@ function setup_model(config, data)
 
     add_optimizer!(config, data, model)
 
+    @info summarize(model)
+
     return model
 end
 
@@ -176,6 +178,47 @@ function summarize(data)
     summary = String(take!(buf))
     return summary
 end
+
+"""
+    summarize(model::Model) -> summary::String
+"""
+function summarize(model::Model)
+    buf = IOBuffer()
+    df = DataFrame(:variable=>Symbol[], :type=>Symbol[], :dimensions=>[], :length=>[])
+    d = object_dictionary(model)
+    for (key, obj) in d
+        if obj isa AbstractArray
+            t = Base.typename(eltype(obj)).name
+        else
+            t = Base.typename(typeof(obj)).name
+        end
+        len = try
+            length(obj)
+        catch
+            1
+        end
+        if obj isa AbstractArray
+            s = try
+                size(obj)
+            catch
+                "irregular"
+            end
+        else
+            s = (1,)
+        end
+
+    
+        push!(df, (key, t, s, len))
+    end
+    println(buf, "Model Summary:")
+
+    filter!(:type=>!=(:GenericAffExpr), df)
+    sort!(df, [:type, :variable])
+
+    println(buf, df)
+    summary = String(take!(buf))
+end
+export summarize
 
 """
     getoptimizer(config) -> optimizer_factory

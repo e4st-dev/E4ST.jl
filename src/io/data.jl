@@ -240,6 +240,16 @@ function read_table(data, table_file, table_name)
             end
         end
     end
+    data[table_name] = table
+
+    # Add other columns to the summary, with NA unit and empty descriptions
+    for name in propertynames(table)
+        name in st.column_name && continue
+        name_str = string(name)
+        match(r"h\d+", name_str) !== nothing && continue
+        match(r"y\d+", name_str) !== nothing && continue
+        add_table_col!(data, table_name, name, table[!, name], NA, "", warn_overwrite=false)
+    end
     return table
 end
 export read_table
@@ -444,7 +454,7 @@ function setup_table!(config, data, ::Val{:gen})
 
     for name in names_after
         name in names_before && continue
-        add_table_col!(data, :gen, name, gen[!,name], get_table_col_unit(data, :bus, name), get_table_col_description(data, :bus, name))
+        add_table_col!(data, :gen, name, gen[!,name], get_table_col_unit(data, :bus, name), get_table_col_description(data, :bus, name), warn_overwrite=false)
     end
 
     # Add necessary columns if they don't exist.
@@ -565,6 +575,7 @@ function setup_table!(config, data, ::Val{:af_table})
     hr_idx = findfirst(s->s=="h1",names(af_table))
     all_years = get_years(data)
     nyr = get_num_years(data)
+    nhr = get_num_hours(data)
 
     for i = 1:nrow(af_table)
         row = af_table[i, :]
@@ -572,7 +583,7 @@ function setup_table!(config, data, ::Val{:af_table})
             continue
         end
 
-        if isempty(row.year)
+        if !haskey(row, :year) || isempty(row.year)
             yr_idx = (:)
         elseif row.year ∈ all_years
             yr_idx = findfirst(==(row.year), all_years)
@@ -585,7 +596,7 @@ function setup_table!(config, data, ::Val{:af_table})
 
         isempty(gens) && continue
         
-        af = [row[i_hr] for i_hr in hr_idx:ncol(af_table)]
+        af = [row[i_hr] for i_hr in hr_idx:(hr_idx + nhr - 1)]
         foreach(eachrow(gens)) do gen
             gen.af = set_hourly(gen.af, af, yr_idx, nyr)
         end
@@ -694,7 +705,7 @@ function summarize_table(::Val{:af_table})
         (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
         (:gentype, String, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
-        (:year, YearString, Year, true, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
+        (:year, YearString, Year, false, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
         (:status, Bool, NA, false, "Whether or not to use this AF adjustment"),
         (:h_, Float64, MWhGeneratedPerMWhCapacity, true, "Availability factor of hour _.  Include 1 column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
     )
