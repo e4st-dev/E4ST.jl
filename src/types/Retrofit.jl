@@ -36,7 +36,7 @@ initialize data with the `Retrofit` by adding any necessary columns to the gen t
 function init!(ret::Retrofit, config, data) end
 
 """
-    setup_processed_data!(ret::Retrofit, config, data)
+    modify_setup_data!(ret::Retrofit, config, data)
 
 * Calls [`init!(ret::Retrofit, config, data)`](@ref) to initialize the data.
 * Makes a `Dict` in `data[:retrofits]` to keep track of the retrofits being produced for each retrofit.
@@ -44,7 +44,7 @@ function init!(ret::Retrofit, config, data) end
     * Checks to see if the can be retrofitted via [`can_retrofit(ret::Retrofit, row)`](@ref)
     * Constructs the new retrofitted generator via [`get_retrofit(ret::Retrofit, row)`](@ref)
 """
-function setup_processed_data!(ret::Retrofit, config, data)
+function modify_setup_data!(ret::Retrofit, config, data)
 
     @info "Setting up retrofits for $ret"
 
@@ -55,8 +55,9 @@ function setup_processed_data!(ret::Retrofit, config, data)
     # Initialize with the Retrofit type
     init!(ret, config, data)
     years = get_years(data)
-    retrofits = get(data, :retrofits, OrderedDict{Int64, Vector{Int64}}())::OrderedDict{Int64, Vector{Int64}}
+    retrofits = get!(data, :retrofits, OrderedDict{Int64, Vector{Int64}}())::OrderedDict{Int64, Vector{Int64}}
     ngen = nrow(gen)
+    nyr = get_num_years(data)
 
     # Loop through generators and add retrofits
     for gen_idx in 1:ngen
@@ -87,9 +88,9 @@ function setup_processed_data!(ret::Retrofit, config, data)
 end
 
 
-function setup_model!(ret::Retrofit, config, data, model)
+function modify_setup_model!(ret::Retrofit, config, data, model)
     # Only add constraints if it hasn't been done yet.  This will add constraints for all the Retrofit types
-    haskey(model, :cons_pcap_retro) && return
+    haskey(model, :cons_pcap_gen_retro_max) && return
 
     # Fetch necessary data
     nyr = get_num_years(data)

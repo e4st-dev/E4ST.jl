@@ -42,6 +42,10 @@ function make_newgens!(config, data, newgen)
     build_gen = get_table(data, :build_gen)
     bus = get_table(data, :bus)
     spec_names = filter!(!in((:bus_idx, :gen_latitude, :gen_longitude, :year_off)), propertynames(newgen)) #this needs to be updated if there is anything else in gen that isn't a spec
+
+    for n in spec_names
+        hasproperty(build_gen, n) || error("Gen table has column $n, but not found in build_gen table.")
+    end
     years = get_years(data)
 
     for spec_row in eachrow(build_gen)

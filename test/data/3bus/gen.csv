@@ -1,5 +1,5 @@
-bus_idx,status,build_status,build_type,build_id,genfuel,gentype,pcap0,pcap_min,pcap_max,cf_min,vom,fuel_cost,fom,capex,year_on,year_off,emis_co2,capt_co2_percent
-3,1,built,exog,,coal,coal,1.5,0,2,0.6,2,5,6,7,y2020,y2045,1,0
-1,1,built,exog,,solar,solar,0.5,0,0.5,0,2,0,5,5,y2027,y2050,0,0
-3,1,built,exog,,ng,ngccccs,0.5,0,0.5,0.6,1.5,1,6,6,y2025,y2055,0.6,0.9
-1,1,built,exog,,wind,wind,0.05,0,0.05,0,0.1,0,2,3,y2015,y2035,0,0
+bus_idx,status,build_status,build_type,build_id,genfuel,gentype,pcap0,pcap_min,pcap_max,cf_min,vom,fuel_cost,fom,capex,year_on,year_off,emis_co2,capt_co2_percent,heat_rate
+3,1,built,exog,,coal,coal,2.0,0,2,0.6,2,5,6,7,y2020,y2045,1,0,10.5
+1,1,built,exog,,solar,solar,0.5,0,0.5,0,2,0,5,5,y2027,y2050,0,0,0
+3,1,built,exog,,ng,ngccccs,0.5,0,0.5,0.6,1.5,1,6,6,y2025,y2055,0.6,0.9,7.5
+1,1,built,exog,,wind,wind,0.05,0,0.05,0,0.1,0,2,3,y2015,y2035,0,0,0
