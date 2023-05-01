@@ -151,7 +151,7 @@ function run_e4st(config::OrderedDict)
     return get_out_path(config), all_results
 end
 
-run_e4st(path...) = run_e4st(read_config(path...))
+run_e4st(path...; kwargs...) = run_e4st(read_config(path...; kwargs...))
 
 global STR2TYPE = Dict{String, Type}()
 global SYM2TYPE = Dict{Symbol, Type}()

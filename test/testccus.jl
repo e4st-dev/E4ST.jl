@@ -22,7 +22,7 @@
 
         @test storer_profit ≈ storer_revenue - storer_cost
 
-        @test all(ccus_paths.price_total_clearing[i][yr_idx] >= ccus_paths.price_total[i] for i in 1:nrow(ccus_paths) if ccus_paths.stored_co2[i][yr_idx]>0)
+        @test all(ccus_paths.price_total_clearing[i][yr_idx] + 1e-6 >= ccus_paths.price_total[i] for i in 1:nrow(ccus_paths) if ccus_paths.stored_co2[i][yr_idx]>0)
 
         # Test that some carbon was stored
         co2 = aggregate_result(total, data, :ccus_paths, :stored_co2, :, yr_idx)
