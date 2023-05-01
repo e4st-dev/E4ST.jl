@@ -95,6 +95,7 @@ function modify_model!(ret::Retrofit, config, data, model)
     # Fetch necessary data
     nyr = get_num_years(data)
     gen = get_table(data, :gen)
+    years = get_years(data)
     retrofits = data[:retrofits]::OrderedDict{Int64, Vector{Int64}}
     pcap_gen = model[:pcap_gen]::Array{VariableRef, 2}
     pcap_max = gen.pcap_max
@@ -106,7 +107,7 @@ function modify_model!(ret::Retrofit, config, data, model)
             gen_idx in keys(retrofits),
             yr_idx in 1:nyr
         ],
-        sum(ret_idx-> pcap_gen[ret_idx, yr_idx] * (pcap_max[gen_idx] / pcap_max[ret_idx]), retrofits[gen_idx]) + pcap_gen[ret_idx, yr_idx] <= pcap_max[gen_idx]
+        sum(ret_idx-> pcap_gen[ret_idx, yr_idx] * (pcap_max[gen_idx] / pcap_max[ret_idx]), retrofits[gen_idx]) + pcap_gen[gen_idx, yr_idx] <= pcap_max[gen_idx]
     )
 
     # Lower bound the capacities with zero
@@ -126,7 +127,7 @@ function modify_model!(ret::Retrofit, config, data, model)
             gen_idx in keys(retrofits),
             yr_idx in 1:nyr
         ],
-        sum(ret_idx-> pcap_gen[ret_idx, yr_idx] * (pcap_max[gen_idx] / pcap_max[ret_idx]), retrofits[gen_idx]) + pcap_gen[ret_idx, yr_idx] >= pcap_min[gen_idx]
+        sum(ret_idx-> pcap_gen[ret_idx, yr_idx] * (pcap_max[gen_idx] / pcap_max[ret_idx]), retrofits[gen_idx]) + pcap_gen[gen_idx, yr_idx] >= pcap_min[gen_idx]
     )
 
     # Constrain their capacities to be zero before year_retrofit
@@ -134,7 +135,7 @@ function modify_model!(ret::Retrofit, config, data, model)
         cons_pcap_gen_preretro[
             gen_idx = axes(gen, 1),
             yr_idx = 1:nyr;
-            (!isempty(gen.year_retro[gen_idx]) && years[yr_idx] < gen.year_retro[gen_idx])
+            (!isempty(gen.year_retrofit[gen_idx]) && years[yr_idx] < gen.year_retrofit[gen_idx])
         ],
         pcap_gen[gen_idx, yr_idx] == 0.0
     )
