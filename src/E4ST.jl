@@ -49,6 +49,8 @@ include("types/modifications/GenerationStandard.jl")
 include("types/modifications/YearlyTable.jl")
 include("types/modifications/CCUS.jl")
 include("types/modifications/Storage.jl")
+include("types/modifications/Adjust.jl")
+
 
 # Include Policies
 include("types/policies/ITC.jl")
@@ -65,7 +67,6 @@ include("types/iterables/RunSequential.jl")
 #Include IO
 include("io/config.jl")
 include("io/data.jl")
-include("io/adjust.jl")
 include("io/load.jl")
 
 # Include model
