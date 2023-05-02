@@ -127,7 +127,7 @@ function modify_model!(ret::Retrofit, config, data, model)
             gen_idx in keys(retrofits),
             yr_idx in 1:nyr
         ],
-        sum(ret_idx-> pcap_gen[ret_idx, yr_idx] * (pcap_max[gen_idx] / pcap_max[ret_idx]), retrofits[gen_idx]) + pcap_gen[gen_idx, yr_idx] >= pcap_min[gen_idx]
+        sum(ret_idx-> pcap_gen[ret_idx, yr_idx], retrofits[gen_idx]) + pcap_gen[gen_idx, yr_idx] >= pcap_min[gen_idx]
     )
 
     # Constrain their capacities to be zero before year_retrofit
