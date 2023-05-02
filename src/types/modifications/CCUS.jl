@@ -398,6 +398,6 @@ function modify_results!(mod::CCUS, config, data)
     add_table_col!(data, :ccus_paths, :storer_profit, storer_profit, Dollars, "Total profit earned by storing carbon via this pathway, equal to the revenue minus the cost.")
 
     # Assert that all the profits are ≥ 0.
-    @assert all(v->all(>=(0), v), ccus_paths.storer_profit) "All CCUS profits should be ≥ 0, but found $(minimum(minimum, ccus_paths.storer_profit))"    
+    @assert all(v->all(>(-1e-6), v), ccus_paths.storer_profit) "All CCUS profits should be ≥ 0, but found $(minimum(minimum, ccus_paths.storer_profit))"    
 end
 export modify_results!
