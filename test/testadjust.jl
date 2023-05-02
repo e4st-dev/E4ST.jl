@@ -2,8 +2,7 @@
     @testset "Test Yearly and Hourly Adjustments" begin
         config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
         config = read_config(config_file)
-        mods = config[:mods]
-        delete!(mods, :adj_yearly) #remove adj_yearly for data0
+        mods = config[:mods] #contains only the yearly adjustment to ch4_gwp
         data0 = read_data(config)
 
         mods[:adj_yearly] = AdjustYearly(file=joinpath(@__DIR__, "data", "3bus", "adjust_yearly.csv"), name=:adj_yearly)
