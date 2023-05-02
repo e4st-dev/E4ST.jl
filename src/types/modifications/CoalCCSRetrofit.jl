@@ -8,6 +8,10 @@ end
 
 export CoalCCSRetrofit
 
+function mod_rank(::Type{CoalCCSRetrofit})
+    mod_rank(CCUS) - 1e-6
+end
+
 function init!(ret::CoalCCSRetrofit, config, data)
     gen = get_table(data, :gen)
     if !hasproperty(gen, :pcap_plant_avg)
@@ -24,7 +28,8 @@ end
 function get_retrofit(ret::CoalCCSRetrofit, row)
     newgen = Dict(pairs(row))
     hr = row.heat_rate
-    pcap_avg = max(min(row.pcap_plant_avg, 1000),400) # To avoid extrapolating
+
+    pcap_avg = row.pcap_plant_avg # Could give lower/upper bounds
     
     # Calculate the heat rate penalty
     hr_pen = 0.89774 + -0.002513148 * pcap_avg + 0.0000012907 * pcap_avg.^2 + 0.05 * hr;

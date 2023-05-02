@@ -158,3 +158,6 @@ function modify_model!(ret::Retrofit, config, data, model)
     return nothing
 end
 
+function mod_rank(::Type{R}) where {R<:Retrofit}
+    -3.0
+end
