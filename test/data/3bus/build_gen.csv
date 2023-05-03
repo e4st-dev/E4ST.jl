@@ -1,4 +1,4 @@
-source,area,subarea,status,build_status,build_type,build_id,genfuel,gentype,pcap0,pcap_min,pcap_max,cf_min,vom,fuel_cost,fom,capex,year_on,year_on_min,year_on_max,age_off,emis_co2,capt_co2_percent,hr,chp_co2_multi
+source,area,subarea,status,build_status,build_type,build_id,genfuel,gentype,pcap0,pcap_min,pcap_max,cf_min,vom,fuel_cost,fom,capex,year_on,year_on_min,year_on_max,age_off,emis_co2,capt_co2_percent,heat_rate,chp_co2_multi
 none,country,narnia,1,unbuilt,endog,test_solar_build,solar,solar,0,0,0.5,0,2,0,1.5,6,,y2015,,30,0,0,0,1
 none,country,archenland,1,unbuilt,endog,test_wind_build,wind,wind,0,0,0.5,0,2,0,6,6,,y2015,,30,0,0,0,1
 none,country,archenland,1,unbuilt,endog,test_oswind_build,wind,oswind,0,0,0.5,0,5,0,6,6,,y2035,,30,0,0,0,1

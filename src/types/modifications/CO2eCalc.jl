@@ -29,8 +29,8 @@ function modify_setup_data!(mod::CO2eCalc, config, data)
     for row in eachrow(gen)
 
         # add methane from fuels TODO: add DAC when we add it
-        if (row.genfuel == "ng") row[:emis_co2e] = row[:emis_co2] + ng_ch4_fuel_content*row[:hr]*ch4_gwp end
-        if (row.genfuel == "coal") row[:emis_co2e] = row[:emis_co2] + coal_ch4_fuel_content*row[:hr]*ch4_gwp end
+        if (row.genfuel == "ng") row[:emis_co2e] = row[:emis_co2] + ng_ch4_fuel_content*row[:heat_rate]*ch4_gwp end
+        if (row.genfuel == "coal") row[:emis_co2e] = row[:emis_co2] + coal_ch4_fuel_content*row[:heat_rate]*ch4_gwp end
 
         # update biomass CO2e with percentage that we want to reduce from upstream carbon sequestering from plants 
         if (row.genfuel == "biomass") row[:emis_co2e] = row.emis_co2*bio_pctco2e end
