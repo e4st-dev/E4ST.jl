@@ -26,6 +26,8 @@ function YearlyTable(;name, table_name, groupby = Symbol[], group_hours_by = Sym
     return YearlyTable(Symbol(name), Symbol(table_name), groupby, group_hours_by)
 end
 
+mod_rank(::Type{<:YearlyTable}) = 0.0
+
 """
     modify_results!(mod::YearlyTable, config, data) -> nothing
 
@@ -169,7 +171,7 @@ export add_hours_columns!
     e1 = x[1]
     i = 2
     @inbounds for i=2:length(x)
-        x[i] == e1 || return false
+        x[i] == e1 || x[i] === e1 || return false
     end
     return true
 end

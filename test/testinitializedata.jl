@@ -146,4 +146,30 @@
 
     end
 
+    @testset "Test CO2e calculation" begin 
+        config = read_config(config_file)
+        data = read_data(config)
+        gen = get_table(data, :gen)
+        nyears = get_num_years(data)
+
+        @test hasproperty(gen, :emis_co2e)
+        
+        # test that co2e isn't lower than co2 for ng, coal, (and eventually dac) 
+        ng_gen = get_subtable(gen, :genfuel => "ng") # this might error for chp if chp reduction is lower than methane addition 
+        @test all(g -> all(==(1), g[:emis_co2e] .>= g[:emis_co2]), eachrow(ng_gen))
+
+        coal_gen = get_subtable(gen, :genfuel => "coal")
+        @test all(g -> all(==(1), g[:emis_co2e] .>= g[:emis_co2]), eachrow(coal_gen))
+
+
+        # test that biomass co2e isn't higher than co2
+        bio_gen = get_subtable(gen, :genfuel => "biomass")
+        @test all(g -> all(==(1), g[:emis_co2e] .<= g[:emis_co2]), eachrow(bio_gen))
+
+        # test that chp co2e isn't higher than co2
+        chp_gen = get_subtable(gen, :gentype => "chp")
+        @test all(g -> all(==(1), g[:emis_co2e] .<= g[:emis_co2]), eachrow(chp_gen))
+
+    end
+
 end

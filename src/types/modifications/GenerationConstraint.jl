@@ -20,6 +20,8 @@ Base.@kwdef struct GenerationConstraint <: Modification
 end
 export GenerationConstraint
 
+mod_rank(::Type{<:GenerationConstraint}) = 1.0
+
 """
     modify_model!(cons::GenerationConstraint, config, data, model)
 

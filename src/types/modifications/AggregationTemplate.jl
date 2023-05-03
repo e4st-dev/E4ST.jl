@@ -36,6 +36,7 @@ end
 
 export AggregationTemplate
 
+mod_rank(::Type{<:AggregationTemplate}) = 0.0
 
 fieldnames_for_yaml(::Type{AggregationTemplate}) = (:file,)
 function modify_results!(mod::AggregationTemplate, config, data)

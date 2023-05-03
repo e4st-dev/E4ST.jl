@@ -63,7 +63,7 @@ function read_data_files!(config, data)
     read_summary_table!(config, data)
 
     # Other things to read in
-    read_voll!(config, data)
+    read_num_params!(config, data)
     read_years!(config, data)
 
     read_table!(config, data, :bus_file      => :bus)
@@ -332,6 +332,18 @@ function read_voll!(config, data)
     data[:voll] = Float64(config[:voll]) 
 end
 export read_voll!
+
+"""
+    read_num_params!(config, data) -> 
+
+Any parameter specified as a numeric in the config will be added to `data`. This is so that parameters with a single value (i.e. VOLL, ng_ch4_fuel_content) can be tracked and accessed easily in data. 
+"""
+function read_num_params!(config, data)
+    for (k,v) in config
+        (typeof(v) <: Number) ? data[k] = v : continue
+    end 
+end
+export read_num_params!
 
 """
     read_years!(config, data)
@@ -645,6 +657,8 @@ function summarize_table(::Val{:gen})
         (:af, Float64, MWhGeneratedPerMWhCapacity, false, "The availability factor, or maximum available ratio of pewer generation to nameplate capacity for the generator."),
         (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The emission rate per MWh of CO2"),
         (:capt_co2_percent, Float64, ShortTonsPerMWhGenerated, false, "The percentage of co2 emissions captured, to be sequestered."),
+        (:heat_rate, Float64, MMBtuPerMWhGenerated, false, "Heat rate, or MMBtu of fuel consumed per MWh electricity generated (0 for generators that don't use combustion)"),
+        (:chp_co2_multi,Float64,NA,false,"The percentage of CO2 emissions from CHP attributed to the power generation. Used to calculate CO2e")
     )
     return df
 end
@@ -766,19 +780,6 @@ end
 ################################################################################
 
 """
-    get_table(data, table_name::Symbol) -> table::DataFrame
-
-Retrieves `data[table_name]`, enforcing that it is a DataFrame.  See [`get_table_names`](@ref) for a list of available tables.
-"""
-function get_table(data, table_name::Symbol)
-    return data[table_name]::DataFrame
-end
-
-function get_table(data, table_name::AbstractString)
-    return get_table(data, Symbol(table_name))
-end
-
-"""
     get_table(data, table_name, conditions...) -> subtable::SubDataFrame
 
 Return a subset of the table `table_name` for which the row passes the `conditions`.  Conditions are `Pair`s generally consisting of `<column name> => value`.  Here are some examples of supported conditions:
@@ -793,6 +794,19 @@ function get_table(data, table_name::Union{Symbol, AbstractString}, conditions..
     table = get_table(data, table_name)
     get_subtable(table, conditions...)
 end
+"""
+    get_table(data, table_name::Symbol) -> table::DataFrame
+
+Retrieves `data[table_name]`, enforcing that it is a DataFrame.  See [`get_table_names`](@ref) for a list of available tables.
+"""
+function get_table(data, table_name::Symbol)
+    return data[table_name]::DataFrame
+end
+
+function get_table(data, table_name::AbstractString)
+    return get_table(data, Symbol(table_name))
+end
+export get_table
 export get_table
 
 """
@@ -940,12 +954,28 @@ Retrieves a `Float64` from `data[variable_name]`, indexing by year and hour.  Wo
 Related functions:
 * [`get_table_val(data, table_name, col_name, row_idx)`](@ref): retrieves the raw value from the table (without indexing by year/hour).
 * [`get_table_num(data, table_name, col_name, row_idx, yr_idx, hr_idx)`](@ref): retrieves the `Float64` from `data[variable_name]`, indexing by year and hour.
+* [`get_val(data, variable_name)`](@ref): retrieves the value from data[variable_name] regardless of type, not indexed by row, year or hour. 
 """
 function get_num(data, variable_name::Symbol, yr_idx, hr_idx)
     c = data[variable_name]
     return c[yr_idx, hr_idx]::Float64
 end
 export get_num
+
+"""
+    get_val(data, variable_name::Symbol) -> 
+
+Retrieves the value from data[variable_name], not indexed by row, hour, or year and regardless of type. (ex: could work for retrieving a ByYear container of yearly data)
+
+Related functions:
+* [`get_table_val(data, table_name, col_name, row_idx)`](@ref): retrieves the raw value from the table (without indexing by year/hour).
+* [`get_table_num(data, table_name, col_name, row_idx, yr_idx, hr_idx)`](@ref): retrieves the `Float64` from `data[variable_name]`, indexing by year and hour.
+* [`get_num(data, name, yr_idx, hr_idx)`](@ref): retrieves a `Float64` from `data`, indexing by year and hour.
+"""
+function get_val(data, variable_name::Symbol)
+    c = data[variable_name]
+    return c
+end
 
 """
     get_table_val(data, table_name, col_name, row_idx) -> val
@@ -955,6 +985,7 @@ Returns the value of the table at column `col_name` and row `row_idx`
 Related functions:
 * [`get_table_num(data, table_name, col_name, row_idx, yr_idx, hr_idx)`](@ref): retrieves the `Float64` from `data[variable_name]`, indexing by year and hour.
 * [`get_num(data, name, yr_idx, hr_idx)`](@ref): retrieves a `Float64` from `data`, indexing by year and hour.
+* [`get_val(data, variable_name)`](@ref): retrieves the value from data[variable_name] regardless of type, not indexed by row, year or hour.
 """
 function get_table_val(data, table_name, col_name, row_idx)
     table = get_table(data, table_name)

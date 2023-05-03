@@ -3,3 +3,4 @@ Reduce the FOM in narnia for solar generators,gen,fom,add,country=>narnia,gentyp
 Scale the branch max power flow to match a 5% annual growth rate starting in 2020,branch,pflow_max,scale,,,1,1.0,1.276,1.629,2.079,2.653
 "Set the yearly value of damage rate of CO2, using values from Rennert et. al.",,r_dam_co2,set,,,1,150.26,166.91,183.56,198.59,213.61
 "Set the yearly value of damage rate of NOx emissions, in dollars per pound",,r_dam_nox,set,,,1,24.18,27.11,30.05,33.00,35.60
+"Global warming potential of methane, based on SCC/SCM from Rennert et. al.",,ch4_gwp,set,,,1,10.481081,11.812652,12.902655,14.280164,15.463878
