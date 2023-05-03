@@ -34,7 +34,7 @@ function GenerationStandard(;name, crediting::OrderedDict, gen_filters, load_tar
 end
 export GenerationStandard
 
-mod_rank(::Type{<:GenerationStandard}) = 1.0 #not sure this matters because this isn't usually a type specified in the config or a super type of something specified in the config. 
+mod_rank(::Type{<:GenerationStandard}) = 2.0 
 
 
 ## Modifying Functions

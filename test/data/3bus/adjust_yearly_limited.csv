@@ -1,0 +1,2 @@
+description,table_name,variable_name,operation,filter1,filter2,status,y2020,y2025,y2030,y2035,y2040
+"Global warming potential of methane, based on SCC/SCM from Rennert et. al.",,ch4_gwp,set,,,1,10.481081,11.812652,12.902655,14.280164,15.463878

@@ -35,6 +35,8 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         capex = rand(n_gen),
         year_on = year2str.(rand(2000:2023, n_gen)),
         year_off = fill("y9999", n_gen),
+        hr = rand(n_gen),
+        chp_co2_multi = ones(n_gen),
     )
     gt = gentypes()
     gen.gentype = map(gen.genfuel) do gf

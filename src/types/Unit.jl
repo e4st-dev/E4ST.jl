@@ -33,6 +33,7 @@ struct MWhCharged <: Unit end; export MWhCharged
 struct MWhDischarged <: Unit end; export MWhDischarged
 struct MWhLoad <: Unit end; export MWhLoad
 struct MWhFlow <: Unit end; export MWhFlow
+struct MMBtuPerMWhGenerated <: Unit end; export MMBtuPerMWhGenerated
     
 struct NA <: Unit end; export NA
 struct PU <: Unit end; export PU

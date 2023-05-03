@@ -1,8 +1,8 @@
-source,area,subarea,status,build_status,build_type,build_id,genfuel,gentype,pcap0,pcap_min,pcap_max,cf_min,vom,fuel_cost,fom,capex,year_on,year_on_min,year_on_max,age_off,emis_co2,capt_co2_percent
-none,country,narnia,1,unbuilt,endog,test_solar_build,solar,solar,0,0,0.5,0,2,0,1.5,6,,y2015,,30,0,0
-none,country,archenland,1,unbuilt,endog,test_wind_build,wind,wind,0,0,0.5,0,2,0,6,6,,y2015,,30,0,0
-none,country,archenland,1,unbuilt,endog,test_oswind_build,wind,oswind,0,0,0.5,0,5,0,6,6,,y2035,,30,0,0
-none,country,narnia,1,unbuilt,endog,test_coal_build,coal,coal,0,0,1,0.6,2,5,6,7,,,y2030,30,1,0
-none,buildngcc,1,1,unbuilt,endog,test_ngcc_build,ng,ngcc,0,0,1.5,0,1,1.5,5,5,,y2015,,30,0.6,0
-none,bus_idx,1,1,unbuilt,exog,test_exog_nuc_build,nuclear,nuclear,0.5,0,0.5,0.6,10,5,5,10,y2020,,,30,0,0
-none,bus_idx,2,1,unbuilt,exog,test_exog_solar_build,solar,solar,0.5,0,1,0,2,0,2.5,5,y2060,,,30,0,0
+source,area,subarea,status,build_status,build_type,build_id,genfuel,gentype,pcap0,pcap_min,pcap_max,cf_min,vom,fuel_cost,fom,capex,year_on,year_on_min,year_on_max,age_off,emis_co2,capt_co2_percent,heat_rate,chp_co2_multi
+none,country,narnia,1,unbuilt,endog,test_solar_build,solar,solar,0,0,0.5,0,2,0,1.5,6,,y2015,,30,0,0,0,1
+none,country,archenland,1,unbuilt,endog,test_wind_build,wind,wind,0,0,0.5,0,2,0,6,6,,y2015,,30,0,0,0,1
+none,country,archenland,1,unbuilt,endog,test_oswind_build,wind,oswind,0,0,0.5,0,5,0,6,6,,y2035,,30,0,0,0,1
+none,country,narnia,1,unbuilt,endog,test_coal_build,coal,coal,0,0,1,0.6,2,5,6,7,,,y2030,30,1,0,9,1
+none,buildngcc,1,1,unbuilt,endog,test_ngcc_build,ng,ngcc,0,0,1.5,0,1,1.5,5,5,,y2015,,30,0.6,0,7,1
+none,bus_idx,1,1,unbuilt,exog,test_exog_nuc_build,nuclear,nuclear,0.5,0,0.5,0.6,10,5,5,10,y2020,,,30,0,0,0,1
+none,bus_idx,2,1,unbuilt,exog,test_exog_solar_build,solar,solar,0.5,0,1,0,2,0,2.5,5,y2060,,,30,0,0,0,1

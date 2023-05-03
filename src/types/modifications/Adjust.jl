@@ -78,6 +78,8 @@ Base.@kwdef struct Adjust{T} <: Modification
     name::Symbol
     file::String
 end
+
+mod_rank(::Type{<: Adjust}) = -2.0
 """
     AdjustHourly(;file, name)
 
@@ -121,6 +123,7 @@ function modify_setup_data!(mod::Adjust{T}, config, data) where T
     for row in eachrow(table)
         adjust!(mod, config, data, row)
     end
+    delete!(data, mod.name)
 end
 
 function adjust!(mod::Adjust{:adjust_yearly}, config, data, row)
