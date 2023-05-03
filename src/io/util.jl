@@ -155,6 +155,20 @@ function get_hour_idxs(data, pairs)
     return get_row_idxs(get_table(data, :hours), pairs)
 end
 export get_hour_idxs
+"""
+    isbuilt(s::AbstractString)
+"""
+isbuilt(s::AbstractString) = s == "built"
+isbuilt(row) = isbuilt(row.build_status)
+
+"""
+    isnew(s::AbstractString) -> ::Bool
+
+    isnew(row::DataFrameRow) -> ::Bool
+"""
+isnew(s::AbstractString) = s == "new"
+isnew(row) = isnew(row.build_status)
+
 
 """
     get_row_idxs(table, conditions) -> row_idxs

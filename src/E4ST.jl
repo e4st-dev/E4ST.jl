@@ -42,6 +42,7 @@ include("types/Containers.jl")
 include("types/Iterable.jl")
 include("types/Term.jl")
 include("types/Crediting.jl")
+include("types/Retrofit.jl")
 
 # Include Modifications
 include("types/modifications/DCLine.jl")
@@ -52,6 +53,7 @@ include("types/modifications/YearlyTable.jl")
 include("types/modifications/CCUS.jl")
 include("types/modifications/Storage.jl")
 include("types/modifications/Adjust.jl")
+include("types/modifications/CoalCCSRetrofit.jl")
 include("types/modifications/CO2eCalc.jl")
 
 # Include Policies

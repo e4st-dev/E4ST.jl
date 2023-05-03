@@ -424,9 +424,11 @@ function setup_table!(config, data, ::Val{:gen})
     :capex_obj in propertynames(data[:gen]) && select!(data[:gen], Not(:capex_obj))
 
     #set build_status to 'built' for all gens marked 'new'. This marks gens built in a previous sim as 'built'.
-    c = ==("new") # Comparison, one allocation
     b = "built" # pre-allocate
-    transform!(gen, :build_status => ByRow(s->c(s) ? b : s) => :build_status) # transform in-place
+    transform!(gen, :build_status => ByRow(s->isnew(s) ? b : s) => :build_status) # transform in-place
+
+    # Set the pcap_max to be equal to pcap0 for built generators
+    gen.pcap_max = map(row->isbuilt(row) ? row.pcap0 : row.pcap_max, eachrow(gen))
 
     ### Create new gens and add to the gen table
     if haskey(config, :build_gen_file) 
@@ -641,12 +643,13 @@ function summarize_table(::Val{:gen})
         (:year_on, YearString, Year, true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
         (:year_off, YearString, Year, true, "The first year that the generator is no longer operating."),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses"),
-        (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses"),
+        (:gentype, String, NA, true, "The generation technology type that the generator uses"),
         (:pcap0, Float64, MWCapacity, true, "Starting nameplate power generation capacity for the generator"),
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power generation capacity of the generator"),
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
         (:fuel_cost, Float64, DollarsPerMWhGenerated, false, "Fuel cost per MWh of generation"),
+        (:heat_rate, Float64, MMBtuPerMWhGenerated, false, "Heat rate,  or MMBtu of fuel consumed per MWh electricity generated (0 for generators that don't use combustion)"),
         (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
         (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
@@ -715,7 +718,7 @@ function summarize_table(::Val{:af_table})
         (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
-        (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
+        (:gentype, String, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
         (:year, YearString, Year, false, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
         (:status, Bool, NA, false, "Whether or not to use this AF adjustment"),
         (:h_, Float64, MWhGeneratedPerMWhCapacity, true, "Availability factor of hour _.  Include 1 column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
@@ -738,7 +741,7 @@ function summarize_table(::Val{:build_gen})
         (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built). Should either be exog or endog for buil_gen."),
         (:build_id, AbstractString, NA, true, "Identifier of the build row.  Each generator made using this build spec will inherit this `build_id`"),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
-        (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
+        (:gentype, String, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
         (:status, Bool, NA, false, "Whether or not to use this set of characteristics/specs"),
         (:pcap0, Float64, MWCapacity, true, "Starting nameplate power generation capacity for the generator. Should be 0 for endog new gens."),
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
@@ -767,7 +770,7 @@ $(table2markdown(summarize_table(Val(:genfuel))))
 function summarize_table(::Val{:genfuel})
     df = TableSummary()
     push!(df, 
-        (:gentype, AbstractString, NA, true, "The generator type (ie. ngcc, dist_solar, os_wind)"),
+        (:gentype, String, NA, true, "The generator type (ie. ngcc, dist_solar, os_wind)"),
         (:genfuel, AbstractString, NA, true, "The corresponding generator fuel or renewable type (ie. ng, solar, wind)"),
     )
     return df
