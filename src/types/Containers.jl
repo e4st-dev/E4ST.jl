@@ -29,6 +29,13 @@ end
 function ConflictContainerType(::Type{C1}, ::Type{C2}) where {T1, D1, T2, D2, C1<:Container{T1,D1}, C2<:Container{T2,D2}}
     D = max(D1, D2)
     if D == 2
+        if min(D1, D2) == 0
+            if D1 == 2
+                return C1
+            else
+                return C2
+            end
+        end
         return ByYearAndHour
     end
     if D1 == D
@@ -70,6 +77,12 @@ ContainerType(::Type{OC}) where {C<:Container, T,D,X, OC<:OriginalContainer{T,D,
 function ConflictContainerType(::Type{OC1}, ::Type{C2}) where {T1, D1, X1, T2, D2, C1, OC1<:OriginalContainer{T1,D1, X1, C1}, C2<:Container{T2,D2}}
     return OriginalContainer{T1, max(D1,D2), X1, ConflictContainerType(C1, C2)}
 end
+function ConflictContainerType(::Type{C2}, ::Type{OC1}) where {T1, D1, X1, T2, D2, C1, OC1<:OriginalContainer{T1,D1, X1, C1}, C2<:Container{T2,D2}}
+    return OriginalContainer{T1, max(D1,D2), X1, ConflictContainerType(C1, C2)}
+end
+function ConflictContainerType(::Type{OC1}, ::Type{OC2}) where {T1, D1, X1, C1, T2, D2, X2, C2, OC1<:OriginalContainer{T1,D1, X1, C1}, OC2<:OriginalContainer{T2,D2, X2, C2}}
+    return OriginalContainer{T1, max(D1,D2), X1, ConflictContainerType(C1, C2)}
+end
 
 mutable struct ByNothing <: Container{Float64, 0} 
     v::Float64
@@ -86,6 +99,7 @@ end
 ByHour(m::Matrix{Float64}) = ByHour([m...])
 Base.size(bh::ByHour) = (1, length(bh.v))
 Base.setindex!(c::ByHour, val::Float64, i1::Int, i2::Int) = (c.v[i2] = val)
+Base.setindex!(c::ByHour, val::Float64, idxs::CartesianIndex{2}) = (c.v[idxs[2]] = val)
 struct ByYearAndHour <: Container{Float64, 2}
     v::Vector{Vector{Float64}}
 end
