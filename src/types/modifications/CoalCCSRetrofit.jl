@@ -1,3 +1,22 @@
+
+"""
+    CoalCCSRetrofit(;kwargs...) <: Retrofit
+
+`CoalCCSRetrofit` represents a [`Retrofit`](@ref) for changing coal-burning plants (gentype="coal"), to have carbon capture technology, and be changed to (gentype="coal_ccsus_retrofit")
+
+Keyword Arguments:
+* `crf = 0.115642438` - the capital recovery factor (default value assumes 12 year economic lifetime)
+* `capt_co2_percent = 0.9` - (between 0 and 1) the percentage of CO₂ captured by the retrofit
+* `reduce_nox_percent = 0.5` - (between 0 and 1) the percent reduction in NOₓ emissions
+* `reduce_so2_percent = 1.0` - (between 0 and 1) the percent reduction in SO₂ emissions
+* `reduce_pm25_percent = 0.35` - (between 0 and 1) the percent reduction in PM2.5 emissions
+
+Other Requirements:
+* The `gen` table must have a `heat_rate` column
+* The `gen` table must either have a `pcap_plant_avg` column, or it will be assumed that each generator represents a single plant.  This value is used with the cost curves.
+
+Cost adjustment values come from a regression in EPA Schedule 6 data.
+"""
 Base.@kwdef struct CoalCCSRetrofit <: Retrofit 
     crf::Float64 = 0.115642438 # 12 year economic lifetime
     capt_co2_percent::Float64 = 0.9

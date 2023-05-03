@@ -38,6 +38,7 @@ makedocs(
             "CO₂ Capture, Utilization & Storage"=>"types/modifications/ccus.md",
             "DC Transmission Lines" => "types/modifications/dcline.md",
             "Storage" => "types/modifications/storage.md",
+            "Retrofits" => "types/modifications/retrofits.md",
         ],
         
     ],

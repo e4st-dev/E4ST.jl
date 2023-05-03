@@ -3,13 +3,13 @@
     Retrofit <: Modification
 
 Abstract supertype for retrofits.  Must implement the following interfaces:
-* (optional) [`init(ret::Retrofit, config, data)`](@ref) - initialize data with the `Retrofit` by adding any necessary columns to the gen table, etc.  Defaults to do nothing.
 * (required) [`can_retrofit(ret::Retrofit, gen::DataFrameRow)`](@ref)` -> ::Bool` - returns whether or not a generator row can be retrofitted.
 * (required) [`get_retrofit(ret::Retrofit, gen)`](@ref)` -> newgen::AbstractDict` - returns a new row to be added to the gen table.
+* (optional) [`init!(ret::Retrofit, config, data)`](@ref) - initialize data with the `Retrofit` by adding any necessary columns to the gen table, etc.  Defaults to do nothing.
 
 The following methods are defined for `Retrofit`, so you do not define any of the ordinary `Modification` methods for any subtype of `Retrofit` - only implement the above interfaces.
-* [`setup_processed_data!(ret::Retrofit, config, data)`](@ref)
-* [`setup_model!(ret::Retrofit, config, data)`](@ref)
+* [`modify_setup_data!(ret::Retrofit, config, data)`](@ref)
+* [`modify_model!(ret::Retrofit, config, data, model)`](@ref)
 """
 abstract type Retrofit <: Modification end
 export Retrofit
@@ -20,6 +20,7 @@ export Retrofit
 Returns whether or not a generator row can be retrofitted.
 """
 function can_retrofit end
+export can_retrofit
 
 """
     get_retrofit(ret::Retrofit, row) -> ::AbstractDict
@@ -27,6 +28,7 @@ function can_retrofit end
 Returns a new retrofit based off of `row`, to be added to the gen table.  Note that the `capex` should be included in the retrofitted generator WITHOUT the existing generator's capex.  I.e. capex for the retrofit should be only the capital costs for the retrofit, not including the initial capital costs for building the generator.
 """
 function get_retrofit end
+export get_retrofit
 
 """
     init!(ret::Retrofit, config, data)
@@ -43,6 +45,7 @@ function init!(ret::Retrofit, config, data) end
 * Loops through the rows of the `gen` table
     * Checks to see if the can be retrofitted via [`can_retrofit(ret::Retrofit, row)`](@ref)
     * Constructs the new retrofitted generator via [`get_retrofit(ret::Retrofit, row)`](@ref)
+    * Constructs one new one for each year in the simulation.
 """
 function modify_setup_data!(ret::Retrofit, config, data)
 
@@ -88,6 +91,14 @@ function modify_setup_data!(ret::Retrofit, config, data)
 end
 
 
+"""
+    modify_model!(ret::Retrofit, config, data, model)
+
+Modifies the model for retrofits.  Only happens once, for all retrofits.
+* Constrains the sum of the capacities of the original generators and the retrofits is less than the original max and greater than the original min by adding constraints `cons_pcap_gen_retro_min` and `cons_pcap_gen_retro_max`
+* Removes the `cons_pcap_gen_noadd` constraints for prior to and on the retrofit year.
+* Fix the capacity of the new retrofit generators to 0 before the retrofit year.
+"""
 function modify_model!(ret::Retrofit, config, data, model)
     # Only add constraints if it hasn't been done yet.  This will add constraints for all the Retrofit types
     haskey(model, :cons_pcap_gen_retro_max) && return
