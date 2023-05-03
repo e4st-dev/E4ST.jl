@@ -3,7 +3,6 @@ struct CO2eCalc <: Modification end
 export CO2eCalc
 
 mod_rank(::Type{<:CO2eCalc}) = -1.0
-
 """
     modify_setup_data!(mod::CO2eCalc, config, data)
 
@@ -29,14 +28,14 @@ function modify_setup_data!(mod::CO2eCalc, config, data)
     for row in eachrow(gen)
 
         # add methane from fuels TODO: add DAC when we add it
-        if (row.genfuel == "ng") row[:emis_co2e] = row[:emis_co2] + ng_ch4_fuel_content*row[:heat_rate]*ch4_gwp end
-        if (row.genfuel == "coal") row[:emis_co2e] = row[:emis_co2] + coal_ch4_fuel_content*row[:heat_rate]*ch4_gwp end
+        if (row.genfuel == "ng") row[:emis_co2e] = row[:emis_co2] .+ ng_ch4_fuel_content .* row[:heat_rate] .* ch4_gwp end
+        if (row.genfuel == "coal") row[:emis_co2e] = row[:emis_co2] .+ coal_ch4_fuel_content .* row[:heat_rate] .* ch4_gwp end
 
         # update biomass CO2e with percentage that we want to reduce from upstream carbon sequestering from plants 
-        if (row.genfuel == "biomass") row[:emis_co2e] = row.emis_co2*bio_pctco2e end
+        if (row.genfuel == "biomass") row[:emis_co2e] = row.emis_co2 .* bio_pctco2e end
 
         # update to chp co2e to only include portion of emissions attributed to elec generation
-        if (row.gentype == "chp") row[:emis_co2e] = row.emis_co2e*row.chp_co2_multi end
+        if (row.gentype == "chp") row[:emis_co2e] = row.emis_co2e .* row.chp_co2_multi end
 
     end
 

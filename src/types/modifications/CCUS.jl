@@ -181,7 +181,9 @@ function update_ccus_gens!(mod::CCUS, config, data)
 
     # Turn emis_co2 into a vector of Containers for book-keeping.
     gen.emis_co2 = Container[Container(e) for e in gen.emis_co2]
-    gen.emis_co2 .-= gen.capt_co2
+    for row in eachrow(gen)
+        row.emis_co2 .-= row.capt_co2
+    end
 
     # Add column for ccus_type
     ccus_type = fill("na", nrow(gen))
@@ -227,7 +229,9 @@ function update_ccus_gens!(mod::CCUS, config, data)
     # Update emission rate for EOR
     gen_eor = get_subtable(gen, :ccus_type=>"eor")
     eor_leakage_rate = get(config, :eor_leakage_rate, 0.5)
-    gen_eor.emis_co2 .+=  eor_leakage_rate * gen_eor.capt_co2
+    for row in eachrow(gen_eor)
+        row.emis_co2 .+=  eor_leakage_rate * row.capt_co2
+    end
 end
 export update_ccus_gens!
 
