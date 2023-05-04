@@ -184,7 +184,7 @@ end
 """
 function summarize(model::Model)
     buf = IOBuffer()
-    df = DataFrame(:variable=>Symbol[], :type=>Symbol[], :dimensions=>[], :length=>[])
+    df = DataFrame(:variable=>Symbol[], :type=>Symbol[], :dimensions=>[], :length=>[], :rhs_range=>[], :matrix_range=>[], :bounds_range=>[])
     d = object_dictionary(model)
     for (key, obj) in d
         if obj isa AbstractArray
@@ -206,9 +206,11 @@ function summarize(model::Model)
         else
             s = (1,)
         end
+        rhs_range = get_rhs_range(obj)
+        matrix_range = get_matrix_range(obj)
+        bounds_range = get_bounds_range(obj)
 
-    
-        push!(df, (key, t, s, len))
+        push!(df, (key, t, s, len, rhs_range, matrix_range, bounds_range))
     end
     println(buf, "Model Summary:")
 
@@ -219,6 +221,44 @@ function summarize(model::Model)
     summary = String(take!(buf))
 end
 export summarize
+get_matrix_range(c::AbstractArray{<:ConstraintRef}) = (get_limit(minimum, c), get_limit(maximum, c))
+get_matrix_range(c) = nothing
+get_bounds_range(v::AbstractArray{<:VariableRef}) = (get_limit(minimum, v), get_limit(maximum, v))
+get_bounds_range(v) = nothing
+
+get_rhs_range(c::AbstractArray{<:ConstraintRef}) = (get_rhs_limit(minimum, c), get_rhs_limit(maximum, c))
+get_rhs_range(c) = nothing
+
+get_limit(f, obj::AbstractArray{<:VariableRef}) = try; f(abs(x) for x in get_limit.(f, obj) if x != 0); catch; 0.0; end;
+
+get_limit(f, v::VariableRef) = begin
+    hasub = has_upper_bound(v)
+    haslb = has_lower_bound(v)
+    hasub && haslb && return f(abs, ((lower_bound(v), upper_bound(v))))
+    hasub && return abs(upper_bound(v))
+    haslb && return abs(lower_bound(v))
+    return 0.0
+end
+
+get_limit(f, obj::AbstractArray{<:ConstraintRef}) = f(abs(x) for x in get_limit.(f, obj))
+get_limit(f, c::ConstraintRef) = try; f(abs(x) for x in get_terms(c) if x != 0); catch; 0.0; end;
+function get_terms(c::ConstraintRef)
+    co = constraint_object(c)
+    f = co.func
+    d = f.terms
+    return values(d)
+end
+export get_terms
+
+get_rhs_limit(f, obj::AbstractArray{<:ConstraintRef}) = try; f(abs(x) for x in get_rhs.(obj) if x != 0); catch; 0.0; end;
+function get_rhs(c::ConstraintRef)
+    co = constraint_object(c)
+    rhs = _get_value(co.set)
+end
+_get_value(s::MOI.GreaterThan) = s.lower
+_get_value(s::MOI.LessThan) = s.upper
+_get_value(s::MOI.EqualTo) = s.value
+
 
 """
     getoptimizer(config) -> optimizer_factory
