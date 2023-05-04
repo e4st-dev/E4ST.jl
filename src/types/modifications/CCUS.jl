@@ -105,6 +105,17 @@ Does the following:
 * Adds sets of indices to `data[:ccus_gen_sets]::Vector{Vector{Int64}}`
 """
 function modify_setup_data!(mod::CCUS, config, data)
+    @info "Adding CCUS to the model"
+
+    gen = get_table(data, :gen)
+    @assert hasproperty(gen, :capt_co2_percent) "gen table must have column for `capt_co2_percent` for CCUS"
+    @assert hasproperty(gen, :emis_co2) "gen table must have column for `emis_co2` for CCUS"
+
+    if all(==(0.0), gen.capt_co2_percent)
+        @warn "No carbon capturing generators, yet CCUS Modification provided.  Skipping. (all gen.capt_co2_percent equal to zero)"
+        return
+    end
+
     update_ccus_gens!(mod, config, data)
 
     ### Modify ccus
@@ -170,8 +181,6 @@ Updates the carbon capturing generators by splitting into EOR and Saline-storing
 """
 function update_ccus_gens!(mod::CCUS, config, data)
     gen = get_table(data, :gen)
-    @assert hasproperty(gen, :capt_co2_percent) "gen table must have column for `capt_co2_percent` for CCUS"
-    @assert hasproperty(gen, :emis_co2) "gen table must have column for `emis_co2` for CCUS"
 
     capt_co2 = gen.emis_co2 .* gen.capt_co2_percent # This may make an OriginalContainer with the original value for emis_co2 preserved, but that should be ok since this column isn't kept in save_updated_gen_table.
     add_table_col!(data, :gen, :capt_co2, capt_co2, ShortTonsPerMWhGenerated, "The rate of capture of CO2 (calculated from emis_co2 and capt_co2_percent)")
@@ -233,6 +242,12 @@ function modify_model!(mod::CCUS, config, data, model)
 
     # Pull in the tables
     gen = get_table(data, :gen)
+
+    if all(==(0.0), gen.capt_co2_percent)
+        @warn "No carbon capturing generators, yet CCUS Modification provided.  Skipping. (all gen.capt_co2_percent equal to zero)"
+        return
+    end
+
     ccus_paths = get_table(data, :ccus_paths)
     ccus_storers = get_table(data, :ccus_storers)
     ccus_producers = get_table(data, :ccus_producers)
@@ -303,10 +318,16 @@ struct CCUSTerm <: Term end
 
 """
 function modify_results!(mod::CCUS, config, data)
+    gen = get_table(data, :gen)
+
+    if all(==(0.0), gen.capt_co2_percent)
+        @warn "No carbon capturing generators, yet CCUS Modification provided.  Skipping. (all gen.capt_co2_percent equal to zero)"
+        return
+    end
+
     ccus_storers = get_table(data, :ccus_storers)
     ccus_producers = get_table(data, :ccus_producers)
     ccus_paths = get_table(data, :ccus_paths)
-    gen = get_table(data, :gen)
     co2_sent = get_raw_result(data, :co2_sent)::Matrix{Float64}
     co2_stor = get_raw_result(data, :co2_stor)::Matrix{Float64}
     co2_trans = get_raw_result(data, :co2_trans)::Matrix{Float64}
