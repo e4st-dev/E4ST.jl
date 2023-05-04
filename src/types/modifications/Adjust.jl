@@ -5,6 +5,7 @@ function Operation(s::AbstractString)
     s == "set" && return s
     error("Operation \"$s\" invalid, please choose from add, scale, and set")
 end
+    
 
 @doc """
     summarize_table(::Val{:adjust_hourly})
@@ -43,20 +44,96 @@ function summarize_table(::Val{:adjust_yearly})
     return df
 end
 
+@doc """
+    summarize_table(::Val{:adjust_by_age})
+
+$(table2markdown(summarize_table(Val(:adjust_by_age))))
+"""
+function summarize_table(::Val{:adjust_by_age})
+    df = TableSummary()
+    push!(df, 
+        (:table_name, AbstractString, NA, true, "The name of the table to adjust.  Leave blank if this adjustment is intended for a variable in `data`"),
+        (:variable_name, AbstractString, NA, true, "The name of the variable/column to adjust"),
+        (:operation, Operation, NA, true, "The operation to perform.  Could be add, scale, or set."),
+        (:filter_, String, NA, true, "There can be multiple filter conditions - `filter1`, `filter2`, etc.  It denotes a comparison used for selecting the table rows to apply the adjustment to.  See `parse_comparison` for examples"),
+        (:status, Bool, NA, false, "Whether or not to use this adjustment"),
+        (:age_type, String, NA, true, "The type of age specified, can be `exact`, `after`, or `trigger`.  If `exact`, then adjustment is applied only when the age in question is between `[age, age+1)`.  If `trigger`, then adjustment is applied for the first simulation year for which the age has been exceeded.  If `after`, then adjustment is applied on [age, Inf)"),
+        (:age, Float64, NumYears, true, "The age at which to apply this adjustment.  Applies depending on `age_type`"),
+        (:value, Float64, NA, true, "Value to adjust by."),
+    )
+    return df
+end
+
 
 
 """
-    setup_table!(config, data, ::Val{:adjust_hourly})
+    Adjust{T} <: Modification
 
-Performs hourly adjustments specified in each row of the `:adjust_hourly` table.  Each row specifies the table to adjust (if any), the variable (or column) to adjust, the year to adjust, the operation to adjust by, and the amount to adjust by for each hour.
+This [`Modification`](@ref) creates a way to adjust table values or data parameters.  See the following subtypes:
+* [`AdjustHourly`](@ref)
+* [`AdjustYearly`](@ref)
+* [`AdjustByAge`](@ref)
 """
-function setup_table!(config, data, ::Val{:adjust_hourly})
-    adjust_table = get_table(data, :adjust_hourly)
-    for row in eachrow(adjust_table)
-        adjust_hourly!(config, data, row)
+Base.@kwdef struct Adjust{T} <: Modification
+    name::Symbol
+    file::String
+end
+"""
+    AdjustHourly(;file, name)
+
+Adjusts tables and parameters by hour.  Stores the table stored in `file` into `data[name]`.
+
+$(table2markdown(summarize_table(Val(:adjust_hourly))))
+"""
+const AdjustHourly = Adjust{:adjust_hourly}
+
+"""
+    AdjustYearly(;file, name)
+
+Adjusts tables and parameters by year.  Stores the table stored in `file` into `data[name]`.
+
+$(table2markdown(summarize_table(Val(:adjust_yearly))))
+"""
+const AdjustYearly = Adjust{:adjust_yearly}
+
+"""
+    AdjustByAge(;file, name)
+
+Adjusts tables and parameters by year.  Stores the table stored in `file` into `data[name]`.
+
+$(table2markdown(summarize_table(Val(:adjust_by_age))))
+"""
+const AdjustByAge = Adjust{:adjust_by_age}
+export Adjust, AdjustHourly, AdjustYearly, AdjustByAge
+
+
+
+function modify_raw_data!(mod::Adjust{T}, config, data) where T
+    file = mod.file
+    name = mod.name
+    table = read_table(data, file, T)
+    data[name] = table
+    return nothing
+end
+
+function modify_setup_data!(mod::Adjust{T}, config, data) where T
+    table = get_table(data, mod.name)
+    for row in eachrow(table)
+        adjust!(mod, config, data, row)
     end
 end
 
+function adjust!(mod::Adjust{:adjust_yearly}, config, data, row)
+    adjust_yearly!(config, data, row)
+end
+
+function adjust!(mod::Adjust{:adjust_hourly}, config, data, row)
+    adjust_hourly!(config, data, row)
+end
+
+function adjust!(mod::Adjust{:adjust_by_age}, config, data, row)
+    adjust_by_age!(config, data, row)
+end
 
 """
     adjust_hourly!(config, data, row)
@@ -105,20 +182,6 @@ function adjust_hourly!(config, data, row)
     return
 end
 
-
-"""
-    setup_table!(config, data, ::Val{:adjust_yearly})
-
-Performs yearly adjustments specified in each row of the `:adjust_yearly` table.  Each row specifies the table to adjust (if any), the variable (or column) to adjust, the operation to adjust by, and the amount to adjust by for each year.
-"""
-function setup_table!(config, data, ::Val{:adjust_yearly})
-    adjust_table = get_table(data, :adjust_yearly)
-    for row in eachrow(adjust_table)
-        adjust_yearly!(config, data, row)
-    end
-end
-
-
 """
     adjust_yearly!(config, data, row)
 
@@ -155,38 +218,6 @@ function adjust_yearly!(config, data, row)
         r[variable_name] = operate_yearly(oper, r[variable_name], vals)
     end
     return
-end
-
-@doc """
-    summarize_table(::Val{:adjust_by_age})
-
-$(table2markdown(summarize_table(Val(:adjust_by_age))))
-"""
-function summarize_table(::Val{:adjust_by_age})
-    df = TableSummary()
-    push!(df, 
-        (:table_name, AbstractString, NA, true, "The name of the table to adjust.  Leave blank if this adjustment is intended for a variable in `data`"),
-        (:variable_name, AbstractString, NA, true, "The name of the variable/column to adjust"),
-        (:operation, Operation, NA, true, "The operation to perform.  Could be add, scale, or set."),
-        (:filter_, String, NA, true, "There can be multiple filter conditions - `filter1`, `filter2`, etc.  It denotes a comparison used for selecting the table rows to apply the adjustment to.  See `parse_comparison` for examples"),
-        (:status, Bool, NA, false, "Whether or not to use this adjustment"),
-        (:age_type, String, NA, true, "The type of age specified, can be `exact`, `after`, or `trigger`.  If `exact`, then adjustment is applied only when the age in question is between `[age, age+1)`.  If `trigger`, then adjustment is applied for the first simulation year for which the age has been exceeded.  If `after`, then adjustment is applied on [age, Inf)"),
-        (:age, Float64, NumYears, true, "The age at which to apply this adjustment.  Applies depending on `age_type`"),
-        (:value, Float64, NA, true, "Value to adjust by."),
-    )
-    return df
-end
-
-"""
-    setup_table!(config, data, ::Val{:adjust_by_age})
-
-Performs adjustments specified in each row of the `:adjust_by_age` table.  Each row specifies the table to adjust (if any), the variable (or column) to adjust, the operation to adjust by, and the amount to adjust by, as well as the age(s) that need to be adjusted.
-"""
-function setup_table!(config, data, ::Val{:adjust_by_age})
-    adjust_table = get_table(data, :adjust_by_age)
-    for row in eachrow(adjust_table)
-        adjust_by_age!(config, data, row)
-    end
 end
 
 """
