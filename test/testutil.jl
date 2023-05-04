@@ -7,6 +7,24 @@ function container_compare(c::Container, v::Matrix, nyr, nhr)
     return all(h->(all(y->(c[y,h]==v[y,h]),1:nyr)), 1:nhr)
 end
 
+function test_container_broadcast(f, x1, x2, T, nyr, nhr)
+    x = broadcast(f, x1, x2)
+    @test x isa T
+    @test all(x[yr_idx, hr_idx] == f(x1[yr_idx, hr_idx], x2[yr_idx, hr_idx]) for yr_idx in 1:nyr, hr_idx in 1:nhr)
+end
+
+function test_original_container_broadcast(f, oc, x1, nyr, nhr)
+    x = broadcast(f, oc, x1)
+    @test x isa OriginalContainer
+    @test get_original(x) == get_original(oc)
+    @test all(x[yr_idx, hr_idx] == f(oc[yr_idx, hr_idx], x1[yr_idx, hr_idx]) for yr_idx in 1:nyr, hr_idx in 1:nhr)
+
+    x = broadcast(f, x1, oc)
+    @test x isa OriginalContainer
+    @test get_original(x) == get_original(oc)
+    @test all(x[yr_idx, hr_idx] == f(x1[yr_idx, hr_idx], oc[yr_idx, hr_idx]) for yr_idx in 1:nyr, hr_idx in 1:nhr)
+end
+
 @testset "Test Utilities" begin
     @testset "Test parse_comparison" begin
         @test parse_comparison("emis_rate => >0.1") == ("emis_rate" => >(0.1))
@@ -201,6 +219,40 @@ end
                 bh_new = set_yearly(bh, x, 2, nyr)
                 @test all(bh[1,h] == bh_new[1,h] for h in 1:nhr)
                 @test all(x == bh_new[2,h] for h in 1:nhr)
+            end
+
+            @testset "Test broadcasted operations" begin
+                nyr = 3
+                nhr = 4
+                bn = ByNothing(rand())
+                by = ByYear(rand(nyr))
+                byh = ByYearAndHour(map(x->rand(nhr), 1:nyr))
+                bh = ByHour(rand(nhr))
+
+                test_container_broadcast(+, bn, bn, ByNothing, nyr, nhr)
+                test_container_broadcast(+, bn, by, ByYear, nyr, nhr)
+                test_container_broadcast(+, by, bn, ByYear, nyr, nhr)
+                test_container_broadcast(+, bn, bh, ByHour, nyr, nhr)
+                test_container_broadcast(+, bh, bn, ByHour, nyr, nhr)
+                test_container_broadcast(+, bn, byh, ByYearAndHour, nyr, nhr)
+                test_container_broadcast(+, byh, bn, ByYearAndHour, nyr, nhr)
+                
+                test_container_broadcast(+, by, by, ByYear, nyr, nhr)
+                test_container_broadcast(+, by, bh, ByYearAndHour, nyr, nhr)
+                test_container_broadcast(+, bh, by, ByYearAndHour, nyr, nhr)
+                test_container_broadcast(+, byh, by, ByYearAndHour, nyr, nhr)
+                test_container_broadcast(+, by, byh, ByYearAndHour, nyr, nhr)
+                
+                test_container_broadcast(+, bh, bh, ByHour, nyr, nhr)
+                test_container_broadcast(+, bh, byh, ByYearAndHour, nyr, nhr)
+                test_container_broadcast(+, byh, bh, ByYearAndHour, nyr, nhr)
+
+                oc = Container(rand())
+
+                test_original_container_broadcast(+, oc, bn, nyr, nhr)
+                test_original_container_broadcast(+, oc, by, nyr, nhr)
+                test_original_container_broadcast(+, oc, bh, nyr, nhr)
+                test_original_container_broadcast(+, oc, byh, nyr, nhr)
             end
 
 

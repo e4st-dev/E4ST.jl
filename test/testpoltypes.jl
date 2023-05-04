@@ -324,14 +324,16 @@
             gen = get_table(data, :gen)
             model = setup_model(config, data)
 
+            nyears = get_num_years(data)
+
             @testset "Test Crediting CES" begin
                 # columns added to the gen table
                 @test hasproperty(gen, :example_ces)
 
                 # check that some crediting was applied
-                @test any(credit -> get_original(credit) > 0.0, gen[!, :example_ces])
+                @test any(credit -> any(0.0 .< [credit[year_idx,:] for year_idx in nyears]), gen[!, :example_ces])
 
-                @test ~any(credit -> get_original(credit) > 1.0 || get_original(credit) < 0.0, gen[!, :example_ces])
+                @test ~any(credit -> any(1.0 .< [credit[year_idx,:] for year_idx in nyears]) || any(0.0 .> [credit[year_idx,:] for year_idx in nyears]), gen[!, :example_ces])
 
             end
 

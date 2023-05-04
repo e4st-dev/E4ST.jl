@@ -26,6 +26,10 @@ When defining a concrete `Modification` type, you should know the following.
 Modifications get printed to YAML when the config file is saved at the beginning of a call to `run_e4st`.  If you implement a Modification for which it is undesirable to print every field, you can implement the following interface:
 * [`fieldnames_for_yaml(::Type)`](@ref) - returns the desired fieldnames as a collection of `Symbol`s
 
+Modification can be given a rank which will determine the order that they are called in when modifying the model. This can be important if a mod requires information calculated in a previous mod or needs to be applied on top of another mod. 
+Ranks is specified by defining a method for [`mod_rank(::Type{<:Modification})`](@ref). The default rank is 0. Modifications that setup data and model features like `CCUS` and `DCLines` can have negative values to signify that they are called before
+while mods like policies would have a positive rank meaning they would modify the model after the setup mods. 
+
 ## Specifying a `Modification` in the config file YAML
 `Modifications` must be be specified in the config file.  They must have a type key, and keys for each other desired keyword argument in the constructor.
 
@@ -185,12 +189,12 @@ mod_rank(m::Modification) = mod_rank(typeof(m))
 export mod_rank
 
 function list_type_ranks()
-    all_types = subtypes(Modification)
+    global SYM2TYPE
+    all_types = filter!(t -> t <: Modification, collect(values(SYM2TYPE)))
     ranks = OrderedDict{Any, Float64}()
     for t in all_types
         ranks[t] = mod_rank(t)
     end
-    #ranks = DataFrame(:types = all_types, :rank = mod_rank.(all_types))
     sort!(ranks; byvalue=true)
     return ranks
 end
