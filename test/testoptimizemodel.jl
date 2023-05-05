@@ -95,9 +95,7 @@
 
     @testset "Test InterfaceLimit" begin
         # Test that without InterfaceLimit, branch flow is sometimes less than 0.2
-        branch = get_table(data, :branch)
-        pflow_branch = branch.pflow[1]
-        @test any(<(0.2), pflow_branch)
+        @test aggregate_result(minimum, data, :branch, :pflow, (:f_bus_idx=>1, :t_bus_idx=>2)) < 0.2 - 1e-9
         
         # Now run with interface limits and test that it is always >= 0.2
         config_file_if = joinpath(@__DIR__, "config", "config_3bus_if.yml")
@@ -108,10 +106,14 @@
         @test check(model)
         parse_results!(config, data, model)
 
-        branch = get_table(data, :branch)
-        pflow_branch = branch.pflow[1]
-        @test all(>=(0.2), pflow_branch)
+        # Test that pflow limits were observed
+        @test aggregate_result(minimum, data, :branch, :pflow, (:f_bus_idx=>1, :t_bus_idx=>2)) >= 0.2 - 1e-9
+
+        # Test that there was no curtailment
         @test aggregate_result(total, data, :bus, :elcurt) < 1e-6
+
+        # Test that eflow_yearly limits were observed.
+        @test aggregate_result(total, data, :branch, :eflow, (:f_bus_idx=>1, :t_bus_idx=>2)) >= 2000
     end
 
 end

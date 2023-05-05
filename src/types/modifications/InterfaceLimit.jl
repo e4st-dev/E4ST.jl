@@ -12,6 +12,13 @@ Base.@kwdef struct InterfaceLimit <: Modification
 end
 export InterfaceLimit
 
+"""
+comments from discussion with Dan
+* hourly differing limits generally not necessary
+* DC lines generally not included because usually interface limits are often used to address voltage stability concerns.  
+* Canadian exports could mess up some policy results.  Might be nice to have annual flow limit to do this, because it could really help represent certain things.
+"""
+
 @doc """
     summarize_table(::Val{:interface_limit})
 
@@ -24,8 +31,11 @@ function summarize_table(::Val{:interface_limit})
         (:description, String, NA, false, "Description of the interface limit, not used."),
         (:f_filter, String, NA, true, "The filter for the bus table specifiying the region the power is flowing **f**rom.  I.e. `country=>narnia`, or `state=>[angard, stormness]`"),
         (:t_filter, String, NA, true, "The filter for the bus table specifiying the region the power is flowing **t**o."),
-        (:max, Float64, MWFlow, true, "The maximum allowable power flow in the direction of `f` to `t`"),
-        (:min, Float64, MWFlow, true, "The minimum allowable power flow in the direction of `f` to `t`.  Can be positive or negative."),
+        (:pflow_max, Float64, MWFlow, true, "The maximum allowable power flow in the direction of `f` to `t`. If left as ±Inf, no constraint made."),
+        (:pflow_min, Float64, MWFlow, true, "The minimum allowable power flow in the direction of `f` to `t`.  Can be positive or negative.  If left as ±Inf, no constraint made."),
+        (:eflow_yearly_max, Float64, MWhFlow, true, "The yearly maximum allowable energy to flow in the direction of `f` to `t`. If left as ±Inf, no constraint made."),
+        (:eflow_yearly_min, Float64, MWhFlow, true, "The yearly minimum allowable energy to flow in the direction of `f` to `t`.  Can be positive or negative. If left as ±Inf, no constraint made."),
+        (:include_dc, Bool, NA, false, "Whether or not to include DC lines in this interface limit.  If not provided, assumed that DC lines are not included"),
     )
     return df
 end
@@ -55,6 +65,7 @@ function modify_model!(mod::InterfaceLimit, config, data, model)
     branch = get_table(data, :branch)
     nhr = get_num_hours(data)
     nyr = get_num_years(data)
+    hour_weights = get_hour_weights(data)
     
     table.forward_branch_idxs = fill(Int64[], nrow(table))
     table.reverse_branch_idxs = fill(Int64[], nrow(table))
@@ -69,36 +80,80 @@ function modify_model!(mod::InterfaceLimit, config, data, model)
     end
 
     # Modify the model
-    cons_min_name = Symbol("cons_pflow_if_min")
-    cons_max_name = Symbol("cons_pflow_if_max")
-    pflow_if_name = Symbol("pflow_if")
     pflow_branch = model[:pflow_branch]
 
-    pflow_if = @expression(model,
-        [if_idx in axes(table, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
+    @expression(model,
+        pflow_if[if_idx in axes(table, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
         sum0(branch_idx -> pflow_branch[branch_idx, yr_idx, hr_idx], table.forward_branch_idxs[if_idx]) - 
         sum0(branch_idx -> pflow_branch[branch_idx, yr_idx, hr_idx], table.reverse_branch_idxs[if_idx])
     )
-    model[pflow_if_name] = pflow_if
     
     # TODO: Add dc line power flow here if needed
+    if hasproperty(table, :include_dc) && any(table.include_dc) && has_table(data, :dc_line) && haskey(model, :pflow_dc)
+        dc_line = get_table(data, :dc_line)
 
-    model[cons_max_name] = @constraint(model,
-        [
+        table.forward_dc_idxs = fill(Int64[], nrow(table))
+        table.reverse_dc_idxs = fill(Int64[], nrow(table))
+        for row in eachrow(table)
+            f_filter = parse_comparison(row.f_filter)
+            t_filter = parse_comparison(row.t_filter)
+            f_bus_idxs = Set(get_row_idxs(bus, f_filter))
+            t_bus_idxs = Set(get_row_idxs(bus, t_filter))
+            row.forward_dc_idxs = get_row_idxs(dc_line, :f_bus_idx => in(f_bus_idxs), :t_bus_idx => in(t_bus_idxs))
+            row.reverse_dc_idxs = get_row_idxs(dc_line, :t_bus_idx => in(f_bus_idxs), :f_bus_idx => in(t_bus_idxs))
+        end
+
+        pflow_dc = model[:pflow_dc]
+
+        for (if_idx, row) in enumerate(eachrow(table))
+            row.include_dc || continue
+            for dc_idx in row.forward_dc_idxs
+                for yr_idx in 1:nyr, hr_idx in 1:nhr
+                    add_to_expression!(pflow_if[if_idx, yr_idx, hr_idx], pflow_dc[dc_idx, yr_idx, hr_idx])
+                end
+            end
+            for dc_idx in row.reverse_dc_idxs
+                for yr_idx in 1:nyr, hr_idx in 1:nhr
+                    add_to_expression!(pflow_if[if_idx, yr_idx, hr_idx], pflow_dc[dc_idx, yr_idx, hr_idx], -1)
+                end
+            end
+        end
+    end
+
+    @constraint(model,
+        cons_pflow_if_max[
             if_idx in axes(table, 1), yr_idx in 1:nyr, hr_idx in 1:nhr;
-            (pflow_if[if_idx, yr_idx, hr_idx] != 0.0 && isfinite(table.max[if_idx][yr_idx, hr_idx])) # Skip any Inf values
+            (pflow_if[if_idx, yr_idx, hr_idx] != 0.0 && isfinite(table.pflow_max[if_idx][yr_idx, hr_idx])) # Skip any Inf values
         ],
         pflow_if[if_idx, yr_idx, hr_idx] <= 
-        table.max[if_idx][yr_idx, hr_idx]
+        table.pflow_max[if_idx][yr_idx, hr_idx]
     )
 
-    model[cons_min_name] = @constraint(model,
-        [
+    @constraint(model,
+        cons_pflow_if_min[
             if_idx in axes(table, 1), yr_idx in 1:nyr, hr_idx in 1:nhr;
-            (pflow_if[if_idx, yr_idx, hr_idx] != 0.0 && isfinite(table.min[if_idx][yr_idx, hr_idx])) # Skip any Inf values
+            (pflow_if[if_idx, yr_idx, hr_idx] != 0.0 && isfinite(table.pflow_min[if_idx][yr_idx, hr_idx])) # Skip any Inf values
         ],
         pflow_if[if_idx, yr_idx, hr_idx] >= 
-        table.min[if_idx][yr_idx, hr_idx]
+        table.pflow_min[if_idx][yr_idx, hr_idx]
+    )
+
+    @constraint(model,
+        cons_eflow_if_max[
+            if_idx in axes(table, 1), yr_idx in 1:nyr;
+            (any(!=(0), view(pflow_if, if_idx, yr_idx, :)) && isfinite(table.eflow_yearly_max[if_idx][yr_idx, :]))
+        ],
+        sum(hour_weights[hr_idx] * pflow_if[if_idx, yr_idx, hr_idx] for hr_idx in 1:nhr) <= 
+        table.eflow_yearly_max[if_idx][yr_idx, :]
+    )
+
+    @constraint(model,
+        cons_eflow_if_min[
+            if_idx in axes(table, 1), yr_idx in 1:nyr;
+            (any(!=(0), view(pflow_if, if_idx, yr_idx, :)) && isfinite(table.eflow_yearly_min[if_idx][yr_idx, :]))
+        ],
+        sum(hour_weights[hr_idx] * pflow_if[if_idx, yr_idx, hr_idx] for hr_idx in 1:nhr) >= 
+        table.eflow_yearly_min[if_idx][yr_idx, :]
     )
 end
 
