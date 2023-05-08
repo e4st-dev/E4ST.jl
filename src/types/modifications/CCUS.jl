@@ -107,6 +107,8 @@ Does the following:
 * Adds sets of indices to `data[:ccus_gen_sets]::Vector{Vector{Int64}}`
 """
 function modify_setup_data!(mod::CCUS, config, data)
+    @info "Adding CCUS to setup data"
+
     update_ccus_gens!(mod, config, data)
 
     ### Modify ccus
@@ -236,6 +238,7 @@ end
 export update_ccus_gens!
 
 function modify_model!(mod::CCUS, config, data, model)
+    @info "Adding CCUS representation to the model"
 
     # Pull in the tables
     gen = get_table(data, :gen)
@@ -309,6 +312,8 @@ struct CCUSTerm <: Term end
 
 """
 function modify_results!(mod::CCUS, config, data)
+    @info "Modifying results for CCUS"
+
     ccus_storers = get_table(data, :ccus_storers)
     ccus_producers = get_table(data, :ccus_producers)
     ccus_paths = get_table(data, :ccus_paths)

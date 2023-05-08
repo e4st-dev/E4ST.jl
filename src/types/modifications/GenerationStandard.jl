@@ -45,6 +45,7 @@ mod_rank(::Type{<:GenerationStandard}) = 2.0
 Adds column to the gen table with the credit level of the generation standard. Adds the name and type of the policy to the gs_pol_list in data. 
 """
 function modify_setup_data!(pol::GenerationStandard, config, data)
+    @info "$(pol.name) modifying setup data"
 
     #get gen idxs 
     gen = get_table(data, :gen)
@@ -70,6 +71,7 @@ Creates the expression :p_gs_bus, the load that generation standards are applied
 Creates a constraint that takes the general form: `sum(gs_egen * credit) <= gs_value * sum(gs_load)`
 """
 function E4ST.modify_model!(pol::GenerationStandard, config, data, model)
+    @info "$(pol.name) modifying the model"
     # get bus and gen idxs
     gen = get_table(data, :gen)
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
