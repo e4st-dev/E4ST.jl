@@ -1,2 +1,2 @@
-description,f_filter,t_filter,pflow_max,pflow_min,eflow_yearly_max,eflow_yearly_min,include_dc
-beaversdam wants to export power to stormness,state=>beaverdam,state=>stormness,Inf,0.2,Inf,2000,1
+description,f_filter,t_filter,pflow_max,pflow_min,eflow_yearly_max,eflow_yearly_min,include_dc,price
+beaversdam wants to export power to stormness,state=>beaverdam,state=>stormness,Inf,0.2,Inf,2000,1,0.1

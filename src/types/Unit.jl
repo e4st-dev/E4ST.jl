@@ -21,6 +21,7 @@ struct DollarsPerMWCapacity <: Unit end; export DollarsPerMWCapacity
 struct DollarsPerMWBuiltCapacity <: Unit end; export DollarsPerMWBuiltCapacity
 struct DollarsPerMWhGenerated <: Unit end; export DollarsPerMWhGenerated
 struct DollarsPerMWFlow <: Unit end; export DollarsPerMWFlow
+struct DollarsPerMWhFlow <: Unit end; export DollarsPerMWhFlow
 struct DollarsPerShortTon <: Unit end; export DollarsPerShortTon
 struct DollarsPerShortTonCO2Captured <: Unit end; export DollarsPerShortTonCO2Captured
 struct CreditsPerMWhGenerated <: Unit end; export CreditsPerMWhGenerated

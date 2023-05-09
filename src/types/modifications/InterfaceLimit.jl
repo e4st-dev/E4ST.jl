@@ -35,6 +35,7 @@ function summarize_table(::Val{:interface_limit})
         (:pflow_min, Float64, MWFlow, true, "The minimum allowable power flow in the direction of `f` to `t`.  Can be positive or negative.  If left as ±Inf, no constraint made."),
         (:eflow_yearly_max, Float64, MWhFlow, true, "The yearly maximum allowable energy to flow in the direction of `f` to `t`. If left as ±Inf, no constraint made."),
         (:eflow_yearly_min, Float64, MWhFlow, true, "The yearly minimum allowable energy to flow in the direction of `f` to `t`.  Can be positive or negative. If left as ±Inf, no constraint made."),
+        (:price, Float64, DollarsPerMWhFlow, false, "The price of net flow in the direction of `f` to `t`."),
         (:include_dc, Bool, NA, false, "Whether or not to include DC lines in this interface limit.  If not provided, assumed that DC lines are not included"),
     )
     return df
@@ -54,10 +55,12 @@ end
     modify_model!(mod::InterfaceLimit, config, data, model)
 
 * Gathers each of the branches (forward and reverse) for each of the rows of the `interface_limit` table.
-* Creates an expression `pflow_if` for the power flowing, in MW, in each interface.  This includes
+* Creates an expression `pflow_if[if_idx, yr_idx, hr_idx]` for the power flowing, in MW, in each interface.  This includes
     * The sum of all of the `pflow_branch` terms for branches that are flowing in the direction of **f**rom to **t**o.
     * Net the sum of all of the `pflow_branch` terms for branches that are flowing in the direction of **t**o to **f**rom.
-* Creates min and max constraints `cons_pflow_if_min` and `cons_pflow_if_max` for each interface limit, for each year and hour in which the limit is finite, and there are qualifying `pflow_branch`variables in the interface.
+* Creates min and max constraints `cons_pflow_if_min[if_idx, yr_idx, hr_idx]` and `cons_pflow_if_max[if_idx, yr_idx, hr_idx]` for each interface limit, for each year and hour in which the limit is finite, and there are qualifying `pflow_branch` variables in the interface.
+* Creates min and max constraints `cons_eflow_if_min[if_idx, yr_idx]` and `cons_eflow_if_max[if_idx, yr_idx]` for each interface limit, for each year in which the limit is finite, and there are qualifying `pflow_branch` variables in the interface.
+* Creates expression `interface_flow_cost_obj[if_idx, yr_idx, hr_idx]` for the cost of interface flow, and adds it to the objective.
 """
 function modify_model!(mod::InterfaceLimit, config, data, model)
     table = get_table(data, :interface_limit)
@@ -66,10 +69,11 @@ function modify_model!(mod::InterfaceLimit, config, data, model)
     nhr = get_num_hours(data)
     nyr = get_num_years(data)
     hour_weights = get_hour_weights(data)
+    pflow_branch = model[:pflow_branch]
     
+    # Retrieve forward and reverse branch indices for each interface limit
     table.forward_branch_idxs = fill(Int64[], nrow(table))
     table.reverse_branch_idxs = fill(Int64[], nrow(table))
-
     for row in eachrow(table)
         f_filter = parse_comparison(row.f_filter)
         t_filter = parse_comparison(row.t_filter)
@@ -79,19 +83,15 @@ function modify_model!(mod::InterfaceLimit, config, data, model)
         row.reverse_branch_idxs = get_row_idxs(branch, :t_bus_idx => in(f_bus_idxs), :f_bus_idx => in(t_bus_idxs))
     end
 
-    # Modify the model
-    pflow_branch = model[:pflow_branch]
-
     @expression(model,
         pflow_if[if_idx in axes(table, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
         sum0(branch_idx -> pflow_branch[branch_idx, yr_idx, hr_idx], table.forward_branch_idxs[if_idx]) - 
         sum0(branch_idx -> pflow_branch[branch_idx, yr_idx, hr_idx], table.reverse_branch_idxs[if_idx])
     )
     
-    # TODO: Add dc line power flow here if needed
+    # Add DC line flow to expression where relevant.
     if hasproperty(table, :include_dc) && any(table.include_dc) && has_table(data, :dc_line) && haskey(model, :pflow_dc)
         dc_line = get_table(data, :dc_line)
-
         table.forward_dc_idxs = fill(Int64[], nrow(table))
         table.reverse_dc_idxs = fill(Int64[], nrow(table))
         for row in eachrow(table)
@@ -120,6 +120,7 @@ function modify_model!(mod::InterfaceLimit, config, data, model)
         end
     end
 
+    # Add interface constraints
     @constraint(model,
         cons_pflow_if_max[
             if_idx in axes(table, 1), yr_idx in 1:nyr, hr_idx in 1:nhr;
@@ -155,7 +156,18 @@ function modify_model!(mod::InterfaceLimit, config, data, model)
         sum(hour_weights[hr_idx] * pflow_if[if_idx, yr_idx, hr_idx] for hr_idx in 1:nhr) >= 
         table.eflow_yearly_min[if_idx][yr_idx, :]
     )
+
+    # Add to objective function
+    if hasproperty(table, :price)
+        @expression(model, 
+            interface_flow_cost_obj[if_idx in axes(table,1), yr_idx in 1:nyr, hr_idx in 1:nhr],
+            pflow_if[if_idx, yr_idx, hr_idx] * hour_weights[hr_idx] * table.price[if_idx][yr_idx, hr_idx]
+        )
+        add_obj_exp!(data, model, PerMWhFlow(), :interface_flow_cost_obj, oper=+)
+    end
 end
+
+struct PerMWhFlow <: Term end
 
 function sum0(f, itr)
     isempty(itr) && return 0.0
