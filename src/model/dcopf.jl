@@ -354,11 +354,15 @@ Adds expression s (already defined in model) to the objective expression model[:
 Adds the name, oper, and type of the term to data[:obj_vars].
 """
 function add_obj_exp!(data, model, term::Term, s::Symbol; oper)
-    new_term = sum(model[s])
+    expr = model[s]
     if oper == + 
-        add_to_expression!(model[:obj], new_term)
+        for new_term in expr
+            add_to_expression!(model[:obj], new_term)
+        end
     elseif oper == -
-        add_to_expression!(model[:obj], -1, new_term)
+        for new_term in expr
+            add_to_expression!(model[:obj], -1, new_term)
+        end
     else
         Base.error("The entered operator isn't valid, oper must be + or -")
     end

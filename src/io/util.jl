@@ -401,9 +401,8 @@ export parse_comparisons
 Returns a set of pairs to be used in filtering rows of another table, where each value `d`
 """
 function parse_comparisons(d::AbstractDict)
-    pairs = collect(parse_comparison("$k=>$v") for (k,v) in d)
+    pairs = collect(parse_comparison("$k=>$v") for (k,v) in d if ~isempty(v))
 end
-export parse_comparisons
 
 
 """

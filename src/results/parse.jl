@@ -46,7 +46,7 @@ end
 Returns a value or shadow price depending on what is passed in.  Used in [`results_raw!`](@ref).  Scales shadow prices by `obj_scalar` to restore to units of dollars (per applicable unit).
 """
 function value_or_shadow_price(ar::AbstractArray{<:ConstraintRef}, obj_scalar)
-    map(cons->obj_scalar * shadow_price(cons), ar)
+    value_or_shadow_price.(ar, obj_scalar)
 end
 function value_or_shadow_price(ar::AbstractArray{<:AbstractJuMPScalar}, obj_scalar)
     value.(ar)
