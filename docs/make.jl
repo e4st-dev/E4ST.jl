@@ -16,7 +16,6 @@ makedocs(
             "Hours Table" => "inputs/hours.md",
             "Load" => "inputs/load.md",
             "Availability Factor Table" => "inputs/af.md",
-            "Arbitrary Temporal Adjustments" => "inputs/adjust.md",
             "Logging" => "inputs/logging.md"
         ],
         "Model"=>Any[
@@ -28,11 +27,15 @@ makedocs(
             "Aggregation" => "results/aggregation.md",
             "Plotting" => "results/plotting.md",
         ],
-        "Types"=>Any[
+        "Abstract Types"=>Any[
             "Modication"=>"types/mod.md",
             "Iterable"=>"types/iterable.md",
             "Policy"=>"types/policy.md",
             "Unit"=>"types/unit.md",
+        ],
+        "Modifications"=>Any[
+            "Arbitrary Temporal Adjustments" => "types/modifications/adjust.md",
+            "Fuel Prices" => "types/modifications/fuel-price.md",
         ],
         "Technologies"=>Any[
             "CO₂ Capture, Utilization & Storage"=>"types/modifications/ccus.md",

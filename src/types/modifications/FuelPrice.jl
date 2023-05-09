@@ -2,7 +2,7 @@
 """
     FuelPrice(;file) <: Modification
 
-FuelPrice is a [`Modification`](@ref) allowing users to specify fuel prices for different fuels by region.
+FuelPrice is a [`Modification`](@ref) allowing users to specify fuel prices for different fuels by region.  If multiple steps and quantities are given, the fuel price for a given region will be computed endogenously.
 * [`modify_raw_data!(mod::FuelPrice, config, data)`](@ref)
 * [`modify_setup_data!(mod::FuelPrice, config, data)`](@ref)
 * [`modify_model!(mod::FuelPrice, config, data, model)`](@ref)
@@ -68,11 +68,11 @@ end
     modify_model!(mod::FuelPrice, config, data, model)
 
 * Make `data[:fuel_markets]` to keep track of each of the fuel markets
-* Add variable `fuel_sold[fuel_price_idx,  yr_idx, hr_idx]` - total fuel sold at each price step for each time interval
-* Add expression `fuel_used[fuel_market_idx, yr_idx, hr_idx]` - total fuel used by generators for each market region for each time interval
-* Add expression `fuel_cost_obj[fuel_market_idx, yr_idx, hr_idx]` - total cost of the fuel, added to the objective.
-* Add constraint `cons_fuel_sold[fuel_price_idx, yr_idx]` - constrain the total `fuel_sold` in each year to be ≤ yearly quantity
-* Add constraint `cons_fuel_bal[fuel_market_idx, yr_idx, hr_idx]` - constrain the amount of fuel sold in each market region to equal the amount of fuel used in each market region.
+* Add variable `fuel_sold[fuel_price_idx,  yr_idx, hr_idx]`: total fuel sold at each price step for each time interval
+* Add expression `fuel_used[fuel_market_idx, yr_idx, hr_idx]`: total fuel used by generators for each market region for each time interval
+* Add expression `fuel_cost_obj[fuel_market_idx, yr_idx, hr_idx]`: total cost of the fuel, added to the objective.
+* Add constraint `cons_fuel_sold[fuel_price_idx, yr_idx]`: constrain the total `fuel_sold` in each year to be ≤ yearly quantity
+* Add constraint `cons_fuel_bal[fuel_market_idx, yr_idx, hr_idx]`: constrain the amount of fuel sold in each market region to equal the amount of fuel used in each market region.
 """
 function modify_model!(mod::FuelPrice, config, data, model)
     table = get_table(data, :fuel_price)
@@ -91,12 +91,9 @@ function modify_model!(mod::FuelPrice, config, data, model)
         get_row_idxs(gen, filt)
     end
 
+    # Pull out other necessary data
     data[:fuel_markets] = fuel_markets
-
     egen = model[:egen_gen]
-    
-
-    
 
     # Create variable fuel_sold for fuel sold in each row of the fuel table
     @variable(model,
@@ -108,6 +105,7 @@ function modify_model!(mod::FuelPrice, config, data, model)
         lower_bound=0
     )
 
+    # Create objective expression for fuel cost
     @expression(model,
         fuel_cost_obj[
             fuel_idx in axes(table, 1),

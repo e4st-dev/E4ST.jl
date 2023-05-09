@@ -135,7 +135,11 @@ function setup_dcopf!(config, data, model)
     
     # Power System Costs
     add_obj_term!(data, model, PerMWhGen(), :vom, oper = +)
-    add_obj_term!(data, model, PerMWhGen(), :fuel_cost, oper = +)
+
+    # Only add fuel cost if included and non-zero.
+    if hasproperty(gen, :fuel_cost) && any(gen.fuel_cost[yr_idx, hr_idx] != 0 for yr_idx in 1:nyear, hr_idx in 1:nhour)
+        add_obj_term!(data, model, PerMWhGen(), :fuel_cost, oper = +)
+    end
 
     add_obj_term!(data, model, PerMWCap(), :fom, oper = +)
     add_obj_term!(data, model, PerMWCap(), :capex_obj, oper = +) 
