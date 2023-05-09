@@ -17,7 +17,7 @@ function modify_setup_data!(mod::CO2eCalc, config, data)
     nyears = get_num_years(data)
 
 
-    @warn hasproperty(gen, :emis_co2e) "The CO2e values specified in the input gen table will be overwritten by the CO2eCalc mod."
+    hasproperty(gen, :emis_co2e) && @warn "The CO2e values specified in the input gen table will be overwritten by the CO2eCalc mod."
     # set to the emis_co2 rate as a default  
     add_table_col!(data, :gen, :emis_co2e, Container[Container(row[:emis_co2]) for row in eachrow(gen)], ShortTonsPerMWhGenerated,
     "CO2e emission rate including adjustments for eor leakage, biomass and CHP adjustments, and methane.")

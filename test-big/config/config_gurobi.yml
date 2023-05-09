@@ -1,6 +1,7 @@
 optimizer:
   type: "Gurobi"
   LogFile: "Gurobi.log"
+  Threads: 8
 base_out_path: "../out/gurobi"
 save_data_parsed: false
 years:

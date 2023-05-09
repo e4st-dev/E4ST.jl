@@ -13,7 +13,7 @@ using JuMP
         end
 
         @testset "Test Data" begin
-            config = read_data(config_2016, config_gurobi)
+            config = read_config(config_2016, config_gurobi)
             data = read_data(config)
 
             # Test that all generators have availability factors less than 1.
