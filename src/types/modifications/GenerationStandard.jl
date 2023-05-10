@@ -45,11 +45,12 @@ mod_rank(::Type{<:GenerationStandard}) = 2.0
 Adds column to the gen table with the credit level of the generation standard. Adds the name and type of the policy to the gs_pol_list in data. 
 """
 function modify_setup_data!(pol::GenerationStandard, config, data)
-    @info "$(pol.name) modifying setup data"
-
+    
     #get gen idxs 
     gen = get_table(data, :gen)
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
+
+    @info "Applying $(pol.name) to $(length(gen_idxs)) generators by modifying setup data"
 
     #create get table column for policy, set to zeros to start
     add_table_col!(data, :gen, pol.name, Container[ByNothing(0.0) for i in 1:nrow(gen)], CreditsPerMWhGenerated,
