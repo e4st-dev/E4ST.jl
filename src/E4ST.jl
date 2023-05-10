@@ -8,6 +8,7 @@ using Serialization
 using Logging
 using MiniLoggers
 using Pkg
+using Statistics
 import Dates: @dateformat_str, format, now
 import OrderedCollections: OrderedDict
 import CSV
@@ -55,6 +56,7 @@ include("types/modifications/Storage.jl")
 include("types/modifications/Adjust.jl")
 include("types/modifications/CoalCCSRetrofit.jl")
 include("types/modifications/CO2eCalc.jl")
+include("types/modifications/FuelPrice.jl")
 
 # Include Policies
 include("types/policies/ITC.jl")

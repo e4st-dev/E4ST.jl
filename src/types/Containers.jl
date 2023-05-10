@@ -103,6 +103,7 @@ Base.setindex!(c::ByHour, val::Float64, idxs::CartesianIndex{2}) = (c.v[idxs[2]]
 struct ByYearAndHour <: Container{Float64, 2}
     v::Vector{Vector{Float64}}
 end
+ByYearAndHour(m::AbstractMatrix) = ByYearAndHour([m[i,:] for i in axes(m,1)])
 Base.size(c::ByYearAndHour) = (length(c.v), length(first(c.v)))
 ByYearAndHour(m::Matrix) = ByYearAndHour([m[i,:] for i in axes(m,1)])
 Base.setindex!(c::ByYearAndHour, val, i1::Int, i2::Int) = (c.v[i1][i2] = val)

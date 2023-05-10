@@ -474,7 +474,7 @@ function setup_table!(config, data, ::Val{:gen})
 
     # Add necessary columns if they don't exist.
     hasproperty(gen, :af) || (gen.af = fill(ByNothing(1.0), nrow(gen)))
-    hasproperty(gen, :fuel_cost) || (gen.fuel_cost = fill(ByNothing(0.0), nrow(gen)))
+    hasproperty(gen, :fuel_price) || (gen.fuel_price = fill(ByNothing(0.0), nrow(gen)))
     return gen
 end
 export setup_table!
@@ -651,7 +651,7 @@ function summarize_table(::Val{:gen})
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power generation capacity of the generator"),
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
-        (:fuel_cost, Float64, DollarsPerMWhGenerated, false, "Fuel cost per MWh of generation"),
+        (:fuel_price, Float64, DollarsPerMMBtu, false, "Fuel cost per MMBtu of fuel used.  `heat_rate` column also necessary when supplying `fuel_price`"),
         (:heat_rate, Float64, MMBtuPerMWhGenerated, false, "Heat rate,  or MMBtu of fuel consumed per MWh electricity generated (0 for generators that don't use combustion)"),
         (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
@@ -750,7 +750,7 @@ function summarize_table(::Val{:build_gen})
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power generation capacity of the generator"),
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
-        (:fuel_cost, Float64, DollarsPerMWhGenerated, false, "Fuel cost per MWh of generation"),
+        (:fuel_price, Float64, DollarsPerMMBtu, false, "Fuel cost per MMBtu of fuel used.  `heat_rate` column also necessary when supplying `fuel_price`"),
         (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
         (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),

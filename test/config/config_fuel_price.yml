@@ -1,0 +1,4 @@
+mods:
+  fuel_price:
+    type: FuelPrice
+    file: ../data/3bus/fuel_price.csv
