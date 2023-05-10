@@ -189,10 +189,13 @@ function update_ccus_gens!(mod::CCUS, config, data)
 
 
     # Turn emis_co2 into a vector of Containers for book-keeping.
-    gen.emis_co2 = Container[Container(e) for e in gen.emis_co2]
-    for row in eachrow(gen)
-        row.emis_co2 .-= row.capt_co2
+    emis_co2 = Container[Container(e) for e in gen.emis_co2]
+    capt_co2 = gen.capt_co2
+    for idx in eachindex(emis_co2)
+        all(==(0), capt_co2[idx]) && continue
+        emis_co2[idx] = emis_co2[idx] .- capt_co2[idx]
     end
+    gen.emis_co2 = emis_co2
 
     # Add column for ccus_type
     ccus_type = fill("na", nrow(gen))
