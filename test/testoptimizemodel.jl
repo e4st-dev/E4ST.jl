@@ -115,7 +115,7 @@
         fuel_used = get_raw_result(data, :fuel_used)
 
         @test sum(fuel_sold) ≈ sum(fuel_used)
-        @test aggregate_result(total, data, :gen, :heat_rate) ≈ sum(fuel_sold)
+        @test aggregate_result(total, data, :gen, :heat_rate, :genfuel=>["ng", "coal"]) ≈ sum(fuel_sold)
 
         # Test NG specifically
         @test aggregate_result(total, data, :gen, :heat_rate, (:genfuel=>"ng")) > 1e3 # If this is failing, probably need to redesign test or make fuel cheaper.
@@ -127,9 +127,7 @@
             ng_idxs = get_table_row_idxs(data, :gen, (:genfuel=>"ng", :country=>"archenland"))
             for ng_idx in ng_idxs
                 for hr_idx in 1:nhr
-                    hr = gen.heat_rate[ng_idx][yr_idx, hr_idx]
-                    fuel_cost = gen.fuel_cost[ng_idx][yr_idx, hr_idx]
-                    fuel_price = fuel_cost / hr
+                    fuel_price = gen.fuel_price[ng_idx][yr_idx, hr_idx]
                     @test fuel_price ≈ ng_price
                     tol = 1e-6
                     if ng_used <= 50000 - tol

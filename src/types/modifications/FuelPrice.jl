@@ -47,20 +47,20 @@ end
 """
     modify_setup_data!(mod::FuelPrice, config, data)
 
-Zero out the `fuel_cost` column of the `gen` table, as it will get overwritten later by this Modification.  This is to avoid double-counting the fuel cost.
+Zero out the `fuel_price` column of the `gen` table, as it will get overwritten later by this Modification.  This is to avoid double-counting the fuel cost.
 """ 
 function modify_setup_data!(mod::FuelPrice, config, data)
-    # Set the fuel_cost table to all zero.
+    # Set the fuel_price table to all zero.
     gen = get_table(data, :gen)
-    if hasproperty(gen, :fuel_cost)
-        gen.fuel_cost = Container[Container(fc) for fc in gen.fuel_cost]
+    if hasproperty(gen, :fuel_price)
+        gen.fuel_price = Container[Container(fc) for fc in gen.fuel_price]
         v = fill(0.0, get_num_years(data))
         for gen_idx in axes(gen,1)
-            gen.fuel_cost[gen_idx] = set_yearly(gen.fuel_cost[gen_idx], v)
+            gen.fuel_price[gen_idx] = set_yearly(gen.fuel_price[gen_idx], v)
         end
     else
         bn = ByNothing(0.0)
-        gen.fuel_cost = Container[bn for _ in axes(gen,1)]
+        gen.fuel_price = Container[bn for _ in axes(gen,1)]
     end
 end
 
@@ -70,7 +70,7 @@ end
 * Make `data[:fuel_markets]` to keep track of each of the fuel markets
 * Add variable `fuel_sold[fuel_price_idx,  yr_idx, hr_idx]`: total fuel sold at each price step for each time interval
 * Add expression `fuel_used[fuel_market_idx, yr_idx, hr_idx]`: total fuel used by generators for each market region for each time interval
-* Add expression `fuel_cost_obj[fuel_market_idx, yr_idx, hr_idx]`: total cost of the fuel, added to the objective.
+* Add expression `fuel_price_obj[fuel_market_idx, yr_idx, hr_idx]`: total cost of the fuel, added to the objective.
 * Add constraint `cons_fuel_sold[fuel_price_idx, yr_idx]`: constrain the total `fuel_sold` in each year to be ≤ yearly quantity
 * Add constraint `cons_fuel_bal[fuel_market_idx, yr_idx, hr_idx]`: constrain the amount of fuel sold in each market region to equal the amount of fuel used in each market region.
 """
@@ -169,7 +169,7 @@ end
 * Calculate the clearing price for each market region for each fuel type.
     * Equal to the shadow price of `cons_fuel_sold` for the cheapest fuel price step in the region plus the cheapest fuel price
     * Add it to `fuel_markets.clearing_price` column
-    * Update `gen.fuel_cost` column to use the clearing price (multiplied by the `heat_rate` column)
+    * Update `gen.fuel_price` column to use the clearing price (multiplied by the `heat_rate` column)
 """
 function modify_results!(mod::FuelPrice, config, data)
     cons_fuel_sold = get_raw_result(data, :cons_fuel_sold)
@@ -180,7 +180,7 @@ function modify_results!(mod::FuelPrice, config, data)
     nhr = get_num_hours(data)
     gen = get_table(data, :gen)
     for row in eachrow(gen)
-        @assert all(==(0), row.fuel_cost) "Found non-zero fuel_cost in gen table with FuelPrice Modification.  That could mean double-counting of fuel cost in the objective function!"
+        @assert all(==(0), row.fuel_price) "Found non-zero fuel_price in gen table with FuelPrice Modification.  That could mean double-counting of fuel cost in the objective function!"
     end
 
     cp = Container[ByNothing(0.0) for _ in axes(fuel_markets, 1)]
@@ -204,7 +204,7 @@ function modify_results!(mod::FuelPrice, config, data)
         
         row.clearing_price = fuel_price.price[fp_idxs] .- shad_price
         for gen_idx in row.gen_idxs
-            gen.fuel_cost[gen_idx] = gen.heat_rate[gen_idx] .* row.clearing_price
+            gen.fuel_price[gen_idx] = row.clearing_price
         end
     end
 end

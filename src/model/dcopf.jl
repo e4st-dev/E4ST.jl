@@ -137,8 +137,8 @@ function setup_dcopf!(config, data, model)
     add_obj_term!(data, model, PerMWhGen(), :vom, oper = +)
 
     # Only add fuel cost if included and non-zero.
-    if hasproperty(gen, :fuel_cost) && any(gen.fuel_cost[yr_idx, hr_idx] != 0 for yr_idx in 1:nyear, hr_idx in 1:nhour)
-        add_obj_term!(data, model, PerMWhGen(), :fuel_cost, oper = +)
+    if hasproperty(gen, :fuel_price) && any(gen.fuel_price[yr_idx, hr_idx] != 0 for yr_idx in 1:nyear, hr_idx in 1:nhour)
+        add_obj_term!(data, model, PerMMBtu(), :fuel_price, oper = +)
     end
 
     add_obj_term!(data, model, PerMWCap(), :fom, oper = +)
@@ -301,14 +301,37 @@ function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper)
     
     #write expression for the term
     gen = get_table(data, :gen)
-    years = get_years(data)
+    egen_gen = model[:egen_gen]
+    col = gen[!,s]
+    nhr = get_num_hours(data)
+    nyr = get_num_years(data)
+    model[s] = @expression(model, 
+        [gen_idx in axes(gen,1), yr_idx in 1:nyr],
+        sum(col[gen_idx][yr_idx,hr_idx] * egen_gen[gen_idx, yr_idx, hr_idx] for hr_idx in 1:nhr)
+    )
 
-    model[s] = @expression(model, [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
-        get_table_num(data, :gen, s, gen_idx, year_idx, :) .* get_egen_gen(data, model, gen_idx, year_idx))
+    # add or subtract the expression from the objective function
+    add_obj_exp!(data, model, PerMWhGen(), s; oper = oper)  
+end
+
+function add_obj_term!(data, model, ::PerMMBtu, s::Symbol; oper) 
+    #Check if s has already been added to obj
+    Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
+    
+    #write expression for the term
+    gen = get_table(data, :gen)
+    egen_gen = model[:egen_gen]
+    col = gen[!,s]
+    hr = gen[!,:heat_rate]
+    nhr = get_num_hours(data)
+    nyr = get_num_years(data)
+    model[s] = @expression(model, 
+        [gen_idx in axes(gen,1), yr_idx in 1:nyr],
+        sum(col[gen_idx][yr_idx,hr_idx] * hr[gen_idx][yr_idx, hr_idx] * egen_gen[gen_idx, yr_idx, hr_idx] for hr_idx in 1:nhr)
+    )
 
     # add or subtract the expression from the objective function
     add_obj_exp!(data, model, PerMWhGen(), s; oper = oper) 
-    
 end
 
 
