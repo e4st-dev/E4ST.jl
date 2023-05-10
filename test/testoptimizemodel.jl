@@ -93,4 +93,27 @@
         @test egen ≈ (config[:line_loss_rate] * eflow_in) + elserv
     end
 
+    @testset "Test InterfaceLimit" begin
+        # Test that without InterfaceLimit, branch flow is sometimes less than 0.2
+        @test aggregate_result(minimum, data, :branch, :pflow, (:f_bus_idx=>1, :t_bus_idx=>2)) < 0.2 - 1e-9
+        
+        # Now run with interface limits and test that it is always >= 0.2
+        config_file_if = joinpath(@__DIR__, "config", "config_3bus_if.yml")
+        config = read_config(config_file, config_file_if)
+        data = read_data(config)
+        model = setup_model(config, data)
+        optimize!(model)
+        @test check(model)
+        parse_results!(config, data, model)
+
+        # Test that pflow limits were observed
+        @test aggregate_result(minimum, data, :branch, :pflow, (:f_bus_idx=>1, :t_bus_idx=>2)) >= 0.2 - 1e-9
+
+        # Test that there was no curtailment
+        @test aggregate_result(total, data, :bus, :elcurt) < 1e-6
+
+        # Test that eflow_yearly limits were observed.
+        @test aggregate_result(total, data, :branch, :eflow, (:f_bus_idx=>1, :t_bus_idx=>2)) >= 2000
+    end
+
 end

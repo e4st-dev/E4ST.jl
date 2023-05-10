@@ -206,8 +206,12 @@ function read_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
     # Add other columns to the summary, with NA unit and empty descriptions
     for name in propertynames(table)
         name in st.column_name && continue
-        add_table_col!(data, table_name, name, table[!, name], NA, "")
+        name_str = string(name)
+        match(r"h\d+", name_str) !== nothing && continue
+        match(r"y\d+", name_str) !== nothing && continue
+        add_table_col!(data, table_name, name, table[!, name], NA, "", warn_overwrite=false)
     end
+
     return
 end
 
@@ -240,16 +244,7 @@ function read_table(data, table_file, table_name)
             end
         end
     end
-    data[table_name] = table
 
-    # Add other columns to the summary, with NA unit and empty descriptions
-    for name in propertynames(table)
-        name in st.column_name && continue
-        name_str = string(name)
-        match(r"h\d+", name_str) !== nothing && continue
-        match(r"y\d+", name_str) !== nothing && continue
-        add_table_col!(data, table_name, name, table[!, name], NA, "", warn_overwrite=false)
-    end
     return table
 end
 export read_table
@@ -508,11 +503,21 @@ export setup_table!
     setup_table!(config, data, ::Val{:branch})
 
 Sets up the branch table.
+* Flips `f_bus_idx` and `t_bus_idx` so that `f_bus_idx` < `t_bus_idx`
 * Makes bus[:connected_branch_idxs] which contains a vector of the signed index of each branch leaving that bus. (`+` for `f_bus_idx`, `-` for `to_bus_idx`). 
 """
 function setup_table!(config, data, ::Val{:branch})
     branch = get_table(data, :branch)
     hasproperty(branch, :status) && filter!(:status => ==(true), branch)
+
+    # Switch f_bus_idx and t_bus_idx if they are out of order
+    for row in eachrow(branch)
+        f_bus_idx = row.f_bus_idx::Int
+        t_bus_idx = row.t_bus_idx::Int
+        f_bus_idx < t_bus_idx && continue
+        row.t_bus_idx = f_bus_idx
+        row.f_bus_idx = t_bus_idx
+    end
 
     # Handle duplicate lines
     if ~allunique((row.f_bus_idx,row.t_bus_idx) for row in eachrow(branch))
