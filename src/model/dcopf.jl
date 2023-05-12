@@ -91,8 +91,12 @@ function setup_dcopf!(config, data, model)
         @constraint(model, cons_pgen_min[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour],
             pgen_gen[gen_idx, year_idx, hour_idx] >= get_pgen_min(data, model, gen_idx, year_idx, hour_idx))
     end
-    @constraint(model, cons_pgen_max[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour],
-            pgen_gen[gen_idx, year_idx, hour_idx] <= get_pgen_max(data, model, gen_idx, year_idx, hour_idx)) 
+
+    @constraint(model, 
+        cons_pgen_max[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour],
+        1000*pgen_gen[gen_idx, year_idx, hour_idx] <= # Scale by 1000 in this constraint to improve matrix coefficient range.  Some af values are very small.
+        1000*get_pgen_max(data, model, gen_idx, year_idx, hour_idx)
+    )
 
     # Constrain Reference Bus
     for ref_bus_idx in get_ref_bus_idxs(data), year_idx in 1:nyear, hour_idx in 1:nhour

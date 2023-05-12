@@ -474,7 +474,7 @@ function setup_table!(config, data, ::Val{:gen})
 
     # Add necessary columns if they don't exist.
     hasproperty(gen, :af) || (gen.af = fill(ByNothing(1.0), nrow(gen)))
-    hasproperty(gen, :fuel_price) || (gen.fuel_price = fill(ByNothing(0.0), nrow(gen)))
+    hasproperty(gen, :fuel_price) || (gen.fuel_price = fill(0.0, nrow(gen)))
     return gen
 end
 export setup_table!

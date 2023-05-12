@@ -9,15 +9,18 @@ using Logging
 using MiniLoggers
 using Pkg
 using Statistics
+using E4STUtil
+
+# Package Imports
+import Dates
+import CSV
+import YAML
+
+# Specific Imports
+import CSV: String15
+import JuMP.MOI.AbstractOptimizer
 import Dates: @dateformat_str, format, now
 import OrderedCollections: OrderedDict
-import CSV
-import CSV: String15
-import YAML
-import JuMP.MOI.AbstractOptimizer
-
-# E4ST Packages
-using E4STUtil
 
 export save_config, read_config
 export read_data
@@ -130,9 +133,7 @@ function run_e4st(config::OrderedDict)
     while true
         model = setup_model(config, data)
     
-        log_header("OPTIMIZING MODEL!")
-        optimize!(model)
-        log_header("MODEL OPTIMIZED!")
+        run_optimize!(config, data, model)
 
         check(model) || return model # all_results
 

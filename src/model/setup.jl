@@ -266,9 +266,12 @@ _get_value(s::MOI.EqualTo) = s.value
 function getoptimizer(config)
     opt_type_str = config[:optimizer][:type]
     opt_type = getoptimizertype(opt_type_str)
+    p = optimizer_attributes_pairs(config)
+    @info string("Using $opt_type_str Optimizer with attributes:\n", ("  $attribute: $value\n" for (attribute, value) in p)...)
+    # @info s
     return optimizer_with_attributes(
         opt_type,
-        optimizer_attributes_pairs(config)...
+        p...
     )
 end
 function optimizer_attributes_pairs(config, args...; kwargs...)
@@ -325,9 +328,9 @@ function optimizer_attributes(config, ::Val{:Gurobi}; LogFile=nothing, kwargs...
     (;
         LogFile         = log_file_full,
         LogToConsole    = false,
-        NumericFocus    = 3,
-        BarHomogeneous  = 1,
-        method          = 2,
+        # NumericFocus    = 3,
+        # BarHomogeneous  = 1,
+        Method          = 2,
         # BarIterLimit    = 1000,   # 
         Crossover       = 0,      # 0 disables crossover
         # FeasibilityTol  = 1e-2,
@@ -337,4 +340,15 @@ function optimizer_attributes(config, ::Val{:Gurobi}; LogFile=nothing, kwargs...
         # DualReductions  = 0,  # This is only to see if infeasible or unbounded.
         kwargs...
     )
+end
+
+function run_optimize!(config, data, model)
+    log_header("OPTIMIZING MODEL!")
+
+    t_start = now()
+    optimize!(model)
+    t_finish = now()
+
+    t_elapsed = Dates.canonicalize(Dates.CompoundPeriod(t_finish - t_start))
+    log_header("MODEL OPTIMIZED in $t_elapsed")
 end

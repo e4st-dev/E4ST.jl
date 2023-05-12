@@ -489,7 +489,7 @@ function sort_mods_by_rank!(config)
 end
 
 function convert_iter!(config)
-    config[:iter] isa RunOnce && return
+    config[:iter] isa Iterable && return
     config[:iter] = Iterable(config[:iter])
     return
 end
