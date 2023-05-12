@@ -93,6 +93,65 @@
         @test egen ≈ (config[:line_loss_rate] * eflow_in) + elserv
     end
 
+    @testset "Test FuelPrice Modification" begin
+        config_fuel_price_file = joinpath(@__DIR__, "config/config_fuel_price.yml")
+        config = read_config(config_file, config_fuel_price_file)
+
+        data = read_data(config)
+        model = setup_model(config, data)
+        gen = get_table(data, :gen)
+        nyr = get_num_years(data)
+        nhr = get_num_hours(data)
+
+        @test haskey(model, :fuel_used)
+        @test haskey(model, :fuel_sold)
+
+        optimize!(model)
+
+        parse_results!(config, data, model)
+        process_results!(config, data)
+
+        fuel_sold = get_raw_result(data, :fuel_sold)
+        fuel_used = get_raw_result(data, :fuel_used)
+
+        @test sum(fuel_sold) ≈ sum(fuel_used)
+        @test aggregate_result(total, data, :gen, :heat_rate, :genfuel=>["ng", "coal"]) ≈ sum(fuel_sold)
+
+        # Test NG specifically
+        @test aggregate_result(total, data, :gen, :heat_rate, (:genfuel=>"ng")) > 1e3 # If this is failing, probably need to redesign test or make fuel cheaper.
+
+        for yr_idx in 1:nyr
+            ng_used = aggregate_result(total, data, :gen, :heat_rate, (:genfuel=>"ng", :country=>"archenland"), yr_idx)
+            ng_used == 0 && continue
+            ng_price = aggregate_result(average, data, :fuel_markets, :clearing_price, (:genfuel=>"ng", :subarea=>"archenland"), yr_idx)
+            ng_idxs = get_table_row_idxs(data, :gen, (:genfuel=>"ng", :country=>"archenland"))
+            for ng_idx in ng_idxs
+                for hr_idx in 1:nhr
+                    fuel_price = gen.fuel_price[ng_idx][yr_idx, hr_idx]
+                    @test fuel_price ≈ ng_price
+                    tol = 1e-6
+                    if ng_used <= 50000 - tol
+                        @test fuel_price ≈ 0.1
+                    elseif abs(ng_used - 50000) < tol
+                        @test 0.1 <= fuel_price <= 0.2
+                    elseif 50000 < ng_used < 100000 - tol
+                        @test fuel_price ≈ 0.2
+                    elseif abs(ng_used - 100000) < tol
+                        @test 0.2 <= fuel_price <= 0.3
+                    elseif 100000 < ng_used <= 150000 - tol
+                        @test fuel_price ≈ 0.3
+                    elseif abs(ng_used - 150000) < tol
+                        @test 0.3 <= fuel_price <= 0.4
+                    else
+                        @test fuel_price ≈ 0.4
+                    end
+                end
+            end
+        end
+
+    end
+
+        
     @testset "Test InterfaceLimit" begin
         # Test that without InterfaceLimit, branch flow is sometimes less than 0.2
         @test aggregate_result(minimum, data, :branch, :pflow, (:f_bus_idx=>1, :t_bus_idx=>2)) < 0.2 - 1e-9
