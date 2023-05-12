@@ -3,7 +3,7 @@ using Documenter, E4ST
 makedocs(
     modules = [E4ST],
     doctest = false,
-    sitename = "E4ST.jl",
+    sitename = "E4ST.jl⚡",
     pages = [
         "Home" => "index.md",
         "Overview" => "overview.md",
@@ -42,6 +42,7 @@ makedocs(
             "DC Transmission Lines" => "types/modifications/dcline.md",
             "Storage" => "types/modifications/storage.md",
             "Retrofits" => "types/modifications/retrofits.md",
+            "Interface Limits" => "types/modifications/interface-limits.md",
         ],
         
     ],

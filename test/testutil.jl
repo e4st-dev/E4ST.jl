@@ -37,14 +37,15 @@ end
         @test parse_comparison("emis_rate => >=y2020") == ("emis_rate" => >=("y2020"))
         @test parse_comparison("emis_rate => <=y2020") == ("emis_rate" => <=("y2020"))
 
-        @test parse_comparison("genfuel=>[ng,solar,wind]") == ("genfuel" => ["ng", "solar", "wind"])
-        @test parse_comparison("bus_idx=>[1,2,3]") == ("bus_idx" => [1,2,3])
-        @test parse_comparison("emis_rate=>[1.5,2.5,3.5]") == ("emis_rate" => [1.5,2.5,3.5])
+        @test parse_comparison("genfuel => [ng ,solar, wind ]") == ("genfuel" => ["ng", "solar", "wind"])
+        @test parse_comparison("region => [northern marsh]") == ("region" => ["northern marsh"])
+        @test parse_comparison("bus_idx => [1, 2 ,3 ]") == ("bus_idx" => [1,2,3])
+        @test parse_comparison("emis_rate => [1.5, 2.5 ,3.5 ] ") == ("emis_rate" => [1.5,2.5,3.5])
 
-        @test parse_comparison("emis_rate => (-Inf, 1)") == ("emis_rate" => (-Inf, 1))
+        @test parse_comparison("emis_rate => (- Inf, 1)") == ("emis_rate" => (-Inf, 1))
         @test parse_comparison("emis_rate => (-1, 1)") == ("emis_rate" => (-1, 1))
         @test parse_comparison("year_on => (y2020, y2030)") == ("year_on" => ("y2020", "y2030"))
-        @test parse_comparison("country=>narnia") == ("country"=>"narnia")
+        @test parse_comparison("region => northern marsh") == ("region"=>"northern marsh")
 
         d = Dict(:emis_co2 => "<= 0.1")
         @test ("emis_co2" => <=(0.1)) in parse_comparisons(d)
