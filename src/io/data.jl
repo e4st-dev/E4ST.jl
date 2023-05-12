@@ -206,8 +206,12 @@ function read_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
     # Add other columns to the summary, with NA unit and empty descriptions
     for name in propertynames(table)
         name in st.column_name && continue
-        add_table_col!(data, table_name, name, table[!, name], NA, "")
+        name_str = string(name)
+        match(r"h\d+", name_str) !== nothing && continue
+        match(r"y\d+", name_str) !== nothing && continue
+        add_table_col!(data, table_name, name, table[!, name], NA, "", warn_overwrite=false)
     end
+
     return
 end
 
@@ -240,16 +244,7 @@ function read_table(data, table_file, table_name)
             end
         end
     end
-    data[table_name] = table
 
-    # Add other columns to the summary, with NA unit and empty descriptions
-    for name in propertynames(table)
-        name in st.column_name && continue
-        name_str = string(name)
-        match(r"h\d+", name_str) !== nothing && continue
-        match(r"y\d+", name_str) !== nothing && continue
-        add_table_col!(data, table_name, name, table[!, name], NA, "", warn_overwrite=false)
-    end
     return table
 end
 export read_table
@@ -471,7 +466,7 @@ function setup_table!(config, data, ::Val{:gen})
 
     # Add necessary columns if they don't exist.
     hasproperty(gen, :af) || (gen.af = fill(ByNothing(1.0), nrow(gen)))
-    hasproperty(gen, :fuel_cost) || (gen.fuel_cost = fill(ByNothing(0.0), nrow(gen)))
+    hasproperty(gen, :fuel_price) || (gen.fuel_price = fill(ByNothing(0.0), nrow(gen)))
     return gen
 end
 export setup_table!
@@ -508,11 +503,21 @@ export setup_table!
     setup_table!(config, data, ::Val{:branch})
 
 Sets up the branch table.
+* Flips `f_bus_idx` and `t_bus_idx` so that `f_bus_idx` < `t_bus_idx`
 * Makes bus[:connected_branch_idxs] which contains a vector of the signed index of each branch leaving that bus. (`+` for `f_bus_idx`, `-` for `to_bus_idx`). 
 """
 function setup_table!(config, data, ::Val{:branch})
     branch = get_table(data, :branch)
     hasproperty(branch, :status) && filter!(:status => ==(true), branch)
+
+    # Switch f_bus_idx and t_bus_idx if they are out of order
+    for row in eachrow(branch)
+        f_bus_idx = row.f_bus_idx::Int
+        t_bus_idx = row.t_bus_idx::Int
+        f_bus_idx < t_bus_idx && continue
+        row.t_bus_idx = f_bus_idx
+        row.f_bus_idx = t_bus_idx
+    end
 
     # Handle duplicate lines
     if ~allunique((row.f_bus_idx,row.t_bus_idx) for row in eachrow(branch))
@@ -648,7 +653,7 @@ function summarize_table(::Val{:gen})
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power generation capacity of the generator"),
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
-        (:fuel_cost, Float64, DollarsPerMWhGenerated, false, "Fuel cost per MWh of generation"),
+        (:fuel_price, Float64, DollarsPerMMBtu, false, "Fuel cost per MMBtu of fuel used.  `heat_rate` column also necessary when supplying `fuel_price`"),
         (:heat_rate, Float64, MMBtuPerMWhGenerated, false, "Heat rate,  or MMBtu of fuel consumed per MWh electricity generated (0 for generators that don't use combustion)"),
         (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
@@ -747,7 +752,7 @@ function summarize_table(::Val{:build_gen})
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power generation capacity of the generator"),
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
-        (:fuel_cost, Float64, DollarsPerMWhGenerated, false, "Fuel cost per MWh of generation"),
+        (:fuel_price, Float64, DollarsPerMMBtu, false, "Fuel cost per MMBtu of fuel used.  `heat_rate` column also necessary when supplying `fuel_price`"),
         (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
         (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),

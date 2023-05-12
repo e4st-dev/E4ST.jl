@@ -8,6 +8,7 @@ using Serialization
 using Logging
 using MiniLoggers
 using Pkg
+using Statistics
 import Dates: @dateformat_str, format, now
 import OrderedCollections: OrderedDict
 import CSV
@@ -55,6 +56,9 @@ include("types/modifications/Storage.jl")
 include("types/modifications/Adjust.jl")
 include("types/modifications/CoalCCSRetrofit.jl")
 include("types/modifications/CO2eCalc.jl")
+include("types/modifications/FuelPrice.jl")
+include("types/modifications/InterfaceLimit.jl")
+
 
 # Include Policies
 include("types/policies/ITC.jl")
@@ -256,7 +260,7 @@ function get_type(sym::Symbol)
     return get(SYM2TYPE, sym) do 
         reload_types!()
         get(SYM2TYPE, sym) do
-            error("There has been no type $sym defined!")
+            get_type(string(sym))
         end
     end
 end
@@ -266,7 +270,9 @@ function get_type(str::AbstractString)
     return get(STR2TYPE, str) do 
         reload_types!()
         get(STR2TYPE, str) do
-            error("There has been no type $str defined!")
+            get(STR2TYPE, last(split(str, '.'))) do
+                error("There has been no type $str defined!")
+            end
         end
     end
 end

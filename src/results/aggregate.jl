@@ -113,6 +113,9 @@ end
 function total(::Type{DollarsPerShortTonCO2Captured}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_sum(table[!, column_name], table[!, :capt_co2], table[!, :egen], idxs, yr_idxs, hr_idxs)
 end
+function total(::Type{MMBtuPerMWhGenerated}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+    return weighted_sum(table[!, column_name], table[!, :egen], idxs, yr_idxs, hr_idxs)
+end
 function total(::Type{MWhServed}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return total_sum(table[!, column_name], idxs, yr_idxs, hr_idxs)
 end
@@ -164,6 +167,9 @@ end
 export average
 function average(::Type{DollarsPerMWhServed}, data, table, column_name, idxs, yr_idxs, hr_idxs)
     return weighted_avg(table[!, column_name], table[!, :elserv], idxs, yr_idxs, hr_idxs)
+end
+function average(::Type{DollarsPerMMBtuSold}, data, table, column_name, idxs, yr_idxs, hr_idxs)
+    return weighted_avg(table[!, column_name], table[!, :fuel_sold], idxs, yr_idxs, hr_idxs)
 end
 
 """
