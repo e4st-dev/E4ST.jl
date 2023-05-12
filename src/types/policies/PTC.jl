@@ -62,17 +62,17 @@ end
 
 """
     E4ST.modify_results!(pol::PTC, config, data) -> 
+
+Adjust the value of PTC to be the full value if it was adjusted as a first year PTC (PTC averaged over lifetime of the gen)
 """
 function E4ST.modify_results!(pol::PTC, config, data)
-    # Retrieve the table
-    results = get_results(data)
 
-    # create new columns with policy name and suffix
-
-    # adjust value of PTC by the first_year_adj
-
-
-
-
+    # adjust value of PTC by the first_year_adj to get it back to actual value for welfare transfers
+    if pol.first_year_adj != 1
+        gen = get_table(data, :gen)
+        for g in eachrow(gen)
+            g[pol.name] = g[pol.name] ./ pol.first_year_adj
+        end
+    end
     
 end
