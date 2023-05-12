@@ -149,6 +149,8 @@
             end
         end
 
+    end
+
         
     @testset "Test InterfaceLimit" begin
         # Test that without InterfaceLimit, branch flow is sometimes less than 0.2
