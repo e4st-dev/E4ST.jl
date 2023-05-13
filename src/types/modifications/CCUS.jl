@@ -360,7 +360,7 @@ function modify_results!(mod::CCUS, config, data)
     add_table_col!(data, :ccus_paths, :stored_co2, [view(co2_trans, i, :) for i in 1:nrow(ccus_paths)], ShortTons, "CO₂ stored via this storage path, in short tons.")
     ccus_paths.price_total_clearing = fill(zeros(nyear), nrow(ccus_paths))
 
-    all(<=(0), cons_co2_stor) || @error "Shadow prices on CO2 stored should be <= 0! Max value found was $(maximum(cons_co2_stor))"
+    all(<=(0), cons_co2_stor) || @warn "Shadow prices on CO2 stored should be <= 0! Max value found was $(maximum(cons_co2_stor))"
 
     # Compute clearing prices for each sending region
     ccus_producers.co2_sent = [view(co2_sent, i, :) for i in 1:nrow(ccus_producers)]
@@ -440,6 +440,6 @@ function modify_results!(mod::CCUS, config, data)
     add_table_col!(data, :ccus_paths, :storer_profit, storer_profit, Dollars, "Total profit earned by storing carbon via this pathway, equal to the revenue minus the cost.")
 
     # Throw error message if there are profits ≥ 0.
-    all(v->all(>=(0), v), ccus_paths.storer_profit) || @error "All CCUS profits should be ≥ 0, but found $(minimum(minimum, ccus_paths.storer_profit))"    
+    all(v->all(>=(0), v), ccus_paths.storer_profit) || @warn "All CCUS profits should be ≥ 0, but found $(minimum(minimum, ccus_paths.storer_profit))"    
 end
 export modify_results!

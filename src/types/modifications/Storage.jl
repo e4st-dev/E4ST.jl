@@ -10,8 +10,7 @@ Storage is represented over sets of time-weighted sequential representative hour
 
 # Arguments
 * `name` - the name of the [`Modification`](@ref).
-* `file` - the filename of the storage table, where each row represents a storage device
-.  See also [`summarize_table(::Val{:storage})`](@ref)
+* `file` - the filename of the storage table, where each row represents a storage device. See also [`summarize_table(::Val{:storage})`](@ref)
 * `build_file` - the filename of the buildable storage table, where each row represents a specification for buildable storage.  See also [`summarize_table(::Val{:build_storage})`](@ref)
 
 # Variables Introduced
