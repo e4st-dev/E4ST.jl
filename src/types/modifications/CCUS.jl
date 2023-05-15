@@ -1,12 +1,13 @@
 """
     struct CCUS <: Modification
 
-    CCUS(;file, groupby, co2_scalar=1e6)
+    CCUS(;file, groupby, co2_scalar=1e5, co2_step_quantity_limit=1e9)
 
 This is a [`Modification`](@ref) that sets up markets for carbon captured by generators.  
 * `file` - a file to the table containing markets/prices for buying/selling carbon dioxide.  See the `ccus_paths` table below, or [`summarize_table(::Val{:ccus_paths})`](@ref)
 * `groupby` - a `String` indicating how markets are grouped.  I.e. "state".
-* `co2_scalar` - a `Float64` for how much to scale the co2 variables by.  This helps with numerical instability, given that some CO₂ steps can be very large and could bloat the RHS and bounds range of the model.
+* `co2_scalar` - a `Float64` for how much to scale the co2 variables by.  This helps with numerical instability, given that some CO₂ steps can be very large and could bloat the RHS and bounds range of the model.  A good rule of thumb is that this should be no less than `1e4` times smaller than `co2_step_quantity_limit`.
+* `co2_step_quantity_limit` - A `Float64` for the maximum quantity of CO₂ that can be stored in any step.
 
 Creates the following tables in `data`:
 * `ccus_paths` - contains all pathways possible to sell CO₂.  
@@ -59,10 +60,11 @@ See also:
 struct CCUS <: Modification
     file::String # This would point to the file containing the CCUS market
     groupby::String
-    co2_scalar
+    co2_scalar::Float64
+    co2_step_quantity_limit::Float64
 end
-function CCUS(;file, groupby, co2_scalar=1e6)
-    CCUS(file, groupby, co2_scalar)
+function CCUS(;file, groupby, co2_scalar=1e5, co2_step_quantity_limit = 1e9)
+    CCUS(file, groupby, co2_scalar, co2_step_quantity_limit)
 end
 export CCUS
 
@@ -124,6 +126,7 @@ function modify_setup_data!(mod::CCUS, config, data)
 
     ### Modify ccus
     ccus_paths = get_table(data, :ccus_paths)
+    ccus_paths.step_quantity .= min.(mod.co2_step_quantity_limit, ccus_paths.step_quantity)
     gen = get_table(data, :gen)
     add_table_col!(data, :ccus_paths, :path_idx, 1:nrow(ccus_paths), NA, "The index of this path")
     add_table_col!(data, :ccus_paths, :price_total, (ccus_paths.price_trans .+ ccus_paths.price_store), DollarsPerShortTonCO2Captured, "The cost of transporting and storing a short ton of CO₂ in this storage pathway")
