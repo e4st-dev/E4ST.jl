@@ -95,6 +95,7 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | :gen | :pcap | MWCapacity | Power capacity of this generator generated at this generator for the weighted representative hour |
 | :gen | :cf | MWhGeneratedPerMWhCapacity | Capacity Factor, or average power generation/power generation capacity, 0 when no generation |
 | :branch | :pflow | MWFlow | Average Power flowing through branch |
+| :branch | :eflow | MWFlow | Total energy flowing through branch for the representative hour |
 """
 function parse_power_results!(config, data)
     res_raw = get_raw_results(data)
@@ -151,7 +152,7 @@ function parse_power_results!(config, data)
 
     # Add things to the branch table
     add_table_col!(data, :branch, :pflow, pflow_branch, MWFlow,"Average Power flowing through branch")    
-    add_table_col!(data, :branch, :pflow, eflow_branch, MWhFlow,"Electricity flowing through branch")    
+    add_table_col!(data, :branch, :eflow, eflow_branch, MWhFlow,"Electricity flowing through branch")    
 
     return
 end
