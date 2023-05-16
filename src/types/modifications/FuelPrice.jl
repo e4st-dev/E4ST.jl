@@ -211,9 +211,4 @@ end
 
 struct FuelCostTerm <: Term end
 
-function sum0(f, itr)
-    isempty(itr) && return 0.0
-    return sum(f, itr)
-end
-
 _get_row_idxs(sdf) = Ref(getfield(sdf, :rows))
