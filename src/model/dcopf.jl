@@ -227,7 +227,7 @@ export get_pflow_branch
 ### Contraint/Expression Info Functions
 
 """
-    get_pgen_min(data, model, gen_idx, year_idx, hour_idx)
+    get_cf_min(data, model, gen_idx, year_idx, hour_idx)
 
 Returns min power generation for a generator at a time. 
 Default is 0 unless specified by the optional gen property `cf_min` (minimum capacity factor).
@@ -243,7 +243,7 @@ function get_cf_min(data, model, gen_idx, year_idx, hour_idx)
         return 0.0
     end
 end
-export get_pgen_min
+export get_cf_min
 
 """
     get_cf_max(data, gen_idx, year_idx, hour_idx)
