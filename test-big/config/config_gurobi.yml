@@ -1,8 +1,0 @@
-optimizer:
-  type: "Gurobi"
-  LogFile: "Gurobi.log"
-  Threads: 8
-base_out_path: "../out/gurobi"
-years:
-  - "y2030"
-line_loss_type: plserv
