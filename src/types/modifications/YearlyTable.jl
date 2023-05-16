@@ -34,6 +34,7 @@ mod_rank(::Type{<:YearlyTable}) = 0.0
 
 """
 function modify_results!(mod::YearlyTable, config, data)
+    @info "Starting result processing for YearlyTable $(mod.name)"
 
     # Retrieve the table and group it
     results = get_results(data)
@@ -79,6 +80,8 @@ function modify_results!(mod::YearlyTable, config, data)
         
         add_result!(data, Symbol(out_name), df)
         CSV.write(out_file, df)
+
+        @info "Done with result processing for YearlyTable $(mod.name)"
     end
 end
 export modify_results!

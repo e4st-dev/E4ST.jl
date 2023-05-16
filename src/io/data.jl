@@ -458,6 +458,7 @@ function setup_table!(config, data, ::Val{:gen})
     ### Map bus characteristics to generators
     names_before = propertynames(gen)
     leftjoin!(gen, bus, on=:bus_idx)
+    select!(gen, Not(:plnom))
     disallowmissing!(gen)
     names_after = propertynames(gen)
 
@@ -891,7 +892,7 @@ function get_table_col_unit(data, table_name::Symbol, column_name::Symbol)
         elseif contains(cn, r"y\d*")
             haskey(ul, (table_name, :y_)) && return ul[(table_name, :y_)]
         end
-        error("No unit found for table column $table_name[:$column_name].\nConsider defining the column in the summary_table.")
+        return NA
     end::Type{<:Unit}
     return unit
 end
@@ -912,7 +913,7 @@ function get_table_col_description(data, table_name::Symbol, column_name::Symbol
         elseif contains(cn, r"y\d*")
             haskey(ul, (table_name, :y_)) && return ul[(table_name, :y_)]
         end
-        error("No description found for table column $table_name[:$column_name].\nConsider defining the column in the summary_table.")
+        return ""
     end::String
     return desc
 end

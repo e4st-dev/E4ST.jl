@@ -116,6 +116,7 @@ Top-level function for running E4ST.  Here is a general overview of what happens
     * See [`Iterable`](@ref) and [`read_config`](@ref) for more information.
 """
 function run_e4st(config::OrderedDict)
+    t_start = now()
 
     # Initial config setup
     save_config(config)
@@ -155,8 +156,17 @@ function run_e4st(config::OrderedDict)
         # Reload data as needed
         should_reread_data(iter) && read_data!(config, data)
     end
+    
+    t_finish = now()
+
+    t_elapsed = Dates.canonicalize(Dates.CompoundPeriod(t_finish - t_start))
+    
+    log_header("E4ST finished in $t_elapsed")
 
     stop_logging!(config)
+
+
+
     return get_out_path(config), all_results
 end
 
