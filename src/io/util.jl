@@ -596,4 +596,14 @@ function TableSummary()
 end
 export TableSummary
 
+"""
+    sum0(f, itr)
+
+Returns `0.0` if `itr` is empty, and `sum(f, itr)` if it is not
+"""
+function sum0(f, itr)
+    isempty(itr) && return 0.0
+    return sum(f, itr)
+end
+
 
