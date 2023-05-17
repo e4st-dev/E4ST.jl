@@ -38,6 +38,7 @@ function summarize_config()
         (:out_path, false, nothing, "the path to output to.  If this is not provided, an output path will be created [`make_out_path!`](@ref)."),
         (:other_config_files, false, nothing, "A list of other config files to read.  Note that the options in the parent file will be honored."),
         (:af_file, false, nothing, "The filepath (relative or absolute) to the availability factor table.  See [`summarize_table(::Val{:af_table})`](@ref)"),
+        (:cf_threshold, false, 1e-3, "The threshold below which the maximum capacity factor is considered to be zero.  This helps with numerical performance of the solver.  For example, a solar unit with an hourly average CF of 0.00001 will not operate, with the default `cf_threshold` of 1e-3."),
         (:iter, false, RunOnce(), "The [`Iterable`](@ref) object to specify the way the sim should iterate.  If nothing specified, defaults to run a single time via [`RunOnce`](@ref).  Specify the `Iterable` type, and all keyword arguments."),
         (:load_shape_file, false, nothing, "a file for specifying the hourly shape of load elements.  See [`summarize_table(::Val{:load_shape})`](@ref)"),
         (:load_match_file, false, nothing, "a file for specifying annual load energy to match for sets.  See [`summarize_table(::Val{:load_match})`](@ref)"),
@@ -489,7 +490,7 @@ function sort_mods_by_rank!(config)
 end
 
 function convert_iter!(config)
-    config[:iter] isa RunOnce && return
+    config[:iter] isa Iterable && return
     config[:iter] = Iterable(config[:iter])
     return
 end
