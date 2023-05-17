@@ -597,3 +597,6 @@ end
 export TableSummary
 
 
+function Base.convert(T::Type{Symbol}, x::String)
+    return Symbol(x)
+end

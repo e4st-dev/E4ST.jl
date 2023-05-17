@@ -80,7 +80,7 @@ export HydFuelITC
 
 Creates a column in the gen table with the ITC value in each simulation year for the qualifying generators.
  
-ITC values are calculated based on `fuel_cost` and `heat_rate`, resulting in a PerMWhGen value (see [`HydFuelITC`]@ref for more explanation).
+ITC values are calculated based on `fuel_price` and `heat_rate`, resulting in a PerMWhGen value (see [`HydFuelITC`]@ref for more explanation).
 """
 function E4ST.modify_setup_data!(pol::HydFuelITC, config, data)
     gen = get_table(data, :gen)
@@ -102,7 +102,7 @@ function E4ST.modify_setup_data!(pol::HydFuelITC, config, data)
         g = gen[gen_idx, :]
 
         # credit yearly * capex_obj for that year, capex_obj is only non zero in year_on so ITC should only be non zero in year_on
-        vals_tmp = [credit_yearly[i]*g.fuel_cost[i,:]*g.heat_rate  for i in 1:length(years)] 
+        vals_tmp = [credit_yearly[i]*g.fuel_price[i,:]*g.heat_rate  for i in 1:length(years)] 
 
         gen[gen_idx, pol.name] = ByYear(vals_tmp)
     end  
