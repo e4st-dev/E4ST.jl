@@ -91,7 +91,8 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | :bus | :elnom  | MWhLoad | Electricity load at this bus for the weighted representative hour |
 | :gen | :pgen | MWGenerated | Average power generated at this generator |
 | :gen | :egen | MWhGenerated | Electricity generated at this generator for the weighted representative hour |
-| :gen | :pcap | MWCapacity | Power capacity of this generator generated at this generator for the weighted representative hour |
+| :gen | :pcap | MWCapacity | Power generation capacity of this generator generated at this generator for the weighted representative hour |
+| :gen | :ecap | MWCapacity | Total energy generation capacity of this generator generated at this generator for the weighted representative hour |
 | :gen | :cf | MWhGeneratedPerMWhCapacity | Capacity Factor, or average power generation/power generation capacity, 0 when no generation |
 | :branch | :pflow | MWFlow | Average Power flowing through branch |
 | :branch | :eflow | MWFlow | Total energy flowing through branch for the representative hour |
@@ -112,6 +113,7 @@ function parse_power_results!(config, data)
 
     # Weight things by hour as needed
     egen_bus = weight_hourly(data, pgen_bus)
+    ecap_gen = weight_hourly(data, pcap_gen)
     elserv_bus = weight_hourly(data, plserv_bus)
     elcurt_bus = weight_hourly(data, plcurt_bus)
     elnom_bus = weight_hourly(data, get_table_col(data, :bus, :plnom))
@@ -147,6 +149,7 @@ function parse_power_results!(config, data)
     add_table_col!(data, :gen, :pgen,  pgen_gen,  MWGenerated,"Average power generated at this generator")
     add_table_col!(data, :gen, :egen,  egen_gen,  MWhGenerated,"Electricity generated at this generator for the weighted representative hour")
     add_table_col!(data, :gen, :pcap,  pcap_gen,  MWCapacity,"Power capacity of this generator generated at this generator for the weighted representative hour")
+    add_table_col!(data, :gen, :ecap,  ecap_gen,  MWCapacity,"Electricity generation capacity of this generator generated at this generator for the weighted representative hour")
     add_table_col!(data, :gen, :cf,    cf,        MWhGeneratedPerMWhCapacity, "Capacity Factor, or average power generation/power generation capacity, 0 when no generation")
 
     # Add things to the branch table

@@ -46,6 +46,8 @@ function read_data!(config, data)
     setup_data!(config, data)  
     modify_setup_data!(config, data)
 
+    setup_results_formulas!(config, data)
+
     # Save the data to file as specified.
     if get(config, :save_data, true)
         serialize(get_out_path(config, "data.jls"), data)
@@ -655,7 +657,7 @@ function summarize_table(::Val{:gen})
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
         (:fuel_price, Float64, DollarsPerMMBtu, false, "Fuel cost per MMBtu of fuel used.  `heat_rate` column also necessary when supplying `fuel_price`"),
         (:heat_rate, Float64, MMBtuPerMWhGenerated, false, "Heat rate,  or MMBtu of fuel consumed per MWh electricity generated (0 for generators that don't use combustion)"),
-        (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
+        (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
         (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
         (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
@@ -753,7 +755,7 @@ function summarize_table(::Val{:build_gen})
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power generation capacity of the generator"),
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
         (:fuel_price, Float64, DollarsPerMMBtu, false, "Fuel cost per MMBtu of fuel used.  `heat_rate` column also necessary when supplying `fuel_price`"),
-        (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
+        (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
         (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
         (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),

@@ -17,7 +17,7 @@ struct ShortTonsPerYear <: Unit end; export ShortTonsPerYear
 
 struct DollarsPerMWhServed <: Unit end; export DollarsPerMWhServed
 struct Dollars <: Unit end; export Dollars        
-struct DollarsPerMWCapacity <: Unit end; export DollarsPerMWCapacity
+struct DollarsPerMWCapacityPerHour <: Unit end; export DollarsPerMWCapacityPerHour
 struct DollarsPerMWBuiltCapacity <: Unit end; export DollarsPerMWBuiltCapacity
 struct DollarsPerMWhGenerated <: Unit end; export DollarsPerMWhGenerated
 struct DollarsPerMWFlow <: Unit end; export DollarsPerMWFlow

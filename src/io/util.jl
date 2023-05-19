@@ -605,5 +605,3 @@ function sum0(f, itr)
     isempty(itr) && return 0.0
     return sum(f, itr)
 end
-
-
