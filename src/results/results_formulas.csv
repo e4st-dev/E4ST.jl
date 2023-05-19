@@ -10,13 +10,13 @@ gen,vom_cost,sum_hourly(vom*egen),Dollars,"Variable Operation and Maintenance pa
 gen,vom_per_mwh,vom_cost/egen_total,DollarsPerMWhGenerated,Generation-weighted average of variable operation and maintenance costs
 gen,fom_cost,sum_hourly(fom*ecap),Dollars,"Fixed Operation and Maintenance paid, in dollars"
 gen,fom_per_mwh,fom_cost/egen_total,DollarsPerMWhGenerated,Fixed Operation and Maintenance paid per MWh of energy generated
-gen,fom_cost,sum_hourly(capex*ecap),Dollars,"Fixed Operation and Maintenance paid, in dollars"
+gen,capex_cost,sum_hourly(capex*ecap),Dollars,"Fixed Operation and Maintenance paid, in dollars"
 gen,capex_per_mwh,capex_cost/egen_total,DollarsPerMWhGenerated,Capital expenditures paid per MWh of energy generated
 gen,cf_avg,egen_total/ecap_total,MWhGeneratedPerMWhCapacity,Average Capacity Factor
 gen,fuel_cost,sum_hourly(fuel_price*heat_rate*egen),Dollars,Total cost of fuel
 gen,fuel_price_per_mwh,fuel_cost/egen_total,DollarsPerMWhGenerated,Fuel price per MWh generated
-gen,variable_cost,fuel_cost_total+vom_cost,Dollars,"Variable costs for operation, including fuel and vom."
-gen,variable_cost_per_mwh,(fuel_cost_total+vom_cost)/egen_total,Dollars,"Variable costs for operation, per MWh of generation.  Includes fuel and vom"
+gen,variable_cost,fuel_cost+vom_cost,Dollars,"Variable costs for operation, including fuel and vom."
+gen,variable_cost_per_mwh,variable_cost/egen_total,Dollars,"Variable costs for operation, per MWh of generation.  Includes fuel and vom"
 gen,emis_co2_total,sum_hourly(emis_co2*egen),ShortTons,Total CO2 emissions
 gen,emis_nox_total,sum_hourly(emis_nox*egen),Pounds,Total NOx emissions
 gen,emis_so2_total,sum_hourly(emis_so2*egen),Pounds,Total SO2 emissions

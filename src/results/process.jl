@@ -48,32 +48,13 @@ function add_results_formula!(data, table_name::Symbol, result_name::Symbol, for
     if startswith(formula, r"[\w]+\(")
         formula_stripped = match(r"\([^\)]+\)", formula).match
         dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", formula_stripped))
-
         fn_string = match(r"([\w]+)\(",formula).captures[1]
-    
-        # # TODO: Use this logic when getting ready to compute results
-        # for col_name in dependent_columns
-        #     if ~hasproperty(table, col_name)
-        #         @error "Table $table_name has no column $col_name, needed for results formula $result_name:\n  $formula\nOmitting this results formula"
-        #         return
-        #     end
-        # end
-    
         isderived = false
         fn = eval(Meta.parse(fn_string))
     else
         dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", formula))
-
-        # # TODO: Use this logic when getting ready to compute results
-        # for col_name in dependent_columns
-        #     if ~haskey(results_formulas, (table_name, col_name))
-        #         @error "`results_formulas` has no result named $col_name, needed for results formula $result_name:\n  $formula\nOmitting this results formula"
-        #         return
-        #     end
-        # end
-
         isderived = true
-        fn_string = string("row->", replace(formula, r"(\w+)"=>s"row.\1", r"([^\.])([\+\*\/\-])"=>s"\1.\2"))
+        fn_string = string("row->", replace(replace(formula, r"(\w+)"=>s"row.\1"), r"([^\.])([\+\*\/\-])"=>s"\1 .\2"))
         fn = eval(Meta.parse(fn_string))::Function
     end
 
@@ -143,6 +124,38 @@ function compute_result(data, table_name, result_name, idxs=(:), yr_idxs=(:), hr
     end
 end
 export compute_result
+
+function compute_results!(df, data, table_name, result_name, idx_sets, year_idx_sets, hour_idx_sets)
+    hasproperty(df, result_name) && return
+    table = get_table(data, table_name)
+
+    res_formula = get_results_formula(data, table_name, result_name)
+
+    if res_formula.isderived === false
+        dep_cols = res_formula.dependent_columns
+        fn = res_formula.fn
+        res = [
+            fn(data, table, dep_cols..., idxs, yr_idxs, hr_idxs)::Float64
+            for idxs in idx_sets for yr_idxs in year_idx_sets for hr_idxs in hour_idx_sets
+        ]
+        
+        df[!,result_name] = res
+        return
+    else
+        # Make sure to compute any dependent columns first
+        dep_cols = res_formula.dependent_columns
+        for col in dep_cols
+            hasproperty(df, col) && continue
+            compute_results!(df, data, table_name, col, idx_sets, year_idx_sets, hour_idx_sets)
+        end
+
+        fn = res_formula.fn
+        res = fn(df)
+
+        df[!, result_name] = res
+    end
+end
+
 
 struct DictWrapper
     d::Dict{Symbol, Float64}
