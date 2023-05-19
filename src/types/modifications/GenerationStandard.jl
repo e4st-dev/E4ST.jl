@@ -157,6 +157,8 @@ function modify_results!(mod::GenerationStandard, config, data)
 
     add_table_col!(data, :bus, :pl_gs, pl_gs_bus, MWServed, "Served Load Power that qualifies for generation standards")
     add_table_col!(data, :bus, :el_gs, el_gs_bus, MWhServed, "Served Load Energy that qualifies for generation standards")
+
+    add_results_formula!(data, :bus, :el_gs_total, "sum_hourly(el_gs)", MWhServed, "Total served load energy that qualifies for generation standards")
     return
 end
 export modify_results!

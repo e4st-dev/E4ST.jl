@@ -399,18 +399,23 @@ Also saves the updated storage table via [`save_updated_storage_table`](@ref).
 """
 function modify_results!(mod::Storage, config, data)
     storage = get_table(data, :storage)
-    pcap_stor = get_raw_result(data, :pcap_stor)
-    pcharge_stor = get_raw_result(data, :pcharge_stor)
-    pdischarge_stor = get_raw_result(data, :pdischarge_stor)
+    pcap_stor = get_raw_result(data, :pcap_stor)::Matrix{Float64}
+    pcharge_stor = get_raw_result(data, :pcharge_stor)::Array{Float64, 3}
+    pdischarge_stor = get_raw_result(data, :pdischarge_stor)::Array{Float64, 3}
 
     echarge_stor = weight_hourly(data, pcharge_stor)
     edischarge_stor = weight_hourly(data, pdischarge_stor)
 
-    add_table_col!(data, :storage, :pcap, pcap_stor, MWCapacity, "Discharge capacity of the storage device")
+    add_table_col!(data, :storage, :pcap, pcap_stor, MWCapacity, "Power Discharge capacity of the storage device")
     add_table_col!(data, :storage, :pcharge, pcharge_stor, MWCharged, "Rate of charging, in MW")
     add_table_col!(data, :storage, :pdischarge, pcharge_stor, MWDischarged, "Rate of discharging, in MW")
     add_table_col!(data, :storage, :echarge, echarge_stor, MWhCharged, "Energy that went into charging the storage device (includes any round-trip storage losses)")
     add_table_col!(data, :storage, :edischarge, edischarge_stor, MWhDischarged, "Energy that was discharged by the storage device")
+
+
+    add_results_formula!(data, :storage, :pcap_total, "average_yearly(pcap)", MWCapacity, "Total discharge power capacity (if multiple years given, calculates the average)")
+    add_results_formula!(data, :storage, :echarge_total, "sum_hourly(echarge)", MWhCharged, "Total energy charged")
+    add_results_formula!(data, :storage, :edischarge_total, "sum_hourly(edischarge)", MWhDischarged, "Total energy discharged")
 
     transform!(storage,
         [:pcharge, :storage_efficiency] => ByRow((p,η) -> p * (1 - η)) => :ploss
@@ -419,6 +424,8 @@ function modify_results!(mod::Storage, config, data)
     add_table_col!(data, :storage, :ploss, storage.ploss, MWServed, "Power that was lost by the battery, counted as served load equal to `pcharge * (1-η)`")
     eloss = weight_hourly(data, storage.ploss)
     add_table_col!(data, :storage, :eloss, eloss, MWhServed, "Energy that was lost by the battery, counted as served load")
+
+    add_results_formula!(data, :storage, :eloss_total, "sum_hourly(eloss)", MWhLoss, "Total energy loss")
 
     update_build_status!(config, data, :storage)
 

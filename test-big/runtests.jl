@@ -41,7 +41,7 @@ using JuMP
             
             data = read_processed_results(out_path)
 
-            @test aggregate_result(total, data, :bus, :elcurt) < 1
+            @test compute_result(data, :bus, :elcurt_total) < 1
             # run_e4st(config_file)
         end
     end

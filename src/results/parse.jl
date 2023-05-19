@@ -81,7 +81,7 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | :bus | :pflow | MWFlow | Average power flowing out of this bus |
 | :bus | :eflow | MWhFlow | Electricity flowing out of this bus |
 | :bus | :pflow_in | MWFlow | Average power flowing into this bus |
-| :bus | :eflowin | MWhFlow | Electricity flowing out of this bus |
+| :bus | :eflow_in | MWhFlow | Electricity flowing out of this bus |
 | :bus | :pflow_out | MWFlow | Average power flowing into this bus |
 | :bus | :eflow_out | MWhFlow | Electricity flowing out of this bus |
 | :bus | :plserv | MWServed | Average power served at this bus |
@@ -102,6 +102,7 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 function parse_power_results!(config, data)
     res_raw = get_raw_results(data)
     nyr = get_num_years(data)
+    nhr = get_num_hours(data)
 
     pgen_gen = res_raw[:pgen_gen]::Array{Float64, 3}
     egen_gen = res_raw[:egen_gen]::Array{Float64, 3}
@@ -116,7 +117,7 @@ function parse_power_results!(config, data)
 
     # Weight things by hour as needed
     egen_bus = weight_hourly(data, pgen_bus)
-    ecap_gen = weight_hourly(data, pcap_gen)
+    ecap_gen = weight_hourly(data, repeat(pcap_gen, 1,1,nhr))
     elserv_bus = weight_hourly(data, plserv_bus)
     elcurt_bus = weight_hourly(data, plcurt_bus)
     elnom_bus = weight_hourly(data, get_table_col(data, :bus, :plnom))

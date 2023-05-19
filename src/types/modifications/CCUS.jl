@@ -44,10 +44,13 @@ Creates the following constraints
 Results are stored in 2 places; the `ccus_paths` table, and the `gen` table.
 
 Example Result Queries
-* `aggregate_result(total, data, :ccus_paths, :stored_co2, :ccus_type=>"eor", "y2030")`
-* `aggregate_result(total, data, :gen, :price_capt_co2, :ccus_type=>"eor", yr_idx)`
-* `aggregate_result(total, data, :gen, :price_capt_co2_store, :gentype=>"coalccs", yr_idx)`
-* `aggregate_result(total, data, :gen, :price_capt_co2_trans, :, yr_idx)`
+* `compute_result(data, :gen, :stored_co2_total, :ccus_type=>"eor", "y2030")`
+* `compute_result(data, :gen, :cost_capt_co2, :ccus_type=>"eor", yr_idx)`
+* `compute_result(data, :gen, :cost_capt_co2_store, :gentype=>"coalccs", yr_idx)`
+* `compute_result(data, :gen, :cost_capt_co2_trans, :, yr_idx)`
+* `compute_result(data, :ccus_paths, :storer_cost_total, :storing_region=>"narnia")
+* `compute_result(data, :ccus_paths, :storer_revenue_total, :producing_region=>"narnia")`
+* `compute_result(data, :ccus_paths, :storer_profit_total, :ccus_type=>"eor")`
 
 See also:
 * [`modify_raw_data!(::CCUS, config, data)`](@ref)
@@ -320,6 +323,7 @@ function modify_results!(mod::CCUS, config, data)
     nyear = get_num_years(data)
 
     add_table_col!(data, :ccus_paths, :stored_co2, [view(co2_trans, i, :) for i in 1:nrow(ccus_paths)], ShortTons, "CO₂ stored via this storage path, in short tons.")
+    add_results_formula!(data, :ccus_paths, :stored_co2_total, "sum_yearly(stored_co2)", ShortTons, "CO2 stored for the year, in short tons.")
     ccus_paths.price_total_clearing = fill(zeros(nyear), nrow(ccus_paths))
 
     @assert all(<=(0), cons_co2_stor) "Shadow prices on CO2 stored should be <= 0! Max value found was $(maximum(cons_co2_stor))"
@@ -348,6 +352,17 @@ function modify_results!(mod::CCUS, config, data)
     add_table_col!(data, :gen, :price_capt_co2, fill(zeros(nyear), nrow(gen)), DollarsPerShortTonCO2Captured, "Region-wide clearing price for the generator to pay for the transport and storage of a short ton of captured CO2")
     add_table_col!(data, :gen, :price_capt_co2_store, fill(zeros(nyear), nrow(gen)), DollarsPerShortTonCO2Captured, "Region-wide average price for the generator to pay for the storage of a short ton of captured CO2")
     add_table_col!(data, :gen, :price_capt_co2_trans, fill(zeros(nyear), nrow(gen)), DollarsPerShortTonCO2Captured, "Region-wide average price for the generator to pay for the transport of a short ton of captured CO2")
+    
+    # Add results formulas
+    add_results_formula!(data, :gen, :cost_capt_co2, "sum_hourly(egen*capt_co2*price_capt_co2)", Dollars, "Total cost paid by generators to transport and store a short ton of captured CO2, computed with the clearing price")
+    add_results_formula!(data, :gen, :price_capt_co2_per_short_ton, "cost_capt_co2 / capt_co2_total", DollarsPerShortTonCO2Captured, "Average price paid by generators to transport and store a short ton of captured CO2, computed with the clearing price")
+
+    add_results_formula!(data, :gen, :cost_capt_co2_transport, "sum_hourly(egen*capt_co2*price_capt_co2_store)", Dollars, "Total cost paid by generators to transport a short ton of captured CO2, computed with the clearing price")
+    add_results_formula!(data, :gen, :price_capt_co2_transport_per_short_ton, "cost_capt_co2_transport / capt_co2_total", DollarsPerShortTonCO2Captured, "Average price paid by generators to transport a short ton of captured CO2, computed with the clearing price")
+
+    add_results_formula!(data, :gen, :cost_capt_co2_store, "sum_hourly(egen*capt_co2*price_capt_co2_store)", Dollars, "Total cost paid by generators to store a short ton of captured CO2, computed with the clearing price")
+    add_results_formula!(data, :gen, :price_capt_co2_store_per_short_ton, "cost_capt_co2_store / capt_co2_total", DollarsPerShortTonCO2Captured, "Average price paid by generators to store a short ton of captured CO2, computed with the clearing price")
+    
     
     for row in eachrow(df_producers)
         path_idxs = row.f_path_idxs
@@ -400,6 +415,14 @@ function modify_results!(mod::CCUS, config, data)
     add_table_col!(data, :ccus_paths, :storer_cost, storer_cost, Dollars, "Total storage cost of CCUS via this pathway, from the perspective of the sequesterer")
     add_table_col!(data, :ccus_paths, :storer_revenue, storer_revenue, Dollars, "Total revenue earned from storage for CCUS via this pathway.  This is the amount paid by the EGU's to the sequesterer, equal to the clearing price minus the transport cost.")
     add_table_col!(data, :ccus_paths, :storer_profit, storer_profit, Dollars, "Total profit earned by storing carbon via this pathway, equal to the revenue minus the cost.")
+    add_results_formula!(data, :ccus_paths, :storer_cost_total, "sum_yearly(storer_cost)", Dollars, "Total storage cost of CCUS via this pathway, from the perspective of the sequesterer, earned in a year")
+    add_results_formula!(data, :ccus_paths, :storer_revenue_total, "sum_yearly(storer_revenue)", Dollars, "Total revenue earned from storage for CCUS via this pathway.  This is the amount paid by the EGU's to the sequesterer, equal to the clearing price minus the transport cost, earned in a year.")
+    add_results_formula!(data, :ccus_paths, :storer_profit_total, "sum_yearly(storer_profit)", Dollars, "Total profit earned by storing carbon via this pathway, equal to the revenue minus the cost, earned in a year")
+
+    add_results_formula!(data, :ccus_paths, :storer_cost_per_short_ton, "storer_cost_total/stored_co2_total", Dollars, "Average storage cost of CCUS per short ton via this pathway, from the perspective of the sequesterer")
+    add_results_formula!(data, :ccus_paths, :storer_revenue_per_short_ton, "storer_revenue_total/stored_co2_total", Dollars, "Total revenue earned from storage for CCUS per short ton via this pathway.  This is the amount paid by the EGU's to the sequesterer, equal to the clearing price minus the transport cost.")
+    add_results_formula!(data, :ccus_paths, :storer_profit_per_short_ton, "storer_profit_total/stored_co2_total", Dollars, "Total profit earned from storing a short ton of CO2 via this pathway, equal to the revenue minus the cost.")
+    
 
     # Assert that all the profits are ≥ 0.
     @assert all(v->all(>(-1e-6), v), ccus_paths.storer_profit) "All CCUS profits should be ≥ 0, but found $(minimum(minimum, ccus_paths.storer_profit))"    

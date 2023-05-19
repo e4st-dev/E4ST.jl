@@ -189,6 +189,10 @@ function modify_results!(mod::FuelPrice, config, data)
     
     add_table_col!(data, :fuel_markets, :fuel_sold, fuel_used, MMBtu, "Quantity of fuel sold into this market, in MMBtu")
 
+    add_results_formula!(data, :fuel_markets, :fuel_cost, "sum_hourly(fuel_sold*clearing_price)", Dollars, "Total cost of fuel sold in the market(s) (using the clearing price)")
+    add_results_formula!(data, :fuel_markets, :fuel_sold_total, "sum_hourly(fuel_sold)", MMBtu, "Total amount of fuel sold in the market(s)")
+    add_results_formula!(data, :fuel_markets, :fuel_clearing_price_per_mmbtu, "fuel_cost/fuel_sold_total", DollarsPerMMBtuSold, "Average price of fuel paid to these market(s).  Computed using the clearing price")
+
     # Compute the clearing price for each genfuel-area-subarea combo
     # The clearing price would be the shadow price + the price of the cheapest fuel option in each region.
     for row in eachrow(fuel_markets)

@@ -38,6 +38,7 @@ struct MWhCharged <: Unit end; export MWhCharged
 struct MWhDischarged <: Unit end; export MWhDischarged
 struct MWhLoad <: Unit end; export MWhLoad
 struct MWhFlow <: Unit end; export MWhFlow
+struct MWhLoss <: Unit end; export MWhLoss
 struct MMBtuPerMWhGenerated <: Unit end; export MMBtuPerMWhGenerated
 struct DollarsPerMMBtu <: Unit end; export DollarsPerMMBtu
 struct DollarsPerMMBtuSold <: Unit end; export DollarsPerMMBtuSold
