@@ -14,6 +14,8 @@ end
 struct ShortTons <: Unit end; export ShortTons
 struct ShortTonsPerMWhGenerated <: Unit end; export ShortTonsPerMWhGenerated
 struct ShortTonsPerYear <: Unit end; export ShortTonsPerYear
+struct Pounds <: Unit end; export Pounds
+struct PoundsPerMWhGenerated <: Unit end; export PoundsPerMWhGenerated
 
 struct DollarsPerMWhServed <: Unit end; export DollarsPerMWhServed
 struct Dollars <: Unit end; export Dollars        
@@ -25,9 +27,11 @@ struct DollarsPerMWhFlow <: Unit end; export DollarsPerMWhFlow
 struct DollarsPerShortTon <: Unit end; export DollarsPerShortTon
 struct DollarsPerShortTonCO2Captured <: Unit end; export DollarsPerShortTonCO2Captured
 struct CreditsPerMWhGenerated <: Unit end; export CreditsPerMWhGenerated
+struct MW <: Unit end; export MW
 struct MWhGeneratedPerMWhCapacity <: Unit end; export MWhGeneratedPerMWhCapacity
 struct MWhDischargedPerMWhCharged <: Unit end; export MWhDischargedPerMWhCharged
 struct MWhGenerated <: Unit end; export MWhGenerated
+struct MWhCapacity <: Unit end; export MWhCapacity
 struct MWhServed <: Unit end; export MWhServed
 struct MWhCurtailed <: Unit end; export MWhCurtailed
 struct MWhCharged <: Unit end; export MWhCharged

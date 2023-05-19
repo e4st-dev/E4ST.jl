@@ -426,6 +426,8 @@ function setup_table!(config, data, ::Val{:gen})
 
     # Set the pcap_max to be equal to pcap0 for built generators
     gen.pcap_max = map(row->isbuilt(row) ? row.pcap0 : row.pcap_max, eachrow(gen))
+    gen.pcap0 = map(row->isbuilt(row) ? row.pcap0 : 0.0, eachrow(gen))
+
 
     ### Create new gens and add to the gen table
     if haskey(config, :build_gen_file) 

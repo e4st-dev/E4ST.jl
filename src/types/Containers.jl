@@ -175,18 +175,18 @@ end
 
 # For vector of AbstractMatrixes
 function _getindex(v::Vector{<:AbstractMatrix{<:Real}}, i::Int64, y::Int64, h::Int64)
-    return v[i][y,h]
+    return v[i][y,h]::Float64
 end
 
 # Assume that if we are trying to index into a vector of vectors, it is for yearly data only
 # _getindex is to protect us from having to overwrite getindex in a bad way for common types.
 function _getindex(v::Vector{<:AbstractVector{<:Real}}, i::Int64, y::Int64, h::Int64)
-    return v[i][y]
+    return v[i][y]::Float64
 end
 function _getindex(v::Vector{<:AbstractVector{<:Real}}, i::Int64, y::Int64)
-    return v[i][y]
+    return v[i][y]::Float64
 end
-_getindex(args...) = getindex(args...)
+_getindex(args...) = getindex(args...)::Float64
 
 
 # Assume that if we are trying to index into a vector of vectors, it is for yearly data only

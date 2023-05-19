@@ -92,13 +92,16 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | :gen | :pgen | MWGenerated | Average power generated at this generator |
 | :gen | :egen | MWhGenerated | Electricity generated at this generator for the weighted representative hour |
 | :gen | :pcap | MWCapacity | Power generation capacity of this generator generated at this generator for the weighted representative hour |
-| :gen | :ecap | MWCapacity | Total energy generation capacity of this generator generated at this generator for the weighted representative hour |
+| :gen | :ecap | MWhCapacity | Total energy generation capacity of this generator generated at this generator for the weighted representative hour |
+| :gen | :pcap_retired | MWCapacity | Power generation capacity that was retired in each year |
+| :gen | :pcap_built | MWCapacity | Power generation capacity that was built in each year |
 | :gen | :cf | MWhGeneratedPerMWhCapacity | Capacity Factor, or average power generation/power generation capacity, 0 when no generation |
 | :branch | :pflow | MWFlow | Average Power flowing through branch |
 | :branch | :eflow | MWFlow | Total energy flowing through branch for the representative hour |
 """
 function parse_power_results!(config, data)
     res_raw = get_raw_results(data)
+    nyr = get_num_years(data)
 
     pgen_gen = res_raw[:pgen_gen]::Array{Float64, 3}
     egen_gen = res_raw[:egen_gen]::Array{Float64, 3}
@@ -130,6 +133,21 @@ function parse_power_results!(config, data)
     cf = pgen_gen ./ pcap_gen
     replace!(cf, NaN=>0.0)
 
+    # Create capacity retired and added
+    pcap_built = similar(pcap_gen)
+    pcap_retired = similar(pcap_gen)
+    gen = get_table(data, :gen)
+    pcap0 = gen.pcap0::Vector{Float64}
+    pcap_retired[:, 1] .= max.(pcap0 .- view(pcap_gen, :, 1), 0.0)
+    pcap_built[:, 1]   .= max.(view(pcap_gen, :, 1) .- pcap0, 0.0)
+    for yr_idx in 2:nyr
+        pcap_prev = view(pcap_gen, :, yr_idx-1)
+        pcap_cur  = view(pcap_gen, :, yr_idx)
+        pcap_retired[:, yr_idx] .= max.( pcap_prev .- pcap_cur, 0.0)
+        pcap_built[:, yr_idx]   .= max.( pcap_cur .- pcap_prev, 0.0)
+    end
+
+
     # Add things to the bus table
     add_table_col!(data, :bus, :pgen,  pgen_bus,  MWGenerated,"Average Power Generated at this bus")
     add_table_col!(data, :bus, :egen,  egen_bus,  MWhGenerated,"Electricity Generated at this bus for the weighted representative hour")   
@@ -149,7 +167,9 @@ function parse_power_results!(config, data)
     add_table_col!(data, :gen, :pgen,  pgen_gen,  MWGenerated,"Average power generated at this generator")
     add_table_col!(data, :gen, :egen,  egen_gen,  MWhGenerated,"Electricity generated at this generator for the weighted representative hour")
     add_table_col!(data, :gen, :pcap,  pcap_gen,  MWCapacity,"Power capacity of this generator generated at this generator for the weighted representative hour")
-    add_table_col!(data, :gen, :ecap,  ecap_gen,  MWCapacity,"Electricity generation capacity of this generator generated at this generator for the weighted representative hour")
+    add_table_col!(data, :gen, :ecap,  ecap_gen,  MWhCapacity,"Electricity generation capacity of this generator generated at this generator for the weighted representative hour")
+    add_table_col!(data, :gen, :pcap_retired, pcap_retired, MWCapacity, "Power generation capacity that was retired in each year")
+    add_table_col!(data, :gen, :pcap_built,   pcap_built,   MWCapacity, "Power generation capacity that was built in each year")
     add_table_col!(data, :gen, :cf,    cf,        MWhGeneratedPerMWhCapacity, "Capacity Factor, or average power generation/power generation capacity, 0 when no generation")
 
     # Add things to the branch table
