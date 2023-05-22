@@ -48,6 +48,7 @@ function summarize_config()
         (:summary_table_file, false, nothing, "a file for giving information about additional columns not specified in [`summarize_table`](@ref)"),
         (:save_data, false, true, "A boolean specifying whether or not to save the loaded data to file for later use (i.e. by specifying a `data_file` for future simulations)."),
         (:data_file, false, nothing, "The filepath (relative or absolute) to the data file (a serialized julia object).  If this is provided, it will use this instead of loading data from all the other files."),
+        (:results_formulas_file, false, nothing, "The filepath (relative or absolute) to the results formulas file.  See [`summarize_table(::Val{:results_formulas})`](@ref)"),
         (:save_model_presolve, false, false, "A boolean specifying whether or not to save the model before solving it, for later use (i.e. by specifying a `model_presolve_file` for future sims). Defaults to `false`"),
         (:model_presolve_file, false, nothing, "The filepath (relative or absolute) to the unsolved model.  If this is provided, it will use this instead of creating a new model."),
         (:save_data_parsed, false, true, "A boolean specifying whether or not to save the raw results after solving the model.  This could be useful for calling [`process_results!(config)`](@ref) in the future. Defaults to `true`"),

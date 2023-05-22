@@ -8,9 +8,9 @@ get_results_formulas
 get_results_formula
 compute_result
 ResultsFormula
-Base.sum(data, table::DataFrame, col1::Symbol, idxs, yr_idxs, hr_idxs)
-sum_yearly
-sum_hourly
-min_hourly
-average_yearly
+Sum
+SumYearly
+SumHourly
+MinHourly
+AverageYearly
 ```

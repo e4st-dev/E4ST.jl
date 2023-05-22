@@ -1,3 +1,57 @@
+"""
+    setup_results_formulas!(config, data)
+
+Sets up the results formulas from `config[:results_formulas_file]`, if provided, or loads a default set of formulas.  See [`summarize_table(::Val{:results_formulas})`](@ref).
+"""
+function setup_results_formulas!(config, data)
+    data[:results_formulas] = OrderedDict{Tuple{Symbol, Symbol},ResultsFormula}()
+    
+    results_formulas_file = get(config, :results_formulas_file) do
+        joinpath(@__DIR__, "results_formulas.csv")
+    end
+        
+    results_formulas_table = read_table(data, results_formulas_file, :results_formulas)
+
+    for row in eachrow(results_formulas_table)
+        add_results_formula!(data, row.table_name, row.result_name, row.formula, row.unit, row.description)
+    end
+end
+
+"""
+    filter_results_formulas!(data)
+
+Filters any results formulas that depend on columns that do not exist.
+"""
+function filter_results_formulas!(data)
+    results_formulas = get_results_formulas(data)
+
+    # Need to iterate so all the dependencies work out.
+    diff = 1
+    while diff > 0
+        original_length = length(results_formulas)    
+        filter!(results_formulas) do (p, rf)
+            (table_name, result_name) = p
+            dependent_columns = rf.dependent_columns
+            if rf.isderived === true
+                invalid_cols = filter(col->!haskey(results_formulas, (table_name, col)), dependent_columns)
+                isvalid = isempty(invalid_cols)
+                isvalid || @warn "Derived result $result_name for table $table_name cannot be computed because there are not results_formulas for:\n  $invalid_cols"
+                return isvalid
+            else
+                table = get_table(data, table_name)
+                invalid_cols = filter(col->!hasproperty(table, col), dependent_columns)
+                isvalid = isempty(invalid_cols)
+                isvalid || @warn "Result $result_name for table $table_name cannot be computed because table does not have columns:\n  $invalid_cols"
+                return isvalid
+            end
+        end
+        diff = original_length - length(results_formulas)
+    end
+    return nothing
+end
+export filter_results_formulas!
+
+
 function summarize_table(::Val{:results_formulas})
     df = TableSummary()
     push!(df, (:table_name, Symbol, NA, true, "The name of the table that the result is for."))
@@ -32,11 +86,13 @@ function add_results_formula!(data, table_name::Symbol, result_name::Symbol, for
     results_formulas = get_results_formulas(data)
 
     if startswith(formula, r"[\w]+\(")
-        formula_stripped = match(r"\([^\)]+\)", formula).match
-        dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", formula_stripped))
+        args_string = match(r"\([^\)]+\)", formula).match
+        dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", args_string))
         fn_string = match(r"([\w]+)\(",formula).captures[1]
+        combined_string = string(fn_string, "(", replace(args_string, r"([\w]+)"=>s":\1"), ")")
+        # fn_string = replace(r"([\w]+)\(",formula)
         isderived = false
-        fn = eval(Meta.parse(fn_string))
+        fn = eval(Meta.parse(combined_string))
     else
         dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", formula))
         isderived = true
@@ -101,6 +157,7 @@ function get_results_formula(data, table_name::Symbol, result_name::Symbol)
     @assert haskey(results_formulas, (table_name, result_name)) "No result $result_name found for table $table_name"
     return results_formulas[table_name, result_name]::ResultsFormula
 end
+export get_results_formula
 
 """
     compute_result(data, table_name, result_name, idxs=(:), yr_idxs=(:), hr_idxs=(:))
@@ -121,9 +178,8 @@ function compute_result(data, table_name, result_name, idxs=(:), yr_idxs=(:), hr
     isempty(_hr_idxs) && return 0.0
 
     if res_formula.isderived === false
-        dep_cols = res_formula.dependent_columns
         fn = res_formula.fn
-        return fn(data, table, dep_cols..., _idxs, _yr_idxs, _hr_idxs)::Float64
+        return fn(data, table, _idxs, _yr_idxs, _hr_idxs)::Float64
     else
         # Recursive
         dep_cols = res_formula.dependent_columns
@@ -151,10 +207,9 @@ function compute_results!(df, data, table_name, result_name, idx_sets, year_idx_
     res_formula = get_results_formula(data, table_name, result_name)
 
     if res_formula.isderived === false
-        dep_cols = res_formula.dependent_columns
         fn = res_formula.fn
         res = [
-            fn(data, table, dep_cols..., idxs, yr_idxs, hr_idxs)::Float64
+            fn(data, table, idxs, yr_idxs, hr_idxs)::Float64
             for idxs in idx_sets for yr_idxs in year_idx_sets for hr_idxs in hour_idx_sets
         ]
         
@@ -188,28 +243,152 @@ end
 
 Base.getproperty(d::DictWrapper, s::Symbol) = getfield(d, :d)[s]
 
+
 @doc raw"""
-    sum(data, table::DataFrame, col1::Symbol, idxs, yr_idxs, hr_idxs)
+    Sum(cols...) <: Function
 
-    sum(data, table::DataFrame, col1::Symbol, col2::Symbol, idxs, yr_idxs, hr_idxs)
-
-    sum(data, table::DataFrame, col1::Symbol, col2::Symbol, col3::Symbol, idxs, yr_idxs, hr_idxs)
-
-Computes the sum of the product of the column for each index in idxs
+Function used in results formulas.  Computes the sum of the product of the column for each index in idxs
 
 ```math
 \sum_{i \in \text{idxs}} \prod_{c \in \text{cols}} \text{table}[i, c]
 ```
 """
-function Base.sum(data, table::DataFrame, col1::Symbol, idxs, yr_idxs, hr_idxs)
+struct Sum{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+Sum(cols::Symbol...) = Sum(cols)
+export Sum
+
+function (f::Sum{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
     _sum(table[!, col1], idxs)
 end
-function Base.sum(data, table::DataFrame, col1::Symbol, col2::Symbol, idxs, yr_idxs, hr_idxs)
+function (f::Sum{2})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2 = f.cols
     _sum(table[!, col1], table[!, col2], idxs)
 end
-function Base.sum(data, table::DataFrame, col1::Symbol, col2::Symbol, col3::Symbol, idxs, yr_idxs, hr_idxs)
+function (f::Sum{3})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2,col3 = f.cols
     _sum(table[!, col1], table[!, col2], table[!, col3], idxs)
 end
+
+@doc raw"""
+    AverageYearly(cols...) <: Function
+
+Function used in results formulas.  Computes the sum of the products of the columns for each index in idxs.
+
+```math
+\frac{\sum_{i \in \text{idxs}} \sum_{y \in \text{yr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y]}{\text{length(yr\_idxs)}}
+```
+
+When specifying in a formula, looks like `average_yearly(cols...)`
+"""
+struct AverageYearly{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+AverageYearly(cols::Symbol...) = AverageYearly(cols)
+export AverageYearly
+
+function (f::AverageYearly{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    _sum_yearly(table[!, col1], idxs, yr_idxs) / length(yr_idxs)
+end
+
+function (f::AverageYearly{2})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2 = f.cols
+    _sum_yearly(table[!, col1], table[!, col2], idxs, yr_idxs) / length(yr_idxs)
+end
+
+function (f::AverageYearly{3})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2,col3 = f.cols
+    _sum_yearly(table[!, col1], table[!, col2], table[!, col3], idxs, yr_idxs) / length(yr_idxs)
+end
+
+@doc raw"""
+    SumYearly(cols...) <: Function
+
+Function used in results formulas.  This is a function that adds up the product of each of the values given to it for each year given.
+
+```math
+\sum_{i \in \text{idxs}} \sum_{y \in \text{yr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y]
+```
+"""
+struct SumYearly{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+SumYearly(cols::Symbol...) = SumYearly(cols)
+export SumYearly
+
+function (f::SumYearly{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    _sum_yearly(table[!, col1], idxs, yr_idxs)
+end
+function (f::SumYearly{2})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2 = f.cols
+    _sum_yearly(table[!, col1], table[!, col2], idxs, yr_idxs)
+end
+function (f::SumYearly{3})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2,col3 = f.cols
+    _sum_yearly(table[!, col1], table[!, col2], table[!, col3], idxs, yr_idxs)
+end
+
+@doc raw"""
+    MinHourly(cols...) <: Function
+
+This function returns the minimum hourly value.
+
+```math
+\min_{y \in \text{yr\_idxs}, h \in \text{hr\_idxs}} \sum_{i \in \text{idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
+```
+"""
+struct MinHourly{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+MinHourly(cols::Symbol...) = MinHourly(cols)
+export MinHourly
+
+function (f::MinHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    v1 = table[!, col1]
+    minimum(_sum_hourly(v1, idxs, y, h) for h in hr_idxs for y in yr_idxs)
+end
+
+@doc raw"""
+    SumHourly(cols...) <: Function
+
+This is a function that adds up the product of each of the values given to it for each of the years and hours given.
+
+```math
+\sum_{i \in \text{idxs}} \sum_{y \in \text{yr\_idxs}} \sum_{h \in \text{hr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
+```
+"""
+struct SumHourly{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+SumHourly(cols::Symbol...) = SumHourly(cols)
+export SumHourly
+
+function (f::SumHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    _sum_hourly(table[!, col1], idxs, yr_idxs, hr_idxs)
+end
+function (f::SumHourly{2})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2 = f.cols
+    _sum_hourly(table[!, col1], table[!, col2], idxs, yr_idxs, hr_idxs)
+end
+function (f::SumHourly{3})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2,col3 = f.cols
+    _sum_hourly(table[!, col1], table[!, col2], table[!, col3], idxs, yr_idxs, hr_idxs)
+end
+
+
+
+
+
+
+
+
+
 
 function _sum(v1, idxs)
     sum(_getindex(v1,i) for i in idxs)
@@ -220,82 +399,6 @@ end
 function _sum(v1, v2, v3, idxs)
     sum(_getindex(v1,i)*_getindex(v2,i)*_getindex(v3,i) for i in idxs)
 end
-
-
-# @doc raw"""
-#     AverageYearly(cols...) <: Function
-
-# Function used in results formulas.  Computes the sum of the products of the columns for each index in idxs.
-
-# ```math
-# \frac{\sum_{i \in \text{idxs}} \sum_{y \in \text{yr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y]}{\text{length(yr\_idxs)}}
-# ```
-
-# When specifying in a formula, looks like `average_yearly(cols...)`
-# """
-# struct AverageYearly{N} <: Function
-#     cols::NTuple{N, Symbol}
-# end
-# AverageYearly(cols::Symbol...) = AverageYearly(cols)
-
-# function (f::AverageYearly{1})(data, table, idxs, yr_idxs, hr_idxs)
-#     col1, = f.cols
-#     _sum_yearly(table[!, col1], idxs, yr_idxs) / length(yr_idxs)
-# end
-
-# function (f::AverageYearly{2})(data, table, idxs, yr_idxs, hr_idxs)
-#     col1,col2 = f.cols
-#     _sum_yearly(table[!, col1], table[!, col2], idxs, yr_idxs) / length(yr_idxs)
-# end
-
-# function (f::AverageYearly{3})(data, table, idxs, yr_idxs, hr_idxs)
-#     col1,col2,col3 = f.cols
-#     _sum_yearly(table[!, col1], table[!, col2], table[!, col3], idxs, yr_idxs) / length(yr_idxs)
-# end
-
-@doc raw"""
-    function average_yearly
-
-Computes the sum of the products of the columns for each index in idxs.  This function is to be 
-
-```math
-\frac{\sum_{i \in \text{idxs}} \sum_{y \in \text{yr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y]}{\text{length(yr\_idxs)}}
-```
-
-When specifying in a formula, looks like `average_yearly(cols...)`
-"""
-function average_yearly(data, table::DataFrame, col1::Symbol, idxs, yr_idxs, hr_idxs)
-    _sum_yearly(table[!, col1], idxs, yr_idxs) / length(yr_idxs)
-end
-function average_yearly(data, table::DataFrame, col1::Symbol, col2::Symbol, idxs, yr_idxs, hr_idxs)
-    _sum_yearly(table[!, col1], table[!, col2], idxs, yr_idxs) / length(yr_idxs)
-end
-function average_yearly(data, table::DataFrame, col1::Symbol, col2::Symbol, col3::Symbol, idxs, yr_idxs, hr_idxs)
-    _sum_yearly(table[!, col1], table[!, col2], table[!, col3], idxs, yr_idxs) / length(yr_idxs)
-end
-
-export average_yearly
-
-@doc raw"""
-    function sum_yearly
-
-This is a function that adds up the product of each of the values given to it for each year given.
-
-```math
-\sum_{i \in \text{idxs}} \sum_{y \in \text{yr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y]
-```
-"""
-function sum_yearly(data, table::DataFrame, col1::Symbol, idxs, yr_idxs, hr_idxs)
-    _sum_yearly(table[!, col1], idxs, yr_idxs)
-end
-function sum_yearly(data, table::DataFrame, col1::Symbol, col2::Symbol, idxs, yr_idxs, hr_idxs)
-    _sum_yearly(table[!, col1], table[!, col2], idxs, yr_idxs)
-end
-function sum_yearly(data, table::DataFrame, col1::Symbol, col2::Symbol, col3::Symbol, idxs, yr_idxs, hr_idxs)
-    _sum_yearly(table[!, col1], table[!, col2], table[!, col3], idxs, yr_idxs)
-end
-export sum_yearly
-
 function _sum_yearly(v1, idxs, yr_idxs)
     sum(_getindex(v1, i, y) for i in idxs, y in yr_idxs)
 end
@@ -306,42 +409,6 @@ function _sum_yearly(v1, v2, v3, idxs, yr_idxs)
     sum(_getindex(v1, i, y)*_getindex(v2, i, y)*_getindex(v3, i, y) for i in idxs, y in yr_idxs)
 end
 
-@doc raw"""
-    function min_hourly
-
-This function returns the minimum hourly value.
-
-```math
-\min_{y \in \text{yr\_idxs}, h \in \text{hr\_idxs}} \sum_{i \in \text{idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
-```
-"""
-function min_hourly(data, table::DataFrame, col1::Symbol, idxs, yr_idxs, hr_idxs)
-    v1 = table[!, col1]
-    minimum(_sum_hourly(v1, idxs, y, h) for h in hr_idxs for y in yr_idxs)
-end
-export min_hourly
-
-
-@doc raw"""
-    function sum_hourly
-
-This is a function that adds up the product of each of the values given to it for each years and hours given.
-
-```math
-\sum_{i \in \text{idxs}} \sum_{y \in \text{yr\_idxs}} \sum_{h \in \text{hr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
-```
-"""
-function sum_hourly(data, table::DataFrame, col1::Symbol, idxs, yr_idxs, hr_idxs)
-    _sum_hourly(table[!, col1], idxs, yr_idxs, hr_idxs)
-end
-function sum_hourly(data, table::DataFrame, col1::Symbol, col2::Symbol, idxs, yr_idxs, hr_idxs)
-    _sum_hourly(table[!, col1], table[!, col2], idxs, yr_idxs, hr_idxs)
-end
-function sum_hourly(data, table::DataFrame, col1::Symbol, col2::Symbol, col3::Symbol, idxs, yr_idxs, hr_idxs)
-    _sum_hourly(table[!, col1], table[!, col2], table[!, col3], idxs, yr_idxs, hr_idxs)
-end
-export sum_hourly
-
 function _sum_hourly(v1, idxs, yr_idxs, hr_idxs)
     sum(_getindex(v1, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
 end
@@ -351,52 +418,3 @@ end
 function _sum_hourly(v1, v2, v3, idxs, yr_idxs, hr_idxs)
     sum(_getindex(v1, i, y, h)*_getindex(v2, i, y, h)*_getindex(v3, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
 end
-
-
-function setup_results_formulas!(config, data)
-    data[:results_formulas] = OrderedDict{Tuple{Symbol, Symbol},ResultsFormula}()
-    
-    results_formulas_file = get(config, :results_formulas_file) do
-        joinpath(@__DIR__, "results_formulas.csv")
-    end
-        
-    results_formulas_table = read_table(data, results_formulas_file, :results_formulas)
-
-    for row in eachrow(results_formulas_table)
-        add_results_formula!(data, row.table_name, row.result_name, row.formula, row.unit, row.description)
-    end
-end
-
-"""
-    filter_results_formulas!(data)
-
-Filters any results formulas that depend on columns that do not exist.
-"""
-function filter_results_formulas!(data)
-    results_formulas = get_results_formulas(data)
-
-    # Need to iterate so all the dependencies work out.
-    diff = 1
-    while diff > 0
-        original_length = length(results_formulas)    
-        filter!(results_formulas) do (p, rf)
-            (table_name, result_name) = p
-            dependent_columns = rf.dependent_columns
-            if rf.isderived === true
-                invalid_cols = filter(col->!haskey(results_formulas, (table_name, col)), dependent_columns)
-                isvalid = isempty(invalid_cols)
-                isvalid || @warn "Derived result $result_name for table $table_name cannot be computed because there are not results_formulas for:\n  $invalid_cols"
-                return isvalid
-            else
-                table = get_table(data, table_name)
-                invalid_cols = filter(col->!hasproperty(table, col), dependent_columns)
-                isvalid = isempty(invalid_cols)
-                isvalid || @warn "Result $result_name for table $table_name cannot be computed because table does not have columns:\n  $invalid_cols"
-                return isvalid
-            end
-        end
-        diff = original_length - length(results_formulas)
-    end
-    return nothing
-end
-export filter_results_formulas!
