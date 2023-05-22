@@ -24,6 +24,7 @@ makedocs(
         ],
         "Results" => Any[
             "Overview" => "results/overview.md",
+            "Formulas" => "results/formulas.md",
             "Aggregation" => "results/aggregation.md",
             "Plotting" => "results/plotting.md",
         ],
