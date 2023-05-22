@@ -16,6 +16,7 @@ function setup_results_formulas!(config, data)
         add_results_formula!(data, row.table_name, row.result_name, row.formula, row.unit, row.description)
     end
 end
+export setup_results_formulas!
 
 """
     filter_results_formulas!(data)
@@ -51,7 +52,11 @@ function filter_results_formulas!(data)
 end
 export filter_results_formulas!
 
+@doc """
+    summarize_table(::Val{:results_formulas})
 
+$(table2markdown(summarize_table(Val(:results_formulas))))
+"""
 function summarize_table(::Val{:results_formulas})
     df = TableSummary()
     push!(df, (:table_name, Symbol, NA, true, "The name of the table that the result is for."))
@@ -72,7 +77,7 @@ Arguments:
 * `table_name` - the name of the table that the result is calculated from, either directly or as a combination of other results
 * `result_name` - the name of the result being calculated.  Cannot be a column name within the table.
 * `formula` - `formula` can take two different forms.
-  * it can be a combination of columns to be aggregated directly from `table_name`.  I.e. `sum_hourly(egen * vom)` or `sum_yearly(pcap_retired)`.  Choose from [`sum_yearly`](@ref), [`sum_hourly`](@ref), [`average_hourly`](@ref), or [`sum`](@ref).
+  * it can be a combination of columns to be aggregated directly from `table_name`.  See [`Sum`](@ref), [`SumHourly`](@ref), [`SumYearly`](@ref), [`AverageYearly`](@ref), [`MinHourly`](@ref).
   * it can also be a combination of other results. I.e. `(vom_cost + fuel_cost) / egen_total`.
 * `unit` - the [`Unit`](@ref) of the resulting number
 * `description` - a short description of the calculation.
