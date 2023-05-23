@@ -355,6 +355,15 @@ end
 function scale_yearly(c::Number, v::Vector{Float64})
     return ByYear(c .* v)
 end
+function scale_yearly(c::ByYear, v::OriginalContainer)
+    return scale_yearly(c, v.v)
+end
+function scale_yearly(c::OriginalContainer, v::ByYear)
+    return scale_yearly(c, v.v)
+end
+function scale_yearly(c::ByYear, v::ByNothing)
+    return scale_yearly(c, v.v)
+end
 
 """
     scale_yearly(c::Container, v::Float64, yr_idx::Int64, nyr) -> c'
@@ -382,7 +391,7 @@ function scale_yearly(c::ByHour, x::Float64, yr_idx::Int64, nyr::Int64)
     v[yr_idx] .*= x
     return ByYearAndHour(v)
 end
-
+export scale_yearly
 
 
 
