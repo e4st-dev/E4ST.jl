@@ -54,7 +54,7 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
         g = gen[gen_idx, :]
         g_qual_year_idxs = findall(age -> pol.gen_age_min <= age <= pol.gen_age_max, g.age.v)
         price_yearly = ByYear([(i in g_qual_year_idxs) ? price_yearly[i] : 0.0  for i in 1:length(years)])
-        gen[gen_idx, pol.name] = scale_yearly(price_yearly, gen[gen_idx, pol.emis_col]) #emission rate [st/MWh] * price [$/st] 
+        gen[gen_idx, pol.name] = price_yearly .* gen[gen_idx, pol.emis_col] #emission rate [st/MWh] * price [$/st] 
     end
     
     add_obj_term!(data, model, PerMWhGen(), pol.name, oper = +)
