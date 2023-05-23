@@ -204,6 +204,12 @@ function parse_lmp_results!(config, data)
     res_raw[:lmp_elserv_bus] = lmp_elserv
     add_table_col!(data, :bus, :lmp_elserv, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
 
+    # Add lmp to generators
+    gen = get_table(data, :gen)
+    lmp_bus = get_table_col(data, :bus, :lmp_elserv)
+    lmp_gen = lmp_bus[gen.bus_idx]
+    add_table_col!(data, :gen, :lmp_egen, lmp_gen, DollarsPerMWhServed, "Locational Marginal Price of Energy Served")
+
     # # Get the shadow price of the positive and negative branch power flow constraints ($/(MW incremental transmission))      
     # cons_branch_pflow_neg = res_raw[:cons_branch_pflow_neg]::Containers.SparseAxisArray{Float64, 3, Tuple{Int64, Int64, Int64}}
     # cons_branch_pflow_pos = res_raw[:cons_branch_pflow_pos]::Array{Float64, 3}

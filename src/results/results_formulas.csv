@@ -17,6 +17,8 @@ gen,fuel_cost,"SumHourly(fuel_price,heat_rate,egen)",Dollars,Total cost of fuel
 gen,fuel_price_per_mwh,fuel_cost/egen_total,DollarsPerMWhGenerated,Fuel price per MWh generated
 gen,variable_cost,fuel_cost+vom_cost,Dollars,"Variable costs for operation, including fuel and vom."
 gen,variable_cost_per_mwh,variable_cost/egen_total,Dollars,"Variable costs for operation, per MWh of generation.  Includes fuel and vom"
+gen,fixed_cost,capex_cost + fom_cost,Dollars,"Fixed costs, including capex (not just what the optimization saw) and fom"
+gen,fixed_cost_per_mwh,fixed_cost/egen_total,DollarsPerMWhGenerated,Fixed costs per mwh generated
 gen,emis_co2_total,"SumHourly(emis_co2,egen)",ShortTons,Total CO2 emissions
 gen,emis_nox_total,"SumHourly(emis_nox,egen)",Pounds,Total NOx emissions
 gen,emis_so2_total,"SumHourly(emis_so2,egen)",Pounds,Total SO2 emissions
@@ -30,6 +32,8 @@ gen,capt_co2_rate,capt_co2_total/egen_total,ShortTonsPerMWhGenerated,Average rat
 gen,fuel_burned,"SumHourly(heat_rate,egen)",MMBtu,Amount of fuel burned
 gen,fuel_price_per_mmbtu,fuel_cost_total/fuel_burned,DollarsPerMMBtu,Average price of fuel burned
 gen,af_avg,ecap_available_total / ecap_total,MWhGeneratedPerMWhCapacity,Average availability factor (i.e. energy capacity available / energy capacity)
+gen,electricity_revenue,"SumHourly(lmp_egen, egen)",Dollars,Revenue earned by generators for the energy they served to the grid
+gen,electricity_price,electricity_revenue / egen,Dollars,Average price earned by generators for the energy they served to the grid
 bus,elnom_total,SumHourly(elnom),MWhLoad,Nominal load energy
 bus,elserv_total,SumHourly(elserv),MWhServed,Total load energy served
 bus,eflow_in_total,SumHourly(eflow_in),MWhFlow,Total energy flowing into all the buses in this region (not necessarily net flow into the region)

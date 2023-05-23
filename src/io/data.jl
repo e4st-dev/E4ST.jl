@@ -47,6 +47,7 @@ function read_data!(config, data)
     modify_setup_data!(config, data)
 
     setup_results_formulas!(config, data)
+    setup_welfare!(config, data)
 
     # Save the data to file as specified.
     if get(config, :save_data, true)

@@ -30,13 +30,10 @@ mod_rank(::Type{<:YearlyTable}) = 0.0
 
 """
     modify_results!(mod::YearlyTable, config, data) -> nothing
-
-
 """
 function modify_results!(mod::YearlyTable, config, data)
 
     # Retrieve the table and group it
-    results = get_results(data)
     table_name = mod.table_name
     table = get_table(data, table_name)
     gdf = groupby(table, mod.groupby)
