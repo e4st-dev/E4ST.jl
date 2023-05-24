@@ -15,7 +15,7 @@ function aggregate_generation(data, grouping_col, idxs=(:), yr_idxs=(:), hr_idxs
     for key in kk
         sdf = gdf[key]
         _idxs = getfield(sdf, :rows)
-        d[key] = total(unit, data, gen, :egen, _idxs, _yr_idxs, _hr_idxs)
+        d[key] = compute_result(data, :gen, :egen_total, _idxs, _yr_idxs, _hr_idxs)
     end
     return d
 end

@@ -100,7 +100,6 @@ function modify_model!(mod::FuelPrice, config, data, model)
         fuel_sold[
             fuel_idx in axes(table, 1),
             yr_idx in 1:nyr,
-            hr_idx in 1:nhr,
         ],
         lower_bound=0
     )
@@ -110,9 +109,8 @@ function modify_model!(mod::FuelPrice, config, data, model)
         fuel_cost_obj[
             fuel_idx in axes(table, 1),
             yr_idx in 1:nyr,
-            hr_idx in 1:nhr
         ],
-        fuel_sold[fuel_idx, yr_idx, hr_idx] * table.price[fuel_idx][yr_idx, hr_idx]
+        fuel_sold[fuel_idx, yr_idx] * table.price[fuel_idx][yr_idx, :]
     )
 
     # Add fuel_cost_obj to the objective function
@@ -122,20 +120,19 @@ function modify_model!(mod::FuelPrice, config, data, model)
     @expression(model,
         fuel_used[
             fm_idx in axes(fuel_markets,1),
-            yr_idx in 1:nyr,
-            hr_idx in 1:nhr
+            yr_idx in 1:nyr
         ],
         sum0(
-            gen_idx -> (egen[gen_idx, yr_idx, hr_idx] * heat_rate[gen_idx][yr_idx, hr_idx]),
-            fuel_markets.gen_idxs[fm_idx]
+            (egen[gen_idx, yr_idx, hr_idx] * heat_rate[gen_idx][yr_idx, hr_idx])
+            for gen_idx in fuel_markets.gen_idxs[fm_idx], hr_idx in 1:nhr
         )
     )
 
     # Set upper bound of fuel_sold to help the problem be more bounded, even though these will likely not be binding.
     for (idx, quantity) in enumerate(table.quantity)
-        for yr_idx in 1:nyr, hr_idx in 1:nhr
+        for yr_idx in 1:nyr
             isfinite(quantity[yr_idx, :]) || continue
-            set_upper_bound.(fuel_sold[idx, yr_idx, hr_idx], quantity[yr_idx, :] + 1) # plus one to prevent this from binding instead of `cons_fuel_sold`
+            set_upper_bound.(fuel_sold[idx, yr_idx], quantity[yr_idx, :] + 1) # plus one to prevent this from binding instead of `cons_fuel_sold`
         end
     end
 
@@ -146,20 +143,19 @@ function modify_model!(mod::FuelPrice, config, data, model)
             yr_idx in 1:nyr;
             isfinite(table.quantity[fuel_idx][yr_idx, :])
         ],
-        sum(fuel_sold[fuel_idx, yr_idx, hr_idx] for hr_idx in 1:nhr) <= table.quantity[fuel_idx][yr_idx, :]
+        fuel_sold[fuel_idx, yr_idx] <= table.quantity[fuel_idx][yr_idx, :]
     )
 
     # Constrain sum of fuel_sold in each genfuel-area-subarea combo to equal the fuel_used expression.
     @constraint(model,
         cons_fuel_bal[
             fm_idx in axes(fuel_markets, 1),
-            yr_idx in 1:nyr,
-            hr_idx in 1:nhr
+            yr_idx in 1:nyr
         ],
         sum0(
-            fuel_idx -> fuel_sold[fuel_idx, yr_idx, hr_idx],
+            fuel_idx -> fuel_sold[fuel_idx, yr_idx],
             fuel_markets.fuel_price_idxs[fm_idx]
-        ) == fuel_used[fm_idx, yr_idx, hr_idx]
+        ) == fuel_used[fm_idx, yr_idx]
     )
 end
 
@@ -189,8 +185,8 @@ function modify_results!(mod::FuelPrice, config, data)
     
     add_table_col!(data, :fuel_markets, :fuel_sold, fuel_used, MMBtu, "Quantity of fuel sold into this market, in MMBtu")
 
-    add_results_formula!(data, :fuel_markets, :fuel_cost, "SumHourly(fuel_sold,clearing_price)", Dollars, "Total cost of fuel sold in the market(s) (using the clearing price)")
-    add_results_formula!(data, :fuel_markets, :fuel_sold_total, "SumHourly(fuel_sold)", MMBtu, "Total amount of fuel sold in the market(s)")
+    add_results_formula!(data, :fuel_markets, :fuel_cost, "SumYearly(fuel_sold,clearing_price)", Dollars, "Total cost of fuel sold in the market(s) (using the clearing price)")
+    add_results_formula!(data, :fuel_markets, :fuel_sold_total, "SumYearly(fuel_sold)", MMBtu, "Total amount of fuel sold in the market(s)")
     add_results_formula!(data, :fuel_markets, :fuel_clearing_price_per_mmbtu, "fuel_cost/fuel_sold_total", DollarsPerMMBtuSold, "Average price of fuel paid to these market(s).  Computed using the clearing price")
 
     # Compute the clearing price for each genfuel-area-subarea combo

@@ -15,6 +15,9 @@ gen,capex_per_mwh,capex_cost/egen_total,DollarsPerMWhGenerated,Capital expenditu
 gen,cf_avg,egen_total/ecap_total,MWhGeneratedPerMWhCapacity,Average Capacity Factor
 gen,fuel_cost,"SumHourly(fuel_price,heat_rate,egen)",Dollars,Total cost of fuel
 gen,fuel_price_per_mwh,fuel_cost/egen_total,DollarsPerMWhGenerated,Fuel price per MWh generated
+gen,fuel_burned,"SumHourly(heat_rate,egen)",MMBtu,Amount of fuel burned
+gen,fuel_price_per_mmbtu,fuel_cost_total/fuel_burned,DollarsPerMMBtu,Average price of fuel burned
+gen,heat_rate_avg,fuel_burned / egen_total,MMBtuPerMWhGenerated,Average heat rate (fuel burned in MMBtu per MWh)
 gen,variable_cost,fuel_cost+vom_cost,Dollars,"Variable costs for operation, including fuel and vom."
 gen,variable_cost_per_mwh,variable_cost/egen_total,Dollars,"Variable costs for operation, per MWh of generation.  Includes fuel and vom"
 gen,fixed_cost,capex_cost + fom_cost,Dollars,"Fixed costs, including capex (not just what the optimization saw) and fom"
@@ -29,8 +32,6 @@ gen,emis_so2_rate,emis_so2_total/egen_total,PoundsPerMWhGenerated,Average rate o
 gen,emis_pm25_rate,emis_pm25_total/egen_total,PoundsPerMWhGenerated,Average rate of PM2.5 emissions
 gen,capt_co2_total,"SumHourly(capt_co2,egen)",ShortTons,Total CO2 captured
 gen,capt_co2_rate,capt_co2_total/egen_total,ShortTonsPerMWhGenerated,Average rate of CO2 capture
-gen,fuel_burned,"SumHourly(heat_rate,egen)",MMBtu,Amount of fuel burned
-gen,fuel_price_per_mmbtu,fuel_cost_total/fuel_burned,DollarsPerMMBtu,Average price of fuel burned
 gen,af_avg,ecap_available_total / ecap_total,MWhGeneratedPerMWhCapacity,Average availability factor (i.e. energy capacity available / energy capacity)
 gen,electricity_revenue,"SumHourly(lmp_egen, egen)",Dollars,Revenue earned by generators for the energy they served to the grid
 gen,electricity_price,electricity_revenue / egen,Dollars,Average price earned by generators for the energy they served to the grid

@@ -7,9 +7,16 @@ function setup_welfare!(config, data)
     welfare = OrderedDict{Symbol, OrderedDict{Symbol,OrderedDict{Symbol,Function}}}()
     data[:welfare] = welfare
 
+    # Producer welfare
     add_welfare_term!(data, :producer, :gen, :variable_cost, -)
     add_welfare_term!(data, :producer, :gen, :fixed_cost, -)
     add_welfare_term!(data, :producer, :gen, :electricity_revenue, +)
+
+    # TODO: Add transfer for CO2 paid
+
+    # Consumer welfare
+
+    # Government welfare
 
     
 end

@@ -197,6 +197,9 @@ end
 function Base.getindex(v::Vector{<:Container}, i::Int64, y::Int64, h::Int64)
     return v[i][y,h]
 end
+function Base.getindex(v::Vector{<:Container}, i::Int64, y::Int64)
+    return v[i][y,(:)]
+end
 
 ###############################################################################
 # Yearly Adjust
