@@ -25,7 +25,7 @@ makedocs(
         "Results" => Any[
             "Overview" => "results/overview.md",
             "Formulas" => "results/formulas.md",
-            "Aggregation" => "results/aggregation.md",
+            "Results Modifications" => "results/modifications.md",
             "Plotting" => "results/plotting.md",
         ],
         "Abstract Types"=>Any[

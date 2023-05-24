@@ -90,6 +90,7 @@ function add_results_formula!(data, table_name::Symbol, result_name::Symbol, for
 
     results_formulas = get_results_formulas(data)
 
+    # Raw results calculations. I.e. "SumHourly(vom, egen)"
     if startswith(formula, r"[\w]+\(")
         args_string = match(r"\([^\)]+\)", formula).match
         dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", args_string))
@@ -98,6 +99,8 @@ function add_results_formula!(data, table_name::Symbol, result_name::Symbol, for
         # fn_string = replace(r"([\w]+)\(",formula)
         isderived = false
         fn = eval(Meta.parse(combined_string))
+        
+    # Derived results calculations: I.e. "vom_total / egen_total"
     else
         dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", formula))
         isderived = true
@@ -280,7 +283,7 @@ end
 @doc raw"""
     AverageYearly(cols...) <: Function
 
-Function used in results formulas.  Computes the sum of the products of the columns for each index in idxs.
+Function used in results formulas.  Computes the sum of the products of the columns for each index in idxs for each year, divided by the number of years.
 
 ```math
 \frac{\sum_{i \in \text{idxs}} \sum_{y \in \text{yr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y]}{\text{length(yr\_idxs)}}
