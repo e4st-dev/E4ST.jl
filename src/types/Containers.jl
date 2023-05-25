@@ -12,8 +12,8 @@ export Container
 Container(x::Number) = OriginalContainer(x, ByNothing(x))
 
 Container(c::Container) = c
-Base.getindex(c::Container, inds::Vararg) where {T,N} = c.v[inds...]
-Base.setindex!(c::Container, val, inds::Vararg) where {T,N} = (c.v[inds...] = val)
+Base.getindex(c::Container, inds::Vararg) = c.v[inds...]
+Base.setindex!(c::Container, val, inds::Vararg) = (c.v[inds...] = val)
 
 Base.isempty(c::Container) = false
 Base.size(c::Container) = size(c.v)

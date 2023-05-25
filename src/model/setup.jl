@@ -184,7 +184,7 @@ end
 """
 function summarize(model::Model)
     buf = IOBuffer()
-    df = DataFrame(:variable=>Symbol[], :type=>Symbol[], :dimensions=>[], :length=>[])
+    df = DataFrame(:variable=>Symbol[], :type=>Symbol[], :dimensions=>[], :length=>[], :rhs_range=>[], :matrix_range=>[], :bounds_range=>[])
     d = object_dictionary(model)
     for (key, obj) in d
         if obj isa AbstractArray
@@ -206,9 +206,11 @@ function summarize(model::Model)
         else
             s = (1,)
         end
+        rhs_range = get_rhs_range(obj)
+        matrix_range = get_matrix_range(obj)
+        bounds_range = get_bounds_range(obj)
 
-    
-        push!(df, (key, t, s, len))
+        push!(df, (key, t, s, len, rhs_range, matrix_range, bounds_range))
     end
     println(buf, "Model Summary:")
 
@@ -221,14 +223,72 @@ end
 export summarize
 
 """
+    get_matrix_range(c) -> (min, max)
+
+Returns min and max of non-zero absolute value of matrix range
+"""
+get_matrix_range(c::AbstractArray{<:ConstraintRef}) = (get_limit(minimum, c), get_limit(maximum, c))
+get_matrix_range(c) = nothing
+
+"""
+    get_bounds_range(v) -> (min, max)
+
+Returns min and max of non-zero absolute value of variable bounds range
+"""
+get_bounds_range(v::AbstractArray{<:VariableRef}) = (get_limit(minimum, v), get_limit(maximum, v))
+get_bounds_range(v) = nothing
+
+"""
+    get_rhs_range(v) -> (min, max)
+
+Returns min and max of non-zero absolute value of constraint right hand side range range
+"""
+get_rhs_range(c::AbstractArray{<:ConstraintRef}) = (get_rhs_limit(minimum, c), get_rhs_limit(maximum, c))
+get_rhs_range(c) = nothing
+
+get_limit(f, obj::AbstractArray{<:VariableRef}) = try; f(abs(x) for x in get_limit.(f, obj) if x != 0); catch; 0.0; end;
+
+get_limit(f, v::VariableRef) = begin
+    hasub = has_upper_bound(v)
+    haslb = has_lower_bound(v)
+    hasub && haslb && return f(abs, ((lower_bound(v), upper_bound(v))))
+    hasub && return abs(upper_bound(v))
+    haslb && return abs(lower_bound(v))
+    return 0.0
+end
+
+get_limit(f, obj::AbstractArray{<:ConstraintRef}) = f(abs(x) for x in get_limit.(f, obj))
+get_limit(f, c::ConstraintRef) = try; f(abs(x) for x in get_terms(c) if x != 0); catch; 0.0; end;
+function get_terms(c::ConstraintRef)
+    co = constraint_object(c)
+    f = co.func
+    d = f.terms
+    return values(d)
+end
+export get_terms
+
+get_rhs_limit(f, obj::AbstractArray{<:ConstraintRef}) = try; f(abs(x) for x in get_rhs.(obj) if x != 0); catch; 0.0; end;
+function get_rhs(c::ConstraintRef)
+    co = constraint_object(c)
+    rhs = _get_value(co.set)
+end
+_get_value(s::MOI.GreaterThan) = s.lower
+_get_value(s::MOI.LessThan) = s.upper
+_get_value(s::MOI.EqualTo) = s.value
+
+
+"""
     getoptimizer(config) -> optimizer_factory
 """
 function getoptimizer(config)
     opt_type_str = config[:optimizer][:type]
     opt_type = getoptimizertype(opt_type_str)
+    p = optimizer_attributes_pairs(config)
+    @info string("Using $opt_type_str Optimizer with attributes:\n", ("  $attribute: $value\n" for (attribute, value) in p)...)
+    # @info s
     return optimizer_with_attributes(
         opt_type,
-        optimizer_attributes_pairs(config)...
+        p...
     )
 end
 function optimizer_attributes_pairs(config, args...; kwargs...)
@@ -273,7 +333,9 @@ function optimizer_attributes(config, ::Val{:HiGHS}; log_file = nothing, kwargs.
         kwargs...
     )
 end
+
 function optimizer_attributes(config, ::Val{:Gurobi}; LogFile=nothing, kwargs...)
+    # See the issue here for more info on how these defaults were chosen: https://github.com/e4st-dev/E4ST.jl/issues/72
     if LogFile === nothing
         log_file_full = ""
     elseif ispath(dirname(LogFile))
@@ -281,20 +343,30 @@ function optimizer_attributes(config, ::Val{:Gurobi}; LogFile=nothing, kwargs...
     else
         log_file_full = get_out_path(config, LogFile)
     end
-    # These defaults came from e4st_core.m
     (;
         LogFile         = log_file_full,
         LogToConsole    = false,
-        NumericFocus    = 3,
-        BarHomogeneous  = 1,
-        method          = 2,
-        # BarIterLimit    = 1000,   # 
+        Method          = 2,
         Crossover       = 0,      # 0 disables crossover
+        Threads         = 1,
+        # NumericFocus    = 3, # NumericFocus can help with numerical instabilities if model failing to solve
+        # BarHomogeneous  = 1, # BarHomogeneous can help with numerical instabilities if model failing to solve
+        # BarIterLimit    = 1000,
         # FeasibilityTol  = 1e-2,
         # OptimalityTol   = 1e-6,
         # BarConvTol      = 1e-6,
-        Threads         = 1,
         # DualReductions  = 0,  # This is only to see if infeasible or unbounded.
         kwargs...
     )
+end
+
+function run_optimize!(config, data, model)
+    log_header("OPTIMIZING MODEL!")
+
+    t_start = now()
+    optimize!(model)
+    t_finish = now()
+
+    t_elapsed = Dates.canonicalize(Dates.CompoundPeriod(t_finish - t_start))
+    log_header("MODEL OPTIMIZED in $t_elapsed")
 end

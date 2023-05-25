@@ -29,6 +29,7 @@ Adds a column to the gen table containing the emission price as a per MWh value 
 Adds this as a `PerMWhGen` price to the objective function using [`add_obj_term!`](@ref)
 """
 function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
+    @info ("$(pol.name) modifying the model")
 
     gen = get_table(data, :gen)
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))

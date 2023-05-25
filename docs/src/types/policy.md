@@ -10,12 +10,14 @@ Policy
 ## ITC
 ```@docs
 ITC
+modify_setup_data!(pol::ITC, config, data)
 modify_model!(pol::ITC, config, data, model)
 ```
 
 ## PTC
 ```@docs
 PTC
+modify_setup_data!(pol::PTC, config, data)
 modify_model!(pol::PTC, config, data, model)
 ```
 

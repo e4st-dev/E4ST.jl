@@ -10,8 +10,7 @@ Storage is represented over sets of time-weighted sequential representative hour
 
 # Arguments
 * `name` - the name of the [`Modification`](@ref).
-* `file` - the filename of the storage table, where each row represents a storage device
-.  See also [`summarize_table(::Val{:storage})`](@ref)
+* `file` - the filename of the storage table, where each row represents a storage device. See also [`summarize_table(::Val{:storage})`](@ref)
 * `build_file` - the filename of the buildable storage table, where each row represents a specification for buildable storage.  See also [`summarize_table(::Val{:build_storage})`](@ref)
 
 # Variables Introduced
@@ -72,7 +71,7 @@ function summarize_table(::Val{:storage})
         (:pcap0, Float64, MWCapacity, true, "Starting nameplate power discharge capacity for the storage device"),
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power discharge capacity of the storage device (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power discharge capacity of the storage device"),
-        (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of energy discharged"),
+        (:vom, Float64, DollarsPerMWhDischarged, true, "Variable operation and maintenance cost per MWh of energy discharged"),
         (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of discharge capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, true, "Hourly capital expenditures for a MW of discharge capacity"),
         (:duration_discharge, Float64, Hours, true, "Number of hours to fully discharge the storage device, from full."),
@@ -106,7 +105,7 @@ function summarize_table(::Val{:build_storage})
         (:pcap0, Float64, MWCapacity, true, "Starting nameplate power discharge capacity for the storage device"),
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power discharge capacity of the storage device (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power discharge capacity of the storage device"),
-        (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of energy discharged"),
+        (:vom, Float64, DollarsPerMWhDischarged, true, "Variable operation and maintenance cost per MWh of energy discharged"),
         (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of discharge capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, true, "Hourly capital expenditures for a MW of discharge capacity"),
         (:duration_discharge, Float64, Hours, true, "Number of hours to fully discharge the storage device, from full."),
@@ -129,6 +128,7 @@ end
 
 function modify_setup_data!(mod::Storage, config, data)
     storage = get_table(data, :storage)
+    bus = get_table(data, :bus)
     hours = get_table(data, :hours)
     years = get_years(data)
 
@@ -187,6 +187,18 @@ function modify_setup_data!(mod::Storage, config, data)
         end
 
         sdf_storage.intervals .= Ref(intervals)
+    end
+
+    ### Map bus characteristics to storage
+    names_before = propertynames(storage)
+    leftjoin!(storage, bus, on=:bus_idx)
+    select!(storage, Not(:plnom))
+    disallowmissing!(storage)
+    names_after = propertynames(storage)
+
+    for name in names_after
+        name in names_before && continue
+        add_table_col!(data, :storage, name, storage[!,name], get_table_col_unit(data, :bus, name), get_table_col_description(data, :bus, name), warn_overwrite=false)
     end
 end
 

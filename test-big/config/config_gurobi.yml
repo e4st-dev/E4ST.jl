@@ -1,8 +1,0 @@
-optimizer:
-  type: "Gurobi"
-  LogFile: "Gurobi.log"
-base_out_path: "../out/gurobi"
-save_data_parsed: false
-years:
-  - "y2030"
-line_loss_type: plserv

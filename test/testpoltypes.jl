@@ -255,12 +255,11 @@
                 @test hasproperty(gen, :example_rps_gentype)
 
                 # check that some crediting was applied
-                @test any(credit -> get_original(credit) > 0.0, gen[!, :example_rps])
-                @test any(credit -> get_original(credit) > 0.0, gen[!, :example_rps_gentype])
+                @test any(credit -> any(>(0.0),credit), gen[!, :example_rps])
+                @test any(credit -> any(>(0.0),credit), gen[!, :example_rps_gentype])
 
-                @test ~any(credit -> get_original(credit) > 1.0 || get_original(credit) < 0.0, gen[!, :example_rps])
-                @test ~any(credit -> get_original(credit) > 1.0 || get_original(credit) < 0.0, gen[!, :example_rps_gentype])
-
+                @test ~any(credit -> any(x -> x > (1.0) || x < (0.0), credit), gen[!, :example_rps])
+                @test ~any(credit -> any(x -> x > (1.0) || x < (0.0), credit), gen[!, :example_rps_gentype])
             end
 
             @testset "Adding RPS to model" begin
@@ -331,9 +330,9 @@
                 @test hasproperty(gen, :example_ces)
 
                 # check that some crediting was applied
-                @test any(credit -> any(0.0 .< [credit[year_idx,:] for year_idx in nyears]), gen[!, :example_ces])
+                @test any(credit -> any(>(0.0), credit), gen[!, :example_ces])
 
-                @test ~any(credit -> any(1.0 .< [credit[year_idx,:] for year_idx in nyears]) || any(0.0 .> [credit[year_idx,:] for year_idx in nyears]), gen[!, :example_ces])
+                @test ~any(credit -> any(x -> x > (1.0) || x < (0.0), credit), gen[!, :example_ces])
 
             end
 
