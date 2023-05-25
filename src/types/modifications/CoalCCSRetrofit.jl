@@ -28,7 +28,7 @@ end
 export CoalCCSRetrofit
 
 function mod_rank(::Type{CoalCCSRetrofit})
-    mod_rank(CCUS) - 1e-6
+    mod_rank(CCUS) - 0.5
 end
 
 function init!(ret::CoalCCSRetrofit, config, data)
@@ -71,7 +71,8 @@ function get_retrofit(ret::CoalCCSRetrofit, row)
     newgen[:vom] += 1.3763849270664505 + -0.005877951956471406 * pcap_avg + 3.037289187311878e-6 * pcap_avg.^2 + 0.40775063672146333 * hr;
 
     newgen[:heat_rate] *= (1+hr_pen)
-    newgen[:emis_co2] *= ((1 - ret.capt_co2_percent) * (1 + hr_pen))
+    newgen[:emis_co2] *= (1 + hr_pen) # This will get multiplied by the capt_co2_percent in the CCUS mod
+    newgen[:capt_co2_percent] = ret.capt_co2_percent
 
     haskey(newgen, :emis_nox) && (newgen[:emis_nox] *= ((1 - ret.reduce_nox_percent) * (1 + hr_pen)))
     haskey(newgen, :emis_so2) && (newgen[:emis_so2] *= ((1 - ret.reduce_so2_percent) * (1 + hr_pen)))

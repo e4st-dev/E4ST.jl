@@ -8,16 +8,19 @@ Production Tax Credit - A \$/MWh tax incentive for the generation of specific te
 * `name`: policy name 
 * `values`: \$/MWh values of the PTC, stored as an OrderedDict with years and the value `(:y2020=>10)`, note `year` is a `Symbol`
 * `first_year_adj`: If the PTC is for the first year that a generator is on, it is sometimes adjusted to be the average PTC value over the expected lifetime of the generator. This is the adjustement factor between the original and first year value `first_year_ptc = original_ptc*first_year_adj`
-* `gen_age_min`: minimum generator age to qualifying (inclusive)
-* `gen_age_max`: maximum generator age to qualify (inclusive)
+* `years_after_ref_min`: Min (inclusive) number of years the sim year can be after gen reference year (ie. year_on, year_retrofit). If ref year is year_on then this would be equivaled to min gen age. 
+* `years_after_ref_max`: Max (inclusive) number of years the sim year can be after gen reference year (ie. year_on, year_retrofit). If ref year is year_on then this would be equivaled to max gen age.
+* `ref_year_col`: Column name to use as reference year for min and max above. Must be a year column. If this is :year_on, then the years_after_ref filters will filter gen age. If this is :year_retrofit, the the years_after_ref filters will filter by time since retrofit. 
+
 * `gen_filters`: filters for qualifying generators, stored as an OrderedDict with gen table columns and values (`:emis_co2=>"<=0.1"` for co2 emission rate less than or equal to 0.1)
 """
 Base.@kwdef struct PTC <: Policy
     name::Symbol
     values::OrderedDict
     first_year_adj::Float64 = 1
-    gen_age_min::Float64
-    gen_age_max::Float64
+    years_after_ref_min::Float64 = 0
+    years_after_ref_max::Float64 = 999
+    ref_year_col::String = "year_on"
     gen_filters::OrderedDict
 end
 export PTC
@@ -34,6 +37,7 @@ function E4ST.modify_setup_data!(pol::PTC, config, data)
     @info "Applying PTC $(pol.name) to $(length(gen_idxs)) generators"
 
     years = get_years(data)
+    years_int = year2float.(years)
 
     #create column of PTC values
     add_table_col!(data, :gen, pol.name, Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated,
@@ -43,7 +47,10 @@ function E4ST.modify_setup_data!(pol::PTC, config, data)
     credit_yearly = [get(pol.values, Symbol(year), 0.0) for year in years] #values for the years in the sim
     for gen_idx in gen_idxs
         g = gen[gen_idx, :]
-        g_qual_year_idxs = findall(age -> pol.gen_age_min <= age <= pol.gen_age_max, g.age.v)
+        ref_year = year2float(g[Symbol(pol.ref_year_col)])
+        year_min = ref_year + pol.years_after_ref_min
+        year_max = ref_year + pol.years_after_ref_max
+        g_qual_year_idxs = findall(y -> year_min <= y <= year_max, years_int)
         vals_tmp = [(i in g_qual_year_idxs) ? credit_yearly[i] : 0.0  for i in 1:length(years)]
         gen[gen_idx, pol.name] = ByYear(vals_tmp)
     end
