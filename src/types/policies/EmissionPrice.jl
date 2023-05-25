@@ -18,16 +18,12 @@ Base.@kwdef struct EmissionPrice <: Policy
     name::Symbol
     emis_col::Symbol
     prices::OrderedDict
-    first_year_adj::Float64 = 1
-    years_after_ref_min::Float64 = 0
-    years_after_ref_max::Float64 = 999
+    first_year_adj::Float64 = 1.
+    years_after_ref_min::Float64 = 0.
+    years_after_ref_max::Float64 = 999.
     ref_year_col::String = "year_on"
     gen_filters::OrderedDict
 end
-
-# function EmissionPrice(;name::Any, emis_col::Any, prices, gen_filters=OrderedDict())
-#     EmissionPrice(Symbol(name), Symbol(emis_col), prices, gen_filters)
-# end
 export EmissionPrice
 
 
@@ -56,7 +52,9 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
     price_yearly = [get(pol.prices, Symbol(year), 0.0) for year in years] #prices for the years in the sim
     for gen_idx in gen_idxs
         g = gen[gen_idx, :]
-        ref_year = year2float(g[Symbol(pol.ref_year_col)])
+
+        # Get the years that qualify
+        ref_year = year2float(g[pol.ref_year_col])
         year_min = ref_year + pol.years_after_ref_min
         year_max = ref_year + pol.years_after_ref_max
         g_qual_year_idxs = findall(y -> year_min <= y <= year_max, years_int)
