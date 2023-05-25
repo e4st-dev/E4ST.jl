@@ -100,7 +100,7 @@ function setup_model(config, data)
 
     add_optimizer!(config, data, model)
 
-    #@info summarize(model)
+    config[:log_model_summary] === true && @info summarize(model)
 
     return model
 end

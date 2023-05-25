@@ -35,6 +35,7 @@ function summarize_config()
         (:year_gen_data, true, nothing, "The year string (i.e. `y2016`) corresponding to the data year of the generator table."),
         
         ## Optional Fields:
+        (:log_model_summary, false, false, "Whether or not to log a numerical summary of the model.  Useful for debugging, but can take a while if the model is large."),
         (:out_path, false, nothing, "the path to output to.  If this is not provided, an output path will be created [`make_out_path!`](@ref)."),
         (:other_config_files, false, nothing, "A list of other config files to read.  Note that the options in the parent file will be honored."),
         (:af_file, false, nothing, "The filepath (relative or absolute) to the availability factor table.  See [`summarize_table(::Val{:af_table})`](@ref)"),
