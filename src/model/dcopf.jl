@@ -225,26 +225,6 @@ export get_pflow_branch
 
 
 ### Contraint/Expression Info Functions
-
-"""
-    get_cf_min(data, model, gen_idx, year_idx, hour_idx)
-
-Returns min power generation for a generator at a time. 
-Default is 0 unless specified by the optional gen property `cf_min` (minimum capacity factor).
-""" 
-function get_cf_min(data, model, gen_idx, year_idx, hour_idx) 
-    gen = get_table(data, :gen)
-    if hasproperty(gen, :cf_min)
-        pcap = model[:pcap_gen][gen_idx, year_idx]
-        cf_min = get_table_num(data, :gen, :cf_min, gen_idx, year_idx, hour_idx)
-        isnan(cf_min) && return 0.0
-        return pcap .* cf_min 
-    else
-        return 0.0
-    end
-end
-export get_cf_min
-
 """
     get_cf_max(data, gen_idx, year_idx, hour_idx)
 
