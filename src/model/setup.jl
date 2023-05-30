@@ -100,7 +100,7 @@ function setup_model(config, data)
 
     add_optimizer!(config, data, model)
 
-    #@info summarize(model)
+    @info summarize(model)
 
     return model
 end
