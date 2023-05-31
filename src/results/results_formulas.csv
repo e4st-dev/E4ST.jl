@@ -1,0 +1,46 @@
+table_name,result_name,formula,unit,description
+gen,egen_total,SumHourly(egen),MWhGenerated,"Total energy generated, in MWh"
+gen,ecap_total,SumHourly(ecap),MWhCapacity,"Total energy capacity, in MWh"
+gen,pcap_total,AverageYearly(pcap),MWCapacity,"Average power capacity.  If multiple years given, the average is taken."
+gen,ecap_available_total,"SumHourly(ecap,af)",MWhCapacity,"Total available energy capacity, in MWh"
+gen,pcap_start_total,Sum(pcap0),MWCapacity,Starting power capacity.
+gen,pcap_built_total,SumYearly(pcap_built),MWCapacity,Total power capacity built.  Ignores subsets of hours and returns the built capacity for the whole year(s).
+gen,pcap_retired_total,SumYearly(pcap_retired),MWCapacity,Total power capacity retired.  Ignores subsets of hours and returns the retired capacity for the whole year(s).
+gen,vom_cost,"SumHourly(vom,egen)",Dollars,"Variable Operation and Maintenance paid, in dollars"
+gen,vom_per_mwh,vom_cost/egen_total,DollarsPerMWhGenerated,Generation-weighted average of variable operation and maintenance costs
+gen,fom_cost,"SumHourly(fom,ecap)",Dollars,"Fixed Operation and Maintenance paid, in dollars"
+gen,fom_per_mwh,fom_cost/egen_total,DollarsPerMWhGenerated,Fixed Operation and Maintenance paid per MWh of energy generated
+gen,capex_cost,"SumHourly(capex,ecap)",Dollars,"Fixed Operation and Maintenance paid, in dollars"
+gen,capex_per_mwh,capex_cost/egen_total,DollarsPerMWhGenerated,Capital expenditures paid per MWh of energy generated
+gen,cf_avg,egen_total/ecap_total,MWhGeneratedPerMWhCapacity,Average Capacity Factor
+gen,fuel_cost,"SumHourly(fuel_price,heat_rate,egen)",Dollars,Total cost of fuel
+gen,fuel_price_per_mwh,fuel_cost/egen_total,DollarsPerMWhGenerated,Fuel price per MWh generated
+gen,fuel_burned,"SumHourly(heat_rate,egen)",MMBtu,Amount of fuel burned
+gen,fuel_price_per_mmbtu,fuel_cost_total/fuel_burned,DollarsPerMMBtu,Average price of fuel burned
+gen,heat_rate_avg,fuel_burned / egen_total,MMBtuPerMWhGenerated,Average heat rate (fuel burned in MMBtu per MWh)
+gen,variable_cost,fuel_cost+vom_cost,Dollars,"Variable costs for operation, including fuel and vom."
+gen,variable_cost_per_mwh,variable_cost/egen_total,Dollars,"Variable costs for operation, per MWh of generation.  Includes fuel and vom"
+gen,fixed_cost,capex_cost + fom_cost,Dollars,"Fixed costs, including capex (not just what the optimization saw) and fom"
+gen,fixed_cost_per_mwh,fixed_cost/egen_total,DollarsPerMWhGenerated,Fixed costs per mwh generated
+gen,emis_co2_total,"SumHourly(emis_co2,egen)",ShortTons,Total CO2 emissions
+gen,emis_nox_total,"SumHourly(emis_nox,egen)",Pounds,Total NOx emissions
+gen,emis_so2_total,"SumHourly(emis_so2,egen)",Pounds,Total SO2 emissions
+gen,emis_pm25_total,"SumHourly(emis_pm25,egen)",Pounds,Total PM2.5 emissions
+gen,emis_co2_rate,emis_co2_total/egen_total,ShortTonsPerMWhGenerated,Average rate of CO2 emissions
+gen,emis_nox_rate,emis_nox_total/egen_total,PoundsPerMWhGenerated,Average rate of NOx emissions
+gen,emis_so2_rate,emis_so2_total/egen_total,PoundsPerMWhGenerated,Average rate of SO2 emissions
+gen,emis_pm25_rate,emis_pm25_total/egen_total,PoundsPerMWhGenerated,Average rate of PM2.5 emissions
+gen,capt_co2_total,"SumHourly(capt_co2,egen)",ShortTons,Total CO2 captured
+gen,capt_co2_rate,capt_co2_total/egen_total,ShortTonsPerMWhGenerated,Average rate of CO2 capture
+gen,af_avg,ecap_available_total / ecap_total,MWhGeneratedPerMWhCapacity,Average availability factor (i.e. energy capacity available / energy capacity)
+gen,electricity_revenue,"SumHourly(lmp_egen, egen)",Dollars,Revenue earned by generators for the energy they served to the grid
+gen,electricity_price,electricity_revenue / egen,Dollars,Average price earned by generators for the energy they served to the grid
+bus,elnom_total,SumHourly(elnom),MWhLoad,Nominal load energy
+bus,elserv_total,SumHourly(elserv),MWhServed,Total load energy served
+bus,eflow_in_total,SumHourly(eflow_in),MWhFlow,Total energy flowing into all the buses in this region (not necessarily net flow into the region)
+bus,eflow_out_total,SumHourly(eflow_out),MWhFlow,Total energy flowing out of all the buses in this region (not necessarily net flow out of the region)
+bus,elcurt_total,SumHourly(elcurt),MWhCurtailed,Total energy curtailed in this region
+branch,eflow_total,SumHourly(eflow),MWhFlow,Total energy flowing in this branch
+branch,pflow_hourly_min,MinHourly(pflow),MWFlow,Minimum sum of power flowing in these branches
+bus,cost_elserv,"SumHourly(elserv,lmp_elserv)",Dollars,Total cost of electricity served
+bus,price_elserv,cost_elserv / elserv_total,DollarsPerMWhServed,Average cost of electricity served

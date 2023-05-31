@@ -146,7 +146,7 @@ function setup_dcopf!(config, data, model)
     add_obj_term!(data, model, PerMWhGen(), :vom, oper = +)
 
     # Only add fuel cost if included and non-zero.
-    if hasproperty(gen, :fuel_price) && any(gen.fuel_price[yr_idx, hr_idx] != 0 for yr_idx in 1:nyear, hr_idx in 1:nhour)
+    if hasproperty(gen, :fuel_price) && anyany(!=(0), gen.fuel_price)
         add_obj_term!(data, model, PerMMBtu(), :fuel_price, oper = +)
     end
 

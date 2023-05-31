@@ -106,7 +106,7 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
                     )
                 )
             ],
-            pcap[row_idx, yr_idx] == table.pcap0[row_idx]
+            pcap[row_idx, yr_idx] == table.pcap_max[row_idx]
         )
     end
 

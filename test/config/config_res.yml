@@ -19,3 +19,5 @@ mods:
     type: YearlyTable
     table_name: gen
     groupby: ":"
+  welfare:
+    type: WelfareTable

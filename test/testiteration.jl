@@ -19,13 +19,13 @@
         function E4ST.should_iterate(iter::TargetAvgAnnualNGGen, config, data)
             tgt = iter.target
             tol = iter.tol
-            ng_gen_total = aggregate_result(total, data, :gen, :egen, :genfuel=>"ng")
+            ng_gen_total = compute_result(data, :gen, :egen_total, :genfuel=>"ng")
             ng_gen_ann = ng_gen_total/get_num_years(data)
             return abs(ng_gen_ann-tgt) > tol            
         end
         function E4ST.iterate!(iter::TargetAvgAnnualNGGen, config, data)
             tgt = iter.target
-            ng_gen_total = aggregate_result(total, data, :gen, :egen, :genfuel=>"ng")
+            ng_gen_total = compute_result(data, :gen, :egen_total, :genfuel=>"ng")
             ng_gen_ann = ng_gen_total/get_num_years(data)
             
             diff = ng_gen_ann - tgt
