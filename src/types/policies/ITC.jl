@@ -53,4 +53,16 @@ function E4ST.modify_model!(pol::ITC, config, data, model)
     add_obj_term!(data, model, PerMWCap(), pol.name, oper = -)
 end
 
-#TODO: something about how to process this in results
+
+"""
+    E4ST.modify_results!(pol::ITC, config, data) -> 
+"""
+function E4ST.modify_results!(pol::ITC, config, data)
+
+    # calculate objective policy cost (based on capacity in each sim year)
+
+
+    # calculate welfare policy cost (obj policy cost spread over all years of investment represented by the sim years)
+
+
+end
