@@ -382,17 +382,30 @@ function modify_model!(mod::Storage, config, data, model)
         )
     )
 
+    
+
+    @expression(model,
+        pcap_stor_inv_sim[stor_idx in axes(storage,1)],
+        begin
+            storage.build_status[stor_idx] == "unbuilt" || return 0.0
+            year_on = storage.year_on[stor_idx]
+            year_on > last(years) && return 0.0
+            yr_idx_on = findfirst(>=(year_on), years)
+            return pcap_stor[stor_idx, yr_idx_on]
+        end
+    )
+
     @expression(model,
         capex_obj_stor[yr_idx in 1:nyr],
         sum(
-            pcap_stor[stor_idx, yr_idx] * get_table_num(data, :storage, :capex_obj, stor_idx, yr_idx, :)
+            pcap_stor_inv_sim[stor_idx] * get_table_num(data, :storage, :capex_obj, stor_idx, yr_idx, :)
             for stor_idx in axes(storage,1)
         )
     )
 
     add_obj_exp!(data, model, PerMWhGen(), :vom_stor, oper = +)
     add_obj_exp!(data, model, PerMWCap(), :fom_stor, oper = +)
-    add_obj_exp!(data, model, PerMWCap(), :capex_obj_stor, oper = +) 
+    add_obj_exp!(data, model, PerMWCapInv(), :capex_obj_stor, oper = +) 
 end
 
 """
