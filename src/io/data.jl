@@ -438,15 +438,25 @@ function setup_table!(config, data, ::Val{:gen})
     end  
 
     ### Create capex_obj (the capex used in the optimization/objective function)
-    # set to capex for unbuilt generators in the year_on
+    # set to capex for unbuilt generators in and after the year_on
     # set to 0 for already built capacity because capacity expansion isn't considered for existing generators
     capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
     for idx_g in 1:nrow(gen)
         g = gen[idx_g,:]
-        g_capex_obj = [(g.build_status=="unbuilt")* g.capex*(g.year_on==year) for year in get_years(data)]
-        capex_obj[idx_g] = ByYear(g_capex_obj) 
+        g.build_status == "unbuilt" || continue
+        g_capex_obj = [g.capex * (year >= g.year_on && year < g.year_off) for year in get_years(data)]
+        # g_capex_obj = [g.capex * (year == g.year_on) for year in get_years(data)]
+        capex_obj[idx_g] = ByYear(g_capex_obj)
     end
     add_table_col!(data, :gen, :capex_obj, capex_obj, DollarsPerMWBuiltCapacity, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
+
+    capex_econ = Container[ByNothing(0.0) for i in 1:nrow(gen)]
+    for idx_g in 1:nrow(gen)
+        g = gen[idx_g,:]
+        g_capex = [g.capex * (year >= g.year_on && year < g.year_off) for year in get_years(data)] # Possibly change this to be based on economic lifetime
+        capex_econ[idx_g] = ByYear(g_capex)
+    end
+    add_table_col!(data, :gen, :capex_econ, capex_econ, DollarsPerMWBuiltCapacity, "Hourly capital expenditures to be paid between year_on and year_off")
 
     
     ### Add age column as by ByYear based on year_on
@@ -962,6 +972,8 @@ export get_table_num
 """
     get_num(data, variable_name, yr_idx, hr_idx) -> num::Float64
 
+    get_num(table, col_name, row_idx, yr_idx, hr_idx) -> num::Float64
+
 Retrieves a `Float64` from `data[variable_name]`, indexing by year and hour.  Works for [`Container`](@ref)s and `Number`s.
 
 Related functions:
@@ -972,6 +984,10 @@ Related functions:
 function get_num(data, variable_name::Symbol, yr_idx, hr_idx)
     c = data[variable_name]
     return c[yr_idx, hr_idx]::Float64
+end
+function get_num(table::DataFrame, col_name::Symbol, row_idx::Int64, yr_idx::Int64, hr_idx)
+    container = table[row_idx, col_name]
+    return container[yr_idx, hr_idx]::Float64
 end
 export get_num
 

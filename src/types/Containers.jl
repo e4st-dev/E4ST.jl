@@ -206,6 +206,9 @@ _getindex(args...) = getindex(args...)::Float64
 function Base.getindex(v::Vector{<:Real}, i::Int64, y::Int64, h::Int64)
     return v[i]
 end
+function Base.getindex(v::Vector{<:Real}, i::Int64, y::Int64)
+    return v[i]
+end
 
 function Base.getindex(v::Vector{<:Container}, i::Int64, y::Int64, h::Int64)
     return v[i][y,h]

@@ -30,6 +30,7 @@ Term
 PerMWhGen
 PerMWCap
 PerMWhCurtailed
+PerMWCapInv
 add_obj_term!
 add_obj_exp!
 ```

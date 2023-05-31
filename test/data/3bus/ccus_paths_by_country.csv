@@ -1,7 +1,7 @@
 producing_region,storing_region,step_id,ccus_type,step_quantity,price_trans,price_store
 narnia,narnia,1,eor,10000,10,-15
 narnia,narnia,2,saline,10000,10,7
-narnia,archenland,1,eor,200,14,-16
-archenland,archenland,1,eor,200,10,-16
-archenland,archenland,2,saline,200,2,-7
+narnia,archenland,1,eor,200,14,-17
+archenland,archenland,1,eor,200,10,-17
+archenland,archenland,2,saline,200,2,-8
 archenland,narnia,1,eor,10000,14,-15

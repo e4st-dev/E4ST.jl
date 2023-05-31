@@ -13,6 +13,7 @@ function setup_dcopf!(config, data, model)
     bus = get_table(data, :bus)
     years = get_years(data)
     rep_hours = get_table(data, :hours) # weight of representative time chunks (hours) 
+    hours_per_year = sum(get_hour_weights(data))
     gen = get_table(data, :gen)
     branch = get_table(data, :branch)
     nbus = nrow(bus)
@@ -151,7 +152,19 @@ function setup_dcopf!(config, data, model)
     end
 
     add_obj_term!(data, model, PerMWCap(), :fom, oper = +)
-    add_obj_term!(data, model, PerMWCap(), :capex_obj, oper = +) 
+
+    @expression(model,
+        pcap_gen_inv_sim[gen_idx in axes(gen,1)],
+        begin
+            gen.build_status[gen_idx] == "unbuilt" || return 0.0
+            year_on = gen.year_on[gen_idx]
+            year_on > last(years) && return 0.0
+            yr_idx_on = findfirst(>=(year_on), years)
+            return pcap_gen[gen_idx, yr_idx_on]
+        end
+    )
+
+    add_obj_term!(data, model, PerMWCapInv(), :capex_obj, oper = +) 
 
     # Curtailment Cost
     add_obj_term!(data, model, PerMWhCurtailed(), :curtailment_cost, oper = +)
@@ -336,16 +349,39 @@ function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper)
     gen = get_table(data, :gen)
     years = get_years(data)
     hours_per_year = sum(get_hour_weights(data))
+    pcap_gen = model[:pcap_gen]
 
     model[s] = @expression(model, 
         [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
         get_table_num(data, :gen, s, gen_idx, year_idx, :) .* 
-        model[:pcap_gen][gen_idx, year_idx] *
+        pcap_gen[gen_idx, year_idx] *
         hours_per_year
     )
 
     # add or subtract the expression from the objective function
     add_obj_exp!(data, model, PerMWCap(), s; oper = oper) 
+    
+end
+
+function add_obj_term!(data, model, ::PerMWCapInv, s::Symbol; oper) 
+    #Check if s has already been added to obj
+    Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
+    
+    #write expression for the term
+    gen = get_table(data, :gen)
+    years = get_years(data)
+    hours_per_year = sum(get_hour_weights(data))
+    pcap_gen_inv_sim = model[:pcap_gen_inv_sim]
+
+    model[s] = @expression(model, 
+        [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
+        get_table_num(data, :gen, s, gen_idx, year_idx, :) .* 
+        pcap_gen_inv_sim[gen_idx] *
+        hours_per_year
+    )
+
+    # add or subtract the expression from the objective function
+    add_obj_exp!(data, model, PerMWCapInv(), s; oper = oper) 
     
 end
 
@@ -395,7 +431,3 @@ end
 
 export add_obj_term!
 export add_obj_exp!
-export Term
-export PerMWCap
-export PerMWhGen
-export PerMWhCurtailed
