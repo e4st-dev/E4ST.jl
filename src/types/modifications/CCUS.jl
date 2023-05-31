@@ -189,7 +189,7 @@ Updates the carbon capturing generators by splitting into EOR and Saline-storing
 function update_ccus_gens!(mod::CCUS, config, data)
     gen = get_table(data, :gen)
 
-    capt_co2 = gen.emis_co2 .* gen.capt_co2_percent # This may make an OriginalContainer with the original value for emis_co2 preserved, but that should be ok since this column isn't kept in save_updated_gen_table.
+    capt_co2 = map(row->row.emis_co2 .* row.capt_co2_percent, eachrow(gen)) # This may make an OriginalContainer with the original value for emis_co2 preserved, but that should be ok since this column isn't kept in save_updated_gen_table.
     add_table_col!(data, :gen, :capt_co2, capt_co2, ShortTonsPerMWhGenerated, "The rate of capture of CO2 (calculated from emis_co2 and capt_co2_percent)")
 
 

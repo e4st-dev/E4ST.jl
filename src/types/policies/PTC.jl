@@ -17,9 +17,9 @@ Production Tax Credit - A \$/MWh tax incentive for the generation of specific te
 Base.@kwdef struct PTC <: Policy
     name::Symbol
     values::OrderedDict
-    first_year_adj::Float64 = 1
-    years_after_ref_min::Float64 = 0
-    years_after_ref_max::Float64 = 999
+    first_year_adj::Float64 = 1.0
+    years_after_ref_min::Float64 = 0.0
+    years_after_ref_max::Float64 = 999.0
     ref_year_col::String = "year_on"
     gen_filters::OrderedDict
 end

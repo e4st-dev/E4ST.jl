@@ -38,14 +38,14 @@ function E4ST.modify_setup_data!(pol::ITC, config, data)
 
     #update column for gen_idx 
     #TODO: do we want the ITC value to apply to all years within econ life? Will get multiplied by capex_obj so will only be non zero for year_on but maybe for accounting? 
-    credit_yearly = [get(pol.values, Symbol(year), 0.0) for year in years] #values for the years in the sim
+    credit_yearly = ByYear([get(pol.values, Symbol(year), 0.0) for year in years]) #values for the years in the sim
 
     for gen_idx in gen_idxs
         g = gen[gen_idx, :]
 
         # credit yearly * capex_obj for that year, capex_obj is only non zero in year_on so ITC should only be non zero in year_on
-        vals_tmp = [credit_yearly[i]*g.capex_obj[i, :]  for i in 1:length(years)]
-        gen[gen_idx, pol.name] = ByYear(vals_tmp)
+        vals_tmp = credit_yearly .* g.capex_obj
+        gen[gen_idx, pol.name] = vals_tmp
     end
 end
 
@@ -96,15 +96,15 @@ function E4ST.modify_setup_data!(pol::HydFuelITC, config, data)
 
     #update column for gen_idx 
     #TODO: do we want the ITC value to apply to all years within econ life? Will get multiplied by capex_obj so will only be non zero for year_on but maybe for accounting? 
-    credit_yearly = [get(pol.values, Symbol(year), 0.0) for year in years] #values for the years in the sim
+    credit_yearly = ByYear([get(pol.values, Symbol(year), 0.0) for year in years]) #values for the years in the sim
 
     for gen_idx in gen_idxs
         g = gen[gen_idx, :]
 
         # credit yearly * capex_obj for that year, capex_obj is only non zero in year_on so ITC should only be non zero in year_on
-        vals_tmp = [credit_yearly[i]*g.fuel_price[i,:]*g.heat_rate  for i in 1:length(years)] 
+        vals_tmp = credit_yearly .* g.fuel_price .* g.heat_rate
 
-        gen[gen_idx, pol.name] = ByYear(vals_tmp)
+        gen[gen_idx, pol.name] = vals_tmp
     end  
 end
 
