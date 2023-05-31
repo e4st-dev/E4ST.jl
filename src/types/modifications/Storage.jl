@@ -71,13 +71,8 @@ function summarize_table(::Val{:storage})
         (:pcap0, Float64, MWCapacity, true, "Starting nameplate power discharge capacity for the storage device"),
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power discharge capacity of the storage device (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power discharge capacity of the storage device"),
-<<<<<<< HEAD
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of energy discharged"),
         (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of discharge capacity"),
-=======
-        (:vom, Float64, DollarsPerMWhDischarged, true, "Variable operation and maintenance cost per MWh of energy discharged"),
-        (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of discharge capacity"),
->>>>>>> main
         (:capex, Float64, DollarsPerMWBuiltCapacity, true, "Hourly capital expenditures for a MW of discharge capacity"),
         (:duration_discharge, Float64, Hours, true, "Number of hours to fully discharge the storage device, from full."),
         (:duration_charge, Float64, Hours, false, "Number of hours to fully charge the empty storage device from empty. (Defaults to equal `duration_discharge`)"),
@@ -110,13 +105,8 @@ function summarize_table(::Val{:build_storage})
         (:pcap0, Float64, MWCapacity, true, "Starting nameplate power discharge capacity for the storage device"),
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power discharge capacity of the storage device (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power discharge capacity of the storage device"),
-<<<<<<< HEAD
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of energy discharged"),
         (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of discharge capacity"),
-=======
-        (:vom, Float64, DollarsPerMWhDischarged, true, "Variable operation and maintenance cost per MWh of energy discharged"),
-        (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of discharge capacity"),
->>>>>>> main
         (:capex, Float64, DollarsPerMWBuiltCapacity, true, "Hourly capital expenditures for a MW of discharge capacity"),
         (:duration_discharge, Float64, Hours, true, "Number of hours to fully discharge the storage device, from full."),
         (:duration_charge, Float64, Hours, false, "Number of hours to fully charge the empty storage device from empty. (Defaults to equal `duration_discharge`)"),
