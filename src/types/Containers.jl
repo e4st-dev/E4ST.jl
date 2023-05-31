@@ -12,8 +12,8 @@ export Container
 Container(x::Number) = OriginalContainer(x, ByNothing(x))
 
 Container(c::Container) = c
-Base.getindex(c::Container, inds::Vararg) where {T,N} = c.v[inds...]
-Base.setindex!(c::Container, val, inds::Vararg) where {T,N} = (c.v[inds...] = val)
+Base.getindex(c::Container, inds::Vararg) = c.v[inds...]
+Base.setindex!(c::Container, val, inds::Vararg) = (c.v[inds...] = val)
 
 Base.isempty(c::Container) = false
 Base.size(c::Container) = size(c.v)
@@ -53,11 +53,11 @@ end
 
 
 
-mutable struct OriginalContainer{T, D, X, C} <: Container{T,D}
+mutable struct OriginalContainer{T, D, C} <: Container{T,D}
     original::Float64
     v::C
     function OriginalContainer(x, c::C) where {T,D, C<:Container{T,D}}
-        new{T, D, x, C}(x, c)
+        new{T, D, C}(x, c)
     end
 end
 
@@ -65,23 +65,36 @@ OriginalContainer(x::Bool, v::Container) = OriginalContainer(Float64(x), v)
 
 
 
-function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{OC}}, ::Type{ElType}) where  {ElType, C<:Container, T, D, X, OC<:OriginalContainer{T, D, X, C}}
+function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{OC}}, ::Type{ElType}) where  {ElType, C<:Container, T, D, OC<:OriginalContainer{T, D, C}}
+    orig = find_original(bc)
     a = axes(bc)
-    c = OriginalContainer(X, ContainerType(C)(similar(Array{ElType}, a)))
+    c = OriginalContainer(orig, ContainerType(C)(similar(Array{ElType}, a)))
     c
 end
 
-ContainerType(::Type{C}) where {C<:Container} = C
-ContainerType(::Type{OC}) where {C<:Container, T,D,X, OC<:OriginalContainer{T,D,X,C}} = C
 
-function ConflictContainerType(::Type{OC1}, ::Type{C2}) where {T1, D1, X1, T2, D2, C1, OC1<:OriginalContainer{T1,D1, X1, C1}, C2<:Container{T2,D2}}
-    return OriginalContainer{T1, max(D1,D2), X1, ConflictContainerType(C1, C2)}
+find_original(bc::Base.Broadcast.Broadcasted) = _find_original(bc).original
+_find_original(bc::Base.Broadcast.Broadcasted) = _find_original(bc.args)
+_find_original(args::Tuple) = _find_original(_find_original(args[1]), Base.tail(args))
+_find_original(x) = x
+_find_original(::Tuple{}) = begin
+    nothing
 end
-function ConflictContainerType(::Type{C2}, ::Type{OC1}) where {T1, D1, X1, T2, D2, C1, OC1<:OriginalContainer{T1,D1, X1, C1}, C2<:Container{T2,D2}}
-    return OriginalContainer{T1, max(D1,D2), X1, ConflictContainerType(C1, C2)}
+_find_original(a::OriginalContainer, rest) = a
+_find_original(a::OriginalContainer) = a
+_find_original(::Any, rest) = _find_original(rest)
+
+ContainerType(::Type{C}) where {C<:Container} = C
+ContainerType(::Type{OC}) where {C<:Container, T,D,OC<:OriginalContainer{T,D,C}} = C
+
+function ConflictContainerType(::Type{OC1}, ::Type{C2}) where {T1, D1, T2, D2, C1, OC1<:OriginalContainer{T1,D1, C1}, C2<:Container{T2,D2}}
+    return OriginalContainer{T1, max(D1,D2), ConflictContainerType(C1, C2)}
 end
-function ConflictContainerType(::Type{OC1}, ::Type{OC2}) where {T1, D1, X1, C1, T2, D2, X2, C2, OC1<:OriginalContainer{T1,D1, X1, C1}, OC2<:OriginalContainer{T2,D2, X2, C2}}
-    return OriginalContainer{T1, max(D1,D2), X1, ConflictContainerType(C1, C2)}
+function ConflictContainerType(::Type{C2}, ::Type{OC1}) where {T1, D1, T2, D2, C1, OC1<:OriginalContainer{T1,D1, C1}, C2<:Container{T2,D2}}
+    return OriginalContainer{T1, max(D1,D2), ConflictContainerType(C1, C2)}
+end
+function ConflictContainerType(::Type{OC1}, ::Type{OC2}) where {T1, D1, C1, T2, D2, C2, OC1<:OriginalContainer{T1,D1, C1}, OC2<:OriginalContainer{T2,D2, C2}}
+    return OriginalContainer{T1, max(D1,D2), ConflictContainerType(C1, C2)}
 end
 
 mutable struct ByNothing <: Container{Float64, 0} 

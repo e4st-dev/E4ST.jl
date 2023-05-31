@@ -26,6 +26,7 @@ function match_capacity!(data, model, table_name::Symbol, pcap_name::Symbol, nam
     for set in sets
         for idx in set
             for yr_idx in 1:nyear
+                is_fixed(pcap[idx, yr_idx]) && continue
                 set_lower_bound(pcap[idx, yr_idx], 0.0)
             end
         end
