@@ -20,12 +20,16 @@ Base.@kwdef struct GenerationConstraint <: Modification
 end
 export GenerationConstraint
 
+mod_rank(::Type{<:GenerationConstraint}) = 1.0
+
 """
     modify_model!(cons::GenerationConstraint, config, data, model)
 
 Creates upper and lower bound constraints on the generators.  See also [`GenerationConstraint`](@ref) for more details
 """
 function E4ST.modify_model!(cons::GenerationConstraint, config, data, model)
+    @info "$(cons.name) modifying model" 
+
     gen = get_table(data, :gen)
     years = Symbol.(get_years(data))
 

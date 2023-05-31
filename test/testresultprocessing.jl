@@ -8,6 +8,9 @@
         E4ST.make_out_path!(config)
         data1 = read_data(config)
 
+        # Need to delete results_formulas for this test, because there are functions stored in there which will not exactly equivalent (though they should still function)
+        delete!(data1, :results_formulas)
+
         # Check that it is trying to read in the data file
         config[:data_file] = get_out_path(config, "blah.jls")
         @test_throws Exception read_data(config)
@@ -16,7 +19,8 @@
         config[:data_file] = get_out_path(config, "data.jls")
         config[:nominal_load_file] = "blah.csv"
         data2 = read_data(config)
-        @test data1 == data2
+        delete!(data2, :results_formulas)
+        @test data1 == data2 || data1 === data2
     end
 
     @testset "Test reading/saving model from .jls file" begin
@@ -48,101 +52,103 @@
         model = setup_model(config, data)
         optimize!(model)
         parse_results!(config, data, model)
+
+        @testset "Test that we can compute all of the standard results" begin
+            filter_results_formulas!(data)
+            results_formulas = get_results_formulas(data)
+
+            for (table_name, result_name) in keys(results_formulas)
+                @test compute_result(data, table_name, result_name) isa Float64
+            end
+        end
         
         @testset "Test gen_idx filters" begin
-            tot = aggregate_result(total, data, :gen, :egen)
+            tot = compute_result(data, :gen, :egen_total)
             
             # Provide a function for filtering
-            @test tot ≈ aggregate_result(total, data, :gen, :egen, :emis_co2 => <=(0.1)) + aggregate_result(total, data, :gen, :egen, :emis_co2 => >(0.1))
+            @test tot ≈ compute_result(data, :gen, :egen_total, :emis_co2 => <=(0.1)) + compute_result(data, :gen, :egen_total, :emis_co2 => >(0.1))
 
             # Provide a region for filtering
-            @test tot ≈ aggregate_result(total, data, :gen, :egen, :country => "narnia") + aggregate_result(total, data, :gen, :egen, :country => !=("narnia"))
+            @test tot ≈ compute_result(data, :gen, :egen_total, :country => "narnia") + compute_result(data, :gen, :egen_total, :country => !=("narnia"))
 
             # Provide a tuple for filtering
-            @test tot ≈ aggregate_result(total, data, :gen, :egen, :vom => (0,1.1) ) + aggregate_result(total, data, :gen, :egen, :vom => (1.1,Inf))
+            @test tot ≈ compute_result(data, :gen, :egen_total, :vom => (0,1.1) ) + compute_result(data, :gen, :egen_total, :vom => (1.1,Inf))
 
             # Provide a set for filtering
-            @test tot ≈ aggregate_result(total, data, :gen, :egen, :genfuel => in(["ng", "coal"]) ) + aggregate_result(total, data, :gen, :egen, :genfuel => !in(["ng", "coal"]))
+            @test tot ≈ compute_result(data, :gen, :egen_total, :genfuel => in(["ng", "coal"]) ) + compute_result(data, :gen, :egen_total, :genfuel => !in(["ng", "coal"]))
             
             # Provide an index(es) for filtering
-            @test tot ≈ aggregate_result(total, data, :gen, :egen, 1 ) + aggregate_result(total, data, :gen, :egen, 2:nrow(data[:gen]))
+            @test tot ≈ compute_result(data, :gen, :egen_total, 1 ) + compute_result(data, :gen, :egen_total, 2:nrow(data[:gen]))
 
             @test aggregate_generation(data, :gentype, [:country=>"archenland"], "y2030", :season=>"summer") isa OrderedDict
         end
 
         @testset "Test year_idx filters" begin
-            tot = aggregate_result(total, data, :gen, :egen)
+            tot = compute_result(data, :gen, :egen_total)
             nyr = get_num_years(data)
 
             # Year index
-            @test tot ≈ aggregate_result(total, data, :gen, :egen, :, 1) + aggregate_result(total, data, :gen, :egen, :, 2:nyr)
+            @test tot ≈ compute_result(data, :gen, :egen_total, :, 1) + compute_result(data, :gen, :egen_total, :, 2:nyr)
 
             # Year string
-            @test tot ≈ aggregate_result(total, data, :gen, :egen, :, "y2030") + aggregate_result(total, data, :gen, :egen, :, ["y2035", "y2040"])
+            @test tot ≈ compute_result(data, :gen, :egen_total, :, "y2030") + compute_result(data, :gen, :egen_total, :, ["y2035", "y2040"])
             
             # Range of years
-            @test tot ≈ aggregate_result(total, data, :gen, :egen, :, ("y2020", "y2031")) + aggregate_result(total, data, :gen, :egen, :, ("y2032","y2045"))
+            @test tot ≈ compute_result(data, :gen, :egen_total, :, ("y2020", "y2031")) + compute_result(data, :gen, :egen_total, :, ("y2032","y2045"))
 
             # Test function of years
-            @test tot ≈ aggregate_result(total, data, :gen, :egen, :, <=("y2031")) + aggregate_result(total, data, :gen, :egen, :, >("y2031"))
+            @test tot ≈ compute_result(data, :gen, :egen_total, :, <=("y2031")) + compute_result(data, :gen, :egen_total, :, >("y2031"))
         end
 
         @testset "Test hour_idx filters" begin
-            tot = aggregate_result(total, data, :gen, :egen)
+            tot = compute_result(data, :gen, :egen_total)
             nhr = get_num_hours(data)
 
             # Hour index
-            @test tot ≈ aggregate_result(total, data, :gen, :egen, :, :, 1) + aggregate_result(total, data, :gen, :egen, :, :, 2:nhr)
+            @test tot ≈ compute_result(data, :gen, :egen_total, :, :, 1) + compute_result(data, :gen, :egen_total, :, :, 2:nhr)
 
             # Hour table label
-            @test tot ≈ aggregate_result(total, data, :gen, :egen, :, :, (:time_of_day=>"morning", :season=>"summer")) + 
-                aggregate_result(total, data, :gen, :egen, :, :, (:time_of_day=>"morning", :season=>!=("summer"))) +
-                aggregate_result(total, data, :gen, :egen, :, :, :time_of_day=>!=("morning"))
+            @test tot ≈ compute_result(data, :gen, :egen_total, :, :, (:time_of_day=>"morning", :season=>"summer")) + 
+                compute_result(data, :gen, :egen_total, :, :, (:time_of_day=>"morning", :season=>!=("summer"))) +
+                compute_result(data, :gen, :egen_total, :, :, :time_of_day=>!=("morning"))
                 
         end
 
         @testset "Other Aggregation Tests" begin
 
             # Test that summing the co2 emissions for solar in 2030 is zero
-            @test aggregate_result(total, data, :gen, :emis_co2, :gentype=>"solar", "y2030", :) ≈ 0.0
+            @test compute_result(data, :gen, :emis_co2_total, :gentype=>"solar", "y2030", :) ≈ 0.0
         
             # Test that the average co2 emissions rate is between the min and max
             all_emis_co2 = get_table_col(data, :gen, :emis_co2)
             emis_co2_min, emis_co2_max = extrema(all_emis_co2)
-            @test emis_co2_min <= aggregate_result(average, data, :gen, :emis_co2, :, "y2030", :) <= emis_co2_max
+            @test emis_co2_min <= compute_result(data, :gen, :emis_co2_rate, :, "y2030", :) <= emis_co2_max
         
             # Test that the average capacity factor for solar generators is between 0 and 1
-            @test 0 <= aggregate_result(average, data, :gen, :cf, :gentype=>"solar", :, :) <= aggregate_result(average, data, :gen, :af, :gentype=>"solar", :, :)
+            @test 0 <= compute_result(data, :gen, :cf_avg, :gentype=>"solar", :, :) <= compute_result(data, :gen, :af_avg, :gentype=>"solar", :, :)
         
             # Test that the average LMP times energy served equals the sum of LMP
-            elec_cost = aggregate_result(total, data, :bus, :lmp_elserv, :, :, :)
-            elec_price = aggregate_result(average, data, :bus, :lmp_elserv, :, :, :)
-            elec_quantity = aggregate_result(total, data, :bus, :elserv, :, :, :)
+            elec_cost = compute_result(data, :bus, :cost_elserv)
+            elec_price = compute_result(data, :bus, :price_elserv)
+            elec_quantity = compute_result(data, :bus, :elserv_total)
             @test elec_cost ≈ elec_price * elec_quantity
         
             # Test that there is no curtailment across all time
-            elcurt = aggregate_result(total, data, :bus, :elcurt, :, :, :)
+            elcurt = compute_result(data, :bus, :elcurt_total, :, :, :)
             @test elcurt < 1e-6
         
             # Test that total power capacity is greater than or equal to average load
-            pcap = aggregate_result(total, data, :gen, :pcap)
-            plnom = aggregate_result(total, data, :bus, :plnom)
-            @test pcap >= plnom
-        
-            # Test that the maximum of pcap is less than the total
-            pcap_max = aggregate_result(maximum, data, :gen, :pcap)
-            pcap_min = aggregate_result(minimum, data, :gen, :pcap)
-            @test pcap_max > pcap_min
-            @test pcap_max <= pcap
-            @test pcap_min >= 0
-        
+            ecap = compute_result(data, :gen, :ecap_total)
+            elnom = compute_result(data, :bus, :elnom_total)
+            @test ecap >= elnom
+                
             # Check on the MWh generated by each gen fuel.
             gen = get_table(data, :gen)
             genfuels = unique(gen.genfuel)
             egen_by_genfuel = map(genfuels) do gf
-                aggregate_result(total, data, :gen, :egen, :genfuel=>gf)
+                compute_result(data, :gen, :egen_total, :genfuel=>gf)
             end
-            egen_total = aggregate_result(total, data, :gen, :egen)
+            egen_total = compute_result(data, :gen, :egen_total)
             @test sum(egen_by_genfuel) ≈ egen_total
         end
 

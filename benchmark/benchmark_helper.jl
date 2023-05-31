@@ -30,11 +30,14 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         pcap0 = ones(n_gen),
         pcap_max = ones(n_gen),
         vom = rand(n_gen),
-        fuel_cost = rand(n_gen),
+        fuel_price = rand(n_gen),
+        heat_rate = 10*rand(n_gen),
         fom = rand(n_gen),
         capex = rand(n_gen),
         year_on = year2str.(rand(2000:2023, n_gen)),
         year_off = fill("y9999", n_gen),
+        hr = rand(n_gen),
+        chp_co2_multi = ones(n_gen),
     )
     gt = gentypes()
     gen.gentype = map(gen.genfuel) do gf
@@ -70,6 +73,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         :hours_file=>abspath(@__DIR__, "data/time.csv"),
         :summary_table_file=>abspath(@__DIR__, "../test/data/3bus/summary_table.csv"),
         :gentype_genfuel_file=>abspath(@__DIR__, "data/gentype_genfuel.csv"),
+        :year_gen_data => "y2020",
         :years=>years(),
         :save_data=>false,
         :save_model_presolve=>false,

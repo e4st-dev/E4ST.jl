@@ -125,6 +125,16 @@ end
 export add_to_year
 
 """
+    diff_years(y1, y2) -> diff
+
+Compute the difference between two year strings `y1 - y2`
+"""
+function diff_years(y1::AbstractString, y2::AbstractString)
+    return year2float(y1) - year2float(y2)
+end
+export diff_years
+
+"""
     get_hour_idxs(data, hour_idxs)
 
 Converts `hour_idxs` into a usable set of indices that can index into hourly data.  `hour_idxs` can be any of the following types:
@@ -145,6 +155,20 @@ function get_hour_idxs(data, pairs)
     return get_row_idxs(get_table(data, :hours), pairs)
 end
 export get_hour_idxs
+"""
+    isbuilt(s::AbstractString)
+"""
+isbuilt(s::AbstractString) = s == "built"
+isbuilt(row) = isbuilt(row.build_status)
+
+"""
+    isnew(s::AbstractString) -> ::Bool
+
+    isnew(row::DataFrameRow) -> ::Bool
+"""
+isnew(s::AbstractString) = s == "new"
+isnew(row) = isnew(row.build_status)
+
 
 """
     get_row_idxs(table, conditions) -> row_idxs
@@ -274,65 +298,48 @@ Possible examples of strings `s` to parse:
 * `"year_on=> >(y2002)` - All rows for which `row.year_on` is greater than "y2002" (works for fractional years too, such as "y2002.4")
 * `"genfuel=>[ng, wind, solar]"` - All rows for which `row.genfuel` is "ng", "wind", or "solar".  Works for Ints and Floats too.
 """
-function parse_comparison(_s::AbstractString)
-    s = replace(_s, ' '=>"")
-    # In the form "country=>narnia" or "bus_idx=>5"
-    if (m = match(r"(\w+)=>(\w+)", s)) !== nothing
-        return m.captures[1]=>m.captures[2]
-    end
-
+function parse_comparison(s::AbstractString)
     # In the form "emis_rate=>(0.0001,4.9999)" (should work for Ints, negatives, and Inf too)
-    if (m=match(r"(\w+)=>\((-?(?:Inf)?[\d.]*),-?(?:Inf)?([\d.]*)\)", s)) !== nothing
-        r1 = parse(Float64, m.captures[2])
-        r2 = parse(Float64, m.captures[3])
-        return m.captures[1]=>(r1, r2)
+    if (m=match(r"([\w\s]+)=>\s*\((\s*-?\s*(?:Inf)?[\d.]*)\s*,\s*-?\s*(?:Inf)?([\d.]*)\s*\)", s)) !== nothing
+        r1 = parse(Float64, replace(m.captures[2], ' '=>""))
+        r2 = parse(Float64, replace(m.captures[3], ' '=>""))
+        return strip(m.captures[1])=>(r1, r2)
     end
 
     # In the form "year_on=>(y2020, y2030)"
-    if (m=match(r"(\w+)=>\((y[\d]{4}),(y[\d]{4})\)", s)) !== nothing
-        return m.captures[1]=>(m.captures[2], m.captures[3])
-    end
-
-    # In the form "emis_rate=>>(0)" (should work for Ints, negatives)
-    if (m=match(r"(\w+)=>>\(?(-?[\d.]+)\)?", s)) !== nothing
-        r1 = parse(Float64, m.captures[2])
-        return m.captures[1]=>>(r1)
+    if (m=match(r"([\w\s]+)=>\s*\(\s*(y[\d]{4})\s*,\s*(y[\d]{4})\s*\)", s)) !== nothing
+        return strip(m.captures[1])=>(m.captures[2], m.captures[3])
     end
 
     # In the form "emis_rate=>>(0)" (should work for Ints, negatives, and Inf too)
-    if (m=match(r"(\w+)=>([><]{1}=?)\(?(-?[\d.]+)\)?", s)) !== nothing
-        r1 = parse(Float64, m.captures[3])
+    if (m=match(r"([\w\s]+)=>\s*([><]{1}=?)\s*\(?\s*(-?\s*[\d.]+)\s*\)?", s)) !== nothing
+        r1 = parse(Float64, replace(m.captures[3],' '=>""))
         m.captures[2]==">" && (comp = >(r1))
         m.captures[2]=="<" && (comp = <(r1))
         m.captures[2]==">=" && (comp = >=(r1))
         m.captures[2]=="<=" && (comp = <=(r1))
-        return m.captures[1]=>comp
-    end
-
-    # In the form "emis_rate=>>(0)" (should work for Ints, negatives, and Inf too)
-    if (m=match(r"(\w+)=>([><]{1}=?)\(?(-?[\d.]+)\)?", s)) !== nothing
-        r1 = parse(Float64, m.captures[3])
-        m.captures[2]==">" && (comp = >(r1))
-        m.captures[2]=="<" && (comp = <(r1))
-        m.captures[2]==">=" && (comp = >=(r1))
-        m.captures[2]=="<=" && (comp = <=(r1))
-        return m.captures[1]=>comp
+        return strip(m.captures[1])=>comp
     end
 
     # In the form "year_on=> >(y2020)" (should work decimals)
-    if (m=match(r"(\w+)=>([><]{1}=?)\(?(y[\d.]+)\)?", s)) !== nothing
+    if (m=match(r"([\w\s]+)=>\s*([><]{1}=?)\s*\(?\s*(y[\d.]+)\s*\)?", s)) !== nothing
         r1 = String(m.captures[3])
         m.captures[2]==">" && (comp = >(r1))
         m.captures[2]=="<" && (comp = <(r1))
         m.captures[2]==">=" && (comp = >=(r1))
         m.captures[2]=="<=" && (comp = <=(r1))
-        return m.captures[1]=>comp
+        return strip(m.captures[1])=>comp
     end
 
     # In the form "genfuel=>[ng,solar,wind]"
-    if (m=match(r"(\w+)=>\[([\w,.]*)\]", s)) !== nothing
+    if (m=match(r"([\w\s]+)=>\s*\[([\w,.\s]*)\]", s)) !== nothing
         ar = str2array(m.captures[2])
-        return m.captures[1]=>ar
+        return strip(m.captures[1])=>ar
+    end
+
+    # In the form "country=>narnia" or "bus_idx=>5"
+    if (m = match(r"([\w\s]+)=>([\w\s]+)", s)) !== nothing
+        return strip(m.captures[1])=>strip(m.captures[2])
     end
 end
 export parse_comparison
@@ -377,9 +384,8 @@ export parse_comparisons
 Returns a set of pairs to be used in filtering rows of another table, where each value `d`
 """
 function parse_comparisons(d::AbstractDict)
-    pairs = collect(parse_comparison("$k=>$v") for (k,v) in d)
+    pairs = collect(parse_comparison("$k=>$v") for (k,v) in d if ~isempty(v))
 end
-export parse_comparisons
 
 
 """
@@ -391,18 +397,21 @@ Parse a year comparison.  Could take the following forms:
 * `"1"` - year index 1
 * `"[1,2,3]"`
 """
-function parse_year_idxs(_s::AbstractString)
-    isempty(_s) && return (:)
-    s = replace(_s, ' '=>"")
+function parse_year_idxs(s::AbstractString)
+    isempty(s) && return (:)
+    # "y2020"
     if (m=match(r"y[\d]{4}", s)) !== nothing
         return m.match
     end
+    # "1"
     if (m=match(r"\d*", s)) !== nothing
         return parse(Int64, m.match)
     end
-    if (m = match(r"(\w+)=>(\w+)", s)) !== nothing
-        return m.captures[1]=>m.captures[2]
-    end
+
+    # not sure when this would be necessary, maybe if we end up having a years table.
+    # if (m = match(r"([\w\s]+)=>([\w\s]+)", s)) !== nothing
+    #     return strip(m.captures[1])=>strip(m.captures[2])
+    # end
 
     error("No match found for $s")
 end
@@ -418,8 +427,7 @@ Parse a year comparison.  Could take the following forms:
 * `""` - All hours, returns (:)
 * `"season=>winter"` - returns "season"=>"winter"
 """
-function parse_hour_idxs(_s::AbstractString)
-    s = replace(_s, ' '=>"")
+function parse_hour_idxs(s::AbstractString)
     isempty(s) && return (:)
     
     # "1"
@@ -428,8 +436,8 @@ function parse_hour_idxs(_s::AbstractString)
     end
     
     # "season=>winter"
-    if (m = match(r"(\w+)=>(\w+)", s)) !== nothing
-        return m.captures[1]=>m.captures[2]
+    if (m = match(r"([\w\s]+)=>([\w\s]+)", s)) !== nothing
+        return strip(m.captures[1])=>strip(m.captures[2])
     end
 
     error("No match found for $s")
@@ -438,6 +446,7 @@ export parse_hour_idxs
 
 function str2array(s::AbstractString)
     v = split(s,',')
+    v = strip.(v)
     v_int = tryparse.(Int64, v)
     v_int isa Vector{Int64} && return v_int
     v_float = tryparse.(Float64, v)
@@ -587,4 +596,27 @@ function TableSummary()
 end
 export TableSummary
 
+"""
+    sum0(f, itr)
 
+Returns `0.0` if `itr` is empty, and `sum(f, itr)` if it is not
+"""
+function sum0(f, itr)
+    isempty(itr) && return 0.0
+    return sum(f, itr)
+end
+
+function sum0(itr)
+    isempty(itr) && return 0.0
+    return sum(itr)
+end
+
+"""
+    anyany(f, v::AbstractVector{<:AbstractArray}) -> ::Bool
+
+Returns whether any f(x) holds true for any value of each element of v.
+"""
+function anyany(f, v)
+    any(x->any(f, x), v)
+end
+export anyany

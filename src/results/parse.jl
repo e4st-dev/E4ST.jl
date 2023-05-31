@@ -12,6 +12,7 @@ function parse_results!(config, data, model)
     obj_scalar = config[:objective_scalar]
 
     results_raw = Dict(k => (@info "Parsing Result $k"; value_or_shadow_price(v, obj_scalar)) for (k,v) in object_dictionary(model))
+    results_raw[:cons_pgen_max] ./= 1000
     
     # Empty the model now that we have retrieved all info, to save RAM and prevent the user from accidentally accessing un-scaled data.
     empty!(model)
@@ -46,7 +47,7 @@ end
 Returns a value or shadow price depending on what is passed in.  Used in [`results_raw!`](@ref).  Scales shadow prices by `obj_scalar` to restore to units of dollars (per applicable unit).
 """
 function value_or_shadow_price(ar::AbstractArray{<:ConstraintRef}, obj_scalar)
-    map(cons->obj_scalar * shadow_price(cons), ar)
+    value_or_shadow_price.(ar, obj_scalar)
 end
 function value_or_shadow_price(ar::AbstractArray{<:AbstractJuMPScalar}, obj_scalar)
     value.(ar)
@@ -81,7 +82,7 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | :bus | :pflow | MWFlow | Average power flowing out of this bus |
 | :bus | :eflow | MWhFlow | Electricity flowing out of this bus |
 | :bus | :pflow_in | MWFlow | Average power flowing into this bus |
-| :bus | :eflowin | MWhFlow | Electricity flowing out of this bus |
+| :bus | :eflow_in | MWhFlow | Electricity flowing out of this bus |
 | :bus | :pflow_out | MWFlow | Average power flowing into this bus |
 | :bus | :eflow_out | MWhFlow | Electricity flowing out of this bus |
 | :bus | :plserv | MWServed | Average power served at this bus |
@@ -91,12 +92,18 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | :bus | :elnom  | MWhLoad | Electricity load at this bus for the weighted representative hour |
 | :gen | :pgen | MWGenerated | Average power generated at this generator |
 | :gen | :egen | MWhGenerated | Electricity generated at this generator for the weighted representative hour |
-| :gen | :pcap | MWCapacity | Power capacity of this generator generated at this generator for the weighted representative hour |
+| :gen | :pcap | MWCapacity | Power generation capacity of this generator generated at this generator for the weighted representative hour |
+| :gen | :ecap | MWhCapacity | Total energy generation capacity of this generator generated at this generator for the weighted representative hour |
+| :gen | :pcap_retired | MWCapacity | Power generation capacity that was retired in each year |
+| :gen | :pcap_built | MWCapacity | Power generation capacity that was built in each year |
 | :gen | :cf | MWhGeneratedPerMWhCapacity | Capacity Factor, or average power generation/power generation capacity, 0 when no generation |
 | :branch | :pflow | MWFlow | Average Power flowing through branch |
+| :branch | :eflow | MWFlow | Total energy flowing through branch for the representative hour |
 """
 function parse_power_results!(config, data)
     res_raw = get_raw_results(data)
+    nyr = get_num_years(data)
+    nhr = get_num_hours(data)
 
     pgen_gen = res_raw[:pgen_gen]::Array{Float64, 3}
     egen_gen = res_raw[:egen_gen]::Array{Float64, 3}
@@ -111,6 +118,7 @@ function parse_power_results!(config, data)
 
     # Weight things by hour as needed
     egen_bus = weight_hourly(data, pgen_bus)
+    ecap_gen = weight_hourly(data, repeat(pcap_gen, 1,1,nhr))
     elserv_bus = weight_hourly(data, plserv_bus)
     elcurt_bus = weight_hourly(data, plcurt_bus)
     elnom_bus = weight_hourly(data, get_table_col(data, :bus, :plnom))
@@ -126,6 +134,21 @@ function parse_power_results!(config, data)
     # Create new things as needed
     cf = pgen_gen ./ pcap_gen
     replace!(cf, NaN=>0.0)
+
+    # Create capacity retired and added
+    pcap_built = similar(pcap_gen)
+    pcap_retired = similar(pcap_gen)
+    gen = get_table(data, :gen)
+    pcap0 = gen.pcap0::Vector{Float64}
+    pcap_retired[:, 1] .= max.(pcap0 .- view(pcap_gen, :, 1), 0.0)
+    pcap_built[:, 1]   .= max.(view(pcap_gen, :, 1) .- pcap0, 0.0)
+    for yr_idx in 2:nyr
+        pcap_prev = view(pcap_gen, :, yr_idx-1)
+        pcap_cur  = view(pcap_gen, :, yr_idx)
+        pcap_retired[:, yr_idx] .= max.( pcap_prev .- pcap_cur, 0.0)
+        pcap_built[:, yr_idx]   .= max.( pcap_cur .- pcap_prev, 0.0)
+    end
+
 
     # Add things to the bus table
     add_table_col!(data, :bus, :pgen,  pgen_bus,  MWGenerated,"Average Power Generated at this bus")
@@ -146,11 +169,14 @@ function parse_power_results!(config, data)
     add_table_col!(data, :gen, :pgen,  pgen_gen,  MWGenerated,"Average power generated at this generator")
     add_table_col!(data, :gen, :egen,  egen_gen,  MWhGenerated,"Electricity generated at this generator for the weighted representative hour")
     add_table_col!(data, :gen, :pcap,  pcap_gen,  MWCapacity,"Power capacity of this generator generated at this generator for the weighted representative hour")
+    add_table_col!(data, :gen, :ecap,  ecap_gen,  MWhCapacity,"Electricity generation capacity of this generator generated at this generator for the weighted representative hour")
+    add_table_col!(data, :gen, :pcap_retired, pcap_retired, MWCapacity, "Power generation capacity that was retired in each year")
+    add_table_col!(data, :gen, :pcap_built,   pcap_built,   MWCapacity, "Power generation capacity that was built in each year")
     add_table_col!(data, :gen, :cf,    cf,        MWhGeneratedPerMWhCapacity, "Capacity Factor, or average power generation/power generation capacity, 0 when no generation")
 
     # Add things to the branch table
     add_table_col!(data, :branch, :pflow, pflow_branch, MWFlow,"Average Power flowing through branch")    
-    add_table_col!(data, :branch, :pflow, eflow_branch, MWhFlow,"Electricity flowing through branch")    
+    add_table_col!(data, :branch, :eflow, eflow_branch, MWhFlow,"Electricity flowing through branch")    
 
     return
 end
@@ -178,6 +204,12 @@ function parse_lmp_results!(config, data)
     # Add the LMP's to the results and to the bus table
     res_raw[:lmp_elserv_bus] = lmp_elserv
     add_table_col!(data, :bus, :lmp_elserv, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
+
+    # Add lmp to generators
+    gen = get_table(data, :gen)
+    lmp_bus = get_table_col(data, :bus, :lmp_elserv)
+    lmp_gen = lmp_bus[gen.bus_idx]
+    add_table_col!(data, :gen, :lmp_egen, lmp_gen, DollarsPerMWhServed, "Locational Marginal Price of Energy Served")
 
     # # Get the shadow price of the positive and negative branch power flow constraints ($/(MW incremental transmission))      
     # cons_branch_pflow_neg = res_raw[:cons_branch_pflow_neg]::Containers.SparseAxisArray{Float64, 3, Tuple{Int64, Int64, Int64}}

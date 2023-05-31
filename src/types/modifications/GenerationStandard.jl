@@ -34,7 +34,7 @@ function GenerationStandard(;name, crediting::OrderedDict, gen_filters, load_tar
 end
 export GenerationStandard
 
-mod_rank(::Type{<:GenerationStandard}) = 1.0 #not sure this matters because this isn't usually a type specified in the config or a super type of something specified in the config. 
+mod_rank(::Type{<:GenerationStandard}) = 2.0 
 
 
 ## Modifying Functions
@@ -45,10 +45,12 @@ mod_rank(::Type{<:GenerationStandard}) = 1.0 #not sure this matters because this
 Adds column to the gen table with the credit level of the generation standard. Adds the name and type of the policy to the gs_pol_list in data. 
 """
 function modify_setup_data!(pol::GenerationStandard, config, data)
-
+    
     #get gen idxs 
     gen = get_table(data, :gen)
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
+
+    @info "Applying $(pol.name) to $(length(gen_idxs)) generators by modifying setup data"
 
     #create get table column for policy, set to zeros to start
     add_table_col!(data, :gen, pol.name, Container[ByNothing(0.0) for i in 1:nrow(gen)], CreditsPerMWhGenerated,
@@ -70,6 +72,7 @@ Creates the expression :p_gs_bus, the load that generation standards are applied
 Creates a constraint that takes the general form: `sum(gs_egen * credit) <= gs_value * sum(gs_load)`
 """
 function E4ST.modify_model!(pol::GenerationStandard, config, data, model)
+    @info "$(pol.name) modifying the model"
     # get bus and gen idxs
     gen = get_table(data, :gen)
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
@@ -157,6 +160,8 @@ function modify_results!(mod::GenerationStandard, config, data)
 
     add_table_col!(data, :bus, :pl_gs, pl_gs_bus, MWServed, "Served Load Power that qualifies for generation standards")
     add_table_col!(data, :bus, :el_gs, el_gs_bus, MWhServed, "Served Load Energy that qualifies for generation standards")
+
+    add_results_formula!(data, :bus, :el_gs_total, "SumHourly(el_gs)", MWhServed, "Total served load energy that qualifies for generation standards")
     return
 end
 export modify_results!

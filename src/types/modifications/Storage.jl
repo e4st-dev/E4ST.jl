@@ -10,8 +10,7 @@ Storage is represented over sets of time-weighted sequential representative hour
 
 # Arguments
 * `name` - the name of the [`Modification`](@ref).
-* `file` - the filename of the storage table, where each row represents a storage device
-.  See also [`summarize_table(::Val{:storage})`](@ref)
+* `file` - the filename of the storage table, where each row represents a storage device. See also [`summarize_table(::Val{:storage})`](@ref)
 * `build_file` - the filename of the buildable storage table, where each row represents a specification for buildable storage.  See also [`summarize_table(::Val{:build_storage})`](@ref)
 
 # Variables Introduced
@@ -52,6 +51,8 @@ function Storage(;name, file, build_file="")
 end
 export Storage
 
+mod_rank(::Type{<:Storage}) = -3.0
+
 @doc """
     summarize_table(::Val{:storage})
 
@@ -71,7 +72,7 @@ function summarize_table(::Val{:storage})
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power discharge capacity of the storage device (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power discharge capacity of the storage device"),
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of energy discharged"),
-        (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of discharge capacity"),
+        (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of discharge capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, true, "Hourly capital expenditures for a MW of discharge capacity"),
         (:duration_discharge, Float64, Hours, true, "Number of hours to fully discharge the storage device, from full."),
         (:duration_charge, Float64, Hours, false, "Number of hours to fully charge the empty storage device from empty. (Defaults to equal `duration_discharge`)"),
@@ -105,7 +106,7 @@ function summarize_table(::Val{:build_storage})
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power discharge capacity of the storage device (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power discharge capacity of the storage device"),
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of energy discharged"),
-        (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of discharge capacity"),
+        (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of discharge capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, true, "Hourly capital expenditures for a MW of discharge capacity"),
         (:duration_discharge, Float64, Hours, true, "Number of hours to fully discharge the storage device, from full."),
         (:duration_charge, Float64, Hours, false, "Number of hours to fully charge the empty storage device from empty. (Defaults to equal `duration_discharge`)"),
@@ -127,6 +128,7 @@ end
 
 function modify_setup_data!(mod::Storage, config, data)
     storage = get_table(data, :storage)
+    bus = get_table(data, :bus)
     hours = get_table(data, :hours)
     years = get_years(data)
 
@@ -185,6 +187,18 @@ function modify_setup_data!(mod::Storage, config, data)
         end
 
         sdf_storage.intervals .= Ref(intervals)
+    end
+
+    ### Map bus characteristics to storage
+    names_before = propertynames(storage)
+    leftjoin!(storage, bus, on=:bus_idx)
+    select!(storage, Not(:plnom))
+    disallowmissing!(storage)
+    names_after = propertynames(storage)
+
+    for name in names_after
+        name in names_before && continue
+        add_table_col!(data, :storage, name, storage[!,name], get_table_col_unit(data, :bus, name), get_table_col_description(data, :bus, name), warn_overwrite=false)
     end
 end
 
@@ -397,18 +411,23 @@ Also saves the updated storage table via [`save_updated_storage_table`](@ref).
 """
 function modify_results!(mod::Storage, config, data)
     storage = get_table(data, :storage)
-    pcap_stor = get_raw_result(data, :pcap_stor)
-    pcharge_stor = get_raw_result(data, :pcharge_stor)
-    pdischarge_stor = get_raw_result(data, :pdischarge_stor)
+    pcap_stor = get_raw_result(data, :pcap_stor)::Matrix{Float64}
+    pcharge_stor = get_raw_result(data, :pcharge_stor)::Array{Float64, 3}
+    pdischarge_stor = get_raw_result(data, :pdischarge_stor)::Array{Float64, 3}
 
     echarge_stor = weight_hourly(data, pcharge_stor)
     edischarge_stor = weight_hourly(data, pdischarge_stor)
 
-    add_table_col!(data, :storage, :pcap, pcap_stor, MWCapacity, "Discharge capacity of the storage device")
+    add_table_col!(data, :storage, :pcap, pcap_stor, MWCapacity, "Power Discharge capacity of the storage device")
     add_table_col!(data, :storage, :pcharge, pcharge_stor, MWCharged, "Rate of charging, in MW")
     add_table_col!(data, :storage, :pdischarge, pcharge_stor, MWDischarged, "Rate of discharging, in MW")
     add_table_col!(data, :storage, :echarge, echarge_stor, MWhCharged, "Energy that went into charging the storage device (includes any round-trip storage losses)")
     add_table_col!(data, :storage, :edischarge, edischarge_stor, MWhDischarged, "Energy that was discharged by the storage device")
+
+
+    add_results_formula!(data, :storage, :pcap_total, "AverageYearly(pcap)", MWCapacity, "Total discharge power capacity (if multiple years given, calculates the average)")
+    add_results_formula!(data, :storage, :echarge_total, "SumHourly(echarge)", MWhCharged, "Total energy charged")
+    add_results_formula!(data, :storage, :edischarge_total, "SumHourly(edischarge)", MWhDischarged, "Total energy discharged")
 
     transform!(storage,
         [:pcharge, :storage_efficiency] => ByRow((p,η) -> p * (1 - η)) => :ploss
@@ -417,6 +436,8 @@ function modify_results!(mod::Storage, config, data)
     add_table_col!(data, :storage, :ploss, storage.ploss, MWServed, "Power that was lost by the battery, counted as served load equal to `pcharge * (1-η)`")
     eloss = weight_hourly(data, storage.ploss)
     add_table_col!(data, :storage, :eloss, eloss, MWhServed, "Energy that was lost by the battery, counted as served load")
+
+    add_results_formula!(data, :storage, :eloss_total, "SumHourly(eloss)", MWhLoss, "Total energy loss")
 
     update_build_status!(config, data, :storage)
 

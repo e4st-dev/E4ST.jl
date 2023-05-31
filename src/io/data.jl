@@ -46,6 +46,9 @@ function read_data!(config, data)
     setup_data!(config, data)  
     modify_setup_data!(config, data)
 
+    setup_results_formulas!(config, data)
+    setup_welfare!(config, data)
+
     # Save the data to file as specified.
     if get(config, :save_data, true)
         serialize(get_out_path(config, "data.jls"), data)
@@ -63,7 +66,7 @@ function read_data_files!(config, data)
     read_summary_table!(config, data)
 
     # Other things to read in
-    read_voll!(config, data)
+    read_num_params!(config, data)
     read_years!(config, data)
 
     read_table!(config, data, :bus_file      => :bus)
@@ -80,8 +83,6 @@ function read_data_files!(config, data)
     read_table!(config, data, :load_add_file=>:load_add, optional=true)
     read_table!(config, data, :build_gen_file => :build_gen, optional=true)
     read_table!(config, data, :gentype_genfuel_file => :genfuel, optional=true)
-    read_table!(config, data, :adjust_yearly_file => :adjust_yearly, optional=true)
-    read_table!(config, data, :adjust_hourly_file => :adjust_hourly, optional=true)
 end
 export read_data_files!
 
@@ -128,6 +129,7 @@ function setup_data!(config, data)
     setup_table!(config, data, :af_table)
     setup_table!(config, data, :adjust_yearly)
     setup_table!(config, data, :adjust_hourly)
+    setup_table!(config, data, :adjust_by_age)
 end
 export setup_data!
 
@@ -171,6 +173,21 @@ Loads a table from filename, where filename is a csv.
 function read_table(filename::String)
     CSV.read(filename, DataFrame, missingstring=nothing, stripwhitespace=true)
 end
+
+"""
+    read_table(filenames::AbstractVector) -> table
+
+Reads tables in from `filenames`, appending them together.
+"""
+function read_table(filenames::AbstractVector)
+    table = read_table(first(filenames))
+    for i in 2:length(filenames)
+        filename = filenames[i]
+        tmp = read_table(filename)
+        append!(table, tmp)
+    end
+    return table
+end
 export read_table
 
 
@@ -184,6 +201,29 @@ function read_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
     @info "Loading data[:$(last(p))] from $(config[first(p)])"
     table_file = config[first(p)]::String
     table_name = last(p)
+    table = read_table(data, table_file, table_name)
+    st = get_table_summary(data, table_name)
+    
+    data[table_name] = table
+
+    # Add other columns to the summary, with NA unit and empty descriptions
+    for name in propertynames(table)
+        name in st.column_name && continue
+        name_str = string(name)
+        match(r"h\d+", name_str) !== nothing && continue
+        match(r"y\d+", name_str) !== nothing && continue
+        add_table_col!(data, table_name, name, table[!, name], NA, "", warn_overwrite=false)
+    end
+
+    return
+end
+
+"""
+    read_table(data, table_file, table_name) -> table
+
+Reads a table from `table_file`, pulling in the summary from `data[:summary_table]`, and forcing types.  Returns the resulting `table`.
+"""
+function read_table(data, table_file, table_name)
     table = read_table(table_file)
     st = get_table_summary(data, table_name)
     force_table_types!(table, table_name, st)
@@ -207,15 +247,10 @@ function read_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
             end
         end
     end
-    data[table_name] = table
 
-    # Add other columns to the summary, with NA unit and empty descriptions
-    for name in propertynames(table)
-        name in st.column_name && continue
-        add_table_col!(data, table_name, name, table[!, name], NA, "")
-    end
-    return
+    return table
 end
+export read_table
 
 
 """
@@ -297,6 +332,18 @@ end
 export read_voll!
 
 """
+    read_num_params!(config, data) -> 
+
+Any parameter specified as a numeric in the config will be added to `data`. This is so that parameters with a single value (i.e. VOLL, ng_ch4_fuel_content) can be tracked and accessed easily in data. 
+"""
+function read_num_params!(config, data)
+    for (k,v) in config
+        (typeof(v) <: Number) ? data[k] = v : continue
+    end 
+end
+export read_num_params!
+
+"""
     read_years!(config, data)
 
 Loads the years from config into data
@@ -344,7 +391,9 @@ function force_table_types!(df::DataFrame, name, row::DataFrameRow; kwargs...)
         error(":$name table missing column :$col")
     end
     ET = eltype(df[!,col])
-    if ~(ET <: T)
+    if ET === Missing
+        df[!,col] = convert(Vector{T}, df[!,col])
+    elseif ~(ET <: T)
         hasmethod(T, Tuple{ET}) || error("Column $name[$col] with eltype $ET cannot be forced into type $T")
         df[!, col] = T.(df[!,col])
     end
@@ -375,9 +424,13 @@ function setup_table!(config, data, ::Val{:gen})
     :capex_obj in propertynames(data[:gen]) && select!(data[:gen], Not(:capex_obj))
 
     #set build_status to 'built' for all gens marked 'new'. This marks gens built in a previous sim as 'built'.
-    c = ==("new") # Comparison, one allocation
     b = "built" # pre-allocate
-    transform!(gen, :build_status => ByRow(s->c(s) ? b : s) => :build_status) # transform in-place
+    transform!(gen, :build_status => ByRow(s->isnew(s) ? b : s) => :build_status) # transform in-place
+
+    # Set the pcap_max to be equal to pcap0 for built generators
+    gen.pcap_max = map(row->isbuilt(row) ? row.pcap0 : row.pcap_max, eachrow(gen))
+    gen.pcap0 = map(row->isbuilt(row) ? row.pcap0 : 0.0, eachrow(gen))
+
 
     ### Create new gens and add to the gen table
     if haskey(config, :build_gen_file) 
@@ -410,17 +463,18 @@ function setup_table!(config, data, ::Val{:gen})
     ### Map bus characteristics to generators
     names_before = propertynames(gen)
     leftjoin!(gen, bus, on=:bus_idx)
+    select!(gen, Not(:plnom))
     disallowmissing!(gen)
     names_after = propertynames(gen)
 
     for name in names_after
         name in names_before && continue
-        add_table_col!(data, :gen, name, gen[!,name], get_table_col_unit(data, :bus, name), get_table_col_description(data, :bus, name))
+        add_table_col!(data, :gen, name, gen[!,name], get_table_col_unit(data, :bus, name), get_table_col_description(data, :bus, name), warn_overwrite=false)
     end
 
     # Add necessary columns if they don't exist.
     hasproperty(gen, :af) || (gen.af = fill(ByNothing(1.0), nrow(gen)))
-    hasproperty(gen, :fuel_cost) || (gen.fuel_cost = fill(ByNothing(0.0), nrow(gen)))
+    hasproperty(gen, :fuel_price) || (gen.fuel_price = fill(0.0, nrow(gen)))
     return gen
 end
 export setup_table!
@@ -457,11 +511,21 @@ export setup_table!
     setup_table!(config, data, ::Val{:branch})
 
 Sets up the branch table.
+* Flips `f_bus_idx` and `t_bus_idx` so that `f_bus_idx` < `t_bus_idx`
 * Makes bus[:connected_branch_idxs] which contains a vector of the signed index of each branch leaving that bus. (`+` for `f_bus_idx`, `-` for `to_bus_idx`). 
 """
 function setup_table!(config, data, ::Val{:branch})
     branch = get_table(data, :branch)
     hasproperty(branch, :status) && filter!(:status => ==(true), branch)
+
+    # Switch f_bus_idx and t_bus_idx if they are out of order
+    for row in eachrow(branch)
+        f_bus_idx = row.f_bus_idx::Int
+        t_bus_idx = row.t_bus_idx::Int
+        f_bus_idx < t_bus_idx && continue
+        row.t_bus_idx = f_bus_idx
+        row.f_bus_idx = t_bus_idx
+    end
 
     # Handle duplicate lines
     if ~allunique((row.f_bus_idx,row.t_bus_idx) for row in eachrow(branch))
@@ -536,6 +600,7 @@ function setup_table!(config, data, ::Val{:af_table})
     hr_idx = findfirst(s->s=="h1",names(af_table))
     all_years = get_years(data)
     nyr = get_num_years(data)
+    nhr = get_num_hours(data)
 
     for i = 1:nrow(af_table)
         row = af_table[i, :]
@@ -543,7 +608,7 @@ function setup_table!(config, data, ::Val{:af_table})
             continue
         end
 
-        if isempty(row.year)
+        if !haskey(row, :year) || isempty(row.year)
             yr_idx = (:)
         elseif row.year ∈ all_years
             yr_idx = findfirst(==(row.year), all_years)
@@ -556,9 +621,9 @@ function setup_table!(config, data, ::Val{:af_table})
 
         isempty(gens) && continue
         
-        af = [row[i_hr] for i_hr in hr_idx:ncol(af_table)]
+        af = [row[i_hr] for i_hr in hr_idx:(hr_idx + nhr - 1)]
         foreach(eachrow(gens)) do gen
-            gen.af = set_hourly(gen.af, af, yr_idx; nyr)
+            gen.af = set_hourly(gen.af, af, yr_idx, nyr)
         end
     end
     return data
@@ -591,19 +656,22 @@ function summarize_table(::Val{:gen})
         (:year_on, YearString, Year, true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
         (:year_off, YearString, Year, true, "The first year that the generator is no longer operating."),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses"),
-        (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses"),
+        (:gentype, String, NA, true, "The generation technology type that the generator uses"),
         (:pcap0, Float64, MWCapacity, true, "Starting nameplate power generation capacity for the generator"),
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power generation capacity of the generator"),
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
-        (:fuel_cost, Float64, DollarsPerMWhGenerated, false, "Fuel cost per MWh of generation"),
-        (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
+        (:fuel_price, Float64, DollarsPerMMBtu, false, "Fuel cost per MMBtu of fuel used.  `heat_rate` column also necessary when supplying `fuel_price`"),
+        (:heat_rate, Float64, MMBtuPerMWhGenerated, false, "Heat rate,  or MMBtu of fuel consumed per MWh electricity generated (0 for generators that don't use combustion)"),
+        (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
-        (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
+        (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible.  Set to zero by default."),
         (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
         (:af, Float64, MWhGeneratedPerMWhCapacity, false, "The availability factor, or maximum available ratio of pewer generation to nameplate capacity for the generator."),
         (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The emission rate per MWh of CO2"),
-        (:capt_co2_percent, Float64, ShortTonsPerMWhGenerated, false, "The percentage of co2 emissions captured, to be sequestered."),
+        (:capt_co2_percent, Float64, NA, false, "The percentage of co2 emissions captured, to be sequestered."),
+        (:heat_rate, Float64, MMBtuPerMWhGenerated, false, "Heat rate, or MMBtu of fuel consumed per MWh electricity generated (0 for generators that don't use combustion)"),
+        (:chp_co2_multi,Float64,NA,false,"The percentage of CO2 emissions from CHP attributed to the power generation. Used to calculate CO2e")
     )
     return df
 end
@@ -663,8 +731,8 @@ function summarize_table(::Val{:af_table})
         (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
-        (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
-        (:year, YearString, Year, true, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
+        (:gentype, String, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
+        (:year, YearString, Year, false, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
         (:status, Bool, NA, false, "Whether or not to use this AF adjustment"),
         (:h_, Float64, MWhGeneratedPerMWhCapacity, true, "Availability factor of hour _.  Include 1 column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
     )
@@ -686,23 +754,23 @@ function summarize_table(::Val{:build_gen})
         (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built). Should either be exog or endog for buil_gen."),
         (:build_id, AbstractString, NA, true, "Identifier of the build row.  Each generator made using this build spec will inherit this `build_id`"),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
-        (:gentype, AbstractString, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
+        (:gentype, String, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
         (:status, Bool, NA, false, "Whether or not to use this set of characteristics/specs"),
         (:pcap0, Float64, MWCapacity, true, "Starting nameplate power generation capacity for the generator. Should be 0 for endog new gens."),
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power generation capacity of the generator"),
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
-        (:fuel_cost, Float64, DollarsPerMWhGenerated, false, "Fuel cost per MWh of generation"),
-        (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
+        (:fuel_price, Float64, DollarsPerMMBtu, false, "Fuel cost per MMBtu of fuel used.  `heat_rate` column also necessary when supplying `fuel_price`"),
+        (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
-        (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible."),
+        (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible.  Set to zero by default."),
         (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
         (:year_on, YearString, Year, true, "The first year of operation for the generator. (For new gens this is also the year it was built). Endogenous unbuilt generators will be left blank"),
         (:age_off, Float64, NumYears, true, "The age at which the generator is no longer operating.  I.e. if `year_on` = `y2030` and `age_off` = `20`, then capacity will be 0 in `y2040`."),
         (:year_on_min, YearString, Year, true, "The first year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
         (:year_on_max, YearString, Year, true, "The last year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
         (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The CO2 emission rate of the generator, in short tons per MWh generated.  This is the net emissions. (i.e. not including captured CO2 that gets captured)"),
-        (:capt_co2_percent, Float64, ShortTonsPerMWhGenerated, false, "The percentage of co2 emissions captured, to be sequestered."),
+        (:capt_co2_percent, Float64, NA, false, "The percentage of co2 emissions captured, to be sequestered."),
     )
     return df
 end
@@ -715,7 +783,7 @@ $(table2markdown(summarize_table(Val(:genfuel))))
 function summarize_table(::Val{:genfuel})
     df = TableSummary()
     push!(df, 
-        (:gentype, AbstractString, NA, true, "The generator type (ie. ngcc, dist_solar, os_wind)"),
+        (:gentype, String, NA, true, "The generator type (ie. ngcc, dist_solar, os_wind)"),
         (:genfuel, AbstractString, NA, true, "The corresponding generator fuel or renewable type (ie. ng, solar, wind)"),
     )
     return df
@@ -723,19 +791,6 @@ end
 
 # Data Accessor Functions
 ################################################################################
-
-"""
-    get_table(data, table_name::Symbol) -> table::DataFrame
-
-Retrieves `data[table_name]`, enforcing that it is a DataFrame.  See [`get_table_names`](@ref) for a list of available tables.
-"""
-function get_table(data, table_name::Symbol)
-    return data[table_name]::DataFrame
-end
-
-function get_table(data, table_name::AbstractString)
-    return get_table(data, Symbol(table_name))
-end
 
 """
     get_table(data, table_name, conditions...) -> subtable::SubDataFrame
@@ -752,6 +807,19 @@ function get_table(data, table_name::Union{Symbol, AbstractString}, conditions..
     table = get_table(data, table_name)
     get_subtable(table, conditions...)
 end
+"""
+    get_table(data, table_name::Symbol) -> table::DataFrame
+
+Retrieves `data[table_name]`, enforcing that it is a DataFrame.  See [`get_table_names`](@ref) for a list of available tables.
+"""
+function get_table(data, table_name::Symbol)
+    return data[table_name]::DataFrame
+end
+
+function get_table(data, table_name::AbstractString)
+    return get_table(data, Symbol(table_name))
+end
+export get_table
 export get_table
 
 """
@@ -829,7 +897,7 @@ function get_table_col_unit(data, table_name::Symbol, column_name::Symbol)
         elseif contains(cn, r"y\d*")
             haskey(ul, (table_name, :y_)) && return ul[(table_name, :y_)]
         end
-        error("No unit found for table column $table_name[:$column_name].\nConsider defining the column in the summary_table.")
+        return NA
     end::Type{<:Unit}
     return unit
 end
@@ -850,7 +918,7 @@ function get_table_col_description(data, table_name::Symbol, column_name::Symbol
         elseif contains(cn, r"y\d*")
             haskey(ul, (table_name, :y_)) && return ul[(table_name, :y_)]
         end
-        error("No description found for table column $table_name[:$column_name].\nConsider defining the column in the summary_table.")
+        return ""
     end::String
     return desc
 end
@@ -881,10 +949,13 @@ Related functions:
 * [`get_table_val(data, table_name, col_name, row_idx)`](@ref): retrieves the raw value from the table (without indexing by year/hour).
 * [`get_num(data, name, yr_idx, hr_idx)`](@ref): retrieves a `Float64` from `data`, indexing by year and hour.
 """
-function get_table_num(data, table_name, col_name, row_idx, yr_idx, hr_idx)
+function get_table_num(data, table_name, col_name, row_idx::Int64, yr_idx::Int64, hr_idx)
     table = get_table(data, table_name)
     container = table[row_idx, col_name]
     return container[yr_idx, hr_idx]::Float64
+end
+function get_table_num(data, table_name, col_name, row_idx::Int64, yr_idx::AbstractString, hr_idx)
+    return get_table_num(data, table_name, col_name, row_idx, get_year_idxs(data, yr_idx), hr_idx)
 end
 export get_table_num
 
@@ -896,12 +967,28 @@ Retrieves a `Float64` from `data[variable_name]`, indexing by year and hour.  Wo
 Related functions:
 * [`get_table_val(data, table_name, col_name, row_idx)`](@ref): retrieves the raw value from the table (without indexing by year/hour).
 * [`get_table_num(data, table_name, col_name, row_idx, yr_idx, hr_idx)`](@ref): retrieves the `Float64` from `data[variable_name]`, indexing by year and hour.
+* [`get_val(data, variable_name)`](@ref): retrieves the value from data[variable_name] regardless of type, not indexed by row, year or hour. 
 """
 function get_num(data, variable_name::Symbol, yr_idx, hr_idx)
     c = data[variable_name]
     return c[yr_idx, hr_idx]::Float64
 end
 export get_num
+
+"""
+    get_val(data, variable_name::Symbol) -> 
+
+Retrieves the value from data[variable_name], not indexed by row, hour, or year and regardless of type. (ex: could work for retrieving a ByYear container of yearly data)
+
+Related functions:
+* [`get_table_val(data, table_name, col_name, row_idx)`](@ref): retrieves the raw value from the table (without indexing by year/hour).
+* [`get_table_num(data, table_name, col_name, row_idx, yr_idx, hr_idx)`](@ref): retrieves the `Float64` from `data[variable_name]`, indexing by year and hour.
+* [`get_num(data, name, yr_idx, hr_idx)`](@ref): retrieves a `Float64` from `data`, indexing by year and hour.
+"""
+function get_val(data, variable_name::Symbol)
+    c = data[variable_name]
+    return c
+end
 
 """
     get_table_val(data, table_name, col_name, row_idx) -> val
@@ -911,6 +998,7 @@ Returns the value of the table at column `col_name` and row `row_idx`
 Related functions:
 * [`get_table_num(data, table_name, col_name, row_idx, yr_idx, hr_idx)`](@ref): retrieves the `Float64` from `data[variable_name]`, indexing by year and hour.
 * [`get_num(data, name, yr_idx, hr_idx)`](@ref): retrieves a `Float64` from `data`, indexing by year and hour.
+* [`get_val(data, variable_name)`](@ref): retrieves the value from data[variable_name] regardless of type, not indexed by row, year or hour.
 """
 function get_table_val(data, table_name, col_name, row_idx)
     table = get_table(data, table_name)

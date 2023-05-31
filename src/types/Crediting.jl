@@ -94,7 +94,7 @@ struct CreditByBenchmark <: Crediting
 end
 export CreditByBenchmark
 
-CreditByBenchmark(;gen_col = :emis_co2, benchmark) = CreditByBenchmark(gen_col, benchmark)
+CreditByBenchmark(;gen_col = :emis_co2e, benchmark) = CreditByBenchmark(gen_col, benchmark)
 
 """
     get_credit(c::CreditByBenchmark, data, gen_row::DataFrameRow) -> 
@@ -103,7 +103,6 @@ Returns the credit level based on the formula `max(1.0 - (gen_row[gen_col] / c.b
 """
 function get_credit(c::CreditByBenchmark, data, gen_row::DataFrameRow)
     gen_emis_rate = gen_row[c.gen_col]
-    credit = max(1.0-gen_emis_rate/c.benchmark, 0.0) 
-    return ByNothing(credit)
+    credit = min.(1.0, max.( 1.0 .- gen_emis_rate ./ c.benchmark, 0.0))
+    return credit
 end
-

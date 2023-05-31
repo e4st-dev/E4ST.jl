@@ -19,18 +19,18 @@
         function E4ST.should_iterate(iter::TargetAvgAnnualNGGen, config, data)
             tgt = iter.target
             tol = iter.tol
-            ng_gen_total = aggregate_result(total, data, :gen, :egen, :genfuel=>"ng")
+            ng_gen_total = compute_result(data, :gen, :egen_total, :genfuel=>"ng")
             ng_gen_ann = ng_gen_total/get_num_years(data)
             return abs(ng_gen_ann-tgt) > tol            
         end
         function E4ST.iterate!(iter::TargetAvgAnnualNGGen, config, data)
             tgt = iter.target
-            ng_gen_total = aggregate_result(total, data, :gen, :egen, :genfuel=>"ng")
+            ng_gen_total = compute_result(data, :gen, :egen_total, :genfuel=>"ng")
             ng_gen_ann = ng_gen_total/get_num_years(data)
             
             diff = ng_gen_ann - tgt
             gen = get_table(data, :gen, :genfuel=>"ng")
-            ng_price_avg = sum(gen.fuel_cost)/length(gen.fuel_cost)
+            ng_price_avg = sum(gen.fuel_price)/length(gen.fuel_price)
             if any(≈(ng_gen_ann), iter.avg_ng_egen)
                 idx = findfirst(≈(ng_gen_ann), iter.avg_ng_egen)
                 iter.avg_ng_prices[idx] = ng_price_avg
@@ -50,7 +50,7 @@
                 ng_price_new = interp(tgt)
             end
             ng_price_diff = ng_price_new - ng_price_avg
-            gen.fuel_cost .+= ng_price_diff
+            gen.fuel_price .+= ng_price_diff
             return nothing            
         end
         E4ST.should_reread_data(::TargetAvgAnnualNGGen) = false

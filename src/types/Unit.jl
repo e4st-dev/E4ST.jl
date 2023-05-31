@@ -14,25 +14,36 @@ end
 struct ShortTons <: Unit end; export ShortTons
 struct ShortTonsPerMWhGenerated <: Unit end; export ShortTonsPerMWhGenerated
 struct ShortTonsPerYear <: Unit end; export ShortTonsPerYear
+struct Pounds <: Unit end; export Pounds
+struct PoundsPerMWhGenerated <: Unit end; export PoundsPerMWhGenerated
 
 struct DollarsPerMWhServed <: Unit end; export DollarsPerMWhServed
 struct Dollars <: Unit end; export Dollars        
-struct DollarsPerMWCapacity <: Unit end; export DollarsPerMWCapacity
+struct DollarsPerMWCapacityPerHour <: Unit end; export DollarsPerMWCapacityPerHour
 struct DollarsPerMWBuiltCapacity <: Unit end; export DollarsPerMWBuiltCapacity
 struct DollarsPerMWhGenerated <: Unit end; export DollarsPerMWhGenerated
+struct DollarsPerMWhDischarged <: Unit end; export DollarsPerMWhDischarged
 struct DollarsPerMWFlow <: Unit end; export DollarsPerMWFlow
+struct DollarsPerMWhFlow <: Unit end; export DollarsPerMWhFlow
 struct DollarsPerShortTon <: Unit end; export DollarsPerShortTon
 struct DollarsPerShortTonCO2Captured <: Unit end; export DollarsPerShortTonCO2Captured
 struct CreditsPerMWhGenerated <: Unit end; export CreditsPerMWhGenerated
+struct MW <: Unit end; export MW
 struct MWhGeneratedPerMWhCapacity <: Unit end; export MWhGeneratedPerMWhCapacity
 struct MWhDischargedPerMWhCharged <: Unit end; export MWhDischargedPerMWhCharged
 struct MWhGenerated <: Unit end; export MWhGenerated
+struct MWhCapacity <: Unit end; export MWhCapacity
 struct MWhServed <: Unit end; export MWhServed
 struct MWhCurtailed <: Unit end; export MWhCurtailed
 struct MWhCharged <: Unit end; export MWhCharged
 struct MWhDischarged <: Unit end; export MWhDischarged
 struct MWhLoad <: Unit end; export MWhLoad
 struct MWhFlow <: Unit end; export MWhFlow
+struct MWhLoss <: Unit end; export MWhLoss
+struct MMBtuPerMWhGenerated <: Unit end; export MMBtuPerMWhGenerated
+struct DollarsPerMMBtu <: Unit end; export DollarsPerMMBtu
+struct DollarsPerMMBtuSold <: Unit end; export DollarsPerMMBtuSold
+struct DollarsPerMMBtuUsed <: Unit end; export DollarsPerMMBtuUsed
     
 struct NA <: Unit end; export NA
 struct PU <: Unit end; export PU
@@ -44,6 +55,7 @@ struct MWLoad <: Unit end; export MWLoad
 struct MWCurtailed <: Unit end; export MWCurtailed
 struct MWCharged <: Unit end; export MWCharged
 struct MWDischarged <: Unit end; export MWDischarged
+struct MMBtu <: Unit end; export MMBtu
 
 
 struct Hours <: Unit end; export Hours

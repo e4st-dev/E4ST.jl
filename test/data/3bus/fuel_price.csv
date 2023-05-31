@@ -1,0 +1,10 @@
+genfuel,area,subarea,price,quantity
+coal,,,0.1,Inf
+ng,country,narnia,1.5,5000
+ng,country,narnia,1.75,5000
+ng,country,narnia,2.0,5000
+ng,country,narnia,2.25,Inf
+ng,country,archenland,0.1,50000
+ng,country,archenland,0.2,50000
+ng,country,archenland,0.3,50000
+ng,country,archenland,0.4,Inf

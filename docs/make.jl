@@ -3,7 +3,7 @@ using Documenter, E4ST
 makedocs(
     modules = [E4ST],
     doctest = false,
-    sitename = "E4ST.jl",
+    sitename = "E4ST.jl⚡",
     pages = [
         "Home" => "index.md",
         "Overview" => "overview.md",
@@ -16,7 +16,6 @@ makedocs(
             "Hours Table" => "inputs/hours.md",
             "Load" => "inputs/load.md",
             "Availability Factor Table" => "inputs/af.md",
-            "Arbitrary Temporal Adjustments" => "inputs/adjust.md",
             "Logging" => "inputs/logging.md"
         ],
         "Model"=>Any[
@@ -25,19 +24,26 @@ makedocs(
         ],
         "Results" => Any[
             "Overview" => "results/overview.md",
-            "Aggregation" => "results/aggregation.md",
+            "Formulas" => "results/formulas.md",
+            "Results Modifications" => "results/modifications.md",
             "Plotting" => "results/plotting.md",
         ],
-        "Types"=>Any[
+        "Abstract Types"=>Any[
             "Modication"=>"types/mod.md",
             "Iterable"=>"types/iterable.md",
             "Policy"=>"types/policy.md",
             "Unit"=>"types/unit.md",
         ],
+        "Modifications"=>Any[
+            "Arbitrary Temporal Adjustments" => "types/modifications/adjust.md",
+            "Fuel Prices" => "types/modifications/fuel-price.md",
+        ],
         "Technologies"=>Any[
             "CO₂ Capture, Utilization & Storage"=>"types/modifications/ccus.md",
             "DC Transmission Lines" => "types/modifications/dcline.md",
             "Storage" => "types/modifications/storage.md",
+            "Retrofits" => "types/modifications/retrofits.md",
+            "Interface Limits" => "types/modifications/interface-limits.md",
         ],
         
     ],

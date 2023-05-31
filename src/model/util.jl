@@ -26,6 +26,7 @@ function match_capacity!(data, model, table_name::Symbol, pcap_name::Symbol, nam
     for set in sets
         for idx in set
             for yr_idx in 1:nyear
+                is_fixed(pcap[idx, yr_idx]) && continue
                 set_lower_bound(pcap[idx, yr_idx], 0.0)
             end
         end
@@ -99,10 +100,13 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
                 (
                     table.build_type[row_idx] == "exog" && 
                     table.build_status[row_idx] == "unbuilt" &&
-                    yr_idx == findfirst(year -> table.year_on[row_idx] >= year, years)
+                    (
+                        yr_idx == findfirst(year -> table.year_on[row_idx] >= year, years) ||
+                        (yr_idx == 1 && table.year_on[row_idx] < first(years))
+                    )
                 )
             ],
-            pcap[row_idx, yr_idx] == table.pcap0[row_idx]
+            pcap[row_idx, yr_idx] == table.pcap_max[row_idx]
         )
     end
 
@@ -133,3 +137,4 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
     end
 end
 export add_build_constraints!
+

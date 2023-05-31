@@ -88,15 +88,24 @@ function setup_dcopf!(config, data, model)
     
     # Constrain Power Generation
     if hasproperty(gen, :cf_min)
-        @constraint(model, cons_pgen_min[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour],
-            pgen_gen[gen_idx, year_idx, hour_idx] >= get_pgen_min(data, model, gen_idx, year_idx, hour_idx))
+        cf_min = gen.cf_min
+        @constraint(model, 
+            cons_pgen_min[gen_idx in 1:ngen, yr_idx in 1:nyear, hr_idx in 1:nhour],
+            pgen_gen[gen_idx, yr_idx, hr_idx] >= 
+            cf_min[gen_idx][yr_idx, hr_idx] * pcap_gen[gen_idx, yr_idx]
+        )
     end
-    @constraint(model, cons_pgen_max[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour],
-            pgen_gen[gen_idx, year_idx, hour_idx] <= get_pgen_max(data, model, gen_idx, year_idx, hour_idx)) 
+
+    @constraint(model, 
+        cons_pgen_max[gen_idx in 1:ngen, yr_idx in 1:nyear, hr_idx in 1:nhour],
+        1000 * pgen_gen[gen_idx, yr_idx, hr_idx] <= # Scale by 1000 in this constraint to improve matrix coefficient range.  Some af values are very small.
+        1000 * get_cf_max(config, data, gen_idx, yr_idx, hr_idx) * pcap_gen[gen_idx, yr_idx]
+    )
+    # TODO: Add af_threshold here.
 
     # Constrain Reference Bus
-    for ref_bus_idx in get_ref_bus_idxs(data), year_idx in 1:nyear, hour_idx in 1:nhour
-        fix(model[:θ_bus][ref_bus_idx, year_idx, hour_idx], 0.0, force=true)
+    for ref_bus_idx in get_ref_bus_idxs(data), yr_idx in 1:nyear, hr_idx in 1:nhour
+        fix(model[:θ_bus][ref_bus_idx, yr_idx, hr_idx], 0.0, force=true)
     end
 
     # Constrain Transmission Lines, positive and negative
@@ -135,7 +144,11 @@ function setup_dcopf!(config, data, model)
     
     # Power System Costs
     add_obj_term!(data, model, PerMWhGen(), :vom, oper = +)
-    add_obj_term!(data, model, PerMWhGen(), :fuel_cost, oper = +)
+
+    # Only add fuel cost if included and non-zero.
+    if hasproperty(gen, :fuel_price) && anyany(!=(0), gen.fuel_price)
+        add_obj_term!(data, model, PerMMBtu(), :fuel_price, oper = +)
+    end
 
     add_obj_term!(data, model, PerMWCap(), :fom, oper = +)
     add_obj_term!(data, model, PerMWCap(), :capex_obj, oper = +) 
@@ -212,43 +225,27 @@ export get_pflow_branch
 
 
 ### Contraint/Expression Info Functions
-
 """
-    get_pgen_min(data, model, gen_idx, year_idx, hour_idx)
+    get_cf_max(data, gen_idx, year_idx, hour_idx)
 
-Returns min power generation for a generator at a time. 
-Default is 0 unless specified by the optional gen property `cf_min` (minimum capacity factor).
+Returns max capacity factor at a given time.  It is based on the lower of gen properties `af` (availability factor) and optional `cf_max` (capacity factor).  If it is below `config[:cf_threshold]`, it is rounded to zero.
 """ 
-function get_pgen_min(data, model, gen_idx, year_idx, hour_idx) 
-    if hasproperty(data[:gen], :cf_min)
-        pcap = model[:pcap_gen][gen_idx, year_idx]
-        cf_min = get_table_num(data, :gen, :cf_min, gen_idx, year_idx, hour_idx)
-        isnan(cf_min) && return 0.0
-        return pcap .* cf_min 
-    else
-        return 0.0
-    end
-end
-export get_pgen_min
-
-"""
-    get_pgen_max(data, model, gen_idx, year_idx, hour_idx)
-
-Returns max power generation for a generator at a time.
-It is based on the lower of gen properties `af` (availability factor) and optional `cf_max` (capacity factor).
-""" 
-function get_pgen_max(data, model, gen_idx, year_idx, hour_idx) 
+function get_cf_max(config, data, gen_idx, year_idx, hour_idx)
+    cf_threshold = config[:cf_threshold]::Float64
     af = get_table_num(data, :gen, :af, gen_idx, year_idx, hour_idx)
-    pcap = model[:pcap_gen][gen_idx, year_idx]
-    if hasproperty(data[:gen], :cf_max)
-        cf_max = get_table_num(data, :gen, :cf_max, gen_idx, year_idx, hour_idx)
-        cf_max < af ? pgen_max = cf_max .* pcap : pgen_max = af .* pcap
+    gen = get_table(data, :gen)
+    if hasproperty(gen, :cf_max)
+        cf = get_table_num(data, :gen, :cf_max, gen_idx, year_idx, hour_idx)
     else 
-        pgen_max = af .* pcap
+        cf = 1.0
     end
-    return pgen_max
+    cf_max = min(af, cf)
+
+    cf_max < cf_threshold && return 0.0
+
+    return cf_max
 end
-export get_pgen_max
+export get_cf_max
 
 
 """
@@ -297,14 +294,37 @@ function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper)
     
     #write expression for the term
     gen = get_table(data, :gen)
-    years = get_years(data)
+    egen_gen = model[:egen_gen]
+    col = gen[!,s]
+    nhr = get_num_hours(data)
+    nyr = get_num_years(data)
+    model[s] = @expression(model, 
+        [gen_idx in axes(gen,1), yr_idx in 1:nyr],
+        sum(col[gen_idx][yr_idx,hr_idx] * egen_gen[gen_idx, yr_idx, hr_idx] for hr_idx in 1:nhr)
+    )
 
-    model[s] = @expression(model, [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
-        get_table_num(data, :gen, s, gen_idx, year_idx, :) .* get_egen_gen(data, model, gen_idx, year_idx))
+    # add or subtract the expression from the objective function
+    add_obj_exp!(data, model, PerMWhGen(), s; oper = oper)  
+end
+
+function add_obj_term!(data, model, ::PerMMBtu, s::Symbol; oper) 
+    #Check if s has already been added to obj
+    Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
+    
+    #write expression for the term
+    gen = get_table(data, :gen)
+    egen_gen = model[:egen_gen]
+    col = gen[!,s]
+    hr = gen[!,:heat_rate]
+    nhr = get_num_hours(data)
+    nyr = get_num_years(data)
+    model[s] = @expression(model, 
+        [gen_idx in axes(gen,1), yr_idx in 1:nyr],
+        sum(col[gen_idx][yr_idx,hr_idx] * hr[gen_idx][yr_idx, hr_idx] * egen_gen[gen_idx, yr_idx, hr_idx] for hr_idx in 1:nhr)
+    )
 
     # add or subtract the expression from the objective function
     add_obj_exp!(data, model, PerMWhGen(), s; oper = oper) 
-    
 end
 
 
@@ -354,11 +374,15 @@ Adds expression s (already defined in model) to the objective expression model[:
 Adds the name, oper, and type of the term to data[:obj_vars].
 """
 function add_obj_exp!(data, model, term::Term, s::Symbol; oper)
-    new_term = sum(model[s])
+    expr = model[s]
     if oper == + 
-        add_to_expression!(model[:obj], new_term)
+        for new_term in expr
+            add_to_expression!(model[:obj], new_term)
+        end
     elseif oper == -
-        add_to_expression!(model[:obj], -1, new_term)
+        for new_term in expr
+            add_to_expression!(model[:obj], -1, new_term)
+        end
     else
         Base.error("The entered operator isn't valid, oper must be + or -")
     end

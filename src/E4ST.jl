@@ -8,15 +8,19 @@ using Serialization
 using Logging
 using MiniLoggers
 using Pkg
+using Statistics
+using E4STUtil
+
+# Package Imports
+import Dates
+import CSV
+import YAML
+
+# Specific Imports
+import CSV: String15
+import JuMP.MOI.AbstractOptimizer
 import Dates: @dateformat_str, format, now
 import OrderedCollections: OrderedDict
-import CSV
-import CSV: String15
-import YAML
-import JuMP.MOI.AbstractOptimizer
-
-# E4ST Packages
-using E4STUtil
 
 export save_config, read_config
 export read_data
@@ -32,6 +36,8 @@ export setup_new_gens!
 
 include("io/util.jl")
 
+
+
 # Include types
 include("types/Modification.jl")
 include("types/Policy.jl")
@@ -40,6 +46,7 @@ include("types/Containers.jl")
 include("types/Iterable.jl")
 include("types/Term.jl")
 include("types/Crediting.jl")
+include("types/Retrofit.jl")
 
 # Include Modifications
 include("types/modifications/DCLine.jl")
@@ -47,8 +54,15 @@ include("types/modifications/AggregationTemplate.jl")
 include("types/modifications/GenerationConstraint.jl")
 include("types/modifications/GenerationStandard.jl")
 include("types/modifications/YearlyTable.jl")
+include("types/modifications/WelfareTable.jl")
 include("types/modifications/CCUS.jl")
 include("types/modifications/Storage.jl")
+include("types/modifications/Adjust.jl")
+include("types/modifications/CoalCCSRetrofit.jl")
+include("types/modifications/CO2eCalc.jl")
+include("types/modifications/FuelPrice.jl")
+include("types/modifications/InterfaceLimit.jl")
+
 
 # Include Policies
 include("types/policies/ITC.jl")
@@ -65,7 +79,6 @@ include("types/iterables/RunSequential.jl")
 #Include IO
 include("io/config.jl")
 include("io/data.jl")
-include("io/adjust.jl")
 include("io/load.jl")
 
 # Include model
@@ -79,6 +92,8 @@ include("model/util.jl")
 include("results/parse.jl")
 include("results/process.jl")
 include("results/aggregate.jl")
+include("results/formulas.jl")
+include("results/welfare.jl")
 include("results/util.jl")
 
 
@@ -104,6 +119,7 @@ Top-level function for running E4ST.  Here is a general overview of what happens
     * See [`Iterable`](@ref) and [`read_config`](@ref) for more information.
 """
 function run_e4st(config::OrderedDict)
+    t_start = now()
 
     # Initial config setup
     save_config(config)
@@ -123,9 +139,7 @@ function run_e4st(config::OrderedDict)
     while true
         model = setup_model(config, data)
     
-        log_header("OPTIMIZING MODEL!")
-        optimize!(model)
-        log_header("MODEL OPTIMIZED!")
+        run_optimize!(config, data, model)
 
         check(model) || return model # all_results
 
@@ -145,12 +159,21 @@ function run_e4st(config::OrderedDict)
         # Reload data as needed
         should_reread_data(iter) && read_data!(config, data)
     end
+    
+    t_finish = now()
+
+    t_elapsed = Dates.canonicalize(Dates.CompoundPeriod(t_finish - t_start))
+    
+    log_header("E4ST finished in $t_elapsed")
 
     stop_logging!(config)
+
+
+
     return get_out_path(config), all_results
 end
 
-run_e4st(path...) = run_e4st(read_config(path...))
+run_e4st(path...; kwargs...) = run_e4st(read_config(path...; kwargs...))
 
 global STR2TYPE = Dict{String, Type}()
 global SYM2TYPE = Dict{Symbol, Type}()
@@ -251,7 +274,7 @@ function get_type(sym::Symbol)
     return get(SYM2TYPE, sym) do 
         reload_types!()
         get(SYM2TYPE, sym) do
-            error("There has been no type $sym defined!")
+            get_type(string(sym))
         end
     end
 end
@@ -261,7 +284,9 @@ function get_type(str::AbstractString)
     return get(STR2TYPE, str) do 
         reload_types!()
         get(STR2TYPE, str) do
-            error("There has been no type $str defined!")
+            get(STR2TYPE, last(split(str, '.'))) do
+                error("There has been no type $str defined!")
+            end
         end
     end
 end

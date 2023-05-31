@@ -152,24 +152,24 @@
             ## Check that policy impacts results 
             gen = get_table(data, :gen)
             years = get_years(data)
-            emis_co2_total = aggregate_result(total, data, :gen, :emis_co2, :, [2, 3])
+            emis_co2_total = compute_result(data, :gen, :emis_co2_total, :, [2, 3])
 
 
             gen_ref = get_table(data_ref, :gen)
-            emis_co2_total_ref = aggregate_result(total, data_ref, :gen, :emis_co2, :, [2, 3])
+            emis_co2_total_ref = compute_result(data_ref, :gen, :emis_co2_total, :, [2, 3])
 
             # check that emissions are reduced
             @test emis_co2_total < emis_co2_total_ref
 
             # check that yearly cap values are actually followed
             idx_2035 = get_year_idxs(data, "y2035")
-            emis_co2_total_2035 = aggregate_result(total, data, :gen, :emis_co2, :, idx_2035)
+            emis_co2_total_2035 = compute_result(data, :gen, :emis_co2_total, :, idx_2035)
 
             @test emis_co2_total_2035 <= config[:mods][:example_emiscap][:targets][:y2035] + 0.001
 
 
             idx_2040 = get_year_idxs(data, "y2040")
-            emis_co2_total_2040 = aggregate_result(total, data, :gen, :emis_co2, :, idx_2040)
+            emis_co2_total_2040 = compute_result(data, :gen, :emis_co2_total, :, idx_2040)
 
             @test emis_co2_total_2040 <= config[:mods][:example_emiscap][:targets][:y2040] + 0.001
 
@@ -223,10 +223,10 @@
             gen = get_table(data, :gen)
             years = get_years(data)
             emis_prc_mod = config[:mods][:example_emisprc]
-            emis_co2_total = aggregate_result(total, data, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
+            emis_co2_total = compute_result(data, :gen, :emis_co2_total, parse_comparisons(emis_prc_mod.gen_filters))
 
             gen_ref = get_table(data_ref, :gen)
-            emis_co2_total_ref = aggregate_result(total, data_ref, :gen, :emis_co2, parse_comparisons(emis_prc_mod.gen_filters))
+            emis_co2_total_ref = compute_result(data_ref, :gen, :emis_co2_total, parse_comparisons(emis_prc_mod.gen_filters))
 
             # check that emissions are reduced for qualifying gens
             @test emis_co2_total < emis_co2_total_ref
@@ -255,12 +255,11 @@
                 @test hasproperty(gen, :example_rps_gentype)
 
                 # check that some crediting was applied
-                @test any(credit -> get_original(credit) > 0.0, gen[!, :example_rps])
-                @test any(credit -> get_original(credit) > 0.0, gen[!, :example_rps_gentype])
+                @test any(credit -> any(>(0.0),credit), gen[!, :example_rps])
+                @test any(credit -> any(>(0.0),credit), gen[!, :example_rps_gentype])
 
-                @test ~any(credit -> get_original(credit) > 1.0 || get_original(credit) < 0.0, gen[!, :example_rps])
-                @test ~any(credit -> get_original(credit) > 1.0 || get_original(credit) < 0.0, gen[!, :example_rps_gentype])
-
+                @test ~any(credit -> any(x -> x > (1.0) || x < (0.0), credit), gen[!, :example_rps])
+                @test ~any(credit -> any(x -> x > (1.0) || x < (0.0), credit), gen[!, :example_rps_gentype])
             end
 
             @testset "Adding RPS to model" begin
@@ -290,23 +289,23 @@
 
                 gen = get_table(data, :gen)
 
-                gen_total_qual = aggregate_result(total, data, :gen, :egen, [:emis_co2 => 0, :country => "archenland"])
-                elserv_total_qual = aggregate_result(total, data, :bus, :elserv, :state => "stormness")
+                gen_total_qual = compute_result(data, :gen, :egen_total, [:emis_co2 => 0, :country => "archenland"])
+                elserv_total_qual = compute_result(data, :bus, :elserv_total, :state => "stormness")
 
-                gen_total_qual_2035 = aggregate_result(total, data, :gen, :egen, [:emis_co2 => 0, :country => "archenland"], 2)
-                elserv_total_qual_2035 = aggregate_result(total, data, :bus, :el_gs, :state => "stormness", 2)
+                gen_total_qual_2035 = compute_result(data, :gen, :egen_total, [:emis_co2 => 0, :country => "archenland"], 2)
+                elserv_total_qual_2035 = compute_result(data, :bus, :el_gs_total, :state => "stormness", 2)
 
                 targets = first(values(rps_mod.load_targets))[:targets]
 
                 @test gen_total_qual_2035 / elserv_total_qual_2035 >= targets[:y2035]
 
-                gen_total_qual_2040 = aggregate_result(total, data, :gen, :egen, [:emis_co2 => 0, :country => "archenland"], 3)
-                elserv_total_qual_2040 = aggregate_result(total, data, :bus, :el_gs, :state => "stormness", 3)
+                gen_total_qual_2040 = compute_result(data, :gen, :egen_total, [:emis_co2 => 0, :country => "archenland"], 3)
+                elserv_total_qual_2040 = compute_result(data, :bus, :el_gs_total, :state => "stormness", 3)
 
                 @test gen_total_qual_2040 / elserv_total_qual_2040 >= targets[:y2040]
 
                 gen_ref = get_table(data_ref, :gen)
-                gen_total_ref = aggregate_result(total, data_ref, :gen, :egen, :emis_co2 => 0)
+                gen_total_ref = compute_result(data_ref, :gen, :egen_total, :emis_co2 => 0)
 
                 # check that generation is increased for qualifying gens
                 @test gen_total_qual > gen_total_ref
@@ -324,14 +323,16 @@
             gen = get_table(data, :gen)
             model = setup_model(config, data)
 
+            nyears = get_num_years(data)
+
             @testset "Test Crediting CES" begin
                 # columns added to the gen table
                 @test hasproperty(gen, :example_ces)
 
                 # check that some crediting was applied
-                @test any(credit -> get_original(credit) > 0.0, gen[!, :example_ces])
+                @test any(credit -> any(>(0.0), credit), gen[!, :example_ces])
 
-                @test ~any(credit -> get_original(credit) > 1.0 || get_original(credit) < 0.0, gen[!, :example_ces])
+                @test ~any(credit -> any(x -> x > (1.0) || x < (0.0), credit), gen[!, :example_ces])
 
             end
 
@@ -355,16 +356,16 @@
                 ces_mod = config[:mods][:example_ces]
                 targets = first(values(ces_mod.load_targets))[:targets]
 
-                gen_total_qual_2035 = aggregate_result(total, data, :gen, :egen, [:emis_co2 => <(0.5), :country => "archenland"], 2)
-                gen_total_qual_2035_ref = aggregate_result(total, data_ref, :gen, :egen, [:emis_co2 => <(0.5), :country => "archenland"], 2)
-                elserv_total_qual_2035 = aggregate_result(total, data, :bus, :el_gs, :state => "anvard", 2)
+                gen_total_qual_2035 = compute_result(data, :gen, :egen_total, [:emis_co2 => <(0.5), :country => "archenland"], 2)
+                gen_total_qual_2035_ref = compute_result(data_ref, :gen, :egen_total, [:emis_co2 => <(0.5), :country => "archenland"], 2)
+                elserv_total_qual_2035 = compute_result(data, :bus, :el_gs_total, :state => "anvard", 2)
 
                 @test gen_total_qual_2035 > gen_total_qual_2035_ref
                 @test gen_total_qual_2035 / elserv_total_qual_2035 >= targets[:y2035] - 0.001 #would use approx but need the > in case partial credit gen is used
 
-                gen_total_qual_2040 = aggregate_result(total, data, :gen, :egen, [:emis_co2 => <(0.5), :country => "archenland"], 3)
-                gen_total_qual_2040_ref = aggregate_result(total, data_ref, :gen, :egen, [:emis_co2 => <(0.5), :country => "archenland"], 3)
-                elserv_total_qual_2040 = aggregate_result(total, data, :bus, :el_gs, :state => "anvard", 3)
+                gen_total_qual_2040 = compute_result(data, :gen, :egen_total, [:emis_co2 => <(0.5), :country => "archenland"], 3)
+                gen_total_qual_2040_ref = compute_result(data_ref, :gen, :egen_total, [:emis_co2 => <(0.5), :country => "archenland"], 3)
+                elserv_total_qual_2040 = compute_result(data, :bus, :el_gs_total, :state => "anvard", 3)
 
                 @test gen_total_qual_2040 > gen_total_qual_2040_ref
                 @test gen_total_qual_2040 / elserv_total_qual_2040 >= targets[:y2040] - 0.001 #would use approx but need the > in case partial credit gen is used

@@ -32,11 +32,13 @@ function summarize_config()
         (:years, true, nothing, "a list of years to run in the simulation specified as a string.  I.e. `\"y2030\"`"),
         (:optimizer, true, nothing, "The optimizer type and attributes to use in solving the linear program.  The `type` field should be always be given, (i.e. `type: HiGHS`) as well as each of the solver options you wish to set.  E4ST is a BYOS (Bring Your Own Solver :smile:) library, with default attributes for HiGHS and Gurobi.  For all other solvers, you're on your own to provide a reasonable set of attributes.  To see a full list of solvers with work with JuMP.jl, see [here](https://jump.dev/JuMP.jl/stable/installation/#Supported-solvers)."),
         (:mods, false, OrderedDict{Symbol, Modification}(), "A list of `Modification`s specifying changes for how E4ST runs.  See the [`Modification`](@ref) for information on what they are, how to add them to a config file."),
+        (:year_gen_data, true, nothing, "The year string (i.e. `y2016`) corresponding to the data year of the generator table."),
         
         ## Optional Fields:
         (:out_path, false, nothing, "the path to output to.  If this is not provided, an output path will be created [`make_out_path!`](@ref)."),
         (:other_config_files, false, nothing, "A list of other config files to read.  Note that the options in the parent file will be honored."),
         (:af_file, false, nothing, "The filepath (relative or absolute) to the availability factor table.  See [`summarize_table(::Val{:af_table})`](@ref)"),
+        (:cf_threshold, false, 1e-3, "The threshold below which the maximum capacity factor is considered to be zero.  This helps with numerical performance of the solver.  For example, a solar unit with an hourly average CF of 0.00001 will not operate, with the default `cf_threshold` of 1e-3."),
         (:iter, false, RunOnce(), "The [`Iterable`](@ref) object to specify the way the sim should iterate.  If nothing specified, defaults to run a single time via [`RunOnce`](@ref).  Specify the `Iterable` type, and all keyword arguments."),
         (:load_shape_file, false, nothing, "a file for specifying the hourly shape of load elements.  See [`summarize_table(::Val{:load_shape})`](@ref)"),
         (:load_match_file, false, nothing, "a file for specifying annual load energy to match for sets.  See [`summarize_table(::Val{:load_match})`](@ref)"),
@@ -47,6 +49,7 @@ function summarize_config()
         (:summary_table_file, false, nothing, "a file for giving information about additional columns not specified in [`summarize_table`](@ref)"),
         (:save_data, false, true, "A boolean specifying whether or not to save the loaded data to file for later use (i.e. by specifying a `data_file` for future simulations)."),
         (:data_file, false, nothing, "The filepath (relative or absolute) to the data file (a serialized julia object).  If this is provided, it will use this instead of loading data from all the other files."),
+        (:results_formulas_file, false, nothing, "The filepath (relative or absolute) to the results formulas file.  See [`summarize_table(::Val{:results_formulas})`](@ref)"),
         (:save_model_presolve, false, false, "A boolean specifying whether or not to save the model before solving it, for later use (i.e. by specifying a `model_presolve_file` for future sims). Defaults to `false`"),
         (:model_presolve_file, false, nothing, "The filepath (relative or absolute) to the unsolved model.  If this is provided, it will use this instead of creating a new model."),
         (:save_data_parsed, false, true, "A boolean specifying whether or not to save the raw results after solving the model.  This could be useful for calling [`process_results!(config)`](@ref) in the future. Defaults to `true`"),
@@ -58,7 +61,10 @@ function summarize_config()
         (:eor_leakage_rate, false, 0.5, "The assumed rate (between 0 and 1) at which CO₂ stored in Enhanced Oil Recovery (EOR) leaks back into the atmosphere."),
         (:line_loss_rate, false, 0.1, "The assumed electrical loss rate from generation to consumption, given as a ratio between 0 and 1.  Default is 0.1, or 10% energy loss"),
         (:line_loss_type, false, "plserv", "The term in the power balancing equation that gets penalized with line losses.  Can be \"pflow\" or \"plserv\". Using \"pflow\" is more accurate in that it accounts for only losses on power coming from somewhere else, at the expense of a larger problem size and greater solve time.  Default is `plserv` due to increased runtime with `pflow`"),
-    )
+        (:bio_pctco2e, false, 0.273783186, "The fraction of biomass co2 emissions that are considered new to the atmostphere. 0.225 metric tons/MWh * (2204 short tons/2000 metric tons) / 0.904 short tons/MWh"),
+        (:ng_ch4_fuel_content, false, 0.000434, "Natural gas methane fuel content. (Short ton/MMBtu)"),
+        (:coal_ch4_fuel_content, false, 0.000175, "Coal methane fuel content. (Short ton/MMBtu)")
+        )
     return df
 end
 export summarize_config
@@ -391,9 +397,7 @@ function make_paths_absolute!(config, filename)
     path = dirname(filename)
     for key in path_keys
         fn = config[key]
-        if ~isabspath(fn)
-            config[key] = abspath(path, fn)
-        end
+        config[key] = _abspath(path, fn)
     end
     for (k,v) in config
         k === :optimizer && continue
@@ -411,6 +415,8 @@ function make_paths_absolute!(config, filename)
 end
 make_paths_absolute!(config) = make_paths_absolute!(config, config[:config_file])
 
+_abspath(path, fn::AbstractString) = abspath(path, fn)
+_abspath(path, fns::AbstractVector{<:AbstractString}) = map(fn->(isabspath(fn) ? fn : abspath(path, fn)), fns)
 """
     contains_file_or_path(s) -> Bool
 
@@ -485,7 +491,7 @@ function sort_mods_by_rank!(config)
 end
 
 function convert_iter!(config)
-    config[:iter] isa RunOnce && return
+    config[:iter] isa Iterable && return
     config[:iter] = Iterable(config[:iter])
     return
 end
