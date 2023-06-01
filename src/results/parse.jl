@@ -282,8 +282,8 @@ export save_updated_gen_table
 
 Change the build_status of generators built in the simulation.
 * `unbuilt -> new` if `last(pcap)` is above threshold
-* `built -> retired_exog` if retired due to surpassing `year_off`
-* `built -> retired_endog` if retired due before `year_off`
+* `built -> retired_exog` if retired due to surpassing `year_shutdown`
+* `built -> retired_endog` if retired due before `year_shutdown`
 """
 function update_build_status!(config, data, table_name)
     years = get_years(data)
@@ -301,8 +301,10 @@ function update_build_status!(config, data, table_name)
             yr_idx_ret = findfirst(<(thresh), row.pcap)
             isnothing(yr_idx_ret) && continue
 
+            row.year_off = years[yr_idx_ret]
+
             # Check to see if we retired because of being >= year_off
-            if years[yr_idx_ret] >= row.year_off
+            if years[yr_idx_ret] >= row.year_shutdown
                 row.build_status = "retired_exog"
             else
                 row.build_status = "retired_endog"

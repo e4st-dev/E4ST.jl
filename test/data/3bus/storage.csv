@@ -1,2 +1,2 @@
-bus_idx,status,build_status,build_type,build_id,year_on,year_off,pcap_inv,pcap0,pcap_min,pcap_max,vom,fom,capex,duration_discharge,storage_efficiency,side,hour_groupby,hour_duration,hour_order
-1,1,built,real,,y2020,y2050,0.05,0.05,0,0.05,0.5,0.5,5,8,0.9,load,day,day_duration,day_order
+bus_idx,status,build_status,build_type,build_id,year_on,econ_life,year_shutdown,year_off,pcap_inv,pcap0,pcap_min,pcap_max,vom,fom,capex,duration_discharge,storage_efficiency,side,hour_groupby,hour_duration,hour_order
+1,1,built,real,,y2020,30,y2050,y9999,0.05,0.05,0,0.05,0.5,0.5,5,8,0.9,load,day,day_duration,day_order
