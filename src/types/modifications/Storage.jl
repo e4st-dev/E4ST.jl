@@ -70,7 +70,7 @@ function summarize_table(::Val{:storage})
         (:econ_life, Float64, NumYears, true, "The number of years in the economic lifetime of the storage device."),
         (:year_off, YearString, Year, true, "The first year that the storage unit is no longer operating in the simulation, computed from the simulation.  Leave as y9999 if an existing storage unit that has not been retired in the simulation yet."),
         (:year_shutdown, YearString, Year, true, "The forced (exogenous) shutdown year for the storage unit."),
-        (:pcap_inv, Float64, MWCapacity, true, "Original invested nameplate power discharge capacity for the generator"),
+        (:pcap_inv, Float64, MWCapacity, true, "Original invested nameplate power generation capacity for the storage device.  This is the original invested capacity of exogenously built storage devices (even if there have been retirements ), and the original invested capacity in year_on for endogenously built storage devices."),
         (:pcap0, Float64, MWCapacity, true, "Starting nameplate power discharge capacity for the storage device"),
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power discharge capacity of the storage device (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power discharge capacity of the storage device"),
