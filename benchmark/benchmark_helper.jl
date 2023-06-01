@@ -39,6 +39,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         hr = rand(n_gen),
         chp_co2_multi = ones(n_gen),
     )
+    gen.pcap_inv = copy(gen.pcap0)
     gt = gentypes()
     gen.gentype = map(gen.genfuel) do gf
         rand(gt[gf])
