@@ -95,17 +95,15 @@ function add_results_formula!(data, table_name::Symbol, result_name::Symbol, for
         args_string = match(r"\([^\)]+\)", formula).match
         dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", args_string))
         fn_string = match(r"([\w]+)\(",formula).captures[1]
-        combined_string = string(fn_string, "(", replace(args_string, r"([\w]+)"=>s":\1"), ")")
-        # fn_string = replace(r"([\w]+)\(",formula)
+        T = getfield(E4ST, Symbol(fn_string))
+        fn = T(dependent_columns...)
         isderived = false
-        fn = eval(Meta.parse(combined_string))
         
     # Derived results calculations: I.e. "vom_total / egen_total"
     else
         dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", formula))
         isderived = true
-        fn_string = string("row->", replace(replace(formula, r"(\w+)"=>s"row.\1"), r"([^\.])([\+\*\/\-])"=>s"\1 .\2"))
-        fn = eval(Meta.parse(fn_string))::Function
+        fn = _ResultsFunction(formula)
     end
 
     # push!(results_formulas_table, (;table_name, result_name, formula, unit, description, dependent_columns, fn))
@@ -131,9 +129,29 @@ struct ResultsFormula
 end
 export ResultsFormula
 
+struct _ResultsFunction{F} <: Function end
+function _ResultsFunction(s::String)
+    fn = _Func(s)
+    _ResultsFunction{fn}()
+end
+(::_ResultsFunction{F})(args...) where F = F(args...)
+
+_Func(s::String) = _Func(Meta.parse(s))
+_Func(e::Expr) = Op{getfield(Base, e.args[1]), _Func(e.args[2]), _Func(e.args[3])}
+_Func(s::Symbol) = Var{s}
+
+struct Op{F, V1, V2} <: Function end
+struct Var{S} <: Function end
+
 function Base.show(io::IO, rf::ResultsFormula)
     print(io, "ResultsFormula $(rf.result_name) for table $(rf.table_name): ")
     print(io, rf.formula)
+end
+function (::Type{Op{F, V1, V2}})(d) where {F, V1, V2}
+    return F.(V1(d), V2(d))
+end
+function (::Type{Var{V}})(d) where {V}
+    return getproperty(d, V)
 end
 
 """

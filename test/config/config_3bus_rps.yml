@@ -31,7 +31,7 @@ mods:
           y2040: 0.9
         filters:  
           country: "narnia"
-  storage:
+  stor:
     type: Storage
     file: "../data/3bus/storage.csv"
 
