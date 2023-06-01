@@ -136,22 +136,45 @@ function _ResultsFunction(s::String)
 end
 (::_ResultsFunction{F})(args...) where F = F(args...)
 
-_Func(s::String) = _Func(Meta.parse(s))
-_Func(e::Expr) = Op{getfield(Base, e.args[1]), _Func(e.args[2]), _Func(e.args[3])}
-_Func(s::Symbol) = Var{s}
-
-struct Op{F, V1, V2} <: Function end
+struct Op{F, A} <: Function end
+struct Args{A1, A2} <: Function end
 struct Var{S} <: Function end
+struct Num{N} <: Function end
+struct Tail <: Function end
+
+_Func(s::String) = _Func(Meta.parse(s))
+_Func(e::Expr) = Op{getfield(Base, e.args[1]), _Func((view(e.args, 2:length(e.args))...,))}
+_Func(s::Symbol) = Var{s}
+_Func(n::Number) = Num{n}
+function _Func(args::Tuple)
+    Args{_Func(first(args)), _Func(Base.tail(args))}
+end
+function _Func(::Tuple{})
+    return Tail
+end
 
 function Base.show(io::IO, rf::ResultsFormula)
     print(io, "ResultsFormula $(rf.result_name) for table $(rf.table_name): ")
     print(io, rf.formula)
 end
-function (::Type{Op{F, V1, V2}})(d) where {F, V1, V2}
-    return F.(V1(d), V2(d))
+function (::Type{Op{F, A}})(d) where {F, A}
+    args = A(d)
+    return F.(args...)
 end
+function (::Type{Args{A1, A2}})(d) where {A1, A2}
+    a1 = A1(d)
+    rest = A2(d)
+    return (a1, rest...)
+end
+function (::Type{Tail})(d)
+    return ()
+end
+
 function (::Type{Var{V}})(d) where {V}
     return getproperty(d, V)
+end
+function (::Type{Num{N}})(d) where {N}
+    return N
 end
 
 """
