@@ -10,7 +10,7 @@ gen,vom_cost,"SumHourly(vom,egen)",Dollars,"Variable Operation and Maintenance p
 gen,vom_per_mwh,vom_cost/egen_total,DollarsPerMWhGenerated,Generation-weighted average of variable operation and maintenance costs
 gen,fom_cost,"SumHourly(fom,ecap)",Dollars,"Fixed Operation and Maintenance paid, in dollars"
 gen,fom_per_mwh,fom_cost/egen_total,DollarsPerMWhGenerated,Fixed Operation and Maintenance paid per MWh of energy generated
-gen,capex_cost,"SumYearly(capex_obj, ecap_invested)",Dollars,"Capital expenditures paid, in dollars, as seen by objective function"
+gen,capex_cost,"SumYearly(capex_obj, ecap_inv_sim)",Dollars,"Capital expenditures paid, in dollars, as seen by objective function"
 gen,capex_per_mwh,capex_cost/egen_total,DollarsPerMWhGenerated,Capital expenditures paid per MWh of energy generated
 gen,cf_avg,egen_total/ecap_total,MWhGeneratedPerMWhCapacity,Average Capacity Factor
 gen,fuel_cost,"SumHourly(fuel_price,heat_rate,egen)",Dollars,Total cost of fuel

@@ -96,8 +96,8 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | :gen | :ecap | MWhCapacity | Total energy generation capacity of this generator generated at this generator for the weighted representative hour |
 | :gen | :pcap_retired | MWCapacity | Power generation capacity that was retired in each year |
 | :gen | :pcap_built | MWCapacity | Power generation capacity that was built in each year |
-| :gen | :pcap_invested | MWCapacity | Total power generation capacity that was ever invested for the generator.  (single value).  Still the same even after retirement |
-| :gen | :ecap_invested | MWhCapacity | Total annual power generation energy capacity that was ever invested for the generator.  (single value).  Still the same even after retirement |
+| :gen | :pcap_inv_sim | MWCapacity | Total power generation capacity that was invested for the generator during the sim.  (single value).  Still the same even after retirement |
+| :gen | :ecap_inv_sim | MWhCapacity | Total annual power generation energy capacity that was invested for the generator during the sim.  (pcap_inv_sim * hours per year) (single value).  Still the same even after retirement |
 | :gen | :cf | MWhGeneratedPerMWhCapacity | Capacity Factor, or average power generation/power generation capacity, 0 when no generation |
 | :branch | :pflow | MWFlow | Average Power flowing through branch |
 | :branch | :eflow | MWFlow | Total energy flowing through branch for the representative hour |
@@ -114,8 +114,8 @@ function parse_power_results!(config, data)
     egen_gen = res_raw[:egen_gen]::Array{Float64, 3}
     pcap_gen = res_raw[:pcap_gen]::Array{Float64, 2}
 
-    pcap_gen_invested = map(i->maximum(view(pcap_gen, i, :)), 1:nrow(gen))
-    ecap_gen_invested = pcap_gen_invested .* hours_per_year
+    pcap_gen_inv_sim = res_raw[:pcap_gen_inv_sim]
+    ecap_gen_inv_sim = pcap_gen_inv_sim .* hours_per_year
 
     pflow_branch = res_raw[:pflow_branch]::Array{Float64, 3}
     
@@ -180,8 +180,8 @@ function parse_power_results!(config, data)
     add_table_col!(data, :gen, :ecap,  ecap_gen,  MWhCapacity,"Electricity generation capacity of this generator generated at this generator for the weighted representative hour")
     add_table_col!(data, :gen, :pcap_retired, pcap_retired, MWCapacity, "Power generation capacity that was retired in each year")
     add_table_col!(data, :gen, :pcap_built,   pcap_built,   MWCapacity, "Power generation capacity that was built in each year")
-    add_table_col!(data, :gen, :pcap_invested, pcap_gen_invested, MWCapacity, "Total power generation capacity that was ever invested for the generator.  (single value).  Still the same even after retirement")
-    add_table_col!(data, :gen, :ecap_invested, ecap_gen_invested, MWhCapacity, "Total annual power generation energy capacity that was ever invested for the generator.  (single value).  Still the same even after retirement")
+    add_table_col!(data, :gen, :pcap_inv_sim, pcap_gen_inv_sim, MWCapacity, "Total power generation capacity that was invested for the generator during the sim.  (single value).  Still the same even after retirement")
+    add_table_col!(data, :gen, :ecap_inv_sim, ecap_gen_inv_sim, MWhCapacity, "Total annual power generation energy capacity that was invested for the generator during the sim. (pcap_inv_sim * hours per year) (single value).  Still the same even after retirement")
     add_table_col!(data, :gen, :cf,    cf,        MWhGeneratedPerMWhCapacity, "Capacity Factor, or average power generation/power generation capacity, 0 when no generation")
 
     # Add things to the branch table
@@ -254,6 +254,10 @@ function save_updated_gen_table(config, data)
 
     # Update pcap0 to be the last value of pcap
     gen_tmp.pcap0 = last.(gen.pcap)
+    gen_tmp.pcap_inv = map(eachrow(gen)) do row
+        row.build_status == "new" || return row.pcap_inv
+        return row.pcap_inv_sim
+    end
 
     # Filter anything with capacity below the threshold
     thresh = config[:pcap_retirement_threshold]

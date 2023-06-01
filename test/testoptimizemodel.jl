@@ -43,6 +43,9 @@
         @test count(==("retired_exog"), gen.build_status) == 1
         @test count(==("retired_endog"), gen.build_status) > 0
         @test compute_result(data, :gen, :pcap_retired_total, [:build_type=>"endog"]) < 0.001 # Shouldn't be retiring endogenously built capacity.
+
+        updated_gen_table = read_table(get_out_path(config, "gen.csv"))
+        @test ~any(row->(row.pcap_inv <= 0), eachrow(updated_gen_table))
     end
 
     @testset "Test site constraints" begin
