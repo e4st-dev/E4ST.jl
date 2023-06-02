@@ -21,6 +21,17 @@ modify_setup_data!(pol::PTC, config, data)
 modify_model!(pol::PTC, config, data, model)
 ```
 
+**Derivation of the PTC capex adjustment**
+First, find the adjusted PTC value $x if it were a constant cash flow over entire econ lifetime $e. 
+Start by setting the NPV of the actual PTC (per MW capacity) $p and the adjusted PTC (per MW capacity) $x
+$m is the minimum age of the generator to qualify for the PTC
+$n is the maximum age of the generator to qualify for the PTC
+
+$$\sum_{i=1}^e x / \left(1+r \right)^i = \sum_{i=m}^n p / \left(1+r \right)^i$$
+
+#TODO: finish this, based on the proof in the PTC_Crediting_Structure spreadsheet, but instead of the right hand side going from  1 to n it goes from gen_age_min to gen_age_max
+
+
 # GenerationStandard
 GenerationStandard is a type used for policies that give some generators certain credits and constrain generation to a certain target. The primary examples are CESs, RPSs, and state carveouts. 
 ```@docs
