@@ -54,29 +54,17 @@ end
 Subtracts the PTC price * generation in that year from the objective function using [`add_obj_term!(data, model, PerMWhGen(), pol.name, oper = -)`](@ref)
 """
 function E4ST.modify_model!(pol::PTC, config, data, model)
-    
-    # gen = get_table(data, :gen)
-    # gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
 
-    # @info "Applying PTC $(pol.name) to $(length(gen_idxs)) generators"
-
-    # years = get_years(data)
-
-    # #create column of PTC values
-    # add_table_col!(data, :gen, pol.name, Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated,
-    #     "Production tax credit value for $(pol.name)")
-
-    # #update column for gen_idx 
-    # credit_yearly = [get(pol.values, Symbol(year), 0.0) for year in years] #values for the years in the sim
-    # for gen_idx in gen_idxs
-    #     g = gen[gen_idx, :]
-    #     g_qual_year_idxs = findall(age -> pol.gen_age_min <= age <= pol.gen_age_max, g.age.v)
-    #     vals_tmp = [(i in g_qual_year_idxs) ? credit_yearly[i] : 0.0  for i in 1:length(years)]
-    #     gen[gen_idx, pol.name] = ByYear(vals_tmp)
-    # end
-    # data[:gen] = gen
     add_obj_term!(data, model, PerMWhGen(), pol.name, oper = -)
 end
 
 
-#TODO: something about how to process this in results
+"""
+    E4ST.modify_results!(pol::PTC, config, data) -> 
+
+Calculates PTC policy cost as a results formula in the gen table. PTC Cost = PTC value * generation 
+"""
+function E4ST.modify_results!(pol::PTC, config, data)
+    # policy cost, PTC value * generation
+    add_results_formula!(data, :gen, Symbol("$(pol.name)_cost"), "SumHourly($(pol.name), egen)", Dollars, "The cost of $(pol.name)")
+end

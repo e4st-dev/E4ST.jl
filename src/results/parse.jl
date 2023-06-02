@@ -69,6 +69,23 @@ function value_or_shadow_price(v::Number, obj_scalar)
 end
 export value_or_shadow_price
 
+"""
+    get_shadow_price_as_ByYear(data, cons_name::Symbol) -> 
+
+Returns a ByYear Container of the shadow price of a constraint. The shadow price is set to 0 for years where there is no constraint. 
+"""
+function get_shadow_price_as_ByYear(data, cons_name::Symbol)
+    years = Symbol.(get_years(data))
+    shadow_prc = get_raw_result(data, cons_name)
+
+    @show shadow_prc
+
+    cons_years = (axes(shadow_prc)[1])
+    shadow_prc_array  = [year in cons_years ? shadow_prc[year] : 0 for year in years]
+
+    return ByYear(shadow_prc_array)
+end
+export get_shadow_price_as_ByYear
 
 @doc raw"""
     parse_power_results!(config, data, res_raw)
