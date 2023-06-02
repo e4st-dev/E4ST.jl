@@ -39,9 +39,21 @@
         @test compute_result(data, :gen, :egen_total, gen_idx) >= 0
     end
 
-    @testset "Test exogenous retirement" begin
+    @testset "Test retirement" begin
         @test count(==("retired_exog"), gen.build_status) == 1
-        @test count(==("retired_endog"), gen.build_status) > 1
+        @test count(==("retired_endog"), gen.build_status) > 0
+        @test compute_result(data, :gen, :pcap_retired_total, [:build_type=>"endog"]) < 0.001 # Shouldn't be retiring endogenously built capacity.
+
+        updated_gen_table = read_table(get_out_path(config, "gen.csv"))
+        @test ~any(row->(row.pcap_inv <= 0), eachrow(updated_gen_table))
+
+        for row in eachrow(gen)
+            if contains(row.build_status, "retired")
+                @test row.year_off in get_years(data)
+            else
+                @test row.year_off == "y9999"
+            end
+        end
     end
 
     @testset "Test site constraints" begin

@@ -1,6 +1,6 @@
-bus_idx,status,build_status,build_type,build_id,genfuel,gentype,pcap0,pcap_min,pcap_max,cf_min,vom,fuel_price,fom,capex,year_on,year_off,emis_co2,capt_co2_percent,heat_rate,chp_co2_multi
-3,1,built,exog,,coal,coal,2.0,0,2,0.6,2,0.5555555555555556,6,7,y2020,y2045,1,0,9,1.0
-1,1,built,exog,,solar,solar,0.5,0,0.5,0,2,0,5,5,y2027,y2050,0,0,0,1.0
-3,1,built,exog,,ng,ngccccs,0.5,0,0.5,0.6,1.5,0.14285714285714285,6,6,y2025,y2055,0.6,0.9,7,1.0
-1,1,built,exog,,wind,wind,0.05,0,0.05,0,0.1,0,2,3,y2015,y2035,0,0,0,1.0
-1,1,built,exog,,ng,ngt_chp,0.01,0,0.01,0.6,2,0.25,7,7,y2030,y2050,0.6,0,8,0.67
+bus_idx,status,build_status,build_type,build_id,genfuel,gentype,econ_life,pcap_inv,pcap0,pcap_min,pcap_max,cf_min,vom,fuel_price,fom,capex,year_on,year_off,year_shutdown,emis_co2,capt_co2_percent,heat_rate,chp_co2_multi
+3,1,built,exog,,coal,coal,30,2.0,2.0,0,2,0.6,2,0.5555555555555556,20,7,y2020,y9999,y2045,1,0,9,1.0
+1,1,built,exog,,solar,solar,30,0.5,0.5,0,0.5,0,2,0,5,5,y2027,y9999,y2050,0,0,0,1.0
+3,1,built,exog,,ng,ngccccs,30,0.5,0.5,0,0.5,0.6,1.5,0.14285714285714285,6,6,y2025,y9999,y2055,0.6,0.9,7,1.0
+1,1,built,exog,,wind,wind,30,0.05,0.05,0,0.05,0,0.1,0,2,3,y2015,y9999,y2035,0,0,0,1.0
+1,1,built,exog,,ng,ngt_chp,30,0.01,0.01,0,0.01,0.6,2,0.25,7,7,y2030,y9999,y2050,0.6,0,8,0.67

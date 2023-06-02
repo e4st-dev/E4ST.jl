@@ -45,7 +45,10 @@ function make_newgens!(config, data, newgen)
     years = get_years(data)
 
     #get the names of specifications that will be pulled from the build_gen table
-    spec_names = filter!(!in((:bus_idx, :gen_latitude, :gen_longitude, :year_off)), propertynames(newgen)) #this needs to be updated if there is anything else in gen that isn't a spec
+    spec_names = filter!(
+        !in((:bus_idx, :gen_latitude, :gen_longitude, :year_off, :year_shutdown, :pcap_inv)), 
+        propertynames(newgen)
+    ) #this needs to be updated if there is anything else in gen that isn't a spec
 
     for n in spec_names
         hasproperty(build_gen, n) || error("Gen table has column $n, but not found in build_gen table.")
@@ -78,7 +81,9 @@ function make_newgens!(config, data, newgen)
 
                     #set year_on and off
                     newgen_row[:year_on] = year
-                    newgen_row[:year_off] = add_to_year(year, spec_row.age_off)
+                    newgen_row[:year_shutdown] = add_to_year(year, spec_row.age_shutdown)
+                    newgen_row[:year_off] = "y9999"
+                    newgen_row[:pcap_inv] = 0.0
 
                     #add gen location
                     hasproperty(newgen, :gen_latitude) && (newgen_row[:gen_latitude] = bus.bus_latitude[bus_idx])
@@ -96,7 +101,9 @@ function make_newgens!(config, data, newgen)
                 newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
                 hasproperty(newgen, :gen_latitude) && (newgen_row[:gen_latitude] = bus.bus_latitude[bus_idx])
                 hasproperty(newgen, :gen_longitude) && (newgen_row[:gen_longitude] = bus.bus_longitude[bus_idx])
-                newgen_row[:year_off] = add_to_year(spec_row.year_on, spec_row.age_off)
+                newgen_row[:year_shutdown] = add_to_year(spec_row.year_on, spec_row.age_shutdown)
+                newgen_row[:year_off] = "y9999"
+                newgen_row[:pcap_inv] = 0.0
 
                 push!(newgen, newgen_row, promote=true)
             end
