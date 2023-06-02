@@ -20,6 +20,14 @@ Base.size(c::Container) = size(c.v)
 Base.BroadcastStyle(::Type{C}) where {C<:Container} = Broadcast.ArrayStyle{C}()
 Base.Broadcast.broadcastable(c::Container) = c
 
+# Note that for comparisons, only returns true when all holds true.
+Base.isless(c::Container, n::Number)  = all(<(n), c)
+Base.isequal(c::Container, n::Number) = all(==(n), c)
+
+Base.isless(n::Number, c::Container)  = all(>(n), c)
+Base.isequal(n::Number, c::Container) = all(==(n), c)
+
+
 
 Broadcast.result_join(::Broadcast.ArrayStyle{C1}, ::Broadcast.ArrayStyle{C2}, ::Broadcast.Unknown, ::Broadcast.Unknown) where {T1, D1, T2, D2, C1<:Container{T1,D1}, C2<:Container{T2,D2}}= begin
     C = ConflictContainerType(C1, C2)

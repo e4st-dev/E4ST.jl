@@ -122,6 +122,23 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
     return config
 end
 
+function bench_e4st()
+    config_files = [
+        abspath(@__DIR__, "../test/config/config_3bus.yml"),
+        abspath(@__DIR__, "../test/config/config_ccus.yml"),
+        abspath(@__DIR__, "../test/config/config_res.yml"),
+        abspath(@__DIR__, "../test/config/config_3bus_itc.yml"),
+        abspath(@__DIR__, "../test/config/config_3bus_ptc.yml"),
+        abspath(@__DIR__, "../test/config/config_3bus_rps.yml"),
+        abspath(@__DIR__, "../test/config/config_3bus_ces.yml"),
+        abspath(@__DIR__, "../test/config/config_3bus_if.yml"),
+        abspath(@__DIR__, "../test/config/config_3bus_emiscap.yml"),
+        abspath(@__DIR__, "../test/config/config_3bus_emisprc.yml"),
+        abspath(@__DIR__, "../test/config/config_stor.yml"),
+    ]
+    run_e4st(config_files...)
+end
+
 function years()
     ["y$y" for y in 2030:5:2050]
 end

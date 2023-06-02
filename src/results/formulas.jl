@@ -95,17 +95,15 @@ function add_results_formula!(data, table_name::Symbol, result_name::Symbol, for
         args_string = match(r"\([^\)]+\)", formula).match
         dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", args_string))
         fn_string = match(r"([\w]+)\(",formula).captures[1]
-        combined_string = string(fn_string, "(", replace(args_string, r"([\w]+)"=>s":\1"), ")")
-        # fn_string = replace(r"([\w]+)\(",formula)
+        T = getfield(E4ST, Symbol(fn_string))
+        fn = T(dependent_columns...)
         isderived = false
-        fn = eval(Meta.parse(combined_string))
         
     # Derived results calculations: I.e. "vom_total / egen_total"
     else
         dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", formula))
         isderived = true
-        fn_string = string("row->", replace(replace(formula, r"(\w+)"=>s"row.\1"), r"([^\.])([\+\*\/\-])"=>s"\1 .\2"))
-        fn = eval(Meta.parse(fn_string))::Function
+        fn = _ResultsFunction(formula)
     end
 
     # push!(results_formulas_table, (;table_name, result_name, formula, unit, description, dependent_columns, fn))
@@ -131,9 +129,52 @@ struct ResultsFormula
 end
 export ResultsFormula
 
+struct _ResultsFunction{F} <: Function end
+function _ResultsFunction(s::String)
+    fn = _Func(s)
+    _ResultsFunction{fn}()
+end
+(::_ResultsFunction{F})(args...) where F = F(args...)
+
+struct Op{F, A} <: Function end
+struct Args{A1, A2} <: Function end
+struct Var{S} <: Function end
+struct Num{N} <: Function end
+struct Tail <: Function end
+
+_Func(s::String) = _Func(Meta.parse(s))
+_Func(e::Expr) = Op{getfield(Base, e.args[1]), _Func((view(e.args, 2:length(e.args))...,))}
+_Func(s::Symbol) = Var{s}
+_Func(n::Number) = Num{n}
+function _Func(args::Tuple)
+    Args{_Func(first(args)), _Func(Base.tail(args))}
+end
+function _Func(::Tuple{})
+    return Tail
+end
+
 function Base.show(io::IO, rf::ResultsFormula)
     print(io, "ResultsFormula $(rf.result_name) for table $(rf.table_name): ")
     print(io, rf.formula)
+end
+function (::Type{Op{F, A}})(d) where {F, A}
+    args = A(d)
+    return F.(args...)
+end
+function (::Type{Args{A1, A2}})(d) where {A1, A2}
+    a1 = A1(d)
+    rest = A2(d)
+    return (a1, rest...)
+end
+function (::Type{Tail})(d)
+    return ()
+end
+
+function (::Type{Var{V}})(d) where {V}
+    return getproperty(d, V)
+end
+function (::Type{Num{N}})(d) where {N}
+    return N
 end
 
 """
