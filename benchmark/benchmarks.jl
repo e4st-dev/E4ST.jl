@@ -27,3 +27,4 @@ SUITE["get_af"] = @benchmarkable get_af(data, 50, 3, 50) setup=(config=make_rand
 SUITE["get_plnom"] = @benchmarkable get_plnom(data, 50, 3, 50) setup=(config=make_random_inputs(); data = read_data(config)) evals=1000
 SUITE["setup_model"] = @benchmarkable setup_model(config, data) setup=(config=make_random_inputs(); data=read_data(config))
 SUITE["read_data"] = @benchmarkable read_data(config) setup=(config=make_random_inputs())
+SUITE["run_e4st"] = @benchmarkable bench_e4st()

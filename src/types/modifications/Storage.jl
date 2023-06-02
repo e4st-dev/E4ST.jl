@@ -67,7 +67,10 @@ function summarize_table(::Val{:storage})
         (:build_type, AbstractString, NA, true, "Whether the storage device is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
         (:build_id, AbstractString, NA, true, "Identifier of the build row.  For pre-existing storage devices not specified in the build file, this is usually left empty"),
         (:year_on, YearString, Year, true, "The first year of operation for the storage device. (For new devices this is also the year it was built)"),
-        (:year_off, YearString, Year, true, "The first year that the storage device is no longer operating."),
+        (:econ_life, Float64, NumYears, true, "The number of years in the economic lifetime of the storage device."),
+        (:year_off, YearString, Year, true, "The first year that the storage unit is no longer operating in the simulation, computed from the simulation.  Leave as y9999 if an existing storage unit that has not been retired in the simulation yet."),
+        (:year_shutdown, YearString, Year, true, "The forced (exogenous) shutdown year for the storage unit."),
+        (:pcap_inv, Float64, MWCapacity, true, "Original invested nameplate power generation capacity for the storage device.  This is the original invested capacity of exogenously built storage devices (even if there have been retirements ), and the original invested capacity in year_on for endogenously built storage devices."),
         (:pcap0, Float64, MWCapacity, true, "Starting nameplate power discharge capacity for the storage device"),
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power discharge capacity of the storage device (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power discharge capacity of the storage device"),
@@ -99,7 +102,8 @@ function summarize_table(::Val{:build_storage})
         (:build_type, AbstractString, NA, true, "Whether the storage device is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
         (:build_id, AbstractString, NA, true, "Identifier of the build row.  Each storage device made using this build spec will inherit this `build_id`"),
         (:year_on, YearString, Year, true, "The first year of operation for the storage device. (For new devices this is also the year it was built)"),
-        (:age_off, Float64, NumYears, true, "The age at which the storage device is no longer operating.  I.e. if `year_on` = `y2030` and `age_off` = `20`, then capacity will be 0 in `y2040`."),
+        (:econ_life, Float64, NumYears, true, "The number of years in the economic lifetime of the storage device."),
+        (:age_shutdown, Float64, NumYears, true, "The age at which the storage device is no longer operating.  I.e. if `year_on` = `y2030` and `age_shutdown` = `20`, then capacity will be 0 in `y2040`."),
         (:year_on_min, YearString, Year, true, "The first year in which a storage device can be built/come online (inclusive). Storage device with no restriction and exogenously built gens will be left blank"),
         (:year_on_max, YearString, Year, true, "The last year in which a storage device can be built/come online (inclusive). Storage devices with no restriction and exogenously built gens will be left blank"),
         (:pcap0, Float64, MWCapacity, true, "Starting nameplate power discharge capacity for the storage device"),
@@ -150,9 +154,10 @@ function modify_setup_data!(mod::Storage, config, data)
     # set to capex for unbuilt generators in the year_on
     # set to 0 for already built capacity because capacity expansion isn't considered for existing generators
     add_table_col!(data, :storage, :capex_obj, Container[ByNothing(0.0) for i in 1:nrow(storage)], DollarsPerMWBuiltCapacity, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
+
     for row in eachrow(storage)
-        capex_obj = [(row.build_status=="unbuilt")* row.capex*(row.year_on==year) for year in years]
-        row.capex_obj = ByYear(capex_obj)
+        row.build_status == "unbuilt" || continue
+        row.capex_obj = ByYear([row.capex * (year >= row.year_on && year < add_to_year(row.year_on, row.econ_life)) for year in years])
     end
 
     storage.num_intervals = fill(0, nrow(storage))
@@ -214,7 +219,10 @@ function add_buildable_storage!(config, data)
     build_storage = get_table(data, :build_storage)
     bus =           get_table(data, :bus)
 
-    spec_names = filter!(!in((:bus_idx,:year_off)), propertynames(storage))
+    spec_names = filter!(
+        !in((:bus_idx, :year_off, :year_shutdown, :pcap_inv)),
+        propertynames(storage)
+    )
     years = get_years(data)
 
     for spec_row in eachrow(build_storage)
@@ -236,7 +244,9 @@ function add_buildable_storage!(config, data)
                     # Make row to add to the storage table
                     new_row = Dict(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
                     new_row[:year_on] = year
-                    new_row[:year_off] = add_to_year(year, spec_row.age_off)
+                    new_row[:year_shutdown] = add_to_year(year, spec_row.age_shutdown)
+                    new_row[:year_off] = "y9999"
+                    new_row[:pcap_inv] = 0.0
                     push!(storage, new_row, promote=true)
                 end
             else # exogenous
@@ -247,7 +257,10 @@ function add_buildable_storage!(config, data)
 
                 # for exogenously specified storage, only one storage device is created with the specified year_on
                 new_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
-                new_row[:year_off] = add_to_year(spec_row.year_on, spec_row.age_off)
+                new_row[:year_shutdown] = add_to_year(spec_row.year_on, spec_row.age_shutdown)
+                new_row[:year_off] = "y9999"
+                new_row[:pcap_inv] = 0.0
+
                 push!(storage, new_row, promote=true)
             end
         end
@@ -382,17 +395,30 @@ function modify_model!(mod::Storage, config, data, model)
         )
     )
 
+    
+
+    @expression(model,
+        pcap_stor_inv_sim[stor_idx in axes(storage,1)],
+        begin
+            storage.build_status[stor_idx] == "unbuilt" || return 0.0
+            year_on = storage.year_on[stor_idx]
+            year_on > last(years) && return 0.0
+            yr_idx_on = findfirst(>=(year_on), years)
+            return pcap_stor[stor_idx, yr_idx_on]
+        end
+    )
+
     @expression(model,
         capex_obj_stor[yr_idx in 1:nyr],
         sum(
-            pcap_stor[stor_idx, yr_idx] * get_table_num(data, :storage, :capex_obj, stor_idx, yr_idx, :)
+            pcap_stor_inv_sim[stor_idx] * get_table_num(data, :storage, :capex_obj, stor_idx, yr_idx, :)
             for stor_idx in axes(storage,1)
         )
     )
 
     add_obj_exp!(data, model, PerMWhGen(), :vom_stor, oper = +)
     add_obj_exp!(data, model, PerMWCap(), :fom_stor, oper = +)
-    add_obj_exp!(data, model, PerMWCap(), :capex_obj_stor, oper = +) 
+    add_obj_exp!(data, model, PerMWCapInv(), :capex_obj_stor, oper = +) 
 end
 
 """
@@ -406,6 +432,8 @@ Modify battery results.  Add columns to the `storage` table for:
 * `edischarge` - Energy that was discharged by the storage device
 * `ploss` - Power that was lost by the battery, counted as served load equal to `pcharge * (1-η)`
 * `eloss` - Energy that was lost by the battery, counted as served load
+* `pcap_inv_sim` - power discharge capacity invested in the sim
+* `ecap_inv_sim` - 8760 * pcap_inv_sim
 
 Also saves the updated storage table via [`save_updated_storage_table`](@ref).
 """
@@ -414,6 +442,10 @@ function modify_results!(mod::Storage, config, data)
     pcap_stor = get_raw_result(data, :pcap_stor)::Matrix{Float64}
     pcharge_stor = get_raw_result(data, :pcharge_stor)::Array{Float64, 3}
     pdischarge_stor = get_raw_result(data, :pdischarge_stor)::Array{Float64, 3}
+    hours_per_year = sum(get_hour_weights(data))
+
+    pcap_inv_sim = get_raw_result(data, :pcap_stor_inv_sim)::Vector{Float64}
+    ecap_inv_sim = pcap_inv_sim .* hours_per_year
 
     echarge_stor = weight_hourly(data, pcharge_stor)
     edischarge_stor = weight_hourly(data, pdischarge_stor)
@@ -423,6 +455,8 @@ function modify_results!(mod::Storage, config, data)
     add_table_col!(data, :storage, :pdischarge, pcharge_stor, MWDischarged, "Rate of discharging, in MW")
     add_table_col!(data, :storage, :echarge, echarge_stor, MWhCharged, "Energy that went into charging the storage device (includes any round-trip storage losses)")
     add_table_col!(data, :storage, :edischarge, edischarge_stor, MWhDischarged, "Energy that was discharged by the storage device")
+    add_table_col!(data, :storage, :pcap_inv_sim, pcap_inv_sim, MWCapacity, "Total power discharge capacity that was invested for the generator during the sim.  (single value).  Still the same even after retirement")
+    add_table_col!(data, :storage, :ecap_inv_sim, ecap_inv_sim, MWhCapacity, "Total yearly energy discharge capacity that was invested for the generator during the sim. (pcap_inv_sim * hours per year)  (single value).  Still the same even after retirement")
 
 
     add_results_formula!(data, :storage, :pcap_total, "AverageYearly(pcap)", MWCapacity, "Total discharge power capacity (if multiple years given, calculates the average)")
@@ -465,6 +499,11 @@ function save_updated_storage_table(config, data)
 
     # Update pcap0 to be the last value of pcap
     storage_tmp.pcap0 = last.(storage.pcap)
+
+    storage_tmp.pcap_inv = map(eachrow(storage)) do row
+        row.build_status == "new" || return row.pcap_inv
+        return row.pcap_inv_sim
+    end
 
     # Filter anything with capacity below the threshold
     thresh = config[:pcap_retirement_threshold]

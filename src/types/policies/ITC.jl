@@ -44,7 +44,7 @@ function E4ST.modify_setup_data!(pol::ITC, config, data)
         g = gen[gen_idx, :]
 
         # credit yearly * capex_obj for that year, capex_obj is only non zero in year_on so ITC should only be non zero in year_on
-        vals_tmp = [credit_yearly[i]*g.capex_obj[i, :]  for i in 1:length(years)]
+        vals_tmp = [credit_yearly[i]*g.capex_obj[i,:] for i in 1:length(years)]
         gen[gen_idx, pol.name] = ByYear(vals_tmp)
     end
 end
