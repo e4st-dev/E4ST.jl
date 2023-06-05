@@ -80,3 +80,10 @@ function E4ST.modify_model!(pol::ITC, config, data, model)
     # data[:gen] = gen
     add_obj_term!(data, model, PerMWCap(), pol.name, oper = -)
 end
+
+function E4ST.modify_results!(pol::ITC, config, data)
+    total_result_name = "$(pol.name)_cost"
+    total_result_sym = Symbol(total_result_name)
+    add_results_formula!(data, :gen, total_result_sym, "SumHourly($(pol.name),egen)", Dollars, "The total amount of credit recieved for the $(pol.name) policy")
+    add_to_results_formula!(data, :gen, :invest_subsidy, total_result_name)
+end

@@ -90,26 +90,33 @@ function add_results_formula!(data, table_name::Symbol, result_name::Symbol, for
 
     results_formulas = get_results_formulas(data)
 
-    # Raw results calculations. I.e. "SumHourly(vom, egen)"
-    if startswith(formula, r"[\w]+\(")
-        args_string = match(r"\([^\)]*\)", formula).match
-        dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", args_string))
-        fn_string = match(r"([\w]+)\(",formula).captures[1]
-        T = getfield(E4ST, Symbol(fn_string))
-        fn = T(dependent_columns...)
-        isderived = false
-        
-    # Derived results calculations: I.e. "vom_total / egen_total"
-    else
-        dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"([A-Za-z]\w+)", formula))
-        isderived = true
-        fn = _ResultsFunction(formula)
-    end
+    rf = ResultsFormula(table_name, result_name, formula, unit, description)
 
     # push!(results_formulas_table, (;table_name, result_name, formula, unit, description, dependent_columns, fn))
-    results_formulas[table_name, result_name] = ResultsFormula(table_name, result_name, formula, unit, description, isderived, dependent_columns, fn)
+    results_formulas[table_name, result_name] = rf
 end
 export add_results_formula!
+
+"""
+    add_to_results_formula!(data, table_name::Symbol, result_name::Symbol, formula::String)
+
+Adds a term to an existing results formula.  Can be more complex expressions.
+* if it is a derived formula (like `\"vom_cost + fom_cost\"`), then you can supply any expression to get added to the formula, like `\"-my_result_name / 2\"`
+* if it is a primary formula (like `\"SumHourly(col1, col2)\"`), then you can provide additional columns like `\"col3, col4\"`.
+"""
+function add_to_results_formula!(data, table_name::Symbol, result_name::Symbol, formula::String)
+    rf = get_results_formula(data, table_name, result_name)
+    formula_original = rf.formula
+    if rf.isderived
+        formula_new = string(formula_original, " + ", formula)
+    else
+        formula_new = replace(formula_original, ")"=>",$formula)")
+    end
+    rf_new = ResultsFormula(table_name, result_name, formula_new, rf.unit, rf.description)
+    results_formulas = get_results_formulas(data)
+    results_formulas[table_name, result_name] = rf_new
+end
+export add_to_results_formula!
 
 
 """
@@ -128,6 +135,27 @@ struct ResultsFormula
     fn::Function
 end
 export ResultsFormula
+
+function ResultsFormula(table_name::Symbol, result_name::Symbol, formula::String, unit::Type{<:Unit}, description::String)
+    
+    # Raw results calculations. I.e. "SumHourly(vom, egen)"
+    if startswith(formula, r"[\w]+\(")
+        args_string = match(r"\([^\)]*\)", formula).match
+        dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", args_string))
+        fn_string = match(r"([\w]+)\(",formula).captures[1]
+        T = getfield(E4ST, Symbol(fn_string))
+        fn = T(dependent_columns...)
+        isderived = false
+        
+    # Derived results calculations: I.e. "vom_total / egen_total"
+    else
+        dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"([A-Za-z]\w+)", formula))
+        isderived = true
+        fn = _ResultsFunction(formula)
+    end
+
+    return ResultsFormula(table_name, result_name, formula, unit, description, isderived, dependent_columns, fn)
+end
 
 struct _ResultsFunction{F} <: Function end
 function _ResultsFunction(s::String)
