@@ -1,27 +1,19 @@
 table_name,result_name,formula,unit,description
 gen,egen_total,SumHourly(egen),MWhGenerated,"Total energy generated, in MWh"
+gen,pgen_avg,AverageHourly(pgen),MWGenerated,Average power generation
+gen,pgen_min,MinHourly(pgen),MWGenerated,Minimum power generation in an hour
+gen,pgen_max,MaxHourly(pgen),MWGenerated,Maximum power generation in an hour
 gen,ecap_total,SumHourly(ecap),MWhCapacity,"Total energy capacity, in MWh"
 gen,pcap_total,AverageYearly(pcap),MWCapacity,"Average power capacity.  If multiple years given, the average is taken."
 gen,ecap_available_total,"SumHourly(ecap,af)",MWhCapacity,"Total available energy capacity, in MWh"
 gen,pcap_start_total,Sum(pcap0),MWCapacity,Starting power capacity.
 gen,pcap_built_total,SumYearly(pcap_built),MWCapacity,Total power capacity built.  Ignores subsets of hours and returns the built capacity for the whole year(s).
 gen,pcap_retired_total,SumYearly(pcap_retired),MWCapacity,Total power capacity retired.  Ignores subsets of hours and returns the retired capacity for the whole year(s).
-gen,vom_cost,"SumHourly(vom,egen)",Dollars,"Variable Operation and Maintenance paid, in dollars"
-gen,vom_per_mwh,vom_cost/egen_total,DollarsPerMWhGenerated,Generation-weighted average of variable operation and maintenance costs
-gen,fom_cost,"SumHourly(fom,ecap)",Dollars,"Fixed Operation and Maintenance paid, in dollars"
-gen,fom_per_mwh,fom_cost/egen_total,DollarsPerMWhGenerated,Fixed Operation and Maintenance paid per MWh of energy generated
-gen,capex_cost,"SumYearly(capex_obj, ecap_inv_sim)",Dollars,"Capital expenditures paid, in dollars, as seen by objective function"
-gen,capex_per_mwh,capex_cost/egen_total,DollarsPerMWhGenerated,Capital expenditures paid per MWh of energy generated
+gen,pcap_retired_percent,pcap_retired_total / pcap_start_total,MWCapacity,Percent of existing power capacity that was retired.  Could be misleading if multiple years and generators were built and retired.
 gen,cf_avg,egen_total/ecap_total,MWhGeneratedPerMWhCapacity,Average Capacity Factor
-gen,fuel_cost,"SumHourly(fuel_price,heat_rate,egen)",Dollars,Total cost of fuel
-gen,fuel_price_per_mwh,fuel_cost/egen_total,DollarsPerMWhGenerated,Fuel price per MWh generated
-gen,fuel_burned,"SumHourly(heat_rate,egen)",MMBtu,Amount of fuel burned
-gen,fuel_price_per_mmbtu,fuel_cost_total/fuel_burned,DollarsPerMMBtu,Average price of fuel burned
+gen,cf_hourly_min,MinHourly(cf),MWhGeneratedPerMWhCapacity,Minimum observed capacity factor
+gen,cf_hourly_max,MaxHourly(cf),MWhGeneratedPerMWhCapacity,Maximum observed capacity factor
 gen,heat_rate_avg,fuel_burned / egen_total,MMBtuPerMWhGenerated,Average heat rate (fuel burned in MMBtu per MWh)
-gen,variable_cost,fuel_cost+vom_cost,Dollars,"Variable costs for operation, including fuel and vom."
-gen,variable_cost_per_mwh,variable_cost/egen_total,Dollars,"Variable costs for operation, per MWh of generation.  Includes fuel and vom"
-gen,fixed_cost,capex_cost + fom_cost,Dollars,"Fixed costs, including capex (not just what the optimization saw) and fom"
-gen,fixed_cost_per_mwh,fixed_cost/egen_total,DollarsPerMWhGenerated,Fixed costs per mwh generated
 gen,emis_co2_total,"SumHourly(emis_co2,egen)",ShortTons,Total CO2 emissions
 gen,emis_nox_total,"SumHourly(emis_nox,egen)",Pounds,Total NOx emissions
 gen,emis_so2_total,"SumHourly(emis_so2,egen)",Pounds,Total SO2 emissions
@@ -35,6 +27,37 @@ gen,capt_co2_rate,capt_co2_total/egen_total,ShortTonsPerMWhGenerated,Average rat
 gen,af_avg,ecap_available_total / ecap_total,MWhGeneratedPerMWhCapacity,Average availability factor (i.e. energy capacity available / energy capacity)
 gen,electricity_revenue,"SumHourly(lmp_egen, egen)",Dollars,Revenue earned by generators for the energy they served to the grid
 gen,electricity_price,electricity_revenue / egen,Dollars,Average price earned by generators for the energy they served to the grid
+gen,vom_cost,"SumHourly(vom,egen)",Dollars,"Variable Operation and Maintenance paid, in dollars"
+gen,vom_per_mwh,vom_cost/egen_total,DollarsPerMWhGenerated,Generation-weighted average of variable operation and maintenance costs
+gen,fom_cost,"SumHourly(fom,ecap)",Dollars,"Fixed Operation and Maintenance paid, in dollars"
+gen,fom_per_mwh,fom_cost/egen_total,DollarsPerMWhGenerated,Fixed Operation and Maintenance paid per MWh of energy generated
+gen,capex_cost,"SumYearly(capex_obj, ecap_inv_sim)",Dollars,"Capital expenditures paid, in dollars, as seen by objective function"
+gen,capex_per_mwh,capex_cost/egen_total,DollarsPerMWhGenerated,Levelized capital expenditures paid per MWh of energy generated
+gen,fuel_cost,"SumHourly(fuel_price,heat_rate,egen)",Dollars,Total cost of fuel
+gen,fuel_price_per_mwh,fuel_cost/egen_total,DollarsPerMWhGenerated,Fuel price per MWh generated
+gen,fuel_burned,"SumHourly(heat_rate,egen)",MMBtu,Amount of fuel burned
+gen,fuel_price_per_mmbtu,fuel_cost_total/fuel_burned,DollarsPerMMBtu,Average price of fuel burned
+gen,variable_cost,fuel_cost+vom_cost,Dollars,"Variable costs for operation, including fuel and vom."
+gen,variable_cost_per_mwh,variable_cost/egen_total,DollarsPerMWhGenerated,"Variable costs for operation, per MWh of generation.  Includes fuel and vom"
+gen,production_subsidy,0,Dollars,Total production subsidy for generation
+gen,production_subsidy_per_mwh,production_subsidy / egen_total,DollarsPerMWhGenerated,Average production subsidy for a MWh of generation
+gen,net_variable_cost,production_subsidy  - variable_cost,Dollars,Total variable costs minus production subsidies
+gen,net_variable_cost_per_mwh,net_variable_cost / egen_total,DollarsPerMWhGenerated,Average variable costs minus production subsidies for a MWh of energy
+gen,fixed_cost,capex_cost + fom_cost,Dollars,"Fixed costs, including capex (not just what the optimization saw) and fom"
+gen,fixed_cost_permw_perhr,fixed_cost/ecap_total,DollarsPerMWCapacityPerHour,Fixed costs per mw per hour
+gen,invest_subsidy,0,Dollars,Investment subsidies to go to generators
+gen,invest_subsidy_permw_perhr,invest_subsidy / ecap_total,DollarsPerMWCapacityPerHour,Average investment subsidy per MW per hour
+gen,net_fixed_cost,fixed_cost - invest_subsidy,Dollars,Fixed costs minus investment subsidies
+gen,net_fixed_cost_permw_perhr,net_fixed_cost / ecap_total,DollarsPerMWCapacityPerHour,Average net fixed cost per MW per hour.  Fixed costs minus investment subsidies
+gen,production_cost,variable_cost + fixed_cost,Dollars,"Cost of production, includes fixed and variable costs"
+gen,production_cost_per_mwh,production_cost / egen_total,DollarsPerMWhGenerated,"Average cost of production for a MWh of power, including variable and fixed costs"
+gen,net_production_cost,net_variable_cost + net_fixed_cost,Dollars,"Net cost of production, including fixed and variable costs minus investment and production subsidies"
+gen,net_production_cost_per_mwh,net_production_cost / egen_total,DollarsPerMWhGenerated,"Average net cost of producing a MWh of power, including fixed and variable costs minus investment and production subsidies"
+gen,total_cost,net_production_cost,Dollars,"Total cost of production.  Right now contains only net_production_cost, but may eventually contain past capex costs"
+gen,total_cost_per_mwh,total_cost / egen_total,DollarsPerMWhGenerated,"Average cost of producing a MWh of power. Right now contains only net_production_cost, but may eventually contain past capex costs"
+gen,going_forward_cost,variable_cost + fixed_cost,Dollars,Total going forward cost
+gen,net_total_revenue,electricity_revenue - total_cost,Dollars,"Net total revenue, including electricity revenue minus total cost"
+gen,cost_of_service_rebate,CostOfServiceRebate(),Dollars,"This is a specially calculated result, which the sum of net_total_revenue * reg_factor for each generator"
 bus,elnom_total,SumHourly(elnom),MWhLoad,Nominal load energy
 bus,elserv_total,SumHourly(elserv),MWhServed,Total load energy served
 bus,eflow_in_total,SumHourly(eflow_in),MWhFlow,Total energy flowing into all the buses in this region (not necessarily net flow into the region)

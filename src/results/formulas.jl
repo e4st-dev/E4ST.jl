@@ -92,7 +92,7 @@ function add_results_formula!(data, table_name::Symbol, result_name::Symbol, for
 
     # Raw results calculations. I.e. "SumHourly(vom, egen)"
     if startswith(formula, r"[\w]+\(")
-        args_string = match(r"\([^\)]+\)", formula).match
+        args_string = match(r"\([^\)]*\)", formula).match
         dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", args_string))
         fn_string = match(r"([\w]+)\(",formula).captures[1]
         T = getfield(E4ST, Symbol(fn_string))
@@ -101,7 +101,7 @@ function add_results_formula!(data, table_name::Symbol, result_name::Symbol, for
         
     # Derived results calculations: I.e. "vom_total / egen_total"
     else
-        dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", formula))
+        dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"([A-Za-z]\w+)", formula))
         isderived = true
         fn = _ResultsFunction(formula)
     end
@@ -145,7 +145,7 @@ struct Tail <: Function end
 _Func(s::String) = _Func(Meta.parse(s))
 _Func(e::Expr) = Op{getfield(Base, e.args[1]), _Func((view(e.args, 2:length(e.args))...,))}
 _Func(s::Symbol) = Var{s}
-_Func(n::Number) = Num{n}
+_Func(n::Number) = Num{Float64(n)}
 function _Func(args::Tuple)
     Args{_Func(first(args)), _Func(Base.tail(args))}
 end
@@ -275,7 +275,7 @@ function compute_results!(df, data, table_name, result_name, idx_sets, year_idx_
         fn = res_formula.fn
         res = fn(df)
 
-        df[!, result_name] = res
+        df[!, result_name] .= res
     end
     return nothing
 end
@@ -321,6 +321,49 @@ function (f::Sum{3})(data, table, idxs, yr_idxs, hr_idxs)
     _sum(table[!, col1], table[!, col2], table[!, col3], idxs)
 end
 
+
+@doc raw"""
+    MinYearly(cols...) <: Function
+
+This function returns the minimum yearly value.
+
+```math
+\min_{y \in \text{yr\_idxs}} \sum_{i \in \text{idxs}, h \in \text{hr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
+```
+"""
+struct MinYearly{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+MinYearly(cols::Symbol...) = MinYearly(cols)
+export MinYearly
+
+function (f::MinYearly{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    v1 = table[!, col1]
+    minimum(_sum_yearly(v1, idxs, y, hr_idxs) for y in yr_idxs)
+end
+
+@doc raw"""
+    MaxYearly(cols...) <: Function
+
+This function returns the maximum yearly value.
+
+```math
+\max_{y \in \text{yr\_idxs}} \sum_{i \in \text{idxs}, h \in \text{hr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
+```
+"""
+struct MaxYearly{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+MaxYearly(cols::Symbol...) = MaxYearly(cols)
+export MaxYearly
+
+function (f::MaxYearly{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    v1 = table[!, col1]
+    maximum(_sum_yearly(v1, idxs, y, hr_idxs) for y in yr_idxs)
+end
+
 @doc raw"""
     AverageYearly(cols...) <: Function
 
@@ -329,8 +372,6 @@ Function used in results formulas.  Computes the sum of the products of the colu
 ```math
 \frac{\sum_{i \in \text{idxs}} \sum_{y \in \text{yr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y]}{\text{length(yr\_idxs)}}
 ```
-
-When specifying in a formula, looks like `average_yearly(cols...)`
 """
 struct AverageYearly{N} <: Function
     cols::NTuple{N, Symbol}
@@ -403,6 +444,27 @@ function (f::MinHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
 end
 
 @doc raw"""
+    MaxHourly(cols...) <: Function
+
+This function returns the maximum hourly value.
+
+```math
+\max_{y \in \text{yr\_idxs}, h \in \text{hr\_idxs}} \sum_{i \in \text{idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
+```
+"""
+struct MaxHourly{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+MaxHourly(cols::Symbol...) = MaxHourly(cols)
+export MaxHourly
+
+function (f::MaxHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    v1 = table[!, col1]
+    maximum(_sum_hourly(v1, idxs, y, h) for h in hr_idxs for y in yr_idxs)
+end
+
+@doc raw"""
     SumHourly(cols...) <: Function
 
 This is a function that adds up the product of each of the values given to it for each of the years and hours given.
@@ -430,6 +492,52 @@ function (f::SumHourly{3})(data, table, idxs, yr_idxs, hr_idxs)
     _sum_hourly(table[!, col1], table[!, col2], table[!, col3], idxs, yr_idxs, hr_idxs)
 end
 
+
+@doc raw"""
+    AverageHourly(cols...) <: Function
+
+Function used in results formulas.  Computes the sum of the products of the columns for each index in idxs for each year and hour, divided by the number of hours.
+
+```math
+\frac{\sum_{i \in \text{idxs}} \sum_{y \in \text{yr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y]}{\sum_{y \in \text{yr\_idxs}, h \in \text{hr\_idxs}} w_{h}}
+```
+"""
+struct AverageHourly{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+AverageHourly(cols::Symbol...) = AverageHourly(cols)
+export AverageHourly
+
+function (f::AverageHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    hour_weights = get_hour_weights(data)
+    _sum_hourly(table[!, col1], idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
+end
+
+function (f::AverageHourly{2})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2 = f.cols
+    hour_weights = get_hour_weights(data)
+    _sum_hourly(table[!, col1], table[!, col2], idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
+end
+
+function (f::AverageHourly{3})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2,col3 = f.cols
+    hour_weights = get_hour_weights(data)
+    _sum_hourly(table[!, col1], table[!, col2], table[!, col3], idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
+end
+
+
+"""
+    CostOfServiceRebate() <: Function
+
+This is a special function that computes the sum of the net total revenue times the regulatory factor `reg_factor`.  This only works for the gen table.
+"""
+struct CostOfServiceRebate <: Function end
+function (::CostOfServiceRebate)(data, table, idxs, yr_idxs, hr_idxs)
+    reg_factor = table.reg_factor
+    return sum0(reg_factor[i] * compute_result(data, :gen, :net_total_revenue, i, yr_idxs, hr_idxs) for i in idxs)
+end
+export CostOfServiceRebate
 
 
 

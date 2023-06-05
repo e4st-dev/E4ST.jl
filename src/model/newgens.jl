@@ -46,7 +46,7 @@ function make_newgens!(config, data, newgen)
 
     #get the names of specifications that will be pulled from the build_gen table
     spec_names = filter!(
-        !in((:bus_idx, :gen_latitude, :gen_longitude, :year_off, :year_shutdown, :pcap_inv)), 
+        !in((:bus_idx, :gen_latitude, :gen_longitude, :reg_factor, :year_off, :year_shutdown, :pcap_inv)), 
         propertynames(newgen)
     ) #this needs to be updated if there is anything else in gen that isn't a spec
 
@@ -88,6 +88,7 @@ function make_newgens!(config, data, newgen)
                     #add gen location
                     hasproperty(newgen, :gen_latitude) && (newgen_row[:gen_latitude] = bus.bus_latitude[bus_idx])
                     hasproperty(newgen, :gen_longitude) && (newgen_row[:gen_longitude] = bus.bus_longitude[bus_idx])
+                    hasproperty(newgen, :reg_factor) && (newgen_row[:reg_factor] = bus.reg_factor[bus_idx])
 
                     push!(newgen, newgen_row, promote=true)
                 end
@@ -101,6 +102,8 @@ function make_newgens!(config, data, newgen)
                 newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
                 hasproperty(newgen, :gen_latitude) && (newgen_row[:gen_latitude] = bus.bus_latitude[bus_idx])
                 hasproperty(newgen, :gen_longitude) && (newgen_row[:gen_longitude] = bus.bus_longitude[bus_idx])
+                hasproperty(newgen, :reg_factor) && (newgen_row[:reg_factor] = bus.reg_factor[bus_idx])
+
                 newgen_row[:year_shutdown] = add_to_year(spec_row.year_on, spec_row.age_shutdown)
                 newgen_row[:year_off] = "y9999"
                 newgen_row[:pcap_inv] = 0.0

@@ -11,9 +11,18 @@ get_results_formulas
 get_results_formula
 compute_result
 ResultsFormula
+```
+
+## Result Aggregation Functions
+```@docs
 Sum
 SumYearly
-SumHourly
-MinHourly
 AverageYearly
+MinYearly
+MaxYearly
+SumHourly
+AverageHourly
+MinHourly
+MaxHourly
+CostOfServiceRebate
 ```

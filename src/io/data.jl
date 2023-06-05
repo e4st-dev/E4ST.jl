@@ -472,7 +472,7 @@ function setup_table!(config, data, ::Val{:gen})
 
     ### Map bus characteristics to generators
     names_before = propertynames(gen)
-    leftjoin!(gen, bus, on=:bus_idx)
+    leftjoin!(gen, select(bus, Not(:reg_factor)), on=:bus_idx)
     select!(gen, Not(:plnom))
     disallowmissing!(gen)
     names_after = propertynames(gen)
@@ -684,7 +684,8 @@ function summarize_table(::Val{:gen})
         (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The emission rate per MWh of CO2"),
         (:capt_co2_percent, Float64, NA, false, "The percentage of co2 emissions captured, to be sequestered."),
         (:heat_rate, Float64, MMBtuPerMWhGenerated, false, "Heat rate, or MMBtu of fuel consumed per MWh electricity generated (0 for generators that don't use combustion)"),
-        (:chp_co2_multi,Float64,NA,false,"The percentage of CO2 emissions from CHP attributed to the power generation. Used to calculate CO2e")
+        (:chp_co2_multi,Float64,NA,false,"The percentage of CO2 emissions from CHP attributed to the power generation. Used to calculate CO2e"),
+        (:reg_factor, Float64, NA, true, "The percentage of generation that dispatches to a cost-of-service regulated market"),
     )
     return df
 end
@@ -699,6 +700,7 @@ function summarize_table(::Val{:bus})
     df = TableSummary()
     push!(df, 
         (:ref_bus, Bool, NA, true, "Whether or not the bus is a reference bus.  There should be a single reference bus for each island."),
+        (:reg_factor, Float64, NA, true, "The percentage of generation that dispatches to a cost-of-service regulated market"),
     )
     return df
 end

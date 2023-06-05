@@ -84,6 +84,7 @@ function summarize_table(::Val{:storage})
         (:hour_groupby, String, NA, true, "The column of the `hours` table to group by.  For example `day`"),
         (:hour_duration, String, NA, true, "The column of the `hours` table specifying the duration of each representatibe hour"),
         (:hour_order, String, NA, true, "The column of the `hours` table specifying the sequence of the hours."),
+        (:reg_factor, Float64, NA, true, "The percentage of power that dispatches to a cost-of-service regulated market"),
     )
 end
 
@@ -196,7 +197,7 @@ function modify_setup_data!(mod::Storage, config, data)
 
     ### Map bus characteristics to storage
     names_before = propertynames(storage)
-    leftjoin!(storage, bus, on=:bus_idx)
+    leftjoin!(storage, select(bus, Not(:reg_factor)), on=:bus_idx)
     select!(storage, Not(:plnom))
     disallowmissing!(storage)
     names_after = propertynames(storage)
@@ -220,7 +221,7 @@ function add_buildable_storage!(config, data)
     bus =           get_table(data, :bus)
 
     spec_names = filter!(
-        !in((:bus_idx, :year_off, :year_shutdown, :pcap_inv)),
+        !in((:bus_idx, :reg_factor, :year_off, :year_shutdown, :pcap_inv)),
         propertynames(storage)
     )
     years = get_years(data)
@@ -247,6 +248,10 @@ function add_buildable_storage!(config, data)
                     new_row[:year_shutdown] = add_to_year(year, spec_row.age_shutdown)
                     new_row[:year_off] = "y9999"
                     new_row[:pcap_inv] = 0.0
+
+                    # Add reg_factor if needed
+                    hasproperty(storage, :reg_factor) && (new_row[:reg_factor] = bus.reg_factor[bus_idx])
+
                     push!(storage, new_row, promote=true)
                 end
             else # exogenous
@@ -257,9 +262,13 @@ function add_buildable_storage!(config, data)
 
                 # for exogenously specified storage, only one storage device is created with the specified year_on
                 new_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
+                
                 new_row[:year_shutdown] = add_to_year(spec_row.year_on, spec_row.age_shutdown)
                 new_row[:year_off] = "y9999"
                 new_row[:pcap_inv] = 0.0
+
+                # Add reg_factor if needed
+                hasproperty(storage, :reg_factor) && (new_row[:reg_factor] = bus.reg_factor[bus_idx])
 
                 push!(storage, new_row, promote=true)
             end
