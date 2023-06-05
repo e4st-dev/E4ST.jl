@@ -171,10 +171,15 @@ function modify_results!(pol::GenerationStandard, config, data)
 
     add_table_col!(data, :gen, Symbol("$(pol.name)_prc"),  Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated, "Shadow price of $(pol.name) converted to DollarsPerMWhGenerated")
 
-    gen[gen_idxs, Symbol("$(pol.name)_prc")] = abs.(shadow_prc) #set qualifying gen price to shadow price
+    #gen[gen_idxs, Symbol("$(pol.name)_prc")] = abs.(shadow_prc) #set qualifying gen price to shadow price
+    for i in gen_idxs
+        gen[i, Symbol("$(pol.name)_prc")] = abs.(shadow_prc)
+    end
+
 
     # policy cost, price * credit * generation
-    add_results_formula!(data, :gen, Symbol("$(pol.name)_cost"), "SumHourly(Symbol$(pol.name)_prc), pol.name, egen)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
+    prc_name = Symbol("$(pol.name)_prc")
+    add_results_formula!(data, :gen, Symbol("$(pol.name)_cost"), "SumHourly($(prc_name), $(pol.name), egen)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
 
 end
 export modify_results!
