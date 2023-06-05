@@ -33,6 +33,8 @@
         @testset "Adding PTC to gen table" begin
             @test hasproperty(gen, :example_ptc)
 
+            @test hasproperty(gen, :example_ptc_capex_adj)
+
             #test that there are byYear containers 
             @test typeof(gen.example_ptc) == Vector{Container}
 
@@ -48,6 +50,10 @@
             #test that PTC is added to the obj 
             @test haskey(data[:obj_vars], :example_ptc)
             @test haskey(model, :example_ptc)
+
+            #test that PTC capex adj has been added to the model
+            @test haskey(data[:obj_vars], :example_ptc_capex_adj)
+            @test haskey(model, :example_ptc_capex_adj)
 
             #make sure model still optimizes 
             optimize!(model)
@@ -245,7 +251,7 @@
             pol = config[:mods][:example_emisprc]
             gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
 
-            @show compute_result(data, :gen, :egen_total, gen_idxs, [2, 3])
+            #@show compute_result(data, :gen, :egen_total, gen_idxs, [2, 3])
             @test compute_result(data, :gen, :example_emisprc_cost) > 0.0
         end
     end

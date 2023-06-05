@@ -8,7 +8,7 @@ ngccccs_ret,ng
 coal,coal
 igcc,coal
 coalccs_new,coal
-coalccs_ret,coal
+coal_ccus_retrofit,coal
 solar,solar
 dist_solar,solar
 wind,wind

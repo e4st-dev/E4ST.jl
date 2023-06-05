@@ -165,16 +165,16 @@ function modify_results!(pol::GenerationStandard, config, data)
         add_results_formula!(data, :bus, :el_gs_total, "SumHourly(el_gs)", MWhServed, "Total served load energy that qualifies for generation standards")
     end
     
-    # # create column for per MWh price of the policy in :gen
-    # shadow_prc = get_shadow_price_as_ByYear(data, Symbol("cons_$(pol.name)")) #($/MWhGenerated) by year
-    # gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
+    # create column for per MWh price of the policy in :gen
+    shadow_prc = get_shadow_price_as_ByYear(data, Symbol("cons_$(pol.name)")) #($/MWhGenerated) by year
+    gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
 
-    # add_table_col!(data, :gen, Symbol("$(pol.name)_prc"),  Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated, "Shadow price of $(pol.name) converted to DollarsPerMWhGenerated")
+    add_table_col!(data, :gen, Symbol("$(pol.name)_prc"),  Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated, "Shadow price of $(pol.name) converted to DollarsPerMWhGenerated")
 
-    # gen[gen_idxs, Symbol("$(pol.name)_prc")] = abs.(shadow_prc) #set qualifying gen price to shadow price
+    gen[gen_idxs, Symbol("$(pol.name)_prc")] = abs.(shadow_prc) #set qualifying gen price to shadow price
 
-    # # policy cost, price * credit * generation
-    # add_results_formula!(data, :gen, Symbol("$(pol.name)_cost"), "SumHourly(Symbol$(pol.name)_prc), pol.name, egen)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
+    # policy cost, price * credit * generation
+    add_results_formula!(data, :gen, Symbol("$(pol.name)_cost"), "SumHourly(Symbol$(pol.name)_prc), pol.name, egen)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
 
 end
 export modify_results!

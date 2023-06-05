@@ -47,11 +47,11 @@ function E4ST.modify_setup_data!(pol::PTC, config, data)
         g = gen[gen_idx, :]
         g_qual_year_idxs = findall(age -> pol.gen_age_min <= age <= pol.gen_age_max, g.age.v)
         vals_tmp = [(i in g_qual_year_idxs) ? credit_yearly[i] : 0.0  for i in 1:length(years)]
-        gen[gen_idx, pol.name] = ByYear(vals_tmp)
+        g[pol.name] = ByYear(vals_tmp)
 
         # add capex adjustment term to the the pol.name _capex_adj column
         adj_term = get_ptc_capex_adj(pol, g, config)
-        gen[gen_idx, Symbol("$(pol.name)_capex_adj")] = adj_term
+        g[Symbol("$(pol.name)_capex_adj")] = adj_term
     end
 end
 
@@ -90,13 +90,51 @@ function get_ptc_capex_adj(pol::PTC, g::DataFrameRow, config)
     age_max = pol.gen_age_max
     age_min = pol.gen_age_min
 
-    cf = g.cf_hist
-    ptc_vals = pol.values
+    hasproperty(g, :cf_hist) ? (cf = g.cf_hist) : (cf = get_gentype_cf_hist(g.gentype))
+    ptc_vals = g[pol.name]
 
     # This adjustment factor is the geometric formula for the difference between the actual PTC value per MW capacity and a PTC represented as a constant cash flow over the entire economic life. 
     # The derivation of this adj_factor can be found in the PTC documentation
     adj_factor = 1 - ((1-(1/(1+r))^age_max)*(1-(1/(1+r))))/((1-(1/(1+r))^e)*(1-(1/(1+r))^(age_min+1)))
 
-    capex_adj = ptc_vals .* cf .* adj_factor
+    capex_adj = adj_factor .* cf .* ptc_vals
     return capex_adj
+end
+
+"""
+    get_gentype_cf_hist(gentype::AbstractString)
+
+"""
+function get_gentype_cf_hist(gentype::AbstractString)
+    # default cf are drawn from a previous E4ST run, using the year 2030 with baseline policies including the IRA
+    # they could be updated over time and it is much better to specify cf_hist in the gen and build_gen tables
+    # E4ST run: OSW 230228, no_osw_build_230228
+    default_cf = OrderedDict{String, Float64}(
+        "nuclear" => 0.92, 
+        "ngcc" => 0.58,
+        "ngt" => 0.04, 
+        "ngo" => 0.06, 
+        "ngccccs_new" => 0.55, 
+        "ngccccs_ret" => 0.55, # this is set to same as new because no ret was done in the sim
+        "coal" => 0.68, 
+        "igcc" => 0.55, # this is taken from the EIA monthly average coal (in general)
+        "coalccs_new" => 0.85, # set to same as ret because no new in run
+        "coal_ccus_retrofit" => 0.85, 
+        "solar" => 0.25, 
+        "dist_solar" => 0.25, # set to same as solar
+        "wind" => 0.4, 
+        "oswind" => 0.39, 
+        "geothermal" => 0.77, 
+        "deepgeo" => 0.77, # set to same as geothermal
+        "biomass" => 0.48, 
+        #battery, unsure what to do for this but should mostly recieve itc anyways
+        "hyc" => 0.43, 
+        "hyps" => 0.11, 
+        "hyrr" => 0.39, 
+        "oil" => 0.01, 
+        # hcc_new, unsure
+        # hcc_ret, unsure
+        "other" => 0.67
+    )
+    return default_cf[gentype]
 end

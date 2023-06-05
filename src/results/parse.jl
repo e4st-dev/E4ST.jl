@@ -78,7 +78,7 @@ function get_shadow_price_as_ByYear(data, cons_name::Symbol)
     years = Symbol.(get_years(data))
     shadow_prc = get_raw_result(data, cons_name)
 
-    @show shadow_prc
+    #@show shadow_prc
 
     cons_years = (axes(shadow_prc)[1])
     shadow_prc_array  = [year in cons_years ? shadow_prc[year] : 0 for year in years]
