@@ -102,7 +102,6 @@ function setup_dcopf!(config, data, model)
         1000 * pgen_gen[gen_idx, yr_idx, hr_idx] <= # Scale by 1000 in this constraint to improve matrix coefficient range.  Some af values are very small.
         1000 * get_cf_max(config, data, gen_idx, yr_idx, hr_idx) * pcap_gen[gen_idx, yr_idx]
     )
-    # TODO: Add af_threshold here.
 
     # Constrain Reference Bus
     for ref_bus_idx in get_ref_bus_idxs(data), yr_idx in 1:nyear, hr_idx in 1:nhour

@@ -3,9 +3,9 @@ gen,egen_total,SumHourly(egen),MWhGenerated,"Total energy generated, in MWh"
 gen,pgen_avg,AverageHourly(pgen),MWGenerated,Average power generation
 gen,pgen_min,MinHourly(pgen),MWGenerated,Minimum power generation in an hour
 gen,pgen_max,MaxHourly(pgen),MWGenerated,Maximum power generation in an hour
-gen,ecap_total,SumHourly(ecap),MWhCapacity,"Total energy capacity, in MWh"
+gen,ecap_total,SumHourlyWeighted(pcap),MWhCapacity,"Total energy capacity, in MWh"
 gen,pcap_total,AverageYearly(pcap),MWCapacity,"Average power capacity.  If multiple years given, the average is taken."
-gen,ecap_available_total,"SumHourly(ecap,af)",MWhCapacity,"Total available energy capacity, in MWh"
+gen,ecap_available_total,"SumHourlyWeighted(pcap,af)",MWhCapacity,"Total available energy capacity, in MWh"
 gen,pcap_start_total,Sum(pcap0),MWCapacity,Starting power capacity.
 gen,pcap_built_total,SumYearly(pcap_built),MWCapacity,Total power capacity built.  Ignores subsets of hours and returns the built capacity for the whole year(s).
 gen,pcap_retired_total,SumYearly(pcap_retired),MWCapacity,Total power capacity retired.  Ignores subsets of hours and returns the retired capacity for the whole year(s).
@@ -29,7 +29,7 @@ gen,electricity_revenue,"SumHourly(lmp_egen, egen)",Dollars,Revenue earned by ge
 gen,electricity_price,electricity_revenue / egen,Dollars,Average price earned by generators for the energy they served to the grid
 gen,vom_cost,"SumHourly(vom,egen)",Dollars,"Variable Operation and Maintenance paid, in dollars"
 gen,vom_per_mwh,vom_cost/egen_total,DollarsPerMWhGenerated,Generation-weighted average of variable operation and maintenance costs
-gen,fom_cost,"SumHourly(fom,ecap)",Dollars,"Fixed Operation and Maintenance paid, in dollars"
+gen,fom_cost,"SumHourlyWeighted(fom,pcap)",Dollars,"Fixed Operation and Maintenance paid, in dollars"
 gen,fom_per_mwh,fom_cost/egen_total,DollarsPerMWhGenerated,Fixed Operation and Maintenance paid per MWh of energy generated
 gen,capex_cost,"SumYearly(capex_obj, ecap_inv_sim)",Dollars,"Capital expenditures paid, in dollars, as seen by objective function"
 gen,capex_per_mwh,capex_cost/egen_total,DollarsPerMWhGenerated,Levelized capital expenditures paid per MWh of energy generated
@@ -58,6 +58,8 @@ gen,total_cost_per_mwh,total_cost / egen_total,DollarsPerMWhGenerated,"Average c
 gen,going_forward_cost,variable_cost + fixed_cost,Dollars,Total going forward cost
 gen,net_total_revenue,electricity_revenue - total_cost,Dollars,"Net total revenue, including electricity revenue minus total cost"
 gen,cost_of_service_rebate,CostOfServiceRebate(),Dollars,"This is a specially calculated result, which the sum of net_total_revenue * reg_factor for each generator"
+gen,obj_pcap_cost,"SumHourlyWeighted(pcap, obj_pcap_price)",Dollars,"Cost for pcap in the objective, including investment"
+gen,obj_pgen_cost,"SumHourly(egen, obj_pgen_price)",Dollars,Cost for pgen in the objective
 bus,elnom_total,SumHourly(elnom),MWhLoad,Nominal load energy
 bus,elserv_total,SumHourly(elserv),MWhServed,Total load energy served
 bus,eflow_in_total,SumHourly(eflow_in),MWhFlow,Total energy flowing into all the buses in this region (not necessarily net flow into the region)

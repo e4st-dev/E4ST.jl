@@ -11,8 +11,22 @@ function parse_results!(config, data, model)
 
     obj_scalar = config[:objective_scalar]
 
-    results_raw = Dict(k => (@info "Parsing Result $k"; value_or_shadow_price(v, obj_scalar)) for (k,v) in object_dictionary(model))
+    od = object_dictionary(model)
+
+    # Pull out all the shadow prices or values for each of the variables/constraints
+    results_raw = Dict(k => (@info "Parsing Result $k"; value_or_shadow_price(v, obj_scalar)) for (k,v) in od)
     results_raw[:cons_pgen_max] ./= 1000
+
+    # Gather each of the objective function coefficients
+    obj = model[:obj]::AffExpr
+    obj_coef = OrderedDict{Symbol, Any}()
+    for (k,v) in od
+        if v isa AbstractArray{<:VariableRef}
+            obj_coef[k] = map(x->obj[x], v)
+        end
+    end
+    obj_coef[:pcap_gen_inv_sim] = map(x->obj[x], model[:pcap_gen_inv_sim])
+    results_raw[:obj_coef] = obj_coef
     
     # Empty the model now that we have retrieved all info, to save RAM and prevent the user from accidentally accessing un-scaled data.
     empty!(model)
@@ -126,7 +140,7 @@ function parse_power_results!(config, data)
 
     # Weight things by hour as needed
     egen_bus = weight_hourly(data, pgen_bus)
-    ecap_gen = weight_hourly(data, repeat(pcap_gen, 1,1,nhr))
+    ecap_gen = weight_hourly(data, pcap_gen)
     elserv_bus = weight_hourly(data, plserv_bus)
     elcurt_bus = weight_hourly(data, plcurt_bus)
     elnom_bus = weight_hourly(data, get_table_col(data, :bus, :plnom))
@@ -138,6 +152,11 @@ function parse_power_results!(config, data)
     eflow_out_bus = map(x-> max(x,0), eflow_bus)
     eflow_in_bus = map(x-> max(-x,0), eflow_bus)
 
+    obj_pcap_price_raw = res_raw[:obj_coef][:pcap_gen]::Array{Float64, 2}
+    obj_pcap_price = obj_pcap_price_raw ./ hours_per_year
+    obj_pgen_price_raw = res_raw[:obj_coef][:pgen_gen]::Array{Float64, 3}
+    obj_pgen_price = unweight_hourly(data, obj_pgen_price_raw)
+    obj_pcap_inv_price = res_raw[:obj_coef][:pcap_gen_inv_sim]::Vector{Float64}
     
     # Create new things as needed
     cf = pgen_gen ./ pcap_gen
@@ -183,6 +202,9 @@ function parse_power_results!(config, data)
     add_table_col!(data, :gen, :pcap_inv_sim, pcap_gen_inv_sim, MWCapacity, "Total power generation capacity that was invested for the generator during the sim.  (single value).  Still the same even after retirement")
     add_table_col!(data, :gen, :ecap_inv_sim, ecap_gen_inv_sim, MWhCapacity, "Total annual power generation energy capacity that was invested for the generator during the sim. (pcap_inv_sim * hours per year) (single value).  Still the same even after retirement")
     add_table_col!(data, :gen, :cf,    cf,        MWhGeneratedPerMWhCapacity, "Capacity Factor, or average power generation/power generation capacity, 0 when no generation")
+    add_table_col!(data, :gen, :obj_pcap_price, obj_pcap_price, DollarsPerMWCapacityPerHour, "Objective function coefficient, in dollars, for one hour of 1MW capacity")
+    add_table_col!(data, :gen, :obj_pgen_price, obj_pgen_price, DollarsPerMWhGenerated, "Objective function coefficient, in dollars, for one MWh of generation")
+    add_table_col!(data, :gen, :obj_pcap_inv_price, obj_pcap_inv_price, DollarsPerMWBuiltCapacity, "Objective function coefficient, in dollars, for one MW of capacity invested")
 
     # Add things to the branch table
     add_table_col!(data, :branch, :pflow, pflow_branch, MWFlow,"Average Power flowing through branch")    

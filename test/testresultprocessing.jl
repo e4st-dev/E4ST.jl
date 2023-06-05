@@ -23,6 +23,18 @@
         @test data1 == data2 || data1 === data2
     end
 
+    @testset "Test welfare calculations" begin
+        config = read_config(config_file)
+        data = read_data(config)
+        model = setup_model(config, data)
+        optimize!(model)
+        parse_results!(config, data, model)
+
+        # Test that the objective values are the same as the accounting values, at least for this simplified example
+        @test compute_result(data, :gen, :obj_pgen_cost) ≈ compute_result(data, :gen, :variable_cost)
+        @test compute_result(data, :gen, :obj_pcap_cost) ≈ compute_result(data, :gen, :fixed_cost)
+    end
+
     @testset "Test reading/saving model from .jls file" begin
         config = read_config(config_file)
         config[:base_out_path] = "../out/3bus1"

@@ -520,6 +520,32 @@ function (f::SumHourly{3})(data, table, idxs, yr_idxs, hr_idxs)
     _sum_hourly(table[!, col1], table[!, col2], table[!, col3], idxs, yr_idxs, hr_idxs)
 end
 
+@doc raw"""
+    SumHourlyWeighted(cols...) <: Function
+
+This is a function that adds up the product of each of the values given to it times the hour weight for each of the years and hours given.
+
+```math
+\sum_{i \in \text{idxs}} \sum_{y \in \text{yr\_idxs}} \sum_{h \in \text{hr\_idxs}} w_{h} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
+```
+"""
+struct SumHourlyWeighted{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+SumHourlyWeighted(cols::Symbol...) = SumHourlyWeighted(cols)
+export SumHourlyWeighted
+
+function (f::SumHourlyWeighted{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    hc = data[:hours_container]::HoursContainer
+    _sum_hourly(table[!, col1], hc, idxs, yr_idxs, hr_idxs)
+end
+function (f::SumHourlyWeighted{2})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2 = f.cols
+    hc = data[:hours_container]::HoursContainer
+    _sum_hourly(table[!, col1], table[!, col2], hc, idxs, yr_idxs, hr_idxs)
+end
+
 
 @doc raw"""
     AverageHourly(cols...) <: Function

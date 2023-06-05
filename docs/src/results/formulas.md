@@ -21,6 +21,7 @@ AverageYearly
 MinYearly
 MaxYearly
 SumHourly
+SumHourlyWeighted
 AverageHourly
 MinHourly
 MaxHourly
