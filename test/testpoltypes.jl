@@ -55,6 +55,10 @@
             @test haskey(data[:obj_vars], :example_ptc_capex_adj)
             @test haskey(model, :example_ptc_capex_adj)
 
+            #check that no capex_adj gets added when no age filter provided
+            @test !haskey(data[:obj_vars], :example_ptc_no_age_filter_capex_adj)
+            @test !haskey(model, :example_ptc_no_age_filter_capex_adj)
+
             #make sure model still optimizes 
             optimize!(model)
             @test check(model)
@@ -66,6 +70,9 @@
         
             #test that results are getting calculated
             @test compute_result(data, :gen, :example_ptc_cost) > 0.0
+
+            #test getting cf_hist for missing gentype 
+            @test get_gentype_cf_hist("other") == 0.67
 
         end
 
@@ -343,9 +350,6 @@
                 @test compute_result(data, :gen, :example_rps_cost) > 0.0
                 @test compute_result(data, :gen, :example_rps_gentype_cost) > 0.0
 
-
-                #test getting cf_hist for missing gentype 
-                @test get_gentype_cf_hist("other") == 0.67
 
             end
 

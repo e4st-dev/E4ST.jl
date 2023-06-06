@@ -14,8 +14,8 @@ Production Tax Credit - A \$/MWh tax incentive for the generation of specific te
 Base.@kwdef struct PTC <: Policy
     name::Symbol
     values::OrderedDict
-    gen_age_min::Float64
-    gen_age_max::Float64
+    gen_age_min::Float64 = 0
+    gen_age_max::Float64 = 9999
     gen_filters::OrderedDict
 end
 export PTC
@@ -37,7 +37,8 @@ function E4ST.modify_setup_data!(pol::PTC, config, data)
     add_table_col!(data, :gen, pol.name, Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated,
         "Production tax credit value for $(pol.name)")
 
-    add_table_col!(data, :gen, Symbol("$(pol.name)_capex_adj"), Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWBuiltCapacity, 
+    # if gen_age_min or _max isn't set to default, then create capex_adj
+    (pol.gen_age_min != 0 || pol.gen_age_max != 9999)  && add_table_col!(data, :gen, Symbol("$(pol.name)_capex_adj"), Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWBuiltCapacity, 
     "Adjustment factor added to the obj function as a PerMWCapInv term to account for PTC payments that do not continue through the entire econ lifetime of a generator.")
 
     #update column for gen_idx 
@@ -50,8 +51,10 @@ function E4ST.modify_setup_data!(pol::PTC, config, data)
         g[pol.name] = ByYear(vals_tmp)
 
         # add capex adjustment term to the the pol.name _capex_adj column
-        adj_term = get_ptc_capex_adj(pol, g, config)
-        g[Symbol("$(pol.name)_capex_adj")] = adj_term
+        if (pol.gen_age_min != 0 || pol.gen_age_max != 9999)  
+            adj_term = get_ptc_capex_adj(pol, g, config)
+            g[Symbol("$(pol.name)_capex_adj")] = adj_term
+        end
     end
 end
 
@@ -66,7 +69,7 @@ function E4ST.modify_model!(pol::PTC, config, data, model)
     add_obj_term!(data, model, PerMWhGen(), pol.name, oper = -)
 
     # add the capex adjustment term 
-    add_obj_term!(data, model, PerMWCapInv(), Symbol("$(pol.name)_capex_adj"), oper = +)
+    (pol.gen_age_min != 0 || pol.gen_age_max != 9999)  && add_obj_term!(data, model, PerMWCapInv(), Symbol("$(pol.name)_capex_adj"), oper = +)
 end
 
 
@@ -90,10 +93,10 @@ function get_ptc_capex_adj(pol::PTC, g::DataFrameRow, config)
     age_max = pol.gen_age_max::Float64
     age_min = pol.gen_age_min::Float64
 
-    #hasproperty(g, :cf_hist) ? (cf = g.cf_hist) : (cf = get_gentype_cf_hist(g.gentype))
-    cf = get(g, :cf_hist) do
-        get_gentype_cf_hist(g.gentype)
-    end
+    hasproperty(g, :cf_hist) ? (cf = g.cf_hist) : @error "The gen and build_gen tables must have the column cf_hist in order to model PTCs with age filters."
+    # cf = get(g, :cf_hist) do
+    #     get_gentype_cf_hist(g.gentype)
+    # end
     ptc_vals = g[pol.name]
 
     # This adjustment factor is the geometric formula for the difference between the actual PTC value per MW capacity and a PTC represented as a constant cash flow over the entire economic life. 
