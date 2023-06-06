@@ -78,6 +78,46 @@
 
     end
 
+    @testset "Test PTC with no cf_hist" begin
+        config_file = joinpath(@__DIR__, "config", "config_3bus_ptc.yml")
+        config = read_config(config_file_ref, config_file)
+
+        data = read_data(config)
+        gen = get_table(data, :gen)
+
+        #remove cf_hist
+        select!(gen, Not(:cf_hist))
+        deleteat!(data[:gen_table_original_cols], findall(x->x==:cf_hist, data[:gen_table_original_cols]))
+
+        model = setup_model(config, data)
+
+        #test that PTC is added to the obj 
+        @test haskey(data[:obj_vars], :example_ptc)
+        @test haskey(model, :example_ptc)
+
+        #test that PTC capex adj has been added to the model
+        @test haskey(data[:obj_vars], :example_ptc_capex_adj)
+        @test haskey(model, :example_ptc_capex_adj)
+
+        #check that no capex_adj gets added when no age filter provided
+        @test !haskey(data[:obj_vars], :example_ptc_no_age_filter_capex_adj)
+        @test !haskey(model, :example_ptc_no_age_filter_capex_adj)
+
+        #make sure model still optimizes 
+        optimize!(model)
+        @test check(model)
+        parse_results!(config, data, model)
+        process_results!(config, data)
+
+        #make sure obj was lowered
+        @test get_raw_result(data, :obj) < get_raw_result(data_ref, :obj) #if this isn't working, check that it isn't due to differences between the config files
+        
+        #test that results are getting calculated
+        @test compute_result(data, :gen, :example_ptc_cost) > 0.0
+
+
+    end
+
 
     @testset "Test ITC" begin
         config_file = joinpath(@__DIR__, "config", "config_3bus_itc.yml")

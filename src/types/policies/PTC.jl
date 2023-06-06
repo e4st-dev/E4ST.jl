@@ -93,10 +93,10 @@ function get_ptc_capex_adj(pol::PTC, g::DataFrameRow, config)
     age_max = pol.gen_age_max::Float64
     age_min = pol.gen_age_min::Float64
 
-    hasproperty(g, :cf_hist) ? (cf = g.cf_hist) : @error "The gen and build_gen tables must have the column cf_hist in order to model PTCs with age filters."
-    # cf = get(g, :cf_hist) do
-    #     get_gentype_cf_hist(g.gentype)
-    # end
+    #hasproperty(g, :cf_hist) ? (cf = g.cf_hist) : @error "The gen and build_gen tables must have the column cf_hist in order to model PTCs with age filters."
+    cf = get(g, :cf_hist) do
+        get_gentype_cf_hist(g.gentype)
+    end
     ptc_vals = g[pol.name]
 
     # This adjustment factor is the geometric formula for the difference between the actual PTC value per MW capacity and a PTC represented as a constant cash flow over the entire economic life. 
@@ -142,6 +142,9 @@ function get_gentype_cf_hist(gentype::AbstractString)
         # hcc_new, unsure
         # hcc_ret, unsure
         gentype == "other" && return 0.67
+
+        @warn "No default cf_hist provided for $(gentype) in E4ST, setting to 0.35"
+        return 0.35 # overall system capacity factor
 
 end
 export get_gentype_cf_hist
