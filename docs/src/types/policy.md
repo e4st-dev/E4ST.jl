@@ -33,7 +33,7 @@ $$ x \left( \frac{1- \left(\frac{1}{1+r}\right)^l}{1 - \left(\frac{1}{1+r}\right
 
 $$ x = p \frac{\left(1- \left(\frac{1}{1+r}\right)^n\right)\left(1 - \left(\frac{1}{1+r}\right)\right)}{\left(1- \left(\frac{1}{1+r}\right)^l\right)\left(1 - \left(\frac{1}{1+r}\right)^{m+1}\right)} $$
 
-To get the adjustement to capex $capex_adj we can start with  $$ capex + capex\_adj + p = capex + x $$  so $$ capex\_adj = p - x $$
+To get the adjustement to capex $capex\_ adj$ we can start with  $$ capex + capex\_ adj + p = capex + x $$  so $$ capex\_ adj = p - x $$
 
 $$ capex\_ adj = p \left(1 - \left(\frac{\left(1- \left(\frac{1}{1+r}\right)^n\right)\left(1 - \left(\frac{1}{1+r}\right)\right)}{\left(1- \left(\frac{1}{1+r}\right)^l\right)\left(1 - \left(\frac{1}{1+r}\right)^{m+1}\right)}\right)\right) $$
 
