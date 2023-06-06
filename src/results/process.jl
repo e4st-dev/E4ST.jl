@@ -10,6 +10,10 @@ function process_results!(config::OrderedDict, data::OrderedDict)
         modify_results!(mod, config, data)
     end
 
+    # Save the summary table and results formulas
+    save_summary_table(config, data)
+    save_results_formulas(config, data)
+
     if get(config, :save_data_processed, true)
         serialize(get_out_path(config,"data_processed.jls"), data)
     end
@@ -58,3 +62,30 @@ function process_results!(mod_file::String, out_path::String; processed=true)
     process_results!(config; processed)
 end
 export process_results!
+
+function save_summary_table(config, data)
+    st = get_table(data, :summary_table)
+    out_file = get_out_path(config, "summary_table.csv")
+    CSV.write(out_file, st)
+end
+
+
+function save_results_formulas(config, data)
+    table = DataFrame(;
+        table_name=Symbol[],
+        result_name=Symbol[],
+        formula=String[],
+        unit=Type[],
+        description = String[]
+    )
+    results_formulas = get_results_formulas(data)
+    for (k,v) in results_formulas
+        (table_name, result_name) = k
+        formula = v.formula
+        unit = v.unit
+        description = v.description
+        push!(table, (;table_name, result_name, formula, unit, description))
+    end
+    out_file = get_out_path(config, "results_formulas.csv")
+    CSV.write(out_file, table)
+end

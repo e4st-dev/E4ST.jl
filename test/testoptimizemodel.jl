@@ -25,6 +25,13 @@
         @test all(p->abs(p)<1e-6, total_elcurt)
     end
 
+    @testset "Test bus results match gen results" begin
+        # Test that revenue of electricity for generators equals the cost for consumers
+        line_loss_rate = config[:line_loss_rate]
+        @test compute_result(data, :bus, :elserv_total) ≈ (compute_result(data, :gen, :egen_total)) * (1 - line_loss_rate)
+        @test compute_result(data, :bus, :electricity_cost) ≈ compute_result(data, :gen, :electricity_revenue)
+    end
+    
     @testset "Test DC lines" begin
         res_raw = get_raw_results(data)
         @test haskey(data, :dc_line)

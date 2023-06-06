@@ -140,8 +140,8 @@
             @test 0 <= compute_result(data, :gen, :cf_avg, :gentype=>"solar", :, :) <= compute_result(data, :gen, :af_avg, :gentype=>"solar", :, :)
         
             # Test that the average LMP times energy served equals the sum of LMP
-            elec_cost = compute_result(data, :bus, :cost_elserv)
-            elec_price = compute_result(data, :bus, :price_elserv)
+            elec_cost = compute_result(data, :bus, :electricity_cost)
+            elec_price = compute_result(data, :bus, :electricity_price)
             elec_quantity = compute_result(data, :bus, :elserv_total)
             @test elec_cost ≈ elec_price * elec_quantity
         

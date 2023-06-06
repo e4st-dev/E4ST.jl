@@ -8,9 +8,13 @@ function setup_welfare!(config, data)
     data[:welfare] = welfare
 
     # Producer welfare
-    add_welfare_term!(data, :producer, :gen, :variable_cost, -)
-    add_welfare_term!(data, :producer, :gen, :fixed_cost, -)
-    add_welfare_term!(data, :producer, :gen, :electricity_revenue, +)
+    add_welfare_term!(data, :producer, :gen, :net_total_revenue_prelim, +)
+    add_welfare_term!(data, :producer, :gen, :cost_of_service_rebate, -)
+
+    # Consumer welfare
+    add_welfare_term!(data, :consumer, :gen, :cost_of_service_rebate, +)
+    add_welfare_term!(data, :consumer, :bus, :electricity_cost, -)
+    # Make sure to have a term for policy costs that would get transferred to consumers, for policies like nuclear preservation, installed reserve margins, portfolio standards
 
     # TODO: Add transfer for CO2 paid
 

@@ -53,11 +53,20 @@ gen,production_cost,variable_cost + fixed_cost,Dollars,"Cost of production, incl
 gen,production_cost_per_mwh,production_cost / egen_total,DollarsPerMWhGenerated,"Average cost of production for a MWh of power, including variable and fixed costs"
 gen,net_production_cost,net_variable_cost + net_fixed_cost,Dollars,"Net cost of production, including fixed and variable costs minus investment and production subsidies"
 gen,net_production_cost_per_mwh,net_production_cost / egen_total,DollarsPerMWhGenerated,"Average net cost of producing a MWh of power, including fixed and variable costs minus investment and production subsidies"
-gen,total_cost,net_production_cost,Dollars,"Total cost of production.  Right now contains only net_production_cost, but may eventually contain past capex costs"
+gen,gs_cost,0,Dollars,Cost from generation standards
+gen,gs_cost_per_mwh,gs_cost / egen_total,DollarsPerMWhGenerated,"Average cost from generation standards, per MWh"
+gen,pol_cost,gs_cost - invest_subsidy - production_subsidy,Dollars,Cost for all generators from all policy types.
+gen,pol_cost_per_mwh,pol_cost / egen_total,DollarsPerMWhGenerated,"Average cost for all generators from all policy types, per MWh."
+gen,total_cost_prelim,going_forward_cost,Dollars,"Total cost of production.  Right now contains only going_forward_cost, but may eventually contain past capex costs"
+gen,total_cost_prelim_per_mwh,total_cost / egen_total,DollarsPerMWhGenerated,"Average cost of producing a MWh of power. Right now contains only net_production_cost, but may eventually contain past capex costs"
+gen,going_forward_cost,production_cost - pol_cost,Dollars,Total going forward cost
+gen,net_total_revenue_prelim,electricity_revenue - total_cost_prelim,Dollars,"Preliminary net total revenue, including electricity revenue minus total cost, before adjusting for cost-of-service rebates"
+gen,cost_of_service_rebate,CostOfServiceRebate(),Dollars,"This is a specially calculated result, which is the sum of net_total_revenue_prelim * reg_factor for each generator"
+gen,total_cost,total_cost_prelim + cost_of_service_rebate,Dollars,"Total cost of production.  Right now contains only going_forward_cost, but may eventually contain past capex costs"
 gen,total_cost_per_mwh,total_cost / egen_total,DollarsPerMWhGenerated,"Average cost of producing a MWh of power. Right now contains only net_production_cost, but may eventually contain past capex costs"
-gen,going_forward_cost,variable_cost + fixed_cost,Dollars,Total going forward cost
-gen,net_total_revenue,electricity_revenue - total_cost,Dollars,"Net total revenue, including electricity revenue minus total cost"
-gen,cost_of_service_rebate,CostOfServiceRebate(),Dollars,"This is a specially calculated result, which the sum of net_total_revenue * reg_factor for each generator"
+gen,net_total_revenue,net_total_revenue_prelim - cost_of_service_rebate,Dollars,Net total revenue after adjusting for the cost-of-service rebate
+gen,net_variable_revenue,electricity_revenue - net_variable_cost - cost_of_service_rebate,Dollars,Net variable revenue including electiricy revenue minus net variable costs
+gen,net_going_forward_revenue,electricity_revenue - going_forward_cost - cost_of_service_rebate,Dollars,"Net going forward revenue, including electricity revenue minus going forward cost"
 gen,obj_pcap_cost,"SumHourlyWeighted(pcap, obj_pcap_price)",Dollars,"Cost for pcap in the objective, including investment"
 gen,obj_pgen_cost,"SumHourly(egen, obj_pgen_price)",Dollars,Cost for pgen in the objective
 bus,elnom_total,SumHourly(elnom),MWhLoad,Nominal load energy
@@ -65,7 +74,13 @@ bus,elserv_total,SumHourly(elserv),MWhServed,Total load energy served
 bus,eflow_in_total,SumHourly(eflow_in),MWhFlow,Total energy flowing into all the buses in this region (not necessarily net flow into the region)
 bus,eflow_out_total,SumHourly(eflow_out),MWhFlow,Total energy flowing out of all the buses in this region (not necessarily net flow out of the region)
 bus,elcurt_total,SumHourly(elcurt),MWhCurtailed,Total energy curtailed in this region
+bus,plserv_max,MaxHourly(plserv),MWServed,Maximum hourly load power served in the region
+bus,plserv_min,MinHourly(plserv),MWServed,Minimum hourly load power served in the region
+bus,plnom_max,MaxHourly(plnom),MWLoad,Maximum nominal hourly load power in the region
+bus,plnom_min,MinHourly(plnom),MWLoad,Minimum nominal hourly load power in the region
+bus,plcurt_max,MaxHourly(plcurt),MWCurtailed,Maximum hourly load power curtailed in the region
+bus,plcurt_min,MinHourly(plcurt),MWCurtailed,Minimum hourly load power curtailed in the region
+bus,electricity_cost,"SumHourly(elserv,lmp_elserv)",Dollars,Total cost of electricity served
+bus,electricity_price,electricity_cost / elserv_total,DollarsPerMWhServed,Average cost of electricity served
 branch,eflow_total,SumHourly(eflow),MWhFlow,Total energy flowing in this branch
 branch,pflow_hourly_min,MinHourly(pflow),MWFlow,Minimum sum of power flowing in these branches
-bus,cost_elserv,"SumHourly(elserv,lmp_elserv)",Dollars,Total cost of electricity served
-bus,price_elserv,cost_elserv / elserv_total,DollarsPerMWhServed,Average cost of electricity served

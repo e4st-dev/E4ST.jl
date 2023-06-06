@@ -235,12 +235,22 @@ function parse_lmp_results!(config, data)
     
     # Add the LMP's to the results and to the bus table
     res_raw[:lmp_elserv_bus] = lmp_elserv
-    add_table_col!(data, :bus, :lmp_elserv, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
+
+    # Compensate for line losses for lmp seen by consumers at buses.
+    if config[:line_loss_type] == "plserv"
+        line_loss_rate = config[:line_loss_rate]::Float64
+
+        # lmp_elserv is dollars per MWh before losses, so we need to inflate the cost to compensate
+        plserv_scalar = 1/(1-line_loss_rate)
+        add_table_col!(data, :bus, :lmp_elserv, lmp_elserv .* plserv_scalar, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
+    else
+        add_table_col!(data, :bus, :lmp_elserv, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
+    end
 
     # Add lmp to generators
     gen = get_table(data, :gen)
-    lmp_bus = get_table_col(data, :bus, :lmp_elserv)
-    lmp_gen = lmp_bus[gen.bus_idx]
+    bus_idxs = gen.bus_idx::Vector{Int64}
+    lmp_gen = [view(lmp_elserv, i, :, :) for i in bus_idxs]
     add_table_col!(data, :gen, :lmp_egen, lmp_gen, DollarsPerMWhServed, "Locational Marginal Price of Energy Served")
 
     # # Get the shadow price of the positive and negative branch power flow constraints ($/(MW incremental transmission))      

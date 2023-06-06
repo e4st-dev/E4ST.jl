@@ -589,7 +589,7 @@ This is a special function that computes the sum of the net total revenue times 
 struct CostOfServiceRebate <: Function end
 function (::CostOfServiceRebate)(data, table, idxs, yr_idxs, hr_idxs)
     reg_factor = table.reg_factor
-    return sum0(reg_factor[i] * compute_result(data, :gen, :net_total_revenue, i, yr_idxs, hr_idxs) for i in idxs)
+    return sum0(reg_factor[i] * compute_result(data, :gen, :net_total_revenue_prelim, i, yr_idxs, hr_idxs) for i in idxs)
 end
 export CostOfServiceRebate
 
