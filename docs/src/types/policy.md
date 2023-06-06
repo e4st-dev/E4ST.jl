@@ -22,14 +22,24 @@ modify_model!(pol::PTC, config, data, model)
 ```
 
 **Derivation of the PTC capex adjustment**
-First, find the adjusted PTC value $x if it were a constant cash flow over entire econ lifetime $e. 
-Start by setting the NPV of the actual PTC (per MW capacity) $p and the adjusted PTC (per MW capacity) $x
-$m is the minimum age of the generator to qualify for the PTC
-$n is the maximum age of the generator to qualify for the PTC
+First, find the adjusted PTC value $x$ if it were a constant cash flow over entire econ lifetime $l$. \
+Start by setting the NPV of the actual PTC (per MW capacity) $p$ and the adjusted PTC (per MW capacity) $x$. \
+$m$ is the minimum age of the generator to qualify for the PTC \
+$n$ is the maximum age of the generator to qualify for the PTC 
 
-$$\sum_{i=1}^e x / \left(1+r \right)^i = \sum_{i=m}^n p / \left(1+r \right)^i$$
+$$\sum_{i=1}^l x / \left(1+r \right)^i = \sum_{i=m}^n p / \left(1+r \right)^i$$
 
-#TODO: finish this, based on the proof in the PTC_Crediting_Structure spreadsheet, but instead of the right hand side going from  1 to n it goes from gen_age_min to gen_age_max
+$$ x \left( \frac{1- \left(\frac{1}{1+r}\right)^l}{1 - \left(\frac{1}{1+r}\right)}\right) = p \left( \frac{1- \left(\frac{1}{1+r}\right)^n}{1 - \left(\frac{1}{1+r}\right)^{m+1}}\right) $$
+
+$$ x = p \frac{\left(1- \left(\frac{1}{1+r}\right)^n\right)\left(1 - \left(\frac{1}{1+r}\right)\right)}{\left(1- \left(\frac{1}{1+r}\right)^l\right)\left(1 - \left(\frac{1}{1+r}\right)^{m+1}\right)} $$
+
+To get the adjustement to capex $capex_adj we can start with  $$ capex + capex\_adj + p = capex + x $$  so $$ capex\_adj = p - x $$
+
+$$ capex\_ adj = p \left(1 - \left(\frac{\left(1- \left(\frac{1}{1+r}\right)^n\right)\left(1 - \left(\frac{1}{1+r}\right)\right)}{\left(1- \left(\frac{1}{1+r}\right)^l\right)\left(1 - \left(\frac{1}{1+r}\right)^{m+1}\right)}\right)\right) $$
+
+The value of the PTC per MW capacity $p$ is equal to the PTC in per MWh terms $PTC$ * capacity factor $cf$. We can substitute this in to get the final formula
+
+$$ capex\_ adjust = PTC*cf\left(1 - \left(\frac{\left(1- \left(\frac{1}{1+r}\right)^n\right)\left(1 - \left(\frac{1}{1+r}\right)\right)}{\left(1- \left(\frac{1}{1+r}\right)^l\right)\left(1 - \left(\frac{1}{1+r}\right)^{m+1}\right)}\right)\right) $$
 
 
 # GenerationStandard
