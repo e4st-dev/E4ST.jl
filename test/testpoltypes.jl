@@ -343,6 +343,10 @@
                 @test compute_result(data, :gen, :example_rps_cost) > 0.0
                 @test compute_result(data, :gen, :example_rps_gentype_cost) > 0.0
 
+
+                #test getting cf_hist for missing gentype 
+                @test get_gentype_cf_hist("other") == 0.67
+
             end
 
         end

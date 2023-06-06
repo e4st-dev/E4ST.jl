@@ -429,16 +429,10 @@ function (f::SumHourly{3})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2,col3 = f.cols
     _sum_hourly(table[!, col1], table[!, col2], table[!, col3], idxs, yr_idxs, hr_idxs)
 end
-function (f::SumHourly{4})(data, table, idxs, yr_idxs, hr_idxs)
-    col1,col2,col3,col4 = f.cols
-    _sum_hourly(table[!, col1], table[!, col2], table[!, col3], table[!, col4], idxs, yr_idxs, hr_idxs)
-end
-
-
-
-
-
-
+# function (f::SumHourly{4})(data, table, idxs, yr_idxs, hr_idxs)
+#     col1,col2,col3,col4 = f.cols
+#     _sum_hourly(table[!, col1], table[!, col2], table[!, col3], table[!, col4], idxs, yr_idxs, hr_idxs)
+# end
 
 
 

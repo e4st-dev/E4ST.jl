@@ -169,17 +169,17 @@ function modify_results!(pol::GenerationStandard, config, data)
     shadow_prc = get_shadow_price_as_ByYear(data, Symbol("cons_$(pol.name)")) #($/MWhGenerated) by year
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
 
-    add_table_col!(data, :gen, Symbol("$(pol.name)_prc"),  Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated, "Shadow price of $(pol.name) converted to DollarsPerMWhGenerated")
+    add_table_col!(data, :gen, Symbol("$(pol.name)_prc"),  Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated, "Policy price based on shadow price of $(pol.name) (converted to DollarsPerMWhGenerated) multiplied by the credit.")
 
-    #gen[gen_idxs, Symbol("$(pol.name)_prc")] = abs.(shadow_prc) #set qualifying gen price to shadow price
+    # set to shadow_prc * crediting
     for i in gen_idxs
-        gen[i, Symbol("$(pol.name)_prc")] = abs.(shadow_prc)
+        gen[i, Symbol("$(pol.name)_prc")] = abs.(shadow_prc) .* gen[i, pol.name]
     end
 
 
     # policy cost, price * credit * generation
     prc_name = Symbol("$(pol.name)_prc")
-    add_results_formula!(data, :gen, Symbol("$(pol.name)_cost"), "SumHourly($(prc_name), $(pol.name), egen)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
+    add_results_formula!(data, :gen, Symbol("$(pol.name)_cost"), "SumHourly($(prc_name), egen)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
 
 end
 export modify_results!

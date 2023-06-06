@@ -64,7 +64,7 @@ function summarize_config()
         (:bio_pctco2e, false, 0.273783186, "The fraction of biomass co2 emissions that are considered new to the atmostphere. 0.225 metric tons/MWh * (2204 short tons/2000 metric tons) / 0.904 short tons/MWh"),
         (:ng_ch4_fuel_content, false, 0.000434, "Natural gas methane fuel content. (Short ton/MMBtu)"),
         (:coal_ch4_fuel_content, false, 0.000175, "Coal methane fuel content. (Short ton/MMBtu)"),
-        (:wacc, false, 0.0544, "Assumed WACC (used as discount rate), currently only used for calculating ptc capex adjustment but should be the same as the wacc/discount rate used to calculate annualized generator costs.")
+        (:wacc, false, 0.0544, "Assumed Weighted Average Cost of Capital (used as discount rate), currently only used for calculating ptc capex adjustment but should be the same as the wacc/discount rate used to calculate annualized generator costs. Current value (0.0544) was using in annulaizing ATB 2022 costs.")
         )
     return df
 end
