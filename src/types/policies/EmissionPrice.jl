@@ -50,7 +50,7 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
     if (pol.years_after_ref_min != 0.0 || pol.years_after_ref_max != 9999.0)  
         # warn if trying to specify more than one unique emisprc value, model isn't currently set up to handle variable emisprc 
         # note: >2 used here for emisprc value and 0
-        length(unique(pol.values)) > 2 && @warn "The current E4ST EmissionPrice mod isn't formulated correctly for both a variable EmissionPrice value (ie. 2020: 12, 2025: 15) and year_from_ref filters, please only specify a single value"
+        length(unique(pol.prices)) > 2 && @warn "The current E4ST EmissionPrice mod isn't formulated correctly for both a variable EmissionPrice value (ie. 2020: 12, 2025: 15) and year_from_ref filters, please only specify a single value"
 
         add_table_col!(data, :gen, Symbol("$(pol.name)_capex_adj"), Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWBuiltCapacity, 
         "Adjustment factor added to the obj function as a PerMWCapInv term to account for emisprc payments that do not continue through the entire econ lifetime of a generator.")

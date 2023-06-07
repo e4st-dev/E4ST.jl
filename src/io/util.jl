@@ -619,8 +619,8 @@ Returns whether any f(x) holds true for any value of each element of v.
 function anyany(f, v)
     any(x->any(f, x), v)
 end
-
-# function Base.convert(T::Type{Symbol}, x::String)
-#     return Symbol(x)
-# end
 export anyany
+
+function Base.convert(T::Type{Symbol}, x::String)
+    return Symbol(x)
+end
