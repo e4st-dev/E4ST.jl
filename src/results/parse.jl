@@ -69,6 +69,35 @@ function value_or_shadow_price(v::Number, obj_scalar)
 end
 export value_or_shadow_price
 
+"""
+    get_shadow_price_as_ByYear(data, cons_name::Symbol) -> 
+
+Returns a ByYear Container of the shadow price of a constraint. The shadow price is set to 0 for years where there is no constraint. 
+"""
+function get_shadow_price_as_ByYear(data, cons_name::Symbol)
+    years = Symbol.(get_years(data))
+    shadow_prc = get_raw_result(data, cons_name)
+
+    # set the shadow prices in array form with all sim years, set to 0 if no shadow price in that year
+    if typeof(shadow_prc) <: JuMP.Containers.DenseAxisArray #DenseAxisArray and SparseAxisArray are container types for JuMP (not E4ST Containers) and need to be accessed in different ways
+        # get the years where the shadow price has a value
+        cons_years = (axes(shadow_prc)[1])
+        # set values 
+        shadow_prc_array  = [year in cons_years ? shadow_prc[year] : 0 for year in years]
+    elseif typeof(shadow_prc) <: JuMP.Containers.SparseAxisArray
+        shadow_prc_array = []
+        for year_idx in 1:length(years)
+            # check if shadow_prc has the year and then set value
+            haskey(shadow_prc, year_idx) ? push!(shadow_prc_array, shadow_prc[year_idx]) : push!(shadow_prc_array, 0)
+        end
+    else 
+        @error "shadow_prc is not a DenseAxisArray or SparseAxisArray and so the sim years are not tied to the shadow price. No way of mapping shadow price to years currently defined"
+        # If you are getting this error, go and look at the JuMP documentation for Containers (different then E4ST Constainers). There is currently no option written for shadow prices that are Arrays but there could be. 
+    end
+
+    return ByYear(shadow_prc_array)
+end
+export get_shadow_price_as_ByYear
 
 @doc raw"""
     parse_power_results!(config, data, res_raw)

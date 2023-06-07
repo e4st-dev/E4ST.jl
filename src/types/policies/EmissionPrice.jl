@@ -50,3 +50,14 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
     
     add_obj_term!(data, model, PerMWhGen(), pol.name, oper = +)
 end
+
+
+"""
+    E4ST.modify_results!(pol::EmissionPrice, config, data) -> 
+"""
+function E4ST.modify_results!(pol::EmissionPrice, config, data)
+    # policy cost, price per mwh * generation
+    add_results_formula!(data, :gen, Symbol("$(pol.name)_cost"), "SumHourly($(pol.name), egen)", Dollars, "The cost of $(pol.name)")
+
+    #add_results_formula!(data, :gen, Symbol("$(pol.name)_qual_gen"), "SumHourly($(pol.name),egen)", Dollars, "The cost of $(pol.name)")
+end

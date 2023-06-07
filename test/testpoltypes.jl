@@ -33,6 +33,8 @@
         @testset "Adding PTC to gen table" begin
             @test hasproperty(gen, :example_ptc)
 
+            @test hasproperty(gen, :example_ptc_capex_adj)
+
             #test that there are byYear containers 
             @test typeof(gen.example_ptc) == Vector{Container}
 
@@ -49,14 +51,70 @@
             @test haskey(data[:obj_vars], :example_ptc)
             @test haskey(model, :example_ptc)
 
+            #test that PTC capex adj has been added to the model
+            @test haskey(data[:obj_vars], :example_ptc_capex_adj)
+            @test haskey(model, :example_ptc_capex_adj)
+
+            #check that no capex_adj gets added when no age filter provided
+            @test !haskey(data[:obj_vars], :example_ptc_no_age_filter_capex_adj)
+            @test !haskey(model, :example_ptc_no_age_filter_capex_adj)
+
             #make sure model still optimizes 
             optimize!(model)
             @test check(model)
             parse_results!(config, data, model)
+            process_results!(config, data)
 
             #make sure obj was lowered
             @test get_raw_result(data, :obj) < get_raw_result(data_ref, :obj) #if this isn't working, check that it isn't due to differences between the config files
+        
+            #test that results are getting calculated
+            @test compute_result(data, :gen, :example_ptc_cost) > 0.0
+
+            #test getting cf_hist for missing gentype 
+            @test get_gentype_cf_hist("other") == 0.67
+
         end
+
+    end
+
+    @testset "Test PTC with no cf_hist" begin
+        config_file = joinpath(@__DIR__, "config", "config_3bus_ptc.yml")
+        config = read_config(config_file_ref, config_file)
+
+        data = read_data(config)
+        gen = get_table(data, :gen)
+
+        #remove cf_hist
+        select!(gen, Not(:cf_hist))
+        deleteat!(data[:gen_table_original_cols], findall(x->x==:cf_hist, data[:gen_table_original_cols]))
+
+        model = setup_model(config, data)
+
+        #test that PTC is added to the obj 
+        @test haskey(data[:obj_vars], :example_ptc)
+        @test haskey(model, :example_ptc)
+
+        #test that PTC capex adj has been added to the model
+        @test haskey(data[:obj_vars], :example_ptc_capex_adj)
+        @test haskey(model, :example_ptc_capex_adj)
+
+        #check that no capex_adj gets added when no age filter provided
+        @test !haskey(data[:obj_vars], :example_ptc_no_age_filter_capex_adj)
+        @test !haskey(model, :example_ptc_no_age_filter_capex_adj)
+
+        #make sure model still optimizes 
+        optimize!(model)
+        @test check(model)
+        parse_results!(config, data, model)
+        process_results!(config, data)
+
+        #make sure obj was lowered
+        @test get_raw_result(data, :obj) < get_raw_result(data_ref, :obj) #if this isn't working, check that it isn't due to differences between the config files
+        
+        #test that results are getting calculated
+        @test compute_result(data, :gen, :example_ptc_cost) > 0.0
+
 
     end
 
@@ -92,10 +150,14 @@
             optimize!(model)
             @test check(model)
             parse_results!(config, data, model)
+            process_results!(config, data)
 
             #make sure obj was lowered
             @test get_raw_result(data, :obj) < get_raw_result(data_ref, :obj) #if this isn't working, check that it isn't due to differences between the config files
 
+            #test _cost_obj result is calculated
+            cost_obj = compute_result(data, :gen, :example_itc_cost_obj)
+            @test cost_obj > 0.0
         end
     end
 
@@ -173,14 +235,15 @@
 
             @test emis_co2_total_2040 <= config[:mods][:example_emiscap][:targets][:y2040] + 0.001
 
-
-
-
             #check that policy is binding 
             cap_prices = get_raw_result(data, :cons_example_emiscap_max)
 
             @test abs(cap_prices[:y2035]) + abs(cap_prices[:y2040]) > 1e-6 # At least one will be binding, but potentially not both bc of perfect foresight
 
+            #check that results are calculated
+            @test hasproperty(gen, :example_emiscap_prc)
+            @test sum(prc -> sum(prc.v), gen.example_emiscap_prc) > 0
+            @test compute_result(data, :gen, :example_emiscap_cost) > 0
         end
     end
 
@@ -230,6 +293,13 @@
 
             # check that emissions are reduced for qualifying gens
             @test emis_co2_total < emis_co2_total_ref
+
+            #test that cost restult is calculated
+            pol = config[:mods][:example_emisprc]
+            gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
+
+            #@show compute_result(data, :gen, :egen_total, gen_idxs, [2, 3])
+            @test compute_result(data, :gen, :example_emisprc_cost) > 0.0
         end
     end
 
@@ -310,6 +380,17 @@
                 # check that generation is increased for qualifying gens
                 @test gen_total_qual > gen_total_ref
 
+
+                #check that result processed
+                @test hasproperty(gen, :example_rps_prc)
+                @test hasproperty(gen, :example_rps_gentype_prc)
+                @test sum(prc -> sum(prc.v), gen.example_rps_prc) > 0
+                @test sum(prc -> sum(prc.v), gen.example_rps_gentype_prc) > 0
+
+                @test compute_result(data, :gen, :example_rps_cost) > 0.0
+                @test compute_result(data, :gen, :example_rps_gentype_cost) > 0.0
+
+
             end
 
         end
@@ -369,6 +450,11 @@
 
                 @test gen_total_qual_2040 > gen_total_qual_2040_ref
                 @test gen_total_qual_2040 / elserv_total_qual_2040 >= targets[:y2040] - 0.001 #would use approx but need the > in case partial credit gen is used
+
+                #test that results are calculated 
+                @test hasproperty(gen, :example_ces_prc)
+                @test sum(prc -> sum(prc.v), gen.example_ces_prc) > 0
+                @test compute_result(data, :gen, :example_ces_cost) > 0.0
 
             end
 
