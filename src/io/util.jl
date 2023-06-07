@@ -606,7 +606,21 @@ function sum0(f, itr)
     return sum(f, itr)
 end
 
-
-function Base.convert(T::Type{Symbol}, x::String)
-    return Symbol(x)
+function sum0(itr)
+    isempty(itr) && return 0.0
+    return sum(itr)
 end
+
+"""
+    anyany(f, v::AbstractVector{<:AbstractArray}) -> ::Bool
+
+Returns whether any f(x) holds true for any value of each element of v.
+"""
+function anyany(f, v)
+    any(x->any(f, x), v)
+end
+
+# function Base.convert(T::Type{Symbol}, x::String)
+#     return Symbol(x)
+# end
+export anyany

@@ -221,11 +221,28 @@ function summarize(model::Model)
     summary = String(take!(buf))
 end
 export summarize
+
+"""
+    get_matrix_range(c) -> (min, max)
+
+Returns min and max of non-zero absolute value of matrix range
+"""
 get_matrix_range(c::AbstractArray{<:ConstraintRef}) = (get_limit(minimum, c), get_limit(maximum, c))
 get_matrix_range(c) = nothing
+
+"""
+    get_bounds_range(v) -> (min, max)
+
+Returns min and max of non-zero absolute value of variable bounds range
+"""
 get_bounds_range(v::AbstractArray{<:VariableRef}) = (get_limit(minimum, v), get_limit(maximum, v))
 get_bounds_range(v) = nothing
 
+"""
+    get_rhs_range(v) -> (min, max)
+
+Returns min and max of non-zero absolute value of constraint right hand side range range
+"""
 get_rhs_range(c::AbstractArray{<:ConstraintRef}) = (get_rhs_limit(minimum, c), get_rhs_limit(maximum, c))
 get_rhs_range(c) = nothing
 
@@ -316,7 +333,9 @@ function optimizer_attributes(config, ::Val{:HiGHS}; log_file = nothing, kwargs.
         kwargs...
     )
 end
+
 function optimizer_attributes(config, ::Val{:Gurobi}; LogFile=nothing, kwargs...)
+    # See the issue here for more info on how these defaults were chosen: https://github.com/e4st-dev/E4ST.jl/issues/72
     if LogFile === nothing
         log_file_full = ""
     elseif ispath(dirname(LogFile))
@@ -324,19 +343,18 @@ function optimizer_attributes(config, ::Val{:Gurobi}; LogFile=nothing, kwargs...
     else
         log_file_full = get_out_path(config, LogFile)
     end
-    # These defaults came from e4st_core.m
     (;
         LogFile         = log_file_full,
         LogToConsole    = false,
-        # NumericFocus    = 3,
-        # BarHomogeneous  = 1,
         Method          = 2,
-        # BarIterLimit    = 1000,   # 
         Crossover       = 0,      # 0 disables crossover
+        Threads         = 1,
+        # NumericFocus    = 3, # NumericFocus can help with numerical instabilities if model failing to solve
+        # BarHomogeneous  = 1, # BarHomogeneous can help with numerical instabilities if model failing to solve
+        # BarIterLimit    = 1000,
         # FeasibilityTol  = 1e-2,
         # OptimalityTol   = 1e-6,
         # BarConvTol      = 1e-6,
-        Threads         = 1,
         # DualReductions  = 0,  # This is only to see if infeasible or unbounded.
         kwargs...
     )

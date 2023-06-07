@@ -38,7 +38,7 @@ function E4ST.modify_model!(cons::GenerationConstraint, config, data, model)
 
     v = zeros(Bool, nrow(gen))
     add_table_col!(data, :gen, cons.name, v, NA,
-        "Boolean value for whether a gen is constrained by $(cons.name)") #This isn't necessary and might make the gen table unnecessarily large but I think it would be good documentation.
+        "Boolean value for whether a gen is constrained by $(cons.name)") 
     gen[gen_idxs, cons.name] .= 1 
 
     # get only years from cons.values that are in the sim
@@ -68,3 +68,4 @@ function E4ST.modify_model!(cons::GenerationConstraint, config, data, model)
     end
 
 end
+

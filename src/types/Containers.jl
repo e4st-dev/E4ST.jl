@@ -20,6 +20,14 @@ Base.size(c::Container) = size(c.v)
 Base.BroadcastStyle(::Type{C}) where {C<:Container} = Broadcast.ArrayStyle{C}()
 Base.Broadcast.broadcastable(c::Container) = c
 
+# Note that for comparisons, only returns true when all holds true.
+Base.isless(c::Container, n::Number)  = all(<(n), c)
+Base.isequal(c::Container, n::Number) = all(==(n), c)
+
+Base.isless(n::Number, c::Container)  = all(>(n), c)
+Base.isequal(n::Number, c::Container) = all(==(n), c)
+
+
 
 Broadcast.result_join(::Broadcast.ArrayStyle{C1}, ::Broadcast.ArrayStyle{C2}, ::Broadcast.Unknown, ::Broadcast.Unknown) where {T1, D1, T2, D2, C1<:Container{T1,D1}, C2<:Container{T2,D2}}= begin
     C = ConflictContainerType(C1, C2)
@@ -198,27 +206,33 @@ end
 
 # For vector of AbstractMatrixes
 function _getindex(v::Vector{<:AbstractMatrix{<:Real}}, i::Int64, y::Int64, h::Int64)
-    return v[i][y,h]
+    return v[i][y,h]::Float64
 end
 
 # Assume that if we are trying to index into a vector of vectors, it is for yearly data only
 # _getindex is to protect us from having to overwrite getindex in a bad way for common types.
 function _getindex(v::Vector{<:AbstractVector{<:Real}}, i::Int64, y::Int64, h::Int64)
-    return v[i][y]
+    return v[i][y]::Float64
 end
 function _getindex(v::Vector{<:AbstractVector{<:Real}}, i::Int64, y::Int64)
-    return v[i][y]
+    return v[i][y]::Float64
 end
-_getindex(args...) = getindex(args...)
+_getindex(args...) = getindex(args...)::Float64
 
 
 # Assume that if we are trying to index into a vector of vectors, it is for yearly data only
 function Base.getindex(v::Vector{<:Real}, i::Int64, y::Int64, h::Int64)
     return v[i]
 end
+function Base.getindex(v::Vector{<:Real}, i::Int64, y::Int64)
+    return v[i]
+end
 
 function Base.getindex(v::Vector{<:Container}, i::Int64, y::Int64, h::Int64)
     return v[i][y,h]
+end
+function Base.getindex(v::Vector{<:Container}, i::Int64, y::Int64)
+    return v[i][y,(:)]
 end
 
 ###############################################################################

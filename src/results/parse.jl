@@ -70,6 +70,35 @@ function value_or_shadow_price(v::Number, obj_scalar)
 end
 export value_or_shadow_price
 
+"""
+    get_shadow_price_as_ByYear(data, cons_name::Symbol) -> 
+
+Returns a ByYear Container of the shadow price of a constraint. The shadow price is set to 0 for years where there is no constraint. 
+"""
+function get_shadow_price_as_ByYear(data, cons_name::Symbol)
+    years = Symbol.(get_years(data))
+    shadow_prc = get_raw_result(data, cons_name)
+
+    # set the shadow prices in array form with all sim years, set to 0 if no shadow price in that year
+    if typeof(shadow_prc) <: JuMP.Containers.DenseAxisArray #DenseAxisArray and SparseAxisArray are container types for JuMP (not E4ST Containers) and need to be accessed in different ways
+        # get the years where the shadow price has a value
+        cons_years = (axes(shadow_prc)[1])
+        # set values 
+        shadow_prc_array  = [year in cons_years ? shadow_prc[year] : 0 for year in years]
+    elseif typeof(shadow_prc) <: JuMP.Containers.SparseAxisArray
+        shadow_prc_array = []
+        for year_idx in 1:length(years)
+            # check if shadow_prc has the year and then set value
+            haskey(shadow_prc, year_idx) ? push!(shadow_prc_array, shadow_prc[year_idx]) : push!(shadow_prc_array, 0)
+        end
+    else 
+        @error "shadow_prc is not a DenseAxisArray or SparseAxisArray and so the sim years are not tied to the shadow price. No way of mapping shadow price to years currently defined"
+        # If you are getting this error, go and look at the JuMP documentation for Containers (different then E4ST Constainers). There is currently no option written for shadow prices that are Arrays but there could be. 
+    end
+
+    return ByYear(shadow_prc_array)
+end
+export get_shadow_price_as_ByYear
 
 @doc raw"""
     parse_power_results!(config, data, res_raw)
@@ -83,7 +112,7 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | :bus | :pflow | MWFlow | Average power flowing out of this bus |
 | :bus | :eflow | MWhFlow | Electricity flowing out of this bus |
 | :bus | :pflow_in | MWFlow | Average power flowing into this bus |
-| :bus | :eflowin | MWhFlow | Electricity flowing out of this bus |
+| :bus | :eflow_in | MWhFlow | Electricity flowing out of this bus |
 | :bus | :pflow_out | MWFlow | Average power flowing into this bus |
 | :bus | :eflow_out | MWhFlow | Electricity flowing out of this bus |
 | :bus | :plserv | MWServed | Average power served at this bus |
@@ -93,17 +122,30 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | :bus | :elnom  | MWhLoad | Electricity load at this bus for the weighted representative hour |
 | :gen | :pgen | MWGenerated | Average power generated at this generator |
 | :gen | :egen | MWhGenerated | Electricity generated at this generator for the weighted representative hour |
-| :gen | :pcap | MWCapacity | Power capacity of this generator generated at this generator for the weighted representative hour |
+| :gen | :pcap | MWCapacity | Power generation capacity of this generator generated at this generator for the weighted representative hour |
+| :gen | :ecap | MWhCapacity | Total energy generation capacity of this generator generated at this generator for the weighted representative hour |
+| :gen | :pcap_retired | MWCapacity | Power generation capacity that was retired in each year |
+| :gen | :pcap_built | MWCapacity | Power generation capacity that was built in each year |
+| :gen | :pcap_inv_sim | MWCapacity | Total power generation capacity that was invested for the generator during the sim.  (single value).  Still the same even after retirement |
+| :gen | :ecap_inv_sim | MWhCapacity | Total annual power generation energy capacity that was invested for the generator during the sim.  (pcap_inv_sim * hours per year) (single value).  Still the same even after retirement |
 | :gen | :cf | MWhGeneratedPerMWhCapacity | Capacity Factor, or average power generation/power generation capacity, 0 when no generation |
 | :branch | :pflow | MWFlow | Average Power flowing through branch |
 | :branch | :eflow | MWFlow | Total energy flowing through branch for the representative hour |
 """
 function parse_power_results!(config, data)
     res_raw = get_raw_results(data)
+    nyr = get_num_years(data)
+    nhr = get_num_hours(data)
+    gen = get_table(data, :gen)
+    hours_per_year = sum(get_hour_weights(data))
+
 
     pgen_gen = res_raw[:pgen_gen]::Array{Float64, 3}
     egen_gen = res_raw[:egen_gen]::Array{Float64, 3}
     pcap_gen = res_raw[:pcap_gen]::Array{Float64, 2}
+
+    pcap_gen_inv_sim = res_raw[:pcap_gen_inv_sim]
+    ecap_gen_inv_sim = pcap_gen_inv_sim .* hours_per_year
 
     pflow_branch = res_raw[:pflow_branch]::Array{Float64, 3}
     
@@ -114,6 +156,7 @@ function parse_power_results!(config, data)
 
     # Weight things by hour as needed
     egen_bus = weight_hourly(data, pgen_bus)
+    ecap_gen = weight_hourly(data, repeat(pcap_gen, 1,1,nhr))
     elserv_bus = weight_hourly(data, plserv_bus)
     elcurt_bus = weight_hourly(data, plcurt_bus)
     elnom_bus = weight_hourly(data, get_table_col(data, :bus, :plnom))
@@ -129,6 +172,21 @@ function parse_power_results!(config, data)
     # Create new things as needed
     cf = pgen_gen ./ pcap_gen
     replace!(cf, NaN=>0.0)
+
+    # Create capacity retired and added
+    pcap_built = similar(pcap_gen)
+    pcap_retired = similar(pcap_gen)
+    gen = get_table(data, :gen)
+    pcap0 = gen.pcap0::Vector{Float64}
+    pcap_retired[:, 1] .= max.(pcap0 .- view(pcap_gen, :, 1), 0.0)
+    pcap_built[:, 1]   .= max.(view(pcap_gen, :, 1) .- pcap0, 0.0)
+    for yr_idx in 2:nyr
+        pcap_prev = view(pcap_gen, :, yr_idx-1)
+        pcap_cur  = view(pcap_gen, :, yr_idx)
+        pcap_retired[:, yr_idx] .= max.( pcap_prev .- pcap_cur, 0.0)
+        pcap_built[:, yr_idx]   .= max.( pcap_cur .- pcap_prev, 0.0)
+    end
+
 
     # Add things to the bus table
     add_table_col!(data, :bus, :pgen,  pgen_bus,  MWGenerated,"Average Power Generated at this bus")
@@ -149,6 +207,11 @@ function parse_power_results!(config, data)
     add_table_col!(data, :gen, :pgen,  pgen_gen,  MWGenerated,"Average power generated at this generator")
     add_table_col!(data, :gen, :egen,  egen_gen,  MWhGenerated,"Electricity generated at this generator for the weighted representative hour")
     add_table_col!(data, :gen, :pcap,  pcap_gen,  MWCapacity,"Power capacity of this generator generated at this generator for the weighted representative hour")
+    add_table_col!(data, :gen, :ecap,  ecap_gen,  MWhCapacity,"Electricity generation capacity of this generator generated at this generator for the weighted representative hour")
+    add_table_col!(data, :gen, :pcap_retired, pcap_retired, MWCapacity, "Power generation capacity that was retired in each year")
+    add_table_col!(data, :gen, :pcap_built,   pcap_built,   MWCapacity, "Power generation capacity that was built in each year")
+    add_table_col!(data, :gen, :pcap_inv_sim, pcap_gen_inv_sim, MWCapacity, "Total power generation capacity that was invested for the generator during the sim.  (single value).  Still the same even after retirement")
+    add_table_col!(data, :gen, :ecap_inv_sim, ecap_gen_inv_sim, MWhCapacity, "Total annual power generation energy capacity that was invested for the generator during the sim. (pcap_inv_sim * hours per year) (single value).  Still the same even after retirement")
     add_table_col!(data, :gen, :cf,    cf,        MWhGeneratedPerMWhCapacity, "Capacity Factor, or average power generation/power generation capacity, 0 when no generation")
 
     # Add things to the branch table
@@ -181,6 +244,12 @@ function parse_lmp_results!(config, data)
     # Add the LMP's to the results and to the bus table
     res_raw[:lmp_elserv_bus] = lmp_elserv
     add_table_col!(data, :bus, :lmp_elserv, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
+
+    # Add lmp to generators
+    gen = get_table(data, :gen)
+    lmp_bus = get_table_col(data, :bus, :lmp_elserv)
+    lmp_gen = lmp_bus[gen.bus_idx]
+    add_table_col!(data, :gen, :lmp_egen, lmp_gen, DollarsPerMWhServed, "Locational Marginal Price of Energy Served")
 
     # # Get the shadow price of the positive and negative branch power flow constraints ($/(MW incremental transmission))      
     # cons_branch_pflow_neg = res_raw[:cons_branch_pflow_neg]::Containers.SparseAxisArray{Float64, 3, Tuple{Int64, Int64, Int64}}
@@ -215,6 +284,10 @@ function save_updated_gen_table(config, data)
 
     # Update pcap0 to be the last value of pcap
     gen_tmp.pcap0 = last.(gen.pcap)
+    gen_tmp.pcap_inv = map(eachrow(gen)) do row
+        row.build_status == "new" || return row.pcap_inv
+        return row.pcap_inv_sim
+    end
 
     # Filter anything with capacity below the threshold
     thresh = config[:pcap_retirement_threshold]
@@ -239,8 +312,8 @@ export save_updated_gen_table
 
 Change the build_status of generators built in the simulation.
 * `unbuilt -> new` if `last(pcap)` is above threshold
-* `built -> retired_exog` if retired due to surpassing `year_off`
-* `built -> retired_endog` if retired due before `year_off`
+* `built -> retired_exog` if retired due to surpassing `year_shutdown`
+* `built -> retired_endog` if retired due before `year_shutdown`
 """
 function update_build_status!(config, data, table_name)
     years = get_years(data)
@@ -258,8 +331,10 @@ function update_build_status!(config, data, table_name)
             yr_idx_ret = findfirst(<(thresh), row.pcap)
             isnothing(yr_idx_ret) && continue
 
+            row.year_off = years[yr_idx_ret]
+
             # Check to see if we retired because of being >= year_off
-            if years[yr_idx_ret] >= row.year_off
+            if years[yr_idx_ret] >= row.year_shutdown
                 row.build_status = "retired_exog"
             else
                 row.build_status = "retired_endog"

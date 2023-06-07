@@ -46,6 +46,9 @@ function read_data!(config, data)
     setup_data!(config, data)  
     modify_setup_data!(config, data)
 
+    setup_results_formulas!(config, data)
+    setup_welfare!(config, data)
+
     # Save the data to file as specified.
     if get(config, :save_data, true)
         serialize(get_out_path(config, "data.jls"), data)
@@ -426,6 +429,8 @@ function setup_table!(config, data, ::Val{:gen})
 
     # Set the pcap_max to be equal to pcap0 for built generators
     gen.pcap_max = map(row->isbuilt(row) ? row.pcap0 : row.pcap_max, eachrow(gen))
+    gen.pcap0 = map(row->isbuilt(row) ? row.pcap0 : 0.0, eachrow(gen))
+
 
     ### Create new gens and add to the gen table
     if haskey(config, :build_gen_file) 
@@ -433,15 +438,25 @@ function setup_table!(config, data, ::Val{:gen})
     end  
 
     ### Create capex_obj (the capex used in the optimization/objective function)
-    # set to capex for unbuilt generators in the year_on
+    # set to capex for unbuilt generators in and after the year_on
     # set to 0 for already built capacity because capacity expansion isn't considered for existing generators
     capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
     for idx_g in 1:nrow(gen)
         g = gen[idx_g,:]
-        g_capex_obj = [(g.build_status=="unbuilt")* g.capex*(g.year_on==year) for year in get_years(data)]
-        capex_obj[idx_g] = ByYear(g_capex_obj) 
+        g.build_status == "unbuilt" || continue
+        g_capex_obj = [g.capex * (year >= g.year_on && year < add_to_year(g.year_on, g.econ_life)) for year in get_years(data)]
+        # g_capex_obj = [g.capex * (year == g.year_on) for year in get_years(data)]
+        capex_obj[idx_g] = ByYear(g_capex_obj)
     end
     add_table_col!(data, :gen, :capex_obj, capex_obj, DollarsPerMWBuiltCapacity, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
+
+    # capex_econ = Container[ByNothing(0.0) for i in 1:nrow(gen)]
+    # for idx_g in 1:nrow(gen)
+    #     g = gen[idx_g,:]
+    #     g_capex = [g.capex * (year >= g.year_on && year < g.year_off) for year in get_years(data)] # Possibly change this to be based on economic lifetime
+    #     capex_econ[idx_g] = ByYear(g_capex)
+    # end
+    # add_table_col!(data, :gen, :capex_econ, capex_econ, DollarsPerMWBuiltCapacity, "Hourly capital expenditures to be paid between year_on and year_off")
 
     
     ### Add age column as by ByYear based on year_on
@@ -649,16 +664,19 @@ function summarize_table(::Val{:gen})
         (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
         (:build_id, AbstractString, NA, true, "Identifier of the build row.  For pre-existing generators not specified in the build file, this is usually left empty"),
         (:year_on, YearString, Year, true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
-        (:year_off, YearString, Year, true, "The first year that the generator is no longer operating."),
+        (:econ_life, Float64, NumYears, true, "The number of years in the economic lifetime of the generator."),
+        (:year_off, YearString, Year, true, "The first year that the generator is no longer operating in the simulation, computed from the simulation.  Leave as y9999 if an existing generator that has not been retired in the simulation yet."),
+        (:year_shutdown, YearString, Year, true, "The forced (exogenous) shutdown year for the generator.  Often equal to the year_on plus the econ_life"),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses"),
         (:gentype, String, NA, true, "The generation technology type that the generator uses"),
-        (:pcap0, Float64, MWCapacity, true, "Starting nameplate power generation capacity for the generator"),
+        (:pcap_inv, Float64, MWCapacity, true, "Original invested nameplate power generation capacity for the generator.  This is the original invested capacity of exogenously built generators (even if there have been retirements ), and the original invested capacity in year_on for endogenously built generators."),
+        (:pcap0, Float64, MWCapacity, true, "Nameplate power generation capacity for the generator at the start of the simulation"),
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power generation capacity of the generator"),
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
         (:fuel_price, Float64, DollarsPerMMBtu, false, "Fuel cost per MMBtu of fuel used.  `heat_rate` column also necessary when supplying `fuel_price`"),
         (:heat_rate, Float64, MMBtuPerMWhGenerated, false, "Heat rate,  or MMBtu of fuel consumed per MWh electricity generated (0 for generators that don't use combustion)"),
-        (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
+        (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
         (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible.  Set to zero by default."),
         (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
@@ -756,12 +774,13 @@ function summarize_table(::Val{:build_gen})
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power generation capacity of the generator"),
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
         (:fuel_price, Float64, DollarsPerMMBtu, false, "Fuel cost per MMBtu of fuel used.  `heat_rate` column also necessary when supplying `fuel_price`"),
-        (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
+        (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
         (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
         (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible.  Set to zero by default."),
         (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
         (:year_on, YearString, Year, true, "The first year of operation for the generator. (For new gens this is also the year it was built). Endogenous unbuilt generators will be left blank"),
-        (:age_off, Float64, NumYears, true, "The age at which the generator is no longer operating.  I.e. if `year_on` = `y2030` and `age_off` = `20`, then capacity will be 0 in `y2040`."),
+        (:econ_life, Float64, NumYears, true, "The number of years in the economic lifetime of the generator."),
+        (:age_shutdown, Float64, NumYears, true, "The age at which the generator is no longer operating.  I.e. if `year_on` = `y2030` and `age_shutdown` = `20`, then capacity will be 0 in `y2040`."),
         (:year_on_min, YearString, Year, true, "The first year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
         (:year_on_max, YearString, Year, true, "The last year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
         (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The CO2 emission rate of the generator, in short tons per MWh generated.  This is the net emissions. (i.e. not including captured CO2 that gets captured)"),
@@ -957,6 +976,8 @@ export get_table_num
 """
     get_num(data, variable_name, yr_idx, hr_idx) -> num::Float64
 
+    get_num(table, col_name, row_idx, yr_idx, hr_idx) -> num::Float64
+
 Retrieves a `Float64` from `data[variable_name]`, indexing by year and hour.  Works for [`Container`](@ref)s and `Number`s.
 
 Related functions:
@@ -967,6 +988,10 @@ Related functions:
 function get_num(data, variable_name::Symbol, yr_idx, hr_idx)
     c = data[variable_name]
     return c[yr_idx, hr_idx]::Float64
+end
+function get_num(table::DataFrame, col_name::Symbol, row_idx::Int64, yr_idx::Int64, hr_idx)
+    container = table[row_idx, col_name]
+    return container[yr_idx, hr_idx]::Float64
 end
 export get_num
 

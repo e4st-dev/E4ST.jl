@@ -13,6 +13,7 @@ function setup_dcopf!(config, data, model)
     bus = get_table(data, :bus)
     years = get_years(data)
     rep_hours = get_table(data, :hours) # weight of representative time chunks (hours) 
+    hours_per_year = sum(get_hour_weights(data))
     gen = get_table(data, :gen)
     branch = get_table(data, :branch)
     nbus = nrow(bus)
@@ -148,12 +149,24 @@ function setup_dcopf!(config, data, model)
     add_obj_term!(data, model, PerMWhGen(), :vom, oper = +)
 
     # Only add fuel cost if included and non-zero.
-    if hasproperty(gen, :fuel_price) && any(gen.fuel_price[yr_idx, hr_idx] != 0 for yr_idx in 1:nyear, hr_idx in 1:nhour)
+    if hasproperty(gen, :fuel_price) && anyany(!=(0), gen.fuel_price)
         add_obj_term!(data, model, PerMMBtu(), :fuel_price, oper = +)
     end
 
     add_obj_term!(data, model, PerMWCap(), :fom, oper = +)
-    add_obj_term!(data, model, PerMWCap(), :capex_obj, oper = +) 
+
+    @expression(model,
+        pcap_gen_inv_sim[gen_idx in axes(gen,1)],
+        begin
+            gen.build_status[gen_idx] == "unbuilt" || return 0.0
+            year_on = gen.year_on[gen_idx]
+            year_on > last(years) && return 0.0
+            yr_idx_on = findfirst(>=(year_on), years)
+            return pcap_gen[gen_idx, yr_idx_on]
+        end
+    )
+
+    add_obj_term!(data, model, PerMWCapInv(), :capex_obj, oper = +) 
 
     # Curtailment Cost
     add_obj_term!(data, model, PerMWhCurtailed(), :curtailment_cost, oper = +)
@@ -227,26 +240,6 @@ export get_pflow_branch
 
 
 ### Contraint/Expression Info Functions
-
-"""
-    get_cf_min(data, model, gen_idx, year_idx, hour_idx)
-
-Returns min power generation for a generator at a time. 
-Default is 0 unless specified by the optional gen property `cf_min` (minimum capacity factor).
-""" 
-function get_cf_min(data, model, gen_idx, year_idx, hour_idx) 
-    gen = get_table(data, :gen)
-    if hasproperty(gen, :cf_min)
-        pcap = model[:pcap_gen][gen_idx, year_idx]
-        cf_min = get_table_num(data, :gen, :cf_min, gen_idx, year_idx, hour_idx)
-        isnan(cf_min) && return 0.0
-        return pcap .* cf_min 
-    else
-        return 0.0
-    end
-end
-export get_cf_min
-
 """
     get_cf_max(data, gen_idx, year_idx, hour_idx)
 
@@ -358,16 +351,39 @@ function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper)
     gen = get_table(data, :gen)
     years = get_years(data)
     hours_per_year = sum(get_hour_weights(data))
+    pcap_gen = model[:pcap_gen]
 
     model[s] = @expression(model, 
         [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
         get_table_num(data, :gen, s, gen_idx, year_idx, :) .* 
-        model[:pcap_gen][gen_idx, year_idx] *
+        pcap_gen[gen_idx, year_idx] *
         hours_per_year
     )
 
     # add or subtract the expression from the objective function
     add_obj_exp!(data, model, PerMWCap(), s; oper = oper) 
+    
+end
+
+function add_obj_term!(data, model, ::PerMWCapInv, s::Symbol; oper) 
+    #Check if s has already been added to obj
+    Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
+    
+    #write expression for the term
+    gen = get_table(data, :gen)
+    years = get_years(data)
+    hours_per_year = sum(get_hour_weights(data))
+    pcap_gen_inv_sim = model[:pcap_gen_inv_sim]
+
+    model[s] = @expression(model, 
+        [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
+        get_table_num(data, :gen, s, gen_idx, year_idx, :) .* 
+        pcap_gen_inv_sim[gen_idx] *
+        hours_per_year
+    )
+
+    # add or subtract the expression from the objective function
+    add_obj_exp!(data, model, PerMWCapInv(), s; oper = oper) 
     
 end
 
@@ -417,7 +433,3 @@ end
 
 export add_obj_term!
 export add_obj_exp!
-export Term
-export PerMWCap
-export PerMWhGen
-export PerMWhCurtailed
