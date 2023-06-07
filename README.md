@@ -9,7 +9,7 @@
 This is the Julia rewrite of the Engineering, Economic, and Environmental Electricity Simulation Tool (E4ST).  The MATLAB-based model built on top of MATPOWER can be found [here](https://github.com/e4st-dev/e4st-mp).  
 
 > **Warning**
-> As with most models, quality of analysis using E4ST.jl is heavily dependent on the inputs and assumptions.  For this reason, the E4ST team at RFF does not implicitly endorse all analysis done using E4ST.jl.
+> As with most models, quality of analysis using E4ST.jl is heavily dependent on the inputs and assumptions.  For this reason, the E4ST team at RFF does not implicitly endorse all analysis done using E4ST.jl. If you have questions about the model inputs and assumptions used for our work at RFF, please contact us.
 
 # Installation
 
