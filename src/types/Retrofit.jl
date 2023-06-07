@@ -152,17 +152,19 @@ function modify_model!(ret::Retrofit, config, data, model)
     )
 
     # Remove noadd constraints before retrofit
-    cons = model[:cons_pcap_gen_noadd]
-    for gen_idx in 1:nrow(gen)
-        row = gen[gen_idx, :]
+    if haskey(model, :cons_pcap_gen_noadd)
+        cons = model[:cons_pcap_gen_noadd]
+        for gen_idx in 1:nrow(gen)
+            row = gen[gen_idx, :]
 
-        # Check to see if this is a retrofit generator
-        isempty(row.year_retrofit) && continue
-        retro_yr_idx = findfirst(==(row.year_retrofit), years)
-        retro_yr_idx === nothing && continue # Must be a previously retrofit generator, no need to remove constraints
+            # Check to see if this is a retrofit generator
+            isempty(row.year_retrofit) && continue
+            retro_yr_idx = findfirst(==(row.year_retrofit), years)
+            retro_yr_idx === nothing && continue # Must be a previously retrofit generator, no need to remove constraints
 
-        for yr_idx in 1:(retro_yr_idx-1)
-            delete(model, cons[gen_idx, yr_idx])
+            for yr_idx in 1:(retro_yr_idx-1)
+                delete(model, cons[gen_idx, yr_idx])
+            end
         end
     end
 
