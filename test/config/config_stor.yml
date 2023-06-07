@@ -7,4 +7,8 @@ mods:
     type: YearlyTable
     table_name: storage
     groupby: state
-    
+  example_storage_itc:
+    type: "ITCStorage"
+    values:
+      y2035: 0.7
+      y2040: 0.6
