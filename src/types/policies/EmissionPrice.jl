@@ -57,7 +57,9 @@ end
 """
 function E4ST.modify_results!(pol::EmissionPrice, config, data)
     # policy cost, price per mwh * generation
-    add_results_formula!(data, :gen, Symbol("$(pol.name)_cost"), "SumHourly($(pol.name), egen)", Dollars, "The cost of $(pol.name)")
+    cost_name = Symbol("$(pol.name)_cost")
+    add_results_formula!(data, :gen, cost_name, "SumHourly($(pol.name), egen)", Dollars, "The cost of $(pol.name)")
+    add_to_results_formula!(data, :gen, :emission_cost, cost_name)
 
     #add_results_formula!(data, :gen, Symbol("$(pol.name)_qual_gen"), "SumHourly($(pol.name),egen)", Dollars, "The cost of $(pol.name)")
 end

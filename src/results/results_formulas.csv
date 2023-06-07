@@ -53,9 +53,13 @@ gen,production_cost,variable_cost + fixed_cost,Dollars,"Cost of production, incl
 gen,production_cost_per_mwh,production_cost / egen_total,DollarsPerMWhGenerated,"Average cost of production for a MWh of power, including variable and fixed costs"
 gen,net_production_cost,net_variable_cost + net_fixed_cost,Dollars,"Net cost of production, including fixed and variable costs minus investment and production subsidies"
 gen,net_production_cost_per_mwh,net_production_cost / egen_total,DollarsPerMWhGenerated,"Average net cost of producing a MWh of power, including fixed and variable costs minus investment and production subsidies"
-gen,gs_cost,0,Dollars,Cost for generators to buy credits from generation standards
+gen,gs_cost,0,Dollars,Cost for load serving entities to buy credits from generators  for all generation standards
 gen,gs_cost_per_mwh,gs_cost / egen_total,DollarsPerMWhGenerated,"Average cost from generation standards, per MWh"
-gen,pol_cost,gs_cost - invest_subsidy - production_subsidy,Dollars,Cost for all generators from all policy types.
+gen,emission_cap_cost,0,Dollars,Cost for paying for allowances for all emissions caps.
+gen,emission_cap_cost_per_mwh,emission_cap_cost / egen_total,DollarsPerMWhGenerated,"Average cost, per MWh, for paying for allowances from all emission caps"
+gen,emission_cost,0,Dollars,Cost for paying all emissions prices.
+gen,emission_cost_per_mwh,emission_cost / egen_total,DollarsPerMWhGenerated,"Average cost, per MWh, for paying emission prices"
+gen,pol_cost,-gs_cost - invest_subsidy - production_subsidy,Dollars,Cost for all generators from all policy types.
 gen,pol_cost_per_mwh,pol_cost / egen_total,DollarsPerMWhGenerated,"Average cost for all generators from all policy types, per MWh."
 gen,government_revenue,-invest_subsidy - production_subsidy,Dollars,Government revenue earned from generators
 gen,going_forward_cost,production_cost - pol_cost,Dollars,Total going forward cost
