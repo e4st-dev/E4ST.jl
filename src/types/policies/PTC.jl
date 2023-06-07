@@ -38,11 +38,17 @@ function E4ST.modify_setup_data!(pol::PTC, config, data)
         "Production tax credit value for $(pol.name)")
 
     # if gen_age_min or _max isn't set to default, then create capex_adj
-    (pol.gen_age_min != 0 || pol.gen_age_max != 9999)  && add_table_col!(data, :gen, Symbol("$(pol.name)_capex_adj"), Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWBuiltCapacity, 
-    "Adjustment factor added to the obj function as a PerMWCapInv term to account for PTC payments that do not continue through the entire econ lifetime of a generator.")
+    if (pol.gen_age_min != 0 || pol.gen_age_max != 9999)  
+        # warn if trying to specify more than one unique PTC value, model isn't currently set up to handle variable PTC 
+        # note: >2 used here for PTC value and 0
+        length(unique(pol.values)) > 2 && @warn "The current E4ST PTC mod isn't formulated correctly for both a variable PTC value (ie. 2020: 12, 2025: 15) and gen_age filters, please only specify a single PTC value"
 
+        add_table_col!(data, :gen, Symbol("$(pol.name)_capex_adj"), Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWBuiltCapacity, 
+        "Adjustment factor added to the obj function as a PerMWCapInv term to account for PTC payments that do not continue through the entire econ lifetime of a generator.")
+    end
     #update column for gen_idx 
     credit_yearly = [get(pol.values, Symbol(year), 0.0) for year in years] #values for the years in the sim
+
     for gen_idx in gen_idxs
         # update pol.name column with PTC credit value 
         g = gen[gen_idx, :]
@@ -51,7 +57,7 @@ function E4ST.modify_setup_data!(pol::PTC, config, data)
         g[pol.name] = ByYear(vals_tmp)
 
         # add capex adjustment term to the the pol.name _capex_adj column
-        if (pol.gen_age_min != 0 || pol.gen_age_max != 9999)  
+        if (pol.gen_age_min != 0 || pol.gen_age_max != 9999)
             adj_term = get_ptc_capex_adj(pol, g, config)
             g[Symbol("$(pol.name)_capex_adj")] = adj_term
         end
@@ -92,6 +98,11 @@ function get_ptc_capex_adj(pol::PTC, g::DataFrameRow, config)
     e = g.econ_life::Float64
     age_max = pol.gen_age_max::Float64
     age_min = pol.gen_age_min::Float64
+
+    # determine whether capex needs to be adjusted, basically determining whether the span of age_min to age_max happens in the econ life
+    age_min >= e && return ByNothing(0.0) # will receive no PTC naturally so no need to adjust capex
+    age_max > e && (age_max = e) # only need to adjust for the PTC received in the econ lifetime
+    (age_max - age_min >= e) && return ByNothing(0.0) # no need to adjust capex if reveiving PTC for entire econ life
 
     #hasproperty(g, :cf_hist) ? (cf = g.cf_hist) : @error "The gen and build_gen tables must have the column cf_hist in order to model PTCs with age filters."
     cf = get(g, :cf_hist) do
