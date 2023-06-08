@@ -67,13 +67,15 @@ function modify_setup_data!(ret::Retrofit, config, data)
         row = gen[gen_idx, :]
         row.build_status == "built" || continue
         can_retrofit(ret, row) || continue
-        newgen = get_retrofit(ret, row)
 
         # Add a retrofit candidate for each year
         for yr_idx in 1:nyr
+            r_dict = Dict(pairs(row))
             # Set year_retrofit
             year = years[yr_idx]
-            newgen[:year_retrofit] = year
+            r_dict[:year_retrofit] = year
+
+            newgen = get_retrofit(ret, r_dict)
             
             # Set capex_obj
             v = zeros(nyr)
@@ -125,9 +127,9 @@ function modify_model!(ret::Retrofit, config, data, model)
     for gen_idx in keys(retrofits)
         ret_idxs = retrofits[gen_idx]
         for yr_idx in 1:nyr
-            set_lower_bound(pcap_gen[gen_idx, yr_idx], 0.0)
+            ~is_fixed(pcap_gen[gen_idx, yr_idx]) && set_lower_bound(pcap_gen[gen_idx, yr_idx], 0.0)
             for ret_idx in ret_idxs
-                set_lower_bound(pcap_gen[ret_idx, yr_idx], 0.0)
+                ~is_fixed(pcap_gen[ret_idx, yr_idx]) && set_lower_bound(pcap_gen[ret_idx, yr_idx], 0.0) 
             end
         end
     end

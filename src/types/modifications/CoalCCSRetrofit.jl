@@ -23,6 +23,7 @@ Base.@kwdef struct CoalCCSRetrofit <: Retrofit
     reduce_nox_percent::Float64 = 0.5
     reduce_so2_percent::Float64 = 1.0
     reduce_pm25_percent::Float64 = 0.35
+    econ_life::Float64 = 12.0
 end
 
 export CoalCCSRetrofit
@@ -46,9 +47,9 @@ end
 
 function get_retrofit(ret::CoalCCSRetrofit, row)
     newgen = Dict(pairs(row))
-    hr = row.heat_rate
+    hr = row[:heat_rate]
 
-    pcap_avg = row.pcap_plant_avg # Could give lower/upper bounds
+    pcap_avg = row[:pcap_plant_avg] # Could give lower/upper bounds
     
     # Calculate the heat rate penalty
     hr_pen = 0.89774 + -0.002513148 * pcap_avg + 0.0000012907 * pcap_avg.^2 + 0.05 * hr;
@@ -81,6 +82,11 @@ function get_retrofit(ret::CoalCCSRetrofit, row)
     newgen[:pcap0] = 0
 
     newgen[:gentype] = "coal_ccus_retrofit"
+
+    newgen[:econ_life] = ret.econ_life
+    # if year_shutdown is within new econ_life, extend to the end of the new econ life
+    ret_shutdown_year = year2float(newgen[:year_retrofit]) + ret.econ_life
+    year2float(newgen[:year_shutdown]) < ret_shutdown_year && (newgen[:year_shutdown] = year2str(ret_shutdown_year))
 
     return newgen
 end
