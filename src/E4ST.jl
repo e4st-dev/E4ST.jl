@@ -66,6 +66,7 @@ include("types/modifications/InterfaceLimit.jl")
 
 # Include Policies
 include("types/policies/ITC.jl")
+include("types/policies/ITCStorage.jl")
 include("types/policies/PTC.jl")
 include("types/policies/RPS.jl")
 include("types/policies/CES.jl")

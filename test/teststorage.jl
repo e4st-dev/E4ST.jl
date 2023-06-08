@@ -41,4 +41,6 @@
     @test compute_result(data, :storage, :eloss_total) ≈ compute_result(data, :storage, :echarge_total) - compute_result(data, :storage, :edischarge_total)
 
     @test isfile(get_out_path(config, "storage.csv"))
+
+    @test compute_result(data, :storage, :example_storage_itc_cost_obj) > 0.0
 end

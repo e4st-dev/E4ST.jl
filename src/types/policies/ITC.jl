@@ -7,13 +7,13 @@ Investment Tax Credit - A tax incentive that is a percentage of capital cost giv
 # Keyword Arguments
 
 * `name`: policy name
-* `values`: the credit level, stored as an OrderedDict with year and value `(:y2020=>0.3)`
+* `values`: the credit level, stored as an OrderedDict with year and value `(:y2020=>0.3)`.  Credit level refers to the percentage of the capex that will be rebated to the investor
 * `gen_filters`: filters for qualifying generators, stored as an OrderedDict with gen table columns and values (`:emis_co2=>"<=0.1"` for co2 emission rate less than or equal to 0.1)
 """
 Base.@kwdef struct ITC <: Policy
     name::Symbol
     values::OrderedDict
-    gen_filters::OrderedDict
+    gen_filters::OrderedDict = OrderedDict{Symbol, Any}()
 end
 export ITC
 
@@ -37,7 +37,6 @@ function E4ST.modify_setup_data!(pol::ITC, config, data)
         "Investment tax credit value for $(pol.name)")
 
     #update column for gen_idx 
-    #TODO: do we want the ITC value to apply to all years within econ life? Will get multiplied by capex_obj so will only be non zero for year_on but maybe for accounting? 
     credit_yearly = [get(pol.values, Symbol(year), 0.0) for year in years] #values for the years in the sim
 
     for gen_idx in gen_idxs

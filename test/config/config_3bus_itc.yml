@@ -7,4 +7,3 @@ mods:
       y2040: 0.6
     gen_filters:
       emis_co2: "<= 0.1"
-    
