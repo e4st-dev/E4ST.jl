@@ -40,7 +40,7 @@ function filter_results_formulas!(data)
                 return isvalid
             else
                 table = get_table(data, table_name)
-                invalid_cols = filter(col->!hasproperty(table, col), dependent_columns)
+                invalid_cols = filter(col->!hasproperty(table, col) && !haskey(data, col), dependent_columns)
                 isvalid = isempty(invalid_cols)
                 isvalid || @warn "Result $result_name for table $table_name cannot be computed because table does not have columns:\n  $invalid_cols"
                 return isvalid
@@ -588,14 +588,16 @@ end
 
 
 """
-    CostOfServiceRebate() <: Function
+    CostOfServiceRebate(table_name) <: Function
 
-This is a special function that computes the sum of the net total revenue times the regulatory factor `reg_factor`.  This only works for the gen table.
+This is a special function that computes the sum of the net total revenue times the regulatory factor `reg_factor`.  This only works for the gen table and storage table.
 """
-struct CostOfServiceRebate <: Function end
-function (::CostOfServiceRebate)(data, table, idxs, yr_idxs, hr_idxs)
+struct CostOfServiceRebate <: Function
+    table_name::Symbol
+end
+function (f::CostOfServiceRebate)(data, table, idxs, yr_idxs, hr_idxs)
     reg_factor = table.reg_factor
-    return sum0(reg_factor[i] * compute_result(data, :gen, :net_total_revenue_prelim, i, yr_idxs, hr_idxs) for i in idxs)
+    return sum0(reg_factor[i] * compute_result(data, f.table_name, :net_total_revenue_prelim, i, yr_idxs, hr_idxs) for i in idxs)
 end
 export CostOfServiceRebate
 

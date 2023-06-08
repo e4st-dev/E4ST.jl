@@ -458,6 +458,9 @@ function modify_results!(mod::Storage, config, data)
 
     echarge_stor = weight_hourly(data, pcharge_stor)
     edischarge_stor = weight_hourly(data, pdischarge_stor)
+    lmp_bus = get_table_col(data, :bus, :lmp_elserv)
+    bus_idxs = storage.bus_idx::Vector{Int64}
+    lmp_stor = [lmp_bus[i] for i in bus_idxs]
 
     add_table_col!(data, :storage, :pcap, pcap_stor, MWCapacity, "Power Discharge capacity of the storage device")
     add_table_col!(data, :storage, :pcharge, pcharge_stor, MWCharged, "Rate of charging, in MW")
@@ -466,7 +469,7 @@ function modify_results!(mod::Storage, config, data)
     add_table_col!(data, :storage, :edischarge, edischarge_stor, MWhDischarged, "Energy that was discharged by the storage device")
     add_table_col!(data, :storage, :pcap_inv_sim, pcap_inv_sim, MWCapacity, "Total power discharge capacity that was invested for the generator during the sim.  (single value).  Still the same even after retirement")
     add_table_col!(data, :storage, :ecap_inv_sim, ecap_inv_sim, MWhCapacity, "Total yearly energy discharge capacity that was invested for the generator during the sim. (pcap_inv_sim * hours per year)  (single value).  Still the same even after retirement")
-
+    add_table_col!(data, :storage, :lmp_e, lmp_stor, DollarsPerMWhDischarged, "Locational marginal price of electricity")
 
 
     transform!(storage,
@@ -481,6 +484,53 @@ function modify_results!(mod::Storage, config, data)
     add_results_formula!(data, :storage, :echarge_total, "SumHourly(echarge)", MWhCharged, "Total energy charged")
     add_results_formula!(data, :storage, :edischarge_total, "SumHourly(edischarge)", MWhDischarged, "Total energy discharged")
     add_results_formula!(data, :storage, :eloss_total, "SumHourly(eloss)", MWhLoss, "Total energy loss")
+    
+    # Add electricity cost and revenue
+    add_results_formula!(data, :storage, :electricity_revenue, "SumHourly(lmp_e, edischarge)", Dollars, "Revenue from discharging electricity to the grid")
+    add_results_formula!(data, :storage, :electricity_cost, "SumHourly(lmp_e, echarge)", Dollars, "Cost of electricity to charge the storage units")
+    
+    # Add production costs
+    add_results_formula!(data, :storage, :vom_cost, "SumHourly(vom, edischarge)", Dollars, "Total variable operation and maintenance cost for discharging energy")
+    add_results_formula!(data, :storage, :vom_per_mwh, "vom_cost / edischarge_total", DollarsPerMWhDischarged, "Average variable operation and maintenance cost for discharging 1 MWh of energy")
+    add_results_formula!(data, :storage, :fom_cost, "SumHourlyWeighted(fom, pcap)", Dollars, "Total fixed operation and maintenance cost paid, in dollars")
+    add_results_formula!(data, :storage, :vom_per_mwh, "fom_cost / edischarge_total", DollarsPerMWhDischarged, "Average fixed operation and maintenance cost for discharging 1 MWh of energy")
+    add_results_formula!(data, :storage, :capex_cost, "SumYearly(capex_obj, ecap_inv_sim)", Dollars, "Total annualized capital expenditures paid, in dollars")
+    add_results_formula!(data, :storage, :capex_per_mwh, "capex_cost / edischarge_total", DollarsPerMWhDischarged, "Average capital cost for discharging 1 MWh of energy")
+
+    # Variable costs
+    add_results_formula!(data, :storage, :variable_cost, "vom_cost", Dollars, "Total variable costs for operation, including vom.  One day if storage has fuel, this could include fuel also")
+    add_results_formula!(data, :storage, :variable_cost_per_mwh, "variable_cost / edischarge_total", DollarsPerMWhDischarged, "Average variable costs for operation, including vom, for discharging 1MWh from storage.  One day if storage has fuel, this could include fuel also")
+    add_results_formula!(data, :storage, :production_subsidy, "0", Dollars, "Total production subsidy for storage")
+    add_results_formula!(data, :storage, :production_subsidy_per_mwh, "production_subsidy / edischarge_total", DollarsPerMWhDischarged, "Average production subsidy for discharging 1 MWh from storage")
+    add_results_formula!(data, :storage, :net_variable_cost, "variable_cost - production_subsidy", Dollars, "Net variable costs for storage")
+    add_results_formula!(data, :storage, :net_variable_cost_per_mwh, "net_variable_cost / edischarge_total", DollarsPerMWhDischarged, "Average net variable costs per MWh of discharged energy")
+
+    # Fixed costs
+    add_results_formula!(data, :storage, :fixed_cost, "capex_cost + fom_cost", Dollars, "Total fixed costs including capex and fom costs")
+    add_results_formula!(data, :storage, :fixed_cost_permw_perhr, "fixed_cost / ecap_total", DollarsPerMWCapacityPerHour, "Fixed costs, per MW per hour")
+    add_results_formula!(data, :storage, :invest_subsidy, "0", Dollars, "Investment subsidies to go to the producer")
+    add_results_formula!(data, :storage, :invest_subsidy_permw_perhr, "invest_subsidy / ecap_total", DollarsPerMWCapacityPerHour, "Investment subsidies per MW per hour")
+    add_results_formula!(data, :storage, :net_fixed_cost, "fixed_cost - invest_subsidy", Dollars, "Fixed costs minus investment subsidies")
+    add_results_formula!(data, :storage, :net_fixed_cost_permw_perhr, "net_fixed_cost / ecap_total", DollarsPerMWCapacityPerHour, "Average net fixed cost per MW per hour.")
+
+    # Production costs
+    add_results_formula!(data, :storage, :production_cost, "variable_cost + fixed_cost", Dollars, "Cost of production, includes fixed and variable costs but not energy cost")
+    add_results_formula!(data, :storage, :production_cost_per_mwh, "production_cost / edischarge_total", DollarsPerMWhDischarged, "Average cost of production for a MWh of energy discharge, including variable and fixed costs but not energy cost")
+    add_results_formula!(data, :storage, :net_production_cost, "net_variable_cost + net_fixed_cost", Dollars, "Net cost of production, includes fixed and variable costs and investment and production subsidies, but not energy cost")
+    add_results_formula!(data, :storage, :net_production_cost_per_mwh, "net_production_cost / edischarge_total", DollarsPerMWhDischarged, "Average net cost of discharging 1 MWh of energy")
+    
+    # Policy costs
+    add_results_formula!(data, :storage, :pol_cost, "-invest_subsidy - production_subsidy", Dollars, "Cost from all policy types")
+    add_results_formula!(data, :storage, :pol_cost_per_mwh, "pol_cost / edischarge_total", DollarsPerMWhDischarged, "Average policy cost per MWh of discharged energy")
+    add_results_formula!(data, :storage, :government_revenue, "- invest_subsidy - production_subsidy", Dollars, "Government revenue earned from storage of energy")
+    add_results_formula!(data, :storage, :going_forward_cost, "production_cost + pol_cost", Dollars, "Total cost of production and policies")
+    add_results_formula!(data, :storage, :total_cost_prelim, "going_forward_cost", Dollars, "Total cost of production.  Right now only includes going_forward_cost, but may eventually contain past capex cost")
+    add_results_formula!(data, :storage, :net_total_revenue_prelim, "electricity_revenue - electricity_cost - total_cost_prelim", Dollars, "Preliminary net total revenue, including electricity costs/revenue and total cost, before adjusting for cost-of-service rebates")
+    add_results_formula!(data, :storage, :cost_of_service_rebate, "CostOfServiceRebate(storage)", Dollars, "This is a specially calculated result, which is the sum of net_total_revenue_prelim * reg_factor for each generator")
+    add_results_formula!(data, :storage, :total_cost, "total_cost_prelim + cost_of_service_rebate", Dollars, "The total cost after adjusting for the cost of service")
+    add_results_formula!(data, :storage, :net_total_revenue, "net_total_revenue_prelim - cost_of_service_rebate", Dollars, "Net total revenue after adjusting for the cost-of-service rebate")
+    add_results_formula!(data, :storage, :net_going_forward_revenue, "electricity_revenue - net_variable_cost - cost_of_service_rebate", Dollars, "Net going forward revenue, including electricity revenue minus going forward cost")
+
 
     update_build_status!(config, data, :storage)
 
