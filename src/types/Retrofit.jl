@@ -4,7 +4,7 @@
 
 Abstract supertype for retrofits.  Must implement the following interfaces:
 * (required) [`can_retrofit(ret::Retrofit, gen::DataFrameRow)`](@ref)` -> ::Bool` - returns whether or not a generator row can be retrofitted.
-* (required) [`get_retrofit(ret::Retrofit, gen)`](@ref)` -> newgen::AbstractDict` - returns a new row to be added to the gen table.
+* (required) [`retrofit!(ret::Retrofit, gen)`](@ref)` -> newgen::AbstractDict` - returns a new row to be added to the gen table.
 * (optional) [`init!(ret::Retrofit, config, data)`](@ref) - initialize data with the `Retrofit` by adding any necessary columns to the gen table, etc.  Defaults to do nothing.
 
 The following methods are defined for `Retrofit`, so you do not define any of the ordinary `Modification` methods for any subtype of `Retrofit` - only implement the above interfaces.
@@ -23,12 +23,12 @@ function can_retrofit end
 export can_retrofit
 
 """
-    get_retrofit(ret::Retrofit, row) -> ::AbstractDict
+    retrofit!(ret::Retrofit, newgen) -> ::AbstractDict
 
-Returns a new retrofit based off of `row`, to be added to the gen table.  Note that the `capex` should be included in the retrofitted generator WITHOUT the existing generator's capex.  I.e. capex for the retrofit should be only the capital costs for the retrofit, not including the initial capital costs for building the generator.
+Retrofits `newgen`, a `Dict` containing all the properties of the original generator, but with the `year_retrofit` already updated.  Note that the `capex` should be included in the retrofitted generator WITHOUT the existing generator's capex.  I.e. capex for the retrofit should be only the capital costs for the retrofit, not including the initial capital costs for building the generator.
 """
-function get_retrofit end
-export get_retrofit
+function retrofit! end
+export retrofit!
 
 """
     init!(ret::Retrofit, config, data)
@@ -44,7 +44,7 @@ function init!(ret::Retrofit, config, data) end
 * Makes a `Dict` in `data[:retrofits]` to keep track of the retrofits being produced for each retrofit.
 * Loops through the rows of the `gen` table
     * Checks to see if the can be retrofitted via [`can_retrofit(ret::Retrofit, row)`](@ref)
-    * Constructs the new retrofitted generator via [`get_retrofit(ret::Retrofit, row)`](@ref)
+    * Constructs the new retrofitted generator via [`retrofit!(ret::Retrofit, row)`](@ref)
     * Constructs one new one for each year in the simulation.
 """
 function modify_setup_data!(ret::Retrofit, config, data)
@@ -70,12 +70,12 @@ function modify_setup_data!(ret::Retrofit, config, data)
 
         # Add a retrofit candidate for each year
         for yr_idx in 1:nyr
-            r_dict = Dict(pairs(row))
+            newgen = Dict(pairs(row))
             # Set year_retrofit
             year = years[yr_idx]
-            r_dict[:year_retrofit] = year
+            newgen[:year_retrofit] = year
 
-            newgen = get_retrofit(ret, r_dict)
+            retrofit!(ret, newgen)
             
             # Set capex_obj
             v = zeros(nyr)

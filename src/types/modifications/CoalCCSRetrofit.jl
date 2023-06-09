@@ -10,6 +10,7 @@ Keyword Arguments:
 * `reduce_nox_percent = 0.5` - (between 0 and 1) the percent reduction in NOₓ emissions
 * `reduce_so2_percent = 1.0` - (between 0 and 1) the percent reduction in SO₂ emissions
 * `reduce_pm25_percent = 0.35` - (between 0 and 1) the percent reduction in PM2.5 emissions
+* `econ_life = 12.0` - the assumed economic life of the retrofit.  Moves out the planned year_shutdown to be at the end of the retrofit economic lifetime if year_shutdown is earlier than the end of the econ life.
 
 Other Requirements:
 * The `gen` table must have a `heat_rate` column
@@ -45,11 +46,10 @@ function can_retrofit(ret::CoalCCSRetrofit, row)
     return row.gentype == "coal" 
 end
 
-function get_retrofit(ret::CoalCCSRetrofit, row)
-    newgen = Dict(pairs(row))
-    hr = row[:heat_rate]
+function retrofit!(ret::CoalCCSRetrofit, newgen)
+    hr = newgen[:heat_rate]
 
-    pcap_avg = row[:pcap_plant_avg] # Could give lower/upper bounds
+    pcap_avg = newgen[:pcap_plant_avg] # Could give lower/upper bounds
     
     # Calculate the heat rate penalty
     hr_pen = 0.89774 + -0.002513148 * pcap_avg + 0.0000012907 * pcap_avg.^2 + 0.05 * hr;
