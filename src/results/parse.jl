@@ -301,6 +301,9 @@ export parse_lmp_results!
 Save the `gen` table to `get_out_path(config, "gen.csv")`
 """
 function save_updated_gen_table(config, data)
+    years = get_years(data)
+    year_end = last(years)
+
     gen = get_table(data, :gen)
     original_cols = data[:gen_table_original_cols]
 
@@ -322,9 +325,21 @@ function save_updated_gen_table(config, data)
 
     # Filter anything with capacity below the threshold
     thresh = config[:pcap_retirement_threshold]
-    filter!(:pcap0 => >(thresh), gen_tmp)
+    filter!(gen_tmp) do row
+        # Keep anything above the threshold
+        row.pcap0 > thresh && return true
+        row.pcap_inv <= thresh && return false 
 
-    # Combine generators that are the same
+        row.build_type == "exog" && return false
+
+        # Below the threshold, check to see if we are still within the economic lifetime
+        year_econ_life = add_to_year(row.year_on, row.econ_life)
+        year_econ_life > year_end && return true
+
+        return false
+    end
+
+    # Combine generators that are the same.  This is for things like ccus that get split up.
     gdf = groupby(gen_tmp, Not(:pcap0))
     gen_tmp_combined = combine(gdf,
         :pcap0 => sum => :pcap0

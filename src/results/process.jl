@@ -64,7 +64,14 @@ end
 export process_results!
 
 function save_summary_table(config, data)
-    st = get_table(data, :summary_table)
+    table = get_table(data, :summary_table)
+
+    st = filter(row->has_table(data, row.table_name) && hasproperty(get_table(data, row.table_name), row.column_name), table)
+
+    for row in eachrow(st)
+        row.data_type = eltype(get_table_col(data, row.table_name, row.column_name))
+    end
+
     out_file = get_out_path(config, "summary_table.csv")
     CSV.write(out_file, st)
 end

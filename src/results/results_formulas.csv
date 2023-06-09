@@ -27,12 +27,12 @@ gen,capt_co2_rate,capt_co2_total/egen_total,ShortTonsPerMWhGenerated,Average rat
 gen,af_avg,ecap_available_total / ecap_total,MWhGeneratedPerMWhCapacity,Average availability factor (i.e. energy capacity available / energy capacity)
 gen,electricity_revenue,"SumHourly(lmp_egen, egen)",Dollars,Revenue earned by generators for the energy they served to the grid
 gen,electricity_price,electricity_revenue / egen,Dollars,Average price earned by generators for the energy they served to the grid
-gen,vom_cost,"SumHourly(vom,egen)",Dollars,"Variable Operation and Maintenance paid, in dollars"
+gen,vom_cost,"SumHourly(vom,egen)",Dollars,"Variable Operation and Maintenance cost incurred, in dollars"
 gen,vom_per_mwh,vom_cost/egen_total,DollarsPerMWhGenerated,Generation-weighted average of variable operation and maintenance costs
-gen,fom_cost,"SumHourlyWeighted(fom,pcap)",Dollars,"Fixed Operation and Maintenance paid, in dollars"
+gen,fom_cost,"SumHourlyWeighted(fom,pcap)",Dollars,"Fixed Operation and Maintenance cost incurred, in dollars"
 gen,fom_per_mwh,fom_cost/egen_total,DollarsPerMWhGenerated,Fixed Operation and Maintenance paid per MWh of energy generated
-gen,capex_cost,"SumYearly(capex_obj, ecap_inv_sim)",Dollars,"Capital expenditures paid, in dollars, as seen by objective function"
-gen,capex_per_mwh,capex_cost/egen_total,DollarsPerMWhGenerated,Levelized capital expenditures paid per MWh of energy generated
+gen,capex_cost,"SumYearly(capex_obj, ecap_inv_sim)",Dollars,"Capital expenditures, in dollars, as seen by objective function"
+gen,capex_per_mwh,capex_cost/egen_total,DollarsPerMWhGenerated,Levelized capital expenditures per MWh of energy generated
 gen,fuel_cost,"SumHourly(fuel_price,heat_rate,egen)",Dollars,Total cost of fuel
 gen,fuel_price_per_mwh,fuel_cost/egen_total,DollarsPerMWhGenerated,Fuel price per MWh generated
 gen,fuel_burned,"SumHourly(heat_rate,egen)",MMBtu,Amount of fuel burned
@@ -89,3 +89,4 @@ bus,electricity_cost,"SumHourly(elserv,lmp_elserv)",Dollars,Total cost of electr
 bus,electricity_price,electricity_cost / elserv_total,DollarsPerMWhServed,Average cost of electricity served
 branch,eflow_total,SumHourly(eflow),MWhFlow,Total energy flowing in this branch
 branch,pflow_hourly_min,MinHourly(pflow),MWFlow,Minimum sum of power flowing in these branches
+branch,pflow_hourly_max,MaxHourly(pflow),MWFlow,Maximum sum of power flowing in these branches

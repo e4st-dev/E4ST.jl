@@ -531,9 +531,16 @@ function modify_results!(mod::Storage, config, data)
     add_results_formula!(data, :storage, :net_total_revenue, "net_total_revenue_prelim - cost_of_service_rebate", Dollars, "Net total revenue after adjusting for the cost-of-service rebate")
     add_results_formula!(data, :storage, :net_going_forward_revenue, "electricity_revenue - net_variable_cost - cost_of_service_rebate", Dollars, "Net going forward revenue, including electricity revenue minus going forward cost")
 
+    # Update Welfare
+    # Producer welfare
+    add_welfare_term!(data, :producer, :storage, :net_total_revenue_prelim, +)
+    add_welfare_term!(data, :producer, :storage, :cost_of_service_rebate, -)
 
+    # Consumer welfare
+    add_welfare_term!(data, :consumer, :storage, :cost_of_service_rebate, +)
+
+    # Update and save the storage table
     update_build_status!(config, data, :storage)
-
     save_updated_storage_table(config, data)
 end
 export modify_results!
@@ -544,6 +551,9 @@ export modify_results!
 Saves the updated storage table with any additional storage units, updated capacities, etc.
 """
 function save_updated_storage_table(config, data)
+    years = get_years(data)
+    year_end = last(years)
+
     storage = get_table(data, :storage)
     original_cols = data[:storage_table_original_cols]
 
@@ -566,7 +576,21 @@ function save_updated_storage_table(config, data)
 
     # Filter anything with capacity below the threshold
     thresh = config[:pcap_retirement_threshold]
-    filter!(:pcap0 => >(thresh), storage_tmp)
+
+    filter!(storage_tmp) do row
+        # Keep anything above the threshold
+        row.pcap0 > thresh && return true
+        row.pcap_inv <= thresh && return false 
+
+        row.build_type == "exog" && return false
+
+        # Below the threshold, check to see if we are still within the economic lifetime
+        year_econ_life = add_to_year(row.year_on, row.econ_life)
+        year_econ_life > year_end && return true
+
+        return false
+    end
+
     storage_tmp.pcap_max = copy(storage_tmp.pcap0)
 
 
