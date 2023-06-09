@@ -97,10 +97,12 @@ function setup_dcopf!(config, data, model)
         )
     end
 
+    pgen_scalar = Float64(config[:pgen_scalar])
+
     @constraint(model, 
         cons_pgen_max[gen_idx in 1:ngen, yr_idx in 1:nyear, hr_idx in 1:nhour],
-        1000 * pgen_gen[gen_idx, yr_idx, hr_idx] <= # Scale by 1000 in this constraint to improve matrix coefficient range.  Some af values are very small.
-        1000 * get_cf_max(config, data, gen_idx, yr_idx, hr_idx) * pcap_gen[gen_idx, yr_idx]
+        pgen_scalar * pgen_gen[gen_idx, yr_idx, hr_idx] <= # Scale by pgen_scalar in this constraint to improve matrix coefficient range.  Some af values are very small.
+        pgen_scalar * get_cf_max(config, data, gen_idx, yr_idx, hr_idx) * pcap_gen[gen_idx, yr_idx]
     )
 
     # Constrain Reference Bus

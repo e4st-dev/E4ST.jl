@@ -96,6 +96,7 @@ export CreditByBenchmark
 
 CreditByBenchmark(;gen_col = :emis_co2e, benchmark) = CreditByBenchmark(gen_col, benchmark)
 
+
 """
     get_credit(c::CreditByBenchmark, data, gen_row::DataFrameRow) -> 
 

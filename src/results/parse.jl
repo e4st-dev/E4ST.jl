@@ -15,8 +15,9 @@ function parse_results!(config, data, model)
 
     # Pull out all the shadow prices or values for each of the variables/constraints
     results_raw = Dict(k => (@info "Parsing Result $k"; value_or_shadow_price(v, obj_scalar)) for (k,v) in od)
-    results_raw[:cons_pgen_max] ./= 1000
-
+    pgen_scalar = config[:pgen_scalar] |> Float64
+    results_raw[:cons_pgen_max] ./= pgen_scalar
+    
     # Gather each of the objective function coefficients
     obj = model[:obj]::AffExpr
     obj_coef = OrderedDict{Symbol, Any}()
@@ -27,7 +28,7 @@ function parse_results!(config, data, model)
     end
     obj_coef[:pcap_gen_inv_sim] = map(x->obj[x], model[:pcap_gen_inv_sim])
     results_raw[:obj_coef] = obj_coef
-    
+
     # Empty the model now that we have retrieved all info, to save RAM and prevent the user from accidentally accessing un-scaled data.
     empty!(model)
     
