@@ -149,34 +149,33 @@ function get_gentype_cf_hist(gentype::AbstractString)
     # default cf are drawn from a previous E4ST run, using the year 2030 with baseline policies including the IRA
     # they could be updated over time and it is much better to specify cf_hist in the gen and build_gen tables
     # E4ST run: OSW 230228, no_osw_build_230228
-        gentype == "nuclear" && return 0.92
-        gentype == "ngcc" && return 0.58
-        gentype == "ngt" && return 0.04 
-        gentype == "ngo" && return 0.06 
-        gentype == "ngccccs_new" && return 0.55
-        gentype == "ngccccs_ret" && return 0.55 # this is set to same as new because no ret was done in the sim
-        gentype == "coal" && return 0.68
-        gentype == "igcc" && return 0.55 # this is taken from the EIA monthly average coal (in general)
-        gentype == "coalccs_new" && return 0.85 # set to same as ret because no new in run
-        gentype == "coal_ccus_retrofit" && return 0.85 
-        gentype == "solar" && return 0.25
-        gentype == "dist_solar" && return 0.25 # set to same as solar
-        gentype == "wind" && return 0.4
-        gentype == "oswind" && return 0.39 
-        gentype == "geothermal" && return 0.77 
-        gentype == "deepgeo" && return 0.77 # set to same as geothermal
-        gentype == "biomass" && return 0.48 
-        #battery, unsure what to do for this but should mostly recieve itc anyways
-        gentype == "hyc" && return 0.43 
-        gentype == "hyps" && return 0.11 
-        gentype == "hyrr" && return 0.39 
-        gentype == "oil" && return 0.01 
-        # hcc_new, unsure
-        # hcc_ret, unsure
-        gentype == "other" && return 0.67
+    gentype == "nuclear" && return 0.92
+    gentype == "ngcc" && return 0.58
+    gentype == "ngt" && return 0.04 
+    gentype == "ngo" && return 0.06 
+    gentype == "ngccccs_new" && return 0.55
+    gentype == "ngccccs_ret" && return 0.55 # this is set to same as new because no ret was done in the sim
+    gentype == "coal" && return 0.68
+    gentype == "igcc" && return 0.55 # this is taken from the EIA monthly average coal (in general)
+    gentype == "coalccs_new" && return 0.85 # set to same as ret because no new in run
+    gentype == "coal_ccus_retrofit" && return 0.85 
+    gentype == "solar" && return 0.25
+    gentype == "dist_solar" && return 0.25 # set to same as solar
+    gentype == "wind" && return 0.4
+    gentype == "oswind" && return 0.39 
+    gentype == "geothermal" && return 0.77 
+    gentype == "deepgeo" && return 0.77 # set to same as geothermal
+    gentype == "biomass" && return 0.48 
+    #battery, unsure what to do for this but should mostly recieve itc anyways
+    gentype == "hyc" && return 0.43 
+    gentype == "hyps" && return 0.11 
+    gentype == "hyrr" && return 0.39 
+    gentype == "oil" && return 0.01 
+    # hcc_new, unsure
+    # hcc_ret, unsure
+    gentype == "other" && return 0.67
 
-        @warn "No default cf_hist provided for $(gentype) in E4ST, setting to 0.35"
-        return 0.35 # overall system capacity factor
-
+    @warn "No default cf_hist provided for $(gentype) in E4ST, setting to 0.35"
+    return 0.35 # overall system capacity factor
 end
 export get_gentype_cf_hist
