@@ -75,6 +75,10 @@ function modify_setup_data!(ret::Retrofit, config, data)
             year = years[yr_idx]
             newgen[:year_retrofit] = year
 
+            #set capex = 0 because original capex of the plant will continue to be paid based on pcap_inv of the pre retrofit generator
+            # capex for the retrofit will be added in retrofit!()
+            newgen[:capex] = 0
+
             retrofit!(ret, newgen)
             
             # Set capex_obj
