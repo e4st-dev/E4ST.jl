@@ -12,7 +12,8 @@ function parse_results!(config, data, model)
     obj_scalar = config[:objective_scalar]
 
     results_raw = Dict(k => (@info "Parsing Result $k"; value_or_shadow_price(v, obj_scalar)) for (k,v) in object_dictionary(model))
-    results_raw[:cons_pgen_max] ./= 1000
+    pgen_scalar = config[:pgen_scalar] |> Float64
+    results_raw[:cons_pgen_max] ./= pgen_scalar
     
     # Empty the model now that we have retrieved all info, to save RAM and prevent the user from accidentally accessing un-scaled data.
     empty!(model)

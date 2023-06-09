@@ -14,7 +14,7 @@
 
     for (gen_idx, ret_idxs) in retrofits
         for ret_idx in ret_idxs
-            @test gen.emis_co2[ret_idx] < gen.emis_co2[gen_idx]
+            @test gen.capt_co2_percent[ret_idx] > gen.capt_co2_percent[gen_idx]
             @test gen.pcap_max[ret_idx] < gen.pcap_max[gen_idx]
             @test gen.heat_rate[ret_idx] > gen.heat_rate[gen_idx]
             @test gen.year_retrofit[ret_idx] in years

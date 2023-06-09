@@ -100,7 +100,7 @@ function setup_model(config, data)
 
     add_optimizer!(config, data, model)
 
-    @info summarize(model)
+    config[:log_model_summary] === true && @info summarize(model)
 
     return model
 end
@@ -368,5 +368,7 @@ function run_optimize!(config, data, model)
     t_finish = now()
 
     t_elapsed = Dates.canonicalize(Dates.CompoundPeriod(t_finish - t_start))
-    log_header("MODEL OPTIMIZED in $t_elapsed")
+    ts = termination_status(model)
+
+    log_header("Model Optimized in $t_elapsed with termination status $ts")
 end

@@ -620,3 +620,7 @@ function anyany(f, v)
     any(x->any(f, x), v)
 end
 export anyany
+
+function Base.convert(T::Type{Symbol}, x::String)
+    return Symbol(x)
+end

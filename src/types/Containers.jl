@@ -108,30 +108,40 @@ end
 mutable struct ByNothing <: Container{Float64, 0} 
     v::Float64
 end
+export ByNothing
 ByNothing(v::AbstractArray) = ByNothing(v...)
 Base.setindex!(c::ByNothing, val::Float64, idxs::Vararg) = (c.v = val)
 
 struct ByYear <: Container{Float64, 1}
     v::Vector{Float64}
 end
+export ByYear
+
 struct ByHour <: Container{Float64, 2}
     v::Vector{Float64}
 end
+export ByHour
+
 ByHour(m::Matrix{Float64}) = ByHour([m...])
 Base.size(bh::ByHour) = (1, length(bh.v))
 Base.setindex!(c::ByHour, val::Float64, i1::Int, i2::Int) = (c.v[i2] = val)
 Base.setindex!(c::ByHour, val::Float64, idxs::CartesianIndex{2}) = (c.v[idxs[2]] = val)
+
 struct ByYearAndHour <: Container{Float64, 2}
     v::Vector{Vector{Float64}}
 end
+export ByYearAndHour
+
 ByYearAndHour(m::AbstractMatrix) = ByYearAndHour([m[i,:] for i in axes(m,1)])
 Base.size(c::ByYearAndHour) = (length(c.v), length(first(c.v)))
 ByYearAndHour(m::Matrix) = ByYearAndHour([m[i,:] for i in axes(m,1)])
 Base.setindex!(c::ByYearAndHour, val, i1::Int, i2::Int) = (c.v[i1][i2] = val)
 Base.setindex!(c::ByYearAndHour, val, idxs::CartesianIndex{2}) = (c.v[idxs[1]][idxs[2]] = val)
+
 struct HoursContainer <: Container{Float64, 2}
     v::Vector{Float64}
 end
+export HoursContainer
 
 """
     get_original(c::Container) -> original::Float64
@@ -353,6 +363,9 @@ end
 function scale_yearly(c::ByYear, v::Vector{Float64})
     return ByYear(c.v .* v)
 end
+function scale_yearly(c::ByYear, n::Float64)
+    return ByYear(c.v .* n)
+end
 function scale_yearly(c::ByHour, v::Vector{Float64})
     vv = map(v) do x
         c.v .* x
@@ -368,6 +381,15 @@ function scale_yearly(c::ByYearAndHour, v::Vector{Float64})
 end
 function scale_yearly(c::Number, v::Vector{Float64})
     return ByYear(c .* v)
+end
+function scale_yearly(c::ByYear, v::OriginalContainer)
+    return scale_yearly(c, v.v)
+end
+function scale_yearly(c::OriginalContainer, v::ByYear)
+    return scale_yearly(c, v.v)
+end
+function scale_yearly(c::ByYear, v::ByNothing)
+    return scale_yearly(c, v.v)
 end
 
 """
@@ -396,7 +418,7 @@ function scale_yearly(c::ByHour, x::Float64, yr_idx::Int64, nyr::Int64)
     v[yr_idx] .*= x
     return ByYearAndHour(v)
 end
-
+export scale_yearly
 
 
 

@@ -1,7 +1,7 @@
 @testset "Test Optimizing Model" begin
 
     config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
-    config = read_config(config_file)
+    config = read_config(config_file, log_model_summary=true)
 
     data = read_data(config)
     model = setup_model(config, data)
