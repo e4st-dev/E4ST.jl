@@ -91,10 +91,13 @@ function E4ST.modify_results!(pol::ITCStorage, config, data)
         @warn "ITCStorage policy given, yet no storage defined.  Consider adding a Storage modification."
         return
     end
-    
+
+    total_result_name = "$(pol.name)_cost_obj"
+    total_result_sym = Symbol(total_result_name)
+
 
     # calculate objective policy cost (based on capacity in each sim year)
-    add_results_formula!(data, :storage, Symbol("$(pol.name)_cost_obj"), "SumYearly($(pol.name),ecap_inv_sim)", Dollars, "The cost of $(pol.name) as seen by the objective, not used for gov spending welfare")
+    add_results_formula!(data, :storage, total_result_sym, "SumYearly($(pol.name),ecap_inv_sim)", Dollars, "The cost of $(pol.name) as seen by the objective, not used for gov spending welfare")
     #add_results_formula!(data, :gen, Symbol("$(pol.name)_cost_obj"), "SumHourly($(pol.name),ecap)", Dollars, "The cost of $(pol.name) as seen by the objective, not necessarily used for gov spending welfare")
 
     # calculate welfare policy cost (obj policy cost spread over all years of investment represented by the sim years)
