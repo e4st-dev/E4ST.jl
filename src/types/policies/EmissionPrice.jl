@@ -18,12 +18,15 @@ Base.@kwdef struct EmissionPrice <: Policy
     emis_col::Symbol
     prices::OrderedDict
     years_after_ref_min::Float64 = 0.
-    years_after_ref_max::Float64 = 999.
+    years_after_ref_max::Float64 = 9999.
     ref_year_col::String = "year_on"
     gen_filters::OrderedDict
 end
 export EmissionPrice
 
+function should_adjust_invest_cost(pol::EmissionPrice)
+    return (pol.years_after_ref_min != 0.0 || pol.years_after_ref_max != 9999.0)
+end
 
 """
     E4ST.modify_model!(pol::EmissionPrice, config, data, model)
@@ -47,7 +50,7 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
         "Emission price per MWh generated for $(pol.name)")
 
         # if year_after_ref_min or max isn't set to default, then create capex_adj
-    if (pol.years_after_ref_min != 0.0 || pol.years_after_ref_max != 9999.0)  
+    if should_adjust_invest_cost(pol) 
         # warn if trying to specify more than one unique emisprc value, model isn't currently set up to handle variable emisprc 
         # note: >2 used here for emisprc value and 0
         length(unique(pol.prices)) > 2 && @warn "The current E4ST EmissionPrice mod isn't formulated correctly for both a variable EmissionPrice value (ie. 2020: 12, 2025: 15) and year_from_ref filters, please only specify a single value"
@@ -70,7 +73,7 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
         gen[gen_idx, pol.name] = qual_price_yearly .* gen[gen_idx, pol.emis_col] #emission rate [st/MWh] * price [$/st] 
 
         # add capex adjustment term to the the pol.name _capex_adj column
-        if (pol.years_after_ref_min != 0.0 || pol.years_after_ref_max != 9999.0)
+        if should_adjust_invest_cost(pol)
             adj_term = get_emisprc_capex_adj(pol, g, config)
             g[Symbol("$(pol.name)_capex_adj")] = adj_term
         end
@@ -79,7 +82,7 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
     add_obj_term!(data, model, PerMWhGen(), pol.name, oper = +)
 
     # add the capex adjustment term 
-    (pol.years_after_ref_min != 0.0 || pol.years_after_ref_max != 9999.0)  && add_obj_term!(data, model, PerMWCapInv(), Symbol("$(pol.name)_capex_adj"), oper = +)
+    should_adjust_invest_cost(pol) && add_obj_term!(data, model, PerMWCapInv(), Symbol("$(pol.name)_capex_adj"), oper = +)
 end
 
 
