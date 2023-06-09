@@ -99,4 +99,6 @@ function E4ST.modify_results!(pol::ITCStorage, config, data)
 
     # calculate welfare policy cost (obj policy cost spread over all years of investment represented by the sim years)
     # if using pol_cost_obj, update the description provided in add_results_forumla above
+
+    add_to_results_formula!(data, :storage, :invest_subsidy, total_result_name)
 end

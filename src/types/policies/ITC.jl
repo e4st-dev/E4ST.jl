@@ -64,23 +64,6 @@ end
 Calculates ITC cost as seen by the objective (cost_obj) which is ITC value * capacity (where ITC value is credit level as a % multiplied by capital cost)
 """
 function E4ST.modify_results!(pol::ITC, config, data)
-
-    # calculate objective policy cost (based on capacity in each sim year)
-    add_results_formula!(data, :gen, Symbol("$(pol.name)_cost_obj"), "SumYearly($(pol.name),ecap_inv_sim)", Dollars, "The cost of $(pol.name) as seen by the objective, not used for gov spending welfare")
-    #add_results_formula!(data, :gen, Symbol("$(pol.name)_cost_obj"), "SumHourly($(pol.name),ecap)", Dollars, "The cost of $(pol.name) as seen by the objective, not necessarily used for gov spending welfare")
-
-    # for gen_idx in gen_idxs
-    #     g = gen[gen_idx, :]
-
-    #     # credit yearly * capex_obj for that year, capex_obj is only non zero in year_on so ITC should only be non zero in year_on
-    #     vals_tmp = [credit_yearly[i]*g.capex_obj.v[i]  for i in 1:length(years)]
-    #     gen[gen_idx, pol.name] = ByYear(vals_tmp)
-    # end
-    # data[:gen] = gen
-    add_obj_term!(data, model, PerMWCap(), pol.name, oper = -)
-end
-
-function E4ST.modify_results!(pol::ITC, config, data)
     total_result_name = "$(pol.name)_cost_obj"
     total_result_sym = Symbol(total_result_name)
 
