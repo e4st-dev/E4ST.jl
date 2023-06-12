@@ -36,6 +36,8 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         heat_rate = 10*rand(n_gen),
         fom = rand(n_gen),
         capex = rand(n_gen),
+        transmission_capex=rand(n_gen),
+        routine_capex=rand(n_gen),
         year_on = year2str.(rand(2000:2023, n_gen)),
         year_off = fill("y9999", n_gen),
         year_shutdown = fill("y9999", n_gen),

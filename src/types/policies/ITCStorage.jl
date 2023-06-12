@@ -38,7 +38,7 @@ function E4ST.modify_setup_data!(pol::ITCStorage, config, data)
     years = get_years(data)
 
     #create column of annualized ITCStorage values
-    add_table_col!(data, :storage, pol.name, Container[ByNothing(0.0) for i in 1:nrow(storage)], DollarsPerMWBuiltCapacity,
+    add_table_col!(data, :storage, pol.name, Container[ByNothing(0.0) for i in 1:nrow(storage)], DollarsPerMWBuiltCapacityPerHour,
         "Investment tax credit value for $(pol.name)")
 
     #update column for gen_idx 

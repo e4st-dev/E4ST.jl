@@ -153,6 +153,7 @@ function setup_dcopf!(config, data, model)
     end
 
     add_obj_term!(data, model, PerMWCap(), :fom, oper = +)
+    add_obj_term!(data, model, PerMWCap(), :routine_capex, oper = +)
 
     @expression(model,
         pcap_gen_inv_sim[gen_idx in axes(gen,1)],
@@ -166,6 +167,7 @@ function setup_dcopf!(config, data, model)
     )
 
     add_obj_term!(data, model, PerMWCapInv(), :capex_obj, oper = +) 
+    add_obj_term!(data, model, PerMWCapInv(), :transmission_capex_obj, oper = +) 
 
     # Curtailment Cost
     add_obj_term!(data, model, PerMWhCurtailed(), :curtailment_cost, oper = +)

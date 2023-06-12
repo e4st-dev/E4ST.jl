@@ -1,2 +1,2 @@
-area,subarea,status,build_status,build_type,build_id,year_on,econ_life,year_on_min,year_on_max,age_shutdown,pcap0,pcap_min,pcap_max,vom,fom,capex,duration_discharge,duration_charge,storage_efficiency,side,hour_groupby,hour_duration,hour_order
-country,narnia,1,unbuilt,endog,test_battery_build,,30,y2020,y2050,30,0.0,0.0,0.05,0.1,0.2,1,4,8,0.8,load,day,day_duration,day_order
+area,subarea,status,build_status,build_type,build_id,year_on,econ_life,year_on_min,year_on_max,age_shutdown,pcap0,pcap_min,pcap_max,vom,fom,capex,transmission_capex,routine_capex,duration_discharge,duration_charge,storage_efficiency,side,hour_groupby,hour_duration,hour_order
+country,narnia,1,unbuilt,endog,test_battery_build,,30,y2020,y2050,30,0.0,0.0,0.05,0.1,0.2,1,0.1,0,4,8,0.8,load,day,day_duration,day_order

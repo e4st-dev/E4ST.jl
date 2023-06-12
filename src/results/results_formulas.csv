@@ -31,8 +31,12 @@ gen,vom_cost,"SumHourly(vom,egen)",Dollars,"Variable Operation and Maintenance c
 gen,vom_per_mwh,vom_cost/egen_total,DollarsPerMWhGenerated,Generation-weighted average of variable operation and maintenance costs
 gen,fom_cost,"SumHourlyWeighted(fom,pcap)",Dollars,"Fixed Operation and Maintenance cost incurred, in dollars"
 gen,fom_per_mwh,fom_cost/egen_total,DollarsPerMWhGenerated,Fixed Operation and Maintenance paid per MWh of energy generated
+gen,routine_capex_cost,"SumHourlyWeighted(routine_capex, pcap)",Dollars,"Routine capital expenditures incurred, in dollars"
+gen,routine_capex_per_mwh,routine_capex_cost / egen_total,DollarsPerMWhGenerated,Routine capital expenditures incurred per MWh of energy generated
 gen,capex_cost,"SumYearly(capex_obj, ecap_inv_sim)",Dollars,"Capital expenditures, in dollars, as seen by objective function"
 gen,capex_per_mwh,capex_cost/egen_total,DollarsPerMWhGenerated,Levelized capital expenditures per MWh of energy generated
+gen,transmission_capex_cost,"SumYearly(transmission_capex_obj, ecap_inv_sim)",Dollars,"Capital expenditures for transmission, in dollars, as seen by objective function"
+gen,transmission_capex_per_mwh,transmission_capex_cost/egen_total,DollarsPerMWhGenerated,Levelized capital expenditures for transmission per MWh of energy generated
 gen,fuel_cost,"SumHourly(fuel_price,heat_rate,egen)",Dollars,Total cost of fuel
 gen,fuel_price_per_mwh,fuel_cost/egen_total,DollarsPerMWhGenerated,Fuel price per MWh generated
 gen,fuel_burned,"SumHourly(heat_rate,egen)",MMBtu,Amount of fuel burned
@@ -43,7 +47,7 @@ gen,production_subsidy,0,Dollars,Total production subsidy for generation
 gen,production_subsidy_per_mwh,production_subsidy / egen_total,DollarsPerMWhGenerated,Average production subsidy for a MWh of generation
 gen,net_variable_cost,variable_cost - production_subsidy,Dollars,Total variable costs minus production subsidies
 gen,net_variable_cost_per_mwh,net_variable_cost / egen_total,DollarsPerMWhGenerated,Average variable costs minus production subsidies for a MWh of energy
-gen,fixed_cost,capex_cost + fom_cost,Dollars,"Fixed costs, including capex (not just what the optimization saw) and fom"
+gen,fixed_cost,capex_cost + fom_cost + routine_capex_cost + transmission_capex_cost,Dollars,"Fixed costs, including capex (not just what the optimization saw) and fom"
 gen,fixed_cost_permw_perhr,fixed_cost/ecap_total,DollarsPerMWCapacityPerHour,Fixed costs per mw per hour
 gen,invest_subsidy,0,Dollars,Investment subsidies to go to generators
 gen,invest_subsidy_permw_perhr,invest_subsidy / ecap_total,DollarsPerMWCapacityPerHour,Average investment subsidy per MW per hour
