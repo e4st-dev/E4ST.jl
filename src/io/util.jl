@@ -624,3 +624,16 @@ export anyany
 function Base.convert(T::Type{Symbol}, x::String)
     return Symbol(x)
 end
+
+
+function get_past_invest_percentages(g, years)
+    year_on = g.year_on::AbstractString
+    year_unbuilt = g.year_unbuilt::AbstractString
+    econ_life = g.econ_life::Float64
+    diff = diff_years(year_on, year_unbuilt)
+    v = map(years) do y
+        percent = (diff_years(year_on, y) - econ_life) / diff
+        return min(1.0, max(0.0, percent))
+    end
+    return OriginalContainer(0.0, ByYear(v))
+end

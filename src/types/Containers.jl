@@ -681,6 +681,6 @@ function _to_container(v::Vector{Container})
     v
 end
 function _to_container(v::Vector)
-    Container[ByNothing(x) for x in v]
+    Container[Container(x) for x in v]
 end
 
