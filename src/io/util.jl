@@ -632,7 +632,7 @@ function get_past_invest_percentages(g, years)
     econ_life = g.econ_life::Float64
     diff = diff_years(year_on, year_unbuilt)
     v = map(years) do y
-        percent = (diff_years(year_on, y) - econ_life) / diff
+        percent = (diff_years(year_on, y) + econ_life) / diff
         return min(1.0, max(0.0, percent))
     end
     return OriginalContainer(0.0, ByYear(v))

@@ -440,9 +440,6 @@ function setup_table!(config, data, ::Val{:gen})
             past_invest_percentages = get_past_invest_percentages(g, years)
             g.past_invest_cost = g.past_invest_cost .* past_invest_percentages
             g.past_invest_subsidy = g.past_invest_subsidy .* past_invest_percentages
-            
-            # g.past_invest_cost    = ByYear([g.past_invest_cost[]    * (year >= g.year_on && year < add_to_year(g.year_on, g.econ_life)) for year in get_years(data)])
-            # g.past_invest_subsidy = ByYear([g.past_invest_subsidy[] * (year >= g.year_on && year < add_to_year(g.year_on, g.econ_life)) for year in get_years(data)])
         end
     end
 
@@ -709,7 +706,7 @@ function summarize_table(::Val{:gen})
         (:fuel_price, Float64, DollarsPerMMBtu, false, "Fuel cost per MMBtu of fuel used.  `heat_rate` column also necessary when supplying `fuel_price`"),
         (:heat_rate, Float64, MMBtuPerMWhGenerated, false, "Heat rate,  or MMBtu of fuel consumed per MWh electricity generated (0 for generators that don't use combustion)"),
         (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
-        (:capex, Float64, DollarsPerMWBuiltCapacityPerHour, true, "Hourly capital expenditures for a MW of generation capacity"),
+        (:capex, Float64, DollarsPerMWBuiltCapacityPerHour, true, "Hourly capital expenditures for a MW of generation capacity.  For already-built generators, this is not accounted for in the optimization or accounting.  For accounting for investment costs and subsidies in built generators, use `past_invest_cost` and `past_invest_subsidy`"),
         (:transmission_capex, Float64, DollarsPerMWBuiltCapacityPerHour, true, "Hourly capital expenditures for the transmission supporting a MW of generation capacity"),
         (:routine_capex, Float64, DollarsPerMWCapacityPerHour, true, "Routine capital expenditures for a MW of discharge capacity"),
         (:past_invest_cost, Float64, DollarsPerMWCapacityPerHour, false, "Investment costs per MW of initial capacity per hour, for past investments"),

@@ -455,6 +455,10 @@ function modify_model!(mod::Storage, config, data, model)
     add_obj_exp!(data, model, PerMWCap(), :routine_capex_stor, oper = +)
     add_obj_exp!(data, model, PerMWCapInv(), :capex_obj_stor, oper = +) 
     add_obj_exp!(data, model, PerMWCapInv(), :transmission_capex_obj_stor, oper = +) 
+
+    # Add some results so that policy mods can add to the investment subsidy
+    add_results_formula!(data, :storage, :invest_subsidy, "0", Dollars, "Investment subsidies to go to the producer")
+    add_results_formula!(data, :storage, :invest_subsidy_permw_perhr, "invest_subsidy / ecap_total", DollarsPerMWCapacityPerHour, "Investment subsidies per MW per hour")
 end
 
 """
@@ -539,8 +543,6 @@ function modify_results!(mod::Storage, config, data)
     # Fixed costs
     add_results_formula!(data, :storage, :fixed_cost, "capex_cost + fom_cost", Dollars, "Total fixed costs including capex and fom costs")
     add_results_formula!(data, :storage, :fixed_cost_permw_perhr, "fixed_cost / ecap_total", DollarsPerMWCapacityPerHour, "Fixed costs, per MW per hour")
-    add_results_formula!(data, :storage, :invest_subsidy, "0", Dollars, "Investment subsidies to go to the producer")
-    add_results_formula!(data, :storage, :invest_subsidy_permw_perhr, "invest_subsidy / ecap_total", DollarsPerMWCapacityPerHour, "Investment subsidies per MW per hour")
     add_results_formula!(data, :storage, :net_fixed_cost, "fixed_cost - invest_subsidy", Dollars, "Fixed costs minus investment subsidies")
     add_results_formula!(data, :storage, :net_fixed_cost_permw_perhr, "net_fixed_cost / ecap_total", DollarsPerMWCapacityPerHour, "Average net fixed cost per MW per hour.")
 

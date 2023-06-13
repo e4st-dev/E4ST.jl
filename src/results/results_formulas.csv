@@ -10,6 +10,7 @@ gen,pcap_start_total,Sum(pcap0),MWCapacity,Starting power capacity.
 gen,pcap_built_total,SumYearly(pcap_built),MWCapacity,Total power capacity built.  Ignores subsets of hours and returns the built capacity for the whole year(s).
 gen,pcap_retired_total,SumYearly(pcap_retired),MWCapacity,Total power capacity retired.  Ignores subsets of hours and returns the retired capacity for the whole year(s).
 gen,pcap_retired_percent,pcap_retired_total / pcap_start_total,MWCapacity,Percent of existing power capacity that was retired.  Could be misleading if multiple years and generators were built and retired.
+gen,ecap_inv_total,SumHourlyWeighted(pcap_inv),MWhCapacity,Total invested energy capacity over the time given
 gen,cf_avg,egen_total/ecap_total,MWhGeneratedPerMWhCapacity,Average Capacity Factor
 gen,cf_hourly_min,MinHourly(cf),MWhGeneratedPerMWhCapacity,Minimum observed capacity factor
 gen,cf_hourly_max,MaxHourly(cf),MWhGeneratedPerMWhCapacity,Maximum observed capacity factor
@@ -37,6 +38,8 @@ gen,capex_cost,"SumYearly(capex_obj, ecap_inv_sim)",Dollars,"Capital expenditure
 gen,capex_per_mwh,capex_cost/egen_total,DollarsPerMWhGenerated,Levelized capital expenditures per MWh of energy generated
 gen,transmission_capex_cost,"SumYearly(transmission_capex_obj, ecap_inv_sim)",Dollars,"Capital expenditures for transmission, in dollars, as seen by objective function"
 gen,transmission_capex_per_mwh,transmission_capex_cost/egen_total,DollarsPerMWhGenerated,Levelized capital expenditures for transmission per MWh of energy generated
+gen,past_invest_cost_total,"SumHourlyWeighted(past_invest_cost, pcap_inv)",Dollars,Investment costs from past investments
+gen,past_invest_subsidy_total,"SumHourlyWeighted(past_invest_subsidy, pcap_inv)",Dollars,Investment subsidies from past investments
 gen,fuel_cost,"SumHourly(fuel_price,heat_rate,egen)",Dollars,Total cost of fuel
 gen,fuel_price_per_mwh,fuel_cost/egen_total,DollarsPerMWhGenerated,Fuel price per MWh generated
 gen,fuel_burned,"SumHourly(heat_rate,egen)",MMBtu,Amount of fuel burned
@@ -47,10 +50,12 @@ gen,production_subsidy,0,Dollars,Total production subsidy for generation
 gen,production_subsidy_per_mwh,production_subsidy / egen_total,DollarsPerMWhGenerated,Average production subsidy for a MWh of generation
 gen,net_variable_cost,variable_cost - production_subsidy,Dollars,Total variable costs minus production subsidies
 gen,net_variable_cost_per_mwh,net_variable_cost / egen_total,DollarsPerMWhGenerated,Average variable costs minus production subsidies for a MWh of energy
-gen,fixed_cost,capex_cost + fom_cost + routine_capex_cost + transmission_capex_cost,Dollars,"Fixed costs, including capex (not just what the optimization saw) and fom"
+gen,fixed_cost,fom_cost + routine_capex_cost + invest_cost,Dollars,"Fixed costs, including capex (not just what the optimization saw) and fom"
 gen,fixed_cost_permw_perhr,fixed_cost/ecap_total,DollarsPerMWCapacityPerHour,Fixed costs per mw per hour
+gen,invest_cost,transmission_capex_cost + capex_cost,Dollars,"Investment costs for generators, including capex cost and transmission capex cost"
+gen,invest_cost_permw_perhr,invest_cost / ecap_inv_total,DollarsPerMWCapacityPerHour,Average investment cost per MW invested per hour
 gen,invest_subsidy,0,Dollars,Investment subsidies to go to generators
-gen,invest_subsidy_permw_perhr,invest_subsidy / ecap_total,DollarsPerMWCapacityPerHour,Average investment subsidy per MW per hour
+gen,invest_subsidy_permw_perhr,invest_subsidy / ecap_inv_total,DollarsPerMWCapacityPerHour,Average investment subsidy per MW invested per hour
 gen,net_fixed_cost,fixed_cost - invest_subsidy,Dollars,Fixed costs minus investment subsidies
 gen,net_fixed_cost_permw_perhr,net_fixed_cost / ecap_total,DollarsPerMWCapacityPerHour,Average net fixed cost per MW per hour.  Fixed costs minus investment subsidies
 gen,production_cost,variable_cost + fixed_cost,Dollars,"Cost of production, includes fixed and variable costs"

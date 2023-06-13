@@ -85,4 +85,56 @@
 
         # TODO: think of any tests here that would better check the functionality
     end
+
+    @testset "Test past capex calculations in sequential simulations" begin
+        config_itc_file = joinpath(@__DIR__, "config", "config_3bus_itc.yml")
+        config = read_config(config_file, config_itc_file)
+        data = read_data(config)
+        model = setup_model(config, data)
+        optimize!(model)
+        parse_results!(config, data, model)
+        process_results!(config, data)
+
+        @test compute_result(data, :gen, :past_invest_cost_total)    == 0.0
+        @test compute_result(data, :gen, :past_invest_subsidy_total) == 0.0
+
+        gen_updated_file = get_out_path(config, "gen.csv")
+        gen_updated = read_table(gen_updated_file)
+
+        # Make sure that the past invest costs get updated for the next sim
+        @test any(>(0.0), gen_updated.past_invest_cost)
+        @test any(>(0.0), gen_updated.past_invest_subsidy)
+
+        # Now run another sim with the updated gen table
+        config_itc_file = joinpath(@__DIR__, "config", "config_3bus_itc.yml")
+        config = read_config(config_file, config_itc_file)
+        config[:years] = ["y2050", "y2060", "y2070"]
+        config[:year_gen_data] = "y2040"
+        config[:gen_file] = gen_updated_file
+        data = read_data(config)
+        model = setup_model(config, data)
+        optimize!(model)
+        parse_results!(config, data, model)
+        process_results!(config, data)
+        gen = get_table(data, :gen)
+
+        @test compute_result(data, :gen, :past_invest_cost_total)    > 0.0
+        @test compute_result(data, :gen, :past_invest_subsidy_total) > 0.0
+
+        # Test that no past invest cost for exogenous generators
+        @test compute_result(data, :gen, :past_invest_cost_total, :build_type=>"exog") == 0.0
+        @test compute_result(data, :gen, :past_invest_cost_total, :build_status=>"new") == 0.0
+        @test compute_result(data, :gen, :past_invest_subsidy_total, :build_type=>"exog") == 0.0
+        @test compute_result(data, :gen, :past_invest_subsidy_total, :build_status=>"new") == 0.0
+
+        @test any(==("y2020"), gen.year_unbuilt)
+        gen_idxs_unbuilt_2020 = get_row_idxs(gen, :year_unbuilt=>"y2020")
+        for gen_idx in gen_idxs_unbuilt_2020
+            # In 2050, the investment cost should be half of the full amount.
+            @test gen.econ_life[gen_idx] == 35
+            @test gen.past_invest_cost[gen_idx][1] ≈ 1.0 * (gen.transmission_capex[gen_idx] + gen.capex[gen_idx])
+            @test gen.past_invest_cost[gen_idx][2] ≈ 0.5 * (gen.transmission_capex[gen_idx] + gen.capex[gen_idx])
+            @test gen.past_invest_cost[gen_idx][3] ≈ 0.0
+        end
+    end
 end

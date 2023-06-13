@@ -206,7 +206,6 @@ function parse_power_results!(config, data)
         pcap_built[:, yr_idx]   .= max.( pcap_cur .- pcap_prev, 0.0)
     end
 
-
     # Add things to the bus table
     add_table_col!(data, :bus, :pgen,  pgen_bus,  MWGenerated,"Average Power Generated at this bus")
     add_table_col!(data, :bus, :egen,  egen_bus,  MWhGenerated,"Electricity Generated at this bus for the weighted representative hour")   
@@ -239,6 +238,10 @@ function parse_power_results!(config, data)
     # Add things to the branch table
     add_table_col!(data, :branch, :pflow, pflow_branch, MWFlow,"Average Power flowing through branch")    
     add_table_col!(data, :branch, :eflow, eflow_branch, MWhFlow,"Electricity flowing through branch")    
+
+
+    # Update pcap_inv
+    gen.pcap_inv = max.(gen.pcap_inv, gen.pcap_inv_sim)
 
     return
 end
@@ -303,6 +306,7 @@ Save the `gen` table to `get_out_path(config, "gen.csv")`
 """
 function save_updated_gen_table(config, data)
     years = get_years(data)
+    nyr = get_num_years(data)
     year_end = last(years)
 
     gen = get_table(data, :gen)
@@ -324,6 +328,14 @@ function save_updated_gen_table(config, data)
         return row.pcap_inv_sim
     end
 
+    # Gather the past investment costs and subsidies
+    for i in 1:nrow(gen_tmp)
+        gen_tmp.build_status[i] == "new" || continue
+        @info "updating the past investment cost/subsidy for $i"
+        gen_tmp.past_invest_cost[i] =    maximum(yr_idx->compute_result(data, :gen, :invest_cost_permw_perhr, i, yr_idx), 1:nyr)
+        gen_tmp.past_invest_subsidy[i] = maximum(yr_idx->compute_result(data, :gen, :invest_subsidy_permw_perhr, i, yr_idx), 1:nyr)
+    end
+
     # Filter anything with capacity below the threshold
     thresh = config[:pcap_retirement_threshold]
     filter!(gen_tmp) do row
@@ -331,7 +343,7 @@ function save_updated_gen_table(config, data)
         row.pcap0 > thresh && return true
         row.pcap_inv <= thresh && return false 
 
-        row.build_type == "exog" && return false
+        row.build_type == "exog" && return false # We don't care to keep track of exogenous past capex
 
         # Below the threshold, check to see if we are still within the economic lifetime
         year_econ_life = add_to_year(row.year_on, row.econ_life)
@@ -346,7 +358,6 @@ function save_updated_gen_table(config, data)
         :pcap0 => sum => :pcap0
     )
     gen_tmp_combined.pcap_max = copy(gen_tmp_combined.pcap0)
-
 
     CSV.write(get_out_path(config, "gen.csv"), gen_tmp_combined)
     return nothing
