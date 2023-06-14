@@ -60,9 +60,6 @@ Iterates by:
 * Changing `config[:gen_file]`
 """
 function iterate!(iter::RunSequential, config, data)
-    # Update config[:gen_file] to be from the current out_path
-    config[:gen_file] = get_out_path(config, "gen.csv")
-
     # Increment iter.state
     iter.state += 1
     

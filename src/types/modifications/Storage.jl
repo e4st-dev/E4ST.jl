@@ -1,5 +1,5 @@
 """
-    struct Storage <: Modification
+    mutable struct Storage <: Modification
 
     Storage(;name, file, build_file="")
 
@@ -41,7 +41,7 @@ Each storage device can either be on the "gen" side or the "load" side, as speci
     * `pcharge_stor` gets added to `plserv_bus`
     * `pdischarge_stor` gets subtracted from `plserv_bus`
 """
-struct Storage <: Modification
+mutable struct Storage <: Modification
     name::Symbol
     file::String
     build_file::String
@@ -598,9 +598,9 @@ function modify_results!(mod::Storage, config, data)
     # Policy costs
     add_results_formula!(data, :storage, :pol_cost, "-invest_subsidy - production_subsidy", Dollars, "Cost from all policy types")
     add_results_formula!(data, :storage, :pol_cost_per_mwh, "pol_cost / edischarge_total", DollarsPerMWhDischarged, "Average policy cost per MWh of discharged energy")
-    add_results_formula!(data, :storage, :government_revenue, "- invest_subsidy - production_subsidy - past_production_subsidy_total", Dollars, "Government revenue earned from storage of energy")
+    add_results_formula!(data, :storage, :government_revenue, "- invest_subsidy - production_subsidy - past_invest_subsidy_total", Dollars, "Government revenue earned from storage of energy")
     add_results_formula!(data, :storage, :going_forward_cost, "production_cost + pol_cost", Dollars, "Total cost of production and policies")
-    add_results_formula!(data, :storage, :total_cost_prelim, "going_forward_cost + past_invest_cost_total - past_invest_subsidy_total", Dollars, "Total cost of production.  Right now only includes going_forward_cost, but may eventually contain past capex cost")
+    add_results_formula!(data, :storage, :total_cost_prelim, "going_forward_cost + past_invest_cost_total - past_invest_subsidy_total", Dollars, "Total cost of production, including  going_forward_cost, and past investment cost and subsidy.")
     add_results_formula!(data, :storage, :net_total_revenue_prelim, "electricity_revenue - electricity_cost - total_cost_prelim", Dollars, "Preliminary net total revenue, including electricity costs/revenue and total cost, before adjusting for cost-of-service rebates")
     add_results_formula!(data, :storage, :cost_of_service_rebate, "CostOfServiceRebate(storage)", Dollars, "This is a specially calculated result, which is the sum of net_total_revenue_prelim * reg_factor for each generator")
     add_results_formula!(data, :storage, :total_cost, "total_cost_prelim + cost_of_service_rebate", Dollars, "The total cost after adjusting for the cost of service")
@@ -615,9 +615,16 @@ function modify_results!(mod::Storage, config, data)
     # Consumer welfare
     add_welfare_term!(data, :consumer, :storage, :cost_of_service_rebate, +)
 
+    # Government revenue
+    add_welfare_term!(data, :govermnent, :storage, :government_revenue, +)
+
     # Update and save the storage table
     update_build_status!(config, data, :storage)
     save_updated_storage_table(config, data)
+
+    if issequential(get_iterator(config))
+        mod.file = get_out_path(config, "storage.csv")
+    end
 end
 export modify_results!
 
@@ -684,7 +691,9 @@ function save_updated_storage_table(config, data)
     )
     storage_tmp_combined.pcap_max = copy(storage_tmp_combined.pcap0)
 
-    CSV.write(get_out_path(config, "storage.csv"), storage_tmp_combined)
+    file_out = get_out_path(config, "storage.csv")
+    CSV.write(file_out, storage_tmp_combined)
+
     return nothing
 end
 export save_updated_storage_table

@@ -359,7 +359,13 @@ function save_updated_gen_table(config, data)
     )
     gen_tmp_combined.pcap_max = copy(gen_tmp_combined.pcap0)
 
-    CSV.write(get_out_path(config, "gen.csv"), gen_tmp_combined)
+    file_out = get_out_path(config, "gen.csv") 
+    CSV.write(file_out, gen_tmp_combined)
+
+    # Update config[:gen_file] to be from the current out_path
+    if issequential(get_iterator(config))
+        config[:gen_file] = file_out
+    end
     return nothing
 end
 export save_updated_gen_table

@@ -15,6 +15,7 @@
             avg_ng_prices::Vector{Float64}=Float64[]
             avg_ng_egen::Vector{Float64}=Float64[]
         end
+        E4ST.issequential(iter::TargetAvgAnnualNGGen) = false
         E4ST.fieldnames_for_yaml(::Type{TargetAvgAnnualNGGen}) = (:target, :tol)
         function E4ST.should_iterate(iter::TargetAvgAnnualNGGen, config, data)
             tgt = iter.target
