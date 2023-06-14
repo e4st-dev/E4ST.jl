@@ -6,3 +6,4 @@ none,country,narnia,1,unbuilt,endog,test_coal_build,coal,coal,0,0,1,0.6,0.68,2,0
 none,buildngcc,1,1,unbuilt,endog,test_ngcc_build,ng,ngcc,0,0,1.5,0,0.58,1,0.21428571428571427,5,5,0.1,0,,35,y2015,,30,0.6,0,7,1
 none,bus_idx,1,1,unbuilt,exog,test_exog_nuc_build,nuclear,nuclear,0.5,0,0.5,0.6,0.92,2,5,5,10,0.1,0,y2021,35,,,30,0,0,1,1
 none,bus_idx,2,1,unbuilt,exog,test_exog_solar_build,solar,solar,0.5,0,1,0,0.25,2,0,2.5,5,0.1,0,y2060,35,,,30,0,0,0,1
+none,bus_idx,3,1,unbuilt,exog,test_hcc_build,hydrogen,hcc,0.01,0,0.01,0.2,0.3,0.05,0.05,4,5,0.1,0,y2030,20,,,30,0.01,0,2,1

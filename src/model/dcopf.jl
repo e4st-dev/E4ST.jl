@@ -307,7 +307,7 @@ function add_obj_term!(data, model, term::Term, s::Symbol; oper) end
 function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper) 
     #Check if s has already been added to obj
     Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
-    
+
     #write expression for the term
     gen = get_table(data, :gen)
     egen_gen = model[:egen_gen]

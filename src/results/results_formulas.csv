@@ -27,7 +27,7 @@ gen,capt_co2_total,"SumHourly(capt_co2,egen)",ShortTons,Total CO2 captured
 gen,capt_co2_rate,capt_co2_total/egen_total,ShortTonsPerMWhGenerated,Average rate of CO2 capture
 gen,af_avg,ecap_available_total / ecap_total,MWhGeneratedPerMWhCapacity,Average availability factor (i.e. energy capacity available / energy capacity)
 gen,electricity_revenue,"SumHourly(lmp_egen, egen)",Dollars,Revenue earned by generators for the energy they served to the grid
-gen,electricity_price,electricity_revenue / egen,Dollars,Average price earned by generators for the energy they served to the grid
+gen,electricity_price,electricity_revenue / egen_total,Dollars,Average price earned by generators for the energy they served to the grid
 gen,vom_cost,"SumHourly(vom,egen)",Dollars,"Variable Operation and Maintenance cost incurred, in dollars"
 gen,vom_per_mwh,vom_cost/egen_total,DollarsPerMWhGenerated,Generation-weighted average of variable operation and maintenance costs
 gen,fom_cost,"SumHourlyWeighted(fom,pcap)",Dollars,"Fixed Operation and Maintenance cost incurred, in dollars"
