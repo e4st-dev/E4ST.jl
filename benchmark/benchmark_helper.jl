@@ -14,13 +14,15 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
     bus = DataFrame(
         ref_bus = fill(false, n_bus),
         plnom = rand(n_bus),
-        country = rand(countries(), n_bus)
+        country = rand(countries(), n_bus),
+        reg_factor = rand(n_bus),
     )
     ref_bus_idx = rand(1:n_bus)
     bus.ref_bus[ref_bus_idx] = true
 
     gen = DataFrame(
         bus_idx = rand(1:n_bus, n_gen),
+        reg_factor = rand(n_gen),
         status = trues(n_gen),
         build_status = rand(build_status_opts(), n_gen),
         build_type = rand(build_type_opts(), n_gen),
@@ -34,6 +36,8 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         heat_rate = 10*rand(n_gen),
         fom = rand(n_gen),
         capex = rand(n_gen),
+        transmission_capex=rand(n_gen),
+        routine_capex=rand(n_gen),
         year_on = year2str.(rand(2000:2023, n_gen)),
         year_off = fill("y9999", n_gen),
         year_shutdown = fill("y9999", n_gen),

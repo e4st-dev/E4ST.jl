@@ -104,7 +104,6 @@ function setup_dcopf!(config, data, model)
         pgen_scalar * pgen_gen[gen_idx, yr_idx, hr_idx] <= # Scale by pgen_scalar in this constraint to improve matrix coefficient range.  Some af values are very small.
         pgen_scalar * get_cf_max(config, data, gen_idx, yr_idx, hr_idx) * pcap_gen[gen_idx, yr_idx]
     )
-    # TODO: Add af_threshold here.
 
     # Constrain Reference Bus
     for ref_bus_idx in get_ref_bus_idxs(data), yr_idx in 1:nyear, hr_idx in 1:nhour
@@ -154,6 +153,7 @@ function setup_dcopf!(config, data, model)
     end
 
     add_obj_term!(data, model, PerMWCap(), :fom, oper = +)
+    add_obj_term!(data, model, PerMWCap(), :routine_capex, oper = +)
 
     @expression(model,
         pcap_gen_inv_sim[gen_idx in axes(gen,1)],
@@ -167,6 +167,7 @@ function setup_dcopf!(config, data, model)
     )
 
     add_obj_term!(data, model, PerMWCapInv(), :capex_obj, oper = +) 
+    add_obj_term!(data, model, PerMWCapInv(), :transmission_capex_obj, oper = +) 
 
     # Curtailment Cost
     add_obj_term!(data, model, PerMWhCurtailed(), :curtailment_cost, oper = +)

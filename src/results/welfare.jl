@@ -8,17 +8,18 @@ function setup_welfare!(config, data)
     data[:welfare] = welfare
 
     # Producer welfare
-    add_welfare_term!(data, :producer, :gen, :variable_cost, -)
-    add_welfare_term!(data, :producer, :gen, :fixed_cost, -)
-    add_welfare_term!(data, :producer, :gen, :electricity_revenue, +)
-
-    # TODO: Add transfer for CO2 paid
+    add_welfare_term!(data, :producer, :gen, :net_total_revenue_prelim, +)
+    add_welfare_term!(data, :producer, :gen, :cost_of_service_rebate, -)
 
     # Consumer welfare
+    add_welfare_term!(data, :consumer, :gen, :cost_of_service_rebate, +)
+    add_welfare_term!(data, :consumer, :bus, :electricity_cost, -)
+    add_welfare_term!(data, :consumer, :gen, :gs_cost, +)
+    # Make sure to have a term for policy costs that would get transferred to consumers, for policies like nuclear preservation, installed reserve margins, portfolio standards
 
     # Government welfare
-
-    
+    add_welfare_term!(data, :government, :gen, :government_revenue, +)
+    # Make sure that emissions caps and prices get added to govt. revenue and production cost.
 end
 export setup_welfare!
 

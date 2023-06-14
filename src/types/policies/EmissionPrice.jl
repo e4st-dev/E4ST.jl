@@ -55,7 +55,7 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
         # note: >2 used here for emisprc value and 0
         length(unique(pol.prices)) > 2 && @warn "The current E4ST EmissionPrice mod isn't formulated correctly for both a variable EmissionPrice value (ie. 2020: 12, 2025: 15) and year_from_ref filters, please only specify a single value"
 
-        add_table_col!(data, :gen, Symbol("$(pol.name)_capex_adj"), Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWBuiltCapacity, 
+        add_table_col!(data, :gen, Symbol("$(pol.name)_capex_adj"), Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWBuiltCapacityPerHour, 
         "Adjustment factor added to the obj function as a PerMWCapInv term to account for emisprc payments that do not continue through the entire econ lifetime of a generator.")
     end
     
@@ -91,9 +91,11 @@ end
 """
 function E4ST.modify_results!(pol::EmissionPrice, config, data)
     # policy cost, price per mwh * generation
-    add_results_formula!(data, :gen, Symbol("$(pol.name)_cost"), "SumHourly($(pol.name), egen)", Dollars, "The cost of $(pol.name)")
+    cost_name = Symbol("$(pol.name)_cost")
+    add_results_formula!(data, :gen, cost_name, "SumHourly($(pol.name), egen)", Dollars, "The cost of $(pol.name)")
+    add_to_results_formula!(data, :gen, :emission_cost, cost_name)
 
-    #add_results_formula!(data, :gen, Symbol("$(pol.name)_qual_gen"), "SumHourly($(pol.name),egen)", Dollars, "The cost of $(pol.name)")
+    should_adjust_invest_cost(pol) && add_results_formula!(data, :gen, Symbol("$(pol.name)_capex_adj_total"), "SumYearly(ecap_inv_sim, $(pol.name)_capex_adj)", Dollars, "The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.")
 end
 
 """

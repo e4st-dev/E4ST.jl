@@ -669,20 +669,31 @@ function Base.show(io::IO, c::LoadContainer)
     print(io, "$n-element LoadContainer of $(l)×$m Matrix")
 end
 
+"""
+    to_container!(table, col_name)
 
-function _to_container!(table::DataFrame, col_name)
-    v = _to_container(table[!, col_name])::Vector{Container}
+Converts `table[!, :col_name]` to a `Vector{Container}`.
+"""
+function to_container!(table::DataFrame, col_name)
+    v = to_container(table[!, col_name])::Vector{Container}
     table[!, col_name] = v
 end
-function _to_container!(table::SubDataFrame, col_name)
-    _to_container!(getfield(table, :parent), col_name)::Vector{Container}
+function to_container!(table::SubDataFrame, col_name)
+    to_container!(getfield(table, :parent), col_name)::Vector{Container}
 end
-function _to_container(v::Vector{Container})
+
+"""
+    to_container(v) -> cv::Vector{Container}
+
+Converts `v` to a `Vector{Container}`
+"""
+function to_container(v::Vector{Container})
     v
 end
-function _to_container(v::Vector)
-    Container[ByNothing(x) for x in v]
+function to_container(v::Vector)
+    Container[Container(x) for x in v]
 end
-export _to_container!
-export _to_container
+
+export to_container!
+export to_container
 

@@ -463,7 +463,10 @@ function modify_results!(mod::CCUS, config, data)
     add_results_formula!(data, :ccus_paths, :storer_cost_per_short_ton, "storer_cost_total/stored_co2_total", Dollars, "Average storage cost of CCUS per short ton via this pathway, from the perspective of the sequesterer")
     add_results_formula!(data, :ccus_paths, :storer_revenue_per_short_ton, "storer_revenue_total/stored_co2_total", Dollars, "Total revenue earned from storage for CCUS per short ton via this pathway.  This is the amount paid by the EGU's to the sequesterer, equal to the clearing price minus the transport cost.")
     add_results_formula!(data, :ccus_paths, :storer_profit_per_short_ton, "storer_profit_total/stored_co2_total", Dollars, "Total profit earned from storing a short ton of CO2 via this pathway, equal to the revenue minus the cost.")
-    
+
+    # Adjust welfare
+    add_to_results_formula!(data, :gen, :production_cost, "cost_capt_co2") # this gets added to producer welfare
+    add_welfare_term!(data, :sequesterer, :ccus_paths, :storer_profit_total, +)    
 
     # Throw error message if there are profits ≥ 0.
     all(v->all(>=(0), v), ccus_paths.storer_profit) || @warn "All CCUS profits should be ≥ 0, but found $(minimum(minimum, ccus_paths.storer_profit))"    

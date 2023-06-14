@@ -25,6 +25,13 @@
         @test all(p->abs(p)<1e-6, total_elcurt)
     end
 
+    @testset "Test bus results match gen results" begin
+        # Test that revenue of electricity for generators equals the cost for consumers
+        line_loss_rate = config[:line_loss_rate]
+        @test compute_result(data, :bus, :elserv_total) ≈ (compute_result(data, :gen, :egen_total)) * (1 - line_loss_rate)
+        @test compute_result(data, :bus, :electricity_cost) ≈ compute_result(data, :gen, :electricity_revenue)
+    end
+    
     @testset "Test DC lines" begin
         res_raw = get_raw_results(data)
         @test haskey(data, :dc_line)
@@ -45,7 +52,9 @@
         @test compute_result(data, :gen, :pcap_retired_total, [:build_type=>"endog"]) < 0.001 # Shouldn't be retiring endogenously built capacity.
 
         updated_gen_table = read_table(get_out_path(config, "gen.csv"))
+
         @test ~any(row->(row.pcap_inv <= 0), eachrow(updated_gen_table))
+
 
         for row in eachrow(gen)
             if contains(row.build_status, "retired")

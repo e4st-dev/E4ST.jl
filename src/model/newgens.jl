@@ -44,9 +44,15 @@ function make_newgens!(config, data, newgen)
     gen = get_table(data, :gen)
     years = get_years(data)
 
+    # Filter any already-built exogenous generators
+    filter!(build_gen) do row
+        row.build_type == "exog" && row.year_on >= config[:year_gen_data] && return false
+        return true
+    end
+
     #get the names of specifications that will be pulled from the build_gen table
     spec_names = filter!(
-        !in((:bus_idx, :gen_latitude, :gen_longitude, :year_off, :year_shutdown, :pcap_inv)), 
+        !in((:bus_idx, :gen_latitude, :gen_longitude, :reg_factor, :year_off, :year_shutdown, :pcap_inv, :year_unbuilt, :past_invest_cost, :past_invest_subsidy)), 
         propertynames(newgen)
     ) #this needs to be updated if there is anything else in gen that isn't a spec
 
@@ -73,7 +79,7 @@ function make_newgens!(config, data, newgen)
         for bus_idx in bus_idxs
             if spec_row.build_type == "endog"
                 # for endogenous new builds, a new gen is created for each sim year
-                for year in years
+                for (yr_idx, year) in enumerate(years)
                     year < year_on_min && continue
                     year > year_on_max && continue
                     #populate newgen_row with specs
@@ -81,13 +87,17 @@ function make_newgens!(config, data, newgen)
 
                     #set year_on and off
                     newgen_row[:year_on] = year
-                    newgen_row[:year_shutdown] = add_to_year(year, spec_row.age_shutdown)
+                    newgen_row[:year_unbuilt] = get(years, yr_idx - 1, config[:year_gen_data])
+                    newgen_row[:year_shutdown] = "y9999" # add_to_year(year, spec_row.age_shutdown)
                     newgen_row[:year_off] = "y9999"
                     newgen_row[:pcap_inv] = 0.0
+                    newgen_row[:past_invest_cost] = Container(0.0)
+                    newgen_row[:past_invest_subsidy] = Container(0.0)
 
                     #add gen location
                     hasproperty(newgen, :gen_latitude) && (newgen_row[:gen_latitude] = bus.bus_latitude[bus_idx])
                     hasproperty(newgen, :gen_longitude) && (newgen_row[:gen_longitude] = bus.bus_longitude[bus_idx])
+                    hasproperty(newgen, :reg_factor) && (newgen_row[:reg_factor] = bus.reg_factor[bus_idx])
 
                     push!(newgen, newgen_row, promote=true)
                 end
@@ -101,9 +111,14 @@ function make_newgens!(config, data, newgen)
                 newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
                 hasproperty(newgen, :gen_latitude) && (newgen_row[:gen_latitude] = bus.bus_latitude[bus_idx])
                 hasproperty(newgen, :gen_longitude) && (newgen_row[:gen_longitude] = bus.bus_longitude[bus_idx])
-                newgen_row[:year_shutdown] = add_to_year(spec_row.year_on, spec_row.age_shutdown)
+                hasproperty(newgen, :reg_factor) && (newgen_row[:reg_factor] = bus.reg_factor[bus_idx])
+
+                newgen_row[:year_shutdown] = "y9999" #add_to_year(spec_row.year_on, spec_row.age_shutdown)
                 newgen_row[:year_off] = "y9999"
                 newgen_row[:pcap_inv] = 0.0
+                newgen_row[:year_unbuilt] = add_to_year(newgen_row[:year_on], -1)
+                newgen_row[:past_invest_cost] = Container(0.0)
+                newgen_row[:past_invest_subsidy] = Container(0.0)
 
                 push!(newgen, newgen_row, promote=true)
             end

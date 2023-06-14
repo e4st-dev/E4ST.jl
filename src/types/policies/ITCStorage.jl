@@ -38,7 +38,7 @@ function E4ST.modify_setup_data!(pol::ITCStorage, config, data)
     years = get_years(data)
 
     #create column of annualized ITCStorage values
-    add_table_col!(data, :storage, pol.name, Container[ByNothing(0.0) for i in 1:nrow(storage)], DollarsPerMWBuiltCapacity,
+    add_table_col!(data, :storage, pol.name, Container[ByNothing(0.0) for i in 1:nrow(storage)], DollarsPerMWBuiltCapacityPerHour,
         "Investment tax credit value for $(pol.name)")
 
     #update column for gen_idx 
@@ -78,6 +78,20 @@ function E4ST.modify_model!(pol::ITCStorage, config, data, model)
     )
 
     add_obj_exp!(data, model, PerMWCapInv(), name, oper = -) 
+
+    # Add things to results here so it gets saved in the right places
+    total_result_name = "$(pol.name)_cost_obj"
+    total_result_sym = Symbol(total_result_name)
+
+
+    # calculate objective policy cost (based on capacity in each sim year)
+    add_results_formula!(data, :storage, total_result_sym, "SumYearly($(pol.name),ecap_inv_sim)", Dollars, "The cost of $(pol.name) as seen by the objective, not used for gov spending welfare")
+    #add_results_formula!(data, :gen, Symbol("$(pol.name)_cost_obj"), "SumHourly($(pol.name),ecap)", Dollars, "The cost of $(pol.name) as seen by the objective, not necessarily used for gov spending welfare")
+
+    # calculate welfare policy cost (obj policy cost spread over all years of investment represented by the sim years)
+    # if using pol_cost_obj, update the description provided in add_results_forumla above
+
+    add_to_results_formula!(data, :storage, :invest_subsidy, total_result_name)
 end
 
 
@@ -91,12 +105,4 @@ function E4ST.modify_results!(pol::ITCStorage, config, data)
         @warn "ITCStorage policy given, yet no storage defined.  Consider adding a Storage modification."
         return
     end
-    
-
-    # calculate objective policy cost (based on capacity in each sim year)
-    add_results_formula!(data, :storage, Symbol("$(pol.name)_cost_obj"), "SumYearly($(pol.name),ecap_inv_sim)", Dollars, "The cost of $(pol.name) as seen by the objective, not used for gov spending welfare")
-    #add_results_formula!(data, :gen, Symbol("$(pol.name)_cost_obj"), "SumHourly($(pol.name),ecap)", Dollars, "The cost of $(pol.name) as seen by the objective, not necessarily used for gov spending welfare")
-
-    # calculate welfare policy cost (obj policy cost spread over all years of investment represented by the sim years)
-    # if using pol_cost_obj, update the description provided in add_results_forumla above
 end

@@ -11,10 +11,24 @@ function parse_results!(config, data, model)
 
     obj_scalar = config[:objective_scalar]
 
-    results_raw = Dict(k => (@info "Parsing Result $k"; value_or_shadow_price(v, obj_scalar)) for (k,v) in object_dictionary(model))
+    od = object_dictionary(model)
+
+    # Pull out all the shadow prices or values for each of the variables/constraints
+    results_raw = Dict(k => (@info "Parsing Result $k"; value_or_shadow_price(v, obj_scalar)) for (k,v) in od)
     pgen_scalar = config[:pgen_scalar] |> Float64
     results_raw[:cons_pgen_max] ./= pgen_scalar
     
+    # Gather each of the objective function coefficients
+    obj = model[:obj]::AffExpr
+    obj_coef = OrderedDict{Symbol, Any}()
+    for (k,v) in od
+        if v isa AbstractArray{<:VariableRef}
+            obj_coef[k] = map(x->obj[x], v)
+        end
+    end
+    obj_coef[:pcap_gen_inv_sim] = map(x->obj[x], model[:pcap_gen_inv_sim])
+    results_raw[:obj_coef] = obj_coef
+
     # Empty the model now that we have retrieved all info, to save RAM and prevent the user from accidentally accessing un-scaled data.
     empty!(model)
     
@@ -156,7 +170,7 @@ function parse_power_results!(config, data)
 
     # Weight things by hour as needed
     egen_bus = weight_hourly(data, pgen_bus)
-    ecap_gen = weight_hourly(data, repeat(pcap_gen, 1,1,nhr))
+    ecap_gen = weight_hourly(data, pcap_gen)
     elserv_bus = weight_hourly(data, plserv_bus)
     elcurt_bus = weight_hourly(data, plcurt_bus)
     elnom_bus = weight_hourly(data, get_table_col(data, :bus, :plnom))
@@ -168,6 +182,11 @@ function parse_power_results!(config, data)
     eflow_out_bus = map(x-> max(x,0), eflow_bus)
     eflow_in_bus = map(x-> max(-x,0), eflow_bus)
 
+    obj_pcap_price_raw = res_raw[:obj_coef][:pcap_gen]::Array{Float64, 2}
+    obj_pcap_price = obj_pcap_price_raw ./ hours_per_year
+    obj_pgen_price_raw = res_raw[:obj_coef][:pgen_gen]::Array{Float64, 3}
+    obj_pgen_price = unweight_hourly(data, obj_pgen_price_raw)
+    obj_pcap_inv_price = res_raw[:obj_coef][:pcap_gen_inv_sim]::Vector{Float64}
     
     # Create new things as needed
     cf = pgen_gen ./ pcap_gen
@@ -186,7 +205,6 @@ function parse_power_results!(config, data)
         pcap_retired[:, yr_idx] .= max.( pcap_prev .- pcap_cur, 0.0)
         pcap_built[:, yr_idx]   .= max.( pcap_cur .- pcap_prev, 0.0)
     end
-
 
     # Add things to the bus table
     add_table_col!(data, :bus, :pgen,  pgen_bus,  MWGenerated,"Average Power Generated at this bus")
@@ -213,10 +231,17 @@ function parse_power_results!(config, data)
     add_table_col!(data, :gen, :pcap_inv_sim, pcap_gen_inv_sim, MWCapacity, "Total power generation capacity that was invested for the generator during the sim.  (single value).  Still the same even after retirement")
     add_table_col!(data, :gen, :ecap_inv_sim, ecap_gen_inv_sim, MWhCapacity, "Total annual power generation energy capacity that was invested for the generator during the sim. (pcap_inv_sim * hours per year) (single value).  Still the same even after retirement")
     add_table_col!(data, :gen, :cf,    cf,        MWhGeneratedPerMWhCapacity, "Capacity Factor, or average power generation/power generation capacity, 0 when no generation")
+    add_table_col!(data, :gen, :obj_pcap_price, obj_pcap_price, DollarsPerMWCapacityPerHour, "Objective function coefficient, in dollars, for one hour of 1MW capacity")
+    add_table_col!(data, :gen, :obj_pgen_price, obj_pgen_price, DollarsPerMWhGenerated, "Objective function coefficient, in dollars, for one MWh of generation")
+    add_table_col!(data, :gen, :obj_pcap_inv_price, obj_pcap_inv_price, DollarsPerMWBuiltCapacityPerHour, "Objective function coefficient, in dollars, for one MW of capacity invested")
 
     # Add things to the branch table
     add_table_col!(data, :branch, :pflow, pflow_branch, MWFlow,"Average Power flowing through branch")    
     add_table_col!(data, :branch, :eflow, eflow_branch, MWhFlow,"Electricity flowing through branch")    
+
+
+    # Update pcap_inv
+    gen.pcap_inv = max.(gen.pcap_inv, gen.pcap_inv_sim)
 
     return
 end
@@ -243,12 +268,22 @@ function parse_lmp_results!(config, data)
     
     # Add the LMP's to the results and to the bus table
     res_raw[:lmp_elserv_bus] = lmp_elserv
-    add_table_col!(data, :bus, :lmp_elserv, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
+
+    # Compensate for line losses for lmp seen by consumers at buses.
+    if config[:line_loss_type] == "plserv"
+        line_loss_rate = config[:line_loss_rate]::Float64
+
+        # lmp_elserv is dollars per MWh before losses, so we need to inflate the cost to compensate
+        plserv_scalar = 1/(1-line_loss_rate)
+        add_table_col!(data, :bus, :lmp_elserv, lmp_elserv .* plserv_scalar, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
+    else
+        add_table_col!(data, :bus, :lmp_elserv, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
+    end
 
     # Add lmp to generators
     gen = get_table(data, :gen)
-    lmp_bus = get_table_col(data, :bus, :lmp_elserv)
-    lmp_gen = lmp_bus[gen.bus_idx]
+    bus_idxs = gen.bus_idx::Vector{Int64}
+    lmp_gen = [view(lmp_elserv, i, :, :) for i in bus_idxs]
     add_table_col!(data, :gen, :lmp_egen, lmp_gen, DollarsPerMWhServed, "Locational Marginal Price of Energy Served")
 
     # # Get the shadow price of the positive and negative branch power flow constraints ($/(MW incremental transmission))      
@@ -270,6 +305,10 @@ export parse_lmp_results!
 Save the `gen` table to `get_out_path(config, "gen.csv")`
 """
 function save_updated_gen_table(config, data)
+    years = get_years(data)
+    nyr = get_num_years(data)
+    year_end = last(years)
+
     gen = get_table(data, :gen)
     original_cols = data[:gen_table_original_cols]
 
@@ -289,19 +328,44 @@ function save_updated_gen_table(config, data)
         return row.pcap_inv_sim
     end
 
+    # Gather the past investment costs and subsidies
+    for i in 1:nrow(gen_tmp)
+        gen_tmp.build_status[i] == "new" || continue
+        @info "updating the past investment cost/subsidy for $i"
+        gen_tmp.past_invest_cost[i] =    maximum(yr_idx->compute_result(data, :gen, :invest_cost_permw_perhr, i, yr_idx), 1:nyr)
+        gen_tmp.past_invest_subsidy[i] = maximum(yr_idx->compute_result(data, :gen, :invest_subsidy_permw_perhr, i, yr_idx), 1:nyr)
+    end
+
     # Filter anything with capacity below the threshold
     thresh = config[:pcap_retirement_threshold]
-    filter!(:pcap0 => >(thresh), gen_tmp)
+    filter!(gen_tmp) do row
+        # Keep anything above the threshold
+        row.pcap0 > thresh && return true
+        row.pcap_inv <= thresh && return false 
 
-    # Combine generators that are the same
+        row.build_type == "exog" && return false # We don't care to keep track of exogenous past capex
+
+        # Below the threshold, check to see if we are still within the economic lifetime
+        year_econ_life = add_to_year(row.year_on, row.econ_life)
+        year_econ_life > year_end && return true
+
+        return false
+    end
+
+    # Combine generators that are the same.  This is for things like ccus that get split up.
     gdf = groupby(gen_tmp, Not(:pcap0))
     gen_tmp_combined = combine(gdf,
         :pcap0 => sum => :pcap0
     )
     gen_tmp_combined.pcap_max = copy(gen_tmp_combined.pcap0)
 
+    file_out = get_out_path(config, "gen.csv") 
+    CSV.write(file_out, gen_tmp_combined)
 
-    CSV.write(get_out_path(config, "gen.csv"), gen_tmp_combined)
+    # Update config[:gen_file] to be from the current out_path
+    if issequential(get_iterator(config))
+        config[:gen_file] = file_out
+    end
     return nothing
 end
 export save_updated_gen_table

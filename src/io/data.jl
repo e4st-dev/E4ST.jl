@@ -417,8 +417,34 @@ Creates age column which is a ByYear column. Unbuilt generators have a negative 
 function setup_table!(config, data, ::Val{:gen})
     bus = get_table(data, :bus)
     gen = get_table(data, :gen)
+    years = get_years(data)
 
-    data[:gen_table_original_cols] = propertynames(gen)
+    # Set up year_unbuilt before setting up new gens.  Plus we will want to save the column
+    hasproperty(gen, :year_unbuilt) || (gen.year_unbuilt = map(y->add_to_year(y, -1), gen.year_on))
+    
+    # Set up past capex cost and subsidy to be for built generators only
+    # Make columns as needed
+    hasproperty(gen, :past_invest_cost) || (gen.past_invest_cost = zeros(nrow(gen)))
+    hasproperty(gen, :past_invest_subsidy) || (gen.past_invest_subsidy = zeros(nrow(gen)))
+    z = Container(0.0)
+    to_container!(gen, :past_invest_cost)
+    to_container!(gen, :past_invest_subsidy)
+    for (idx_g, g) in enumerate(eachrow(gen))
+        if g.build_status == "unbuilt"
+            if any(!=(0), g.past_invest_cost) || any(!=(0), g.past_invest_subsidy)
+                @warn "Generator $idx_g is unbuilt yet has past capex cost/subsidy, setting to zero"
+                g.past_invest_cost = z
+                g.past_invest_subsidy = z
+            end
+        else
+            past_invest_percentages = get_past_invest_percentages(g, years)
+            g.past_invest_cost = g.past_invest_cost .* past_invest_percentages
+            g.past_invest_subsidy = g.past_invest_subsidy .* past_invest_percentages
+        end
+    end
+
+    original_cols = propertynames(gen)
+    data[:gen_table_original_cols] = original_cols
 
     #removes capex_obj if read in from previous sim
     :capex_obj in propertynames(data[:gen]) && select!(data[:gen], Not(:capex_obj))
@@ -440,15 +466,16 @@ function setup_table!(config, data, ::Val{:gen})
     ### Create capex_obj (the capex used in the optimization/objective function)
     # set to capex for unbuilt generators in and after the year_on
     # set to 0 for already built capacity because capacity expansion isn't considered for existing generators
+    
     capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
-    for idx_g in 1:nrow(gen)
-        g = gen[idx_g,:]
+    transmission_capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
+    for (idx_g, g) in enumerate(eachrow(gen))
         g.build_status == "unbuilt" || continue
-        g_capex_obj = [g.capex * (year >= g.year_on && year < add_to_year(g.year_on, g.econ_life)) for year in get_years(data)]
-        # g_capex_obj = [g.capex * (year == g.year_on) for year in get_years(data)]
-        capex_obj[idx_g] = ByYear(g_capex_obj)
+        capex_obj[idx_g] = ByYear([g.capex * (year >= g.year_on && year < add_to_year(g.year_on, g.econ_life)) for year in get_years(data)])
+        transmission_capex_obj[idx_g] = ByYear([g.transmission_capex * (year >= g.year_on && year < add_to_year(g.year_on, g.econ_life)) for year in get_years(data)])
     end
-    add_table_col!(data, :gen, :capex_obj, capex_obj, DollarsPerMWBuiltCapacity, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
+    add_table_col!(data, :gen, :capex_obj, capex_obj, DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
+    add_table_col!(data, :gen, :transmission_capex_obj, transmission_capex_obj, DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures for transmission that is passed into the objective function. 0 for already built capacity")
 
     # capex_econ = Container[ByNothing(0.0) for i in 1:nrow(gen)]
     # for idx_g in 1:nrow(gen)
@@ -456,7 +483,7 @@ function setup_table!(config, data, ::Val{:gen})
     #     g_capex = [g.capex * (year >= g.year_on && year < g.year_off) for year in get_years(data)] # Possibly change this to be based on economic lifetime
     #     capex_econ[idx_g] = ByYear(g_capex)
     # end
-    # add_table_col!(data, :gen, :capex_econ, capex_econ, DollarsPerMWBuiltCapacity, "Hourly capital expenditures to be paid between year_on and year_off")
+    # add_table_col!(data, :gen, :capex_econ, capex_econ, DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures to be paid between year_on and year_off")
 
     
     ### Add age column as by ByYear based on year_on
@@ -472,7 +499,7 @@ function setup_table!(config, data, ::Val{:gen})
 
     ### Map bus characteristics to generators
     names_before = propertynames(gen)
-    leftjoin!(gen, bus, on=:bus_idx)
+    leftjoin!(gen, select(bus, Not(:reg_factor)), on=:bus_idx)
     select!(gen, Not(:plnom))
     disallowmissing!(gen)
     names_after = propertynames(gen)
@@ -485,6 +512,7 @@ function setup_table!(config, data, ::Val{:gen})
     # Add necessary columns if they don't exist.
     hasproperty(gen, :af) || (gen.af = fill(ByNothing(1.0), nrow(gen)))
     hasproperty(gen, :fuel_price) || (gen.fuel_price = fill(0.0, nrow(gen)))
+
     return gen
 end
 export setup_table!
@@ -664,6 +692,7 @@ function summarize_table(::Val{:gen})
         (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
         (:build_id, AbstractString, NA, true, "Identifier of the build row.  For pre-existing generators not specified in the build file, this is usually left empty"),
         (:year_on, YearString, Year, true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
+        (:year_unbuilt,YearString, Year, false, "The latest year the generator was known not to be built.  Defaults to year_on - 1.  Used for past capex accounting."),
         (:econ_life, Float64, NumYears, true, "The number of years in the economic lifetime of the generator."),
         (:year_off, YearString, Year, true, "The first year that the generator is no longer operating in the simulation, computed from the simulation.  Leave as y9999 if an existing generator that has not been retired in the simulation yet."),
         (:year_shutdown, YearString, Year, true, "The forced (exogenous) shutdown year for the generator.  Often equal to the year_on plus the econ_life"),
@@ -677,7 +706,11 @@ function summarize_table(::Val{:gen})
         (:fuel_price, Float64, DollarsPerMMBtu, false, "Fuel cost per MMBtu of fuel used.  `heat_rate` column also necessary when supplying `fuel_price`"),
         (:heat_rate, Float64, MMBtuPerMWhGenerated, false, "Heat rate,  or MMBtu of fuel consumed per MWh electricity generated (0 for generators that don't use combustion)"),
         (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
-        (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
+        (:capex, Float64, DollarsPerMWBuiltCapacityPerHour, true, "Hourly capital expenditures for a MW of generation capacity.  For already-built generators, this is not accounted for in the optimization or accounting.  For accounting for investment costs and subsidies in built generators, use `past_invest_cost` and `past_invest_subsidy`"),
+        (:transmission_capex, Float64, DollarsPerMWBuiltCapacityPerHour, true, "Hourly capital expenditures for the transmission supporting a MW of generation capacity"),
+        (:routine_capex, Float64, DollarsPerMWCapacityPerHour, true, "Routine capital expenditures for a MW of discharge capacity"),
+        (:past_invest_cost, Float64, DollarsPerMWCapacityPerHour, false, "Investment costs per MW of initial capacity per hour, for past investments"),
+        (:past_invest_subsidy, Float64, DollarsPerMWCapacityPerHour, false, "Investment subsidies from govt. per MW of initial capacity per hour, for past investments"),
         (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible.  Set to zero by default."),
         (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
         (:cf_hist, Float64, MWhGeneratedPerMWhCapacity, false, "The historical capacity factor for the generator, or the gentype if no previous data is available. Primarily used to calculate estimate policy value (PTC and EmissionPrice capex_adj)"),
@@ -685,7 +718,8 @@ function summarize_table(::Val{:gen})
         (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The emission rate per MWh of CO2"),
         (:capt_co2_percent, Float64, NA, false, "The percentage of co2 emissions captured, to be sequestered."),
         (:heat_rate, Float64, MMBtuPerMWhGenerated, false, "Heat rate, or MMBtu of fuel consumed per MWh electricity generated (0 for generators that don't use combustion)"),
-        (:chp_co2_multi,Float64,NA,false,"The percentage of CO2 emissions from CHP attributed to the power generation. Used to calculate CO2e")
+        (:chp_co2_multi,Float64,NA,false,"The percentage of CO2 emissions from CHP attributed to the power generation. Used to calculate CO2e"),
+        (:reg_factor, Float64, NA, true, "The percentage of generation that dispatches to a cost-of-service regulated market"),
     )
     return df
 end
@@ -700,6 +734,7 @@ function summarize_table(::Val{:bus})
     df = TableSummary()
     push!(df, 
         (:ref_bus, Bool, NA, true, "Whether or not the bus is a reference bus.  There should be a single reference bus for each island."),
+        (:reg_factor, Float64, NA, true, "The percentage of generation that dispatches to a cost-of-service regulated market"),
     )
     return df
 end
@@ -776,7 +811,9 @@ function summarize_table(::Val{:build_gen})
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
         (:fuel_price, Float64, DollarsPerMMBtu, false, "Fuel cost per MMBtu of fuel used.  `heat_rate` column also necessary when supplying `fuel_price`"),
         (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
-        (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
+        (:capex, Float64, DollarsPerMWBuiltCapacityPerHour, true, "Hourly capital expenditures for a MW of generation capacity"),
+        (:transmission_capex, Float64, DollarsPerMWBuiltCapacityPerHour, true, "Hourly capital expenditures for the transmission supporting a MW of generation capacity"),
+        (:routine_capex, Float64, DollarsPerMWCapacityPerHour, true, "Routing capital expenditures for a MW of discharge capacity"),
         (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible.  Set to zero by default."),
         (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
         (:cf_hist, Float64, MWhGeneratedPerMWhCapacity, false, "The historical capacity factor for the generator or the gentype. Primarily used to calculate estimate policy value (PTC and EmissionPrice capex_adj)"),

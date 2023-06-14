@@ -138,6 +138,13 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
 end
 export add_build_constraints!
 
+function Base.getindex(ex::GenericAffExpr{V, K}, x::K) where {K, V}
+    return get(ex.terms, x, zero(V))
+end
+
+function Base.getindex(ex::GenericAffExpr{V, K}, x) where {K, V}
+    return 0.0
+end
 
 
 """

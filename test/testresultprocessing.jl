@@ -23,6 +23,18 @@
         @test data1 == data2 || data1 === data2
     end
 
+    @testset "Test welfare calculations" begin
+        config = read_config(config_file)
+        data = read_data(config)
+        model = setup_model(config, data)
+        optimize!(model)
+        parse_results!(config, data, model)
+
+        # Test that the objective values are the same as the accounting values, at least for this simplified example
+        @test compute_result(data, :gen, :obj_pgen_cost) ≈ compute_result(data, :gen, :variable_cost)
+        @test compute_result(data, :gen, :obj_pcap_cost) ≈ compute_result(data, :gen, :fixed_cost)
+    end
+
     @testset "Test reading/saving model from .jls file" begin
         config = read_config(config_file)
         config[:base_out_path] = "../out/3bus1"
@@ -128,8 +140,8 @@
             @test 0 <= compute_result(data, :gen, :cf_avg, :gentype=>"solar", :, :) <= compute_result(data, :gen, :af_avg, :gentype=>"solar", :, :)
         
             # Test that the average LMP times energy served equals the sum of LMP
-            elec_cost = compute_result(data, :bus, :cost_elserv)
-            elec_price = compute_result(data, :bus, :price_elserv)
+            elec_cost = compute_result(data, :bus, :electricity_cost)
+            elec_price = compute_result(data, :bus, :electricity_price)
             elec_quantity = compute_result(data, :bus, :elserv_total)
             @test elec_cost ≈ elec_price * elec_quantity
         
@@ -245,7 +257,7 @@
 
     @testset "Test results processing from already-saved results" begin
         ### Run E4ST
-        out_path, _ = run_e4st(config_file)
+        out_path, _ = run_e4st(config_file, log_model_summary=true)
 
         # Now read the config from the out_path, with some results processing mods too.  Could also add the mods manually here.
         mod_file= joinpath(@__DIR__, "config/config_res.yml")

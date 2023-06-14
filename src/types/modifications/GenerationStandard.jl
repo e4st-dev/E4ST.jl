@@ -173,14 +173,15 @@ function modify_results!(pol::GenerationStandard, config, data)
 
     # set to shadow_prc * crediting
     for i in gen_idxs
-        gen[i, Symbol("$(pol.name)_prc")] = abs.(shadow_prc) .* gen[i, pol.name]
+        gen[i, Symbol("$(pol.name)_prc")] = -(shadow_prc) .* gen[i, pol.name]
     end
 
 
     # policy cost, price * credit * generation
     prc_name = Symbol("$(pol.name)_prc")
-    add_results_formula!(data, :gen, Symbol("$(pol.name)_cost"), "SumHourly($(prc_name), egen)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
-
+    cost_name = Symbol("$(pol.name)_cost")
+    add_results_formula!(data, :gen, cost_name, "SumHourly($(prc_name), egen)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
+    add_to_results_formula!(data, :gen, :gs_cost, cost_name)
 end
 export modify_results!
 

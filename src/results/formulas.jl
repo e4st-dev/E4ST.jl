@@ -40,7 +40,7 @@ function filter_results_formulas!(data)
                 return isvalid
             else
                 table = get_table(data, table_name)
-                invalid_cols = filter(col->!hasproperty(table, col), dependent_columns)
+                invalid_cols = filter(col->!hasproperty(table, col) && !haskey(data, col), dependent_columns)
                 isvalid = isempty(invalid_cols)
                 isvalid || @warn "Result $result_name for table $table_name cannot be computed because table does not have columns:\n  $invalid_cols"
                 return isvalid
@@ -90,26 +90,33 @@ function add_results_formula!(data, table_name::Symbol, result_name::Symbol, for
 
     results_formulas = get_results_formulas(data)
 
-    # Raw results calculations. I.e. "SumHourly(vom, egen)"
-    if startswith(formula, r"[\w]+\(")
-        args_string = match(r"\([^\)]+\)", formula).match
-        dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", args_string))
-        fn_string = match(r"([\w]+)\(",formula).captures[1]
-        T = getfield(E4ST, Symbol(fn_string))
-        fn = T(dependent_columns...)
-        isderived = false
-        
-    # Derived results calculations: I.e. "vom_total / egen_total"
-    else
-        dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", formula))
-        isderived = true
-        fn = _ResultsFunction(formula)
-    end
+    rf = ResultsFormula(table_name, result_name, formula, unit, description)
 
     # push!(results_formulas_table, (;table_name, result_name, formula, unit, description, dependent_columns, fn))
-    results_formulas[table_name, result_name] = ResultsFormula(table_name, result_name, formula, unit, description, isderived, dependent_columns, fn)
+    results_formulas[table_name, result_name] = rf
 end
 export add_results_formula!
+
+"""
+    add_to_results_formula!(data, table_name::Symbol, result_name::Symbol, formula)
+
+Adds a term to an existing results formula.  Can be more complex expressions.
+* if it is a derived formula (like `\"vom_cost + fom_cost\"`), then you can supply any expression to get added to the formula, like `\"-my_result_name / 2\"`
+* if it is a primary formula (like `\"SumHourly(col1, col2)\"`), then you can provide additional columns like `\"col3, col4\"`.
+"""
+function add_to_results_formula!(data, table_name::Symbol, result_name::Symbol, formula)
+    rf = get_results_formula(data, table_name, result_name)
+    formula_original = rf.formula
+    if rf.isderived
+        formula_new = string(formula_original, " + ", formula)
+    else
+        formula_new = replace(formula_original, ")"=>",$formula)")
+    end
+    rf_new = ResultsFormula(table_name, result_name, formula_new, rf.unit, rf.description)
+    results_formulas = get_results_formulas(data)
+    results_formulas[table_name, result_name] = rf_new
+end
+export add_to_results_formula!
 
 
 """
@@ -129,6 +136,27 @@ struct ResultsFormula
 end
 export ResultsFormula
 
+function ResultsFormula(table_name::Symbol, result_name::Symbol, formula::String, unit::Type{<:Unit}, description::String)
+    
+    # Raw results calculations. I.e. "SumHourly(vom, egen)"
+    if startswith(formula, r"[\w]+\(")
+        args_string = match(r"\([^\)]*\)", formula).match
+        dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"(\w+)", args_string))
+        fn_string = match(r"([\w]+)\(",formula).captures[1]
+        T = getfield(E4ST, Symbol(fn_string))
+        fn = T(dependent_columns...)
+        isderived = false
+        
+    # Derived results calculations: I.e. "vom_total / egen_total"
+    else
+        dependent_columns = collect(Symbol(m.match) for m in eachmatch(r"([A-Za-z]\w+)", formula))
+        isderived = true
+        fn = _ResultsFunction(formula)
+    end
+
+    return ResultsFormula(table_name, result_name, formula, unit, description, isderived, dependent_columns, fn)
+end
+
 struct _ResultsFunction{F} <: Function end
 function _ResultsFunction(s::String)
     fn = _Func(s)
@@ -145,7 +173,7 @@ struct Tail <: Function end
 _Func(s::String) = _Func(Meta.parse(s))
 _Func(e::Expr) = Op{getfield(Base, e.args[1]), _Func((view(e.args, 2:length(e.args))...,))}
 _Func(s::Symbol) = Var{s}
-_Func(n::Number) = Num{n}
+_Func(n::Number) = Num{Float64(n)}
 function _Func(args::Tuple)
     Args{_Func(first(args)), _Func(Base.tail(args))}
 end
@@ -275,7 +303,7 @@ function compute_results!(df, data, table_name, result_name, idx_sets, year_idx_
         fn = res_formula.fn
         res = fn(df)
 
-        df[!, result_name] = res
+        df[!, result_name] .= res
     end
     return nothing
 end
@@ -321,6 +349,49 @@ function (f::Sum{3})(data, table, idxs, yr_idxs, hr_idxs)
     _sum(table[!, col1], table[!, col2], table[!, col3], idxs)
 end
 
+
+@doc raw"""
+    MinYearly(cols...) <: Function
+
+This function returns the minimum yearly value.
+
+```math
+\min_{y \in \text{yr\_idxs}} \sum_{i \in \text{idxs}, h \in \text{hr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
+```
+"""
+struct MinYearly{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+MinYearly(cols::Symbol...) = MinYearly(cols)
+export MinYearly
+
+function (f::MinYearly{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    v1 = table[!, col1]
+    minimum(_sum_yearly(v1, idxs, y, hr_idxs) for y in yr_idxs)
+end
+
+@doc raw"""
+    MaxYearly(cols...) <: Function
+
+This function returns the maximum yearly value.
+
+```math
+\max_{y \in \text{yr\_idxs}} \sum_{i \in \text{idxs}, h \in \text{hr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
+```
+"""
+struct MaxYearly{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+MaxYearly(cols::Symbol...) = MaxYearly(cols)
+export MaxYearly
+
+function (f::MaxYearly{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    v1 = table[!, col1]
+    maximum(_sum_yearly(v1, idxs, y, hr_idxs) for y in yr_idxs)
+end
+
 @doc raw"""
     AverageYearly(cols...) <: Function
 
@@ -329,8 +400,6 @@ Function used in results formulas.  Computes the sum of the products of the colu
 ```math
 \frac{\sum_{i \in \text{idxs}} \sum_{y \in \text{yr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y]}{\text{length(yr\_idxs)}}
 ```
-
-When specifying in a formula, looks like `average_yearly(cols...)`
 """
 struct AverageYearly{N} <: Function
     cols::NTuple{N, Symbol}
@@ -403,6 +472,27 @@ function (f::MinHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
 end
 
 @doc raw"""
+    MaxHourly(cols...) <: Function
+
+This function returns the maximum hourly value.
+
+```math
+\max_{y \in \text{yr\_idxs}, h \in \text{hr\_idxs}} \sum_{i \in \text{idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
+```
+"""
+struct MaxHourly{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+MaxHourly(cols::Symbol...) = MaxHourly(cols)
+export MaxHourly
+
+function (f::MaxHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    v1 = table[!, col1]
+    maximum(_sum_hourly(v1, idxs, y, h) for h in hr_idxs for y in yr_idxs)
+end
+
+@doc raw"""
     SumHourly(cols...) <: Function
 
 This is a function that adds up the product of each of the values given to it for each of the years and hours given.
@@ -429,12 +519,87 @@ function (f::SumHourly{3})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2,col3 = f.cols
     _sum_hourly(table[!, col1], table[!, col2], table[!, col3], idxs, yr_idxs, hr_idxs)
 end
+
 # function (f::SumHourly{4})(data, table, idxs, yr_idxs, hr_idxs)
 #     col1,col2,col3,col4 = f.cols
 #     _sum_hourly(table[!, col1], table[!, col2], table[!, col3], table[!, col4], idxs, yr_idxs, hr_idxs)
 # end
 
 
+@doc raw"""
+    SumHourlyWeighted(cols...) <: Function
+
+This is a function that adds up the product of each of the values given to it times the hour weight for each of the years and hours given.
+
+```math
+\sum_{i \in \text{idxs}} \sum_{y \in \text{yr\_idxs}} \sum_{h \in \text{hr\_idxs}} w_{h} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
+```
+"""
+struct SumHourlyWeighted{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+SumHourlyWeighted(cols::Symbol...) = SumHourlyWeighted(cols)
+export SumHourlyWeighted
+
+function (f::SumHourlyWeighted{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    hc = data[:hours_container]::HoursContainer
+    _sum_hourly(table[!, col1], hc, idxs, yr_idxs, hr_idxs)
+end
+function (f::SumHourlyWeighted{2})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2 = f.cols
+    hc = data[:hours_container]::HoursContainer
+    _sum_hourly(table[!, col1], table[!, col2], hc, idxs, yr_idxs, hr_idxs)
+end
+
+
+@doc raw"""
+    AverageHourly(cols...) <: Function
+
+Function used in results formulas.  Computes the sum of the products of the columns for each index in idxs for each year and hour, divided by the number of hours.
+
+```math
+\frac{\sum_{i \in \text{idxs}} \sum_{y \in \text{yr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y]}{\sum_{y \in \text{yr\_idxs}, h \in \text{hr\_idxs}} w_{h}}
+```
+"""
+struct AverageHourly{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+AverageHourly(cols::Symbol...) = AverageHourly(cols)
+export AverageHourly
+
+function (f::AverageHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    hour_weights = get_hour_weights(data)
+    _sum_hourly(table[!, col1], idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
+end
+
+function (f::AverageHourly{2})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2 = f.cols
+    hour_weights = get_hour_weights(data)
+    _sum_hourly(table[!, col1], table[!, col2], idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
+end
+
+function (f::AverageHourly{3})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2,col3 = f.cols
+    hour_weights = get_hour_weights(data)
+    _sum_hourly(table[!, col1], table[!, col2], table[!, col3], idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
+end
+
+
+"""
+    CostOfServiceRebate(table_name) <: Function
+
+This is a special function that computes the sum of the net total revenue times the regulatory factor `reg_factor`.  This only works for the gen table and storage table.
+"""
+struct CostOfServiceRebate <: Function
+    table_name::Symbol
+end
+function (f::CostOfServiceRebate)(data, table, idxs, yr_idxs, hr_idxs)
+    reg_factor = table.reg_factor
+    return sum0(reg_factor[i] * compute_result(data, f.table_name, :net_total_revenue_prelim, i, yr_idxs, hr_idxs) for i in idxs)
+end
+export CostOfServiceRebate
 
 
 function _sum(v1, idxs)

@@ -1,5 +1,5 @@
 """
-    struct Storage <: Modification
+    mutable struct Storage <: Modification
 
     Storage(;name, file, build_file="")
 
@@ -41,7 +41,7 @@ Each storage device can either be on the "gen" side or the "load" side, as speci
     * `pcharge_stor` gets added to `plserv_bus`
     * `pdischarge_stor` gets subtracted from `plserv_bus`
 """
-struct Storage <: Modification
+mutable struct Storage <: Modification
     name::Symbol
     file::String
     build_file::String
@@ -67,6 +67,7 @@ function summarize_table(::Val{:storage})
         (:build_type, AbstractString, NA, true, "Whether the storage device is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
         (:build_id, AbstractString, NA, true, "Identifier of the build row.  For pre-existing storage devices not specified in the build file, this is usually left empty"),
         (:year_on, YearString, Year, true, "The first year of operation for the storage device. (For new devices this is also the year it was built)"),
+        (:year_unbuilt,YearString, Year, false, "The latest year the generator was known not to be built.  Defaults to year_on - 1.  Used for past capex accounting."),
         (:econ_life, Float64, NumYears, true, "The number of years in the economic lifetime of the storage device."),
         (:year_off, YearString, Year, true, "The first year that the storage unit is no longer operating in the simulation, computed from the simulation.  Leave as y9999 if an existing storage unit that has not been retired in the simulation yet."),
         (:year_shutdown, YearString, Year, true, "The forced (exogenous) shutdown year for the storage unit."),
@@ -76,7 +77,11 @@ function summarize_table(::Val{:storage})
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power discharge capacity of the storage device"),
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of energy discharged"),
         (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of discharge capacity"),
-        (:capex, Float64, DollarsPerMWBuiltCapacity, true, "Hourly capital expenditures for a MW of discharge capacity"),
+        (:capex, Float64, DollarsPerMWBuiltCapacityPerHour, true, "Hourly capital expenditures for a MW of discharge capacity"),
+        (:transmission_capex, Float64, DollarsPerMWBuiltCapacityPerHour, false, "Hourly capital expenditures for the transmission supporting a MW of discharge capacity"),
+        (:routine_capex, Float64, DollarsPerMWCapacityPerHour, true, "Routine capital expenditures for a MW of discharge capacity"),
+        (:past_invest_cost, Float64, DollarsPerMWCapacityPerHour, false, "Investment costs per MW of initial capacity per hour, for past investments"),
+        (:past_invest_subsidy, Float64, DollarsPerMWCapacityPerHour, false, "Investment subsidies from govt. per MW of initial capacity per hour, for past investments"),
         (:duration_discharge, Float64, Hours, true, "Number of hours to fully discharge the storage device, from full."),
         (:duration_charge, Float64, Hours, false, "Number of hours to fully charge the empty storage device from empty. (Defaults to equal `duration_discharge`)"),
         (:storage_efficiency, Float64, MWhDischargedPerMWhCharged, true, "The round-trip efficiency of the battery."),
@@ -84,6 +89,7 @@ function summarize_table(::Val{:storage})
         (:hour_groupby, String, NA, true, "The column of the `hours` table to group by.  For example `day`"),
         (:hour_duration, String, NA, true, "The column of the `hours` table specifying the duration of each representatibe hour"),
         (:hour_order, String, NA, true, "The column of the `hours` table specifying the sequence of the hours."),
+        (:reg_factor, Float64, NA, true, "The percentage of power that dispatches to a cost-of-service regulated market"),
     )
 end
 
@@ -111,7 +117,9 @@ function summarize_table(::Val{:build_storage})
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power discharge capacity of the storage device"),
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of energy discharged"),
         (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of discharge capacity"),
-        (:capex, Float64, DollarsPerMWBuiltCapacity, true, "Hourly capital expenditures for a MW of discharge capacity"),
+        (:capex, Float64, DollarsPerMWBuiltCapacityPerHour, true, "Hourly capital expenditures for a MW of discharge capacity"),
+        (:transmission_capex, Float64, DollarsPerMWBuiltCapacityPerHour, true, "Hourly capital expenditures for the transmission supporting a MW of discharge capacity"),
+        (:routine_capex, Float64, DollarsPerMWCapacityPerHour, true, "Routing capital expenditures for a MW of discharge capacity"),
         (:duration_discharge, Float64, Hours, true, "Number of hours to fully discharge the storage device, from full."),
         (:duration_charge, Float64, Hours, false, "Number of hours to fully charge the empty storage device from empty. (Defaults to equal `duration_discharge`)"),
         (:storage_efficiency, Float64, MWhDischargedPerMWhCharged, true, "The round-trip efficiency of the device."),
@@ -136,6 +144,30 @@ function modify_setup_data!(mod::Storage, config, data)
     hours = get_table(data, :hours)
     years = get_years(data)
 
+    # Set up year_unbuilt before setting up new gens.  Plus we will want to save the column
+    hasproperty(storage, :year_unbuilt) || (storage.year_unbuilt = map(y->add_to_year(y, -1), storage.year_on))
+    
+    # Set up past capex cost and subsidy to be for built generators only
+    # Make columns as needed
+    hasproperty(storage, :past_invest_cost) || (storage.past_invest_cost = zeros(nrow(storage)))
+    hasproperty(storage, :past_invest_subsidy) || (storage.past_invest_subsidy = zeros(nrow(storage)))
+    z = Container(0.0)
+    to_container!(storage, :past_invest_cost)
+    to_container!(storage, :past_invest_subsidy)
+    for (idx_g, g) in enumerate(eachrow(storage))
+        if g.build_status == "unbuilt"
+            if any(!=(0), g.past_invest_cost) || any(!=(0), g.past_invest_subsidy)
+                @warn "Generator $idx_g is unbuilt yet has past capex cost/subsidy, setting to zero"
+                g.past_invest_cost = z
+                g.past_invest_subsidy = z
+            end
+        else
+            past_invest_percentages = get_past_invest_percentages(g, years)
+            g.past_invest_cost = g.past_invest_cost .* past_invest_percentages
+            g.past_invest_subsidy = g.past_invest_subsidy .* past_invest_percentages
+        end
+    end
+
     data[:storage_table_original_cols] = propertynames(storage)
 
     add_buildable_storage!(config, data)
@@ -151,13 +183,15 @@ function modify_setup_data!(mod::Storage, config, data)
     end
 
     ### Create capex_obj (the capex used in the optimization/objective function)
-    # set to capex for unbuilt generators in the year_on
-    # set to 0 for already built capacity because capacity expansion isn't considered for existing generators
-    add_table_col!(data, :storage, :capex_obj, Container[ByNothing(0.0) for i in 1:nrow(storage)], DollarsPerMWBuiltCapacity, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
+    # set to capex for unbuilt storage units in the year_on
+    # set to 0 for already built capacity because capacity expansion isn't considered for existing storage units
+    add_table_col!(data, :storage, :capex_obj, Container[ByNothing(0.0) for i in 1:nrow(storage)], DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
+    add_table_col!(data, :storage, :transmission_capex_obj, Container[ByNothing(0.0) for i in 1:nrow(storage)], DollarsPerMWBuiltCapacityPerHour, "Hourly transmission capital expenditures that is passed into the objective function. 0 for already built capacity")
 
     for row in eachrow(storage)
         row.build_status == "unbuilt" || continue
         row.capex_obj = ByYear([row.capex * (year >= row.year_on && year < add_to_year(row.year_on, row.econ_life)) for year in years])
+        row.transmission_capex_obj = ByYear([row.transmission_capex * (year >= row.year_on && year < add_to_year(row.year_on, row.econ_life)) for year in years])
     end
 
     storage.num_intervals = fill(0, nrow(storage))
@@ -196,7 +230,7 @@ function modify_setup_data!(mod::Storage, config, data)
 
     ### Map bus characteristics to storage
     names_before = propertynames(storage)
-    leftjoin!(storage, bus, on=:bus_idx)
+    leftjoin!(storage, select(bus, Not(:reg_factor)), on=:bus_idx)
     select!(storage, Not(:plnom))
     disallowmissing!(storage)
     names_after = propertynames(storage)
@@ -219,8 +253,14 @@ function add_buildable_storage!(config, data)
     build_storage = get_table(data, :build_storage)
     bus =           get_table(data, :bus)
 
+    # Filter any already-built exogenous storage units
+    filter!(build_storage) do row
+        row.build_type == "exog" && row.year_on >= config[:year_gen_data] && return false
+        return true
+    end
+
     spec_names = filter!(
-        !in((:bus_idx, :year_off, :year_shutdown, :pcap_inv)),
+        !in((:bus_idx, :reg_factor, :year_off, :year_shutdown, :pcap_inv, :year_unbuilt, :past_invest_cost, :past_invest_subsidy)),
         propertynames(storage)
     )
     years = get_years(data)
@@ -237,16 +277,23 @@ function add_buildable_storage!(config, data)
         for bus_idx in bus_idxs
             if spec_row.build_type == "endog"
                 # For endogenous new builds a new storage device is created for each year
-                for year in years
+                for (yr_idx, year) in enumerate(years)
                     year < year_on_min && continue
                     year > year_on_max && continue
 
                     # Make row to add to the storage table
                     new_row = Dict(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
                     new_row[:year_on] = year
-                    new_row[:year_shutdown] = add_to_year(year, spec_row.age_shutdown)
+                    new_row[:year_unbuilt] = get(years, yr_idx - 1, config[:year_gen_data])
+                    new_row[:year_shutdown] = "y9999" #add_to_year(year, spec_row.age_shutdown)
                     new_row[:year_off] = "y9999"
                     new_row[:pcap_inv] = 0.0
+                    new_row[:past_invest_cost] = Container(0.0)
+                    new_row[:past_invest_subsidy] = Container(0.0)
+
+                    # Add reg_factor if needed
+                    hasproperty(storage, :reg_factor) && (new_row[:reg_factor] = bus.reg_factor[bus_idx])
+
                     push!(storage, new_row, promote=true)
                 end
             else # exogenous
@@ -257,9 +304,16 @@ function add_buildable_storage!(config, data)
 
                 # for exogenously specified storage, only one storage device is created with the specified year_on
                 new_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
-                new_row[:year_shutdown] = add_to_year(spec_row.year_on, spec_row.age_shutdown)
+                
+                new_row[:year_shutdown] = "y9999" #add_to_year(spec_row.year_on, spec_row.age_shutdown)
                 new_row[:year_off] = "y9999"
                 new_row[:pcap_inv] = 0.0
+                new_row[:year_unbuilt] = add_to_year(new_row[:year_on], -1)
+                new_row[:past_invest_cost] = Container(0.0)
+                new_row[:past_invest_subsidy] = Container(0.0)
+
+                # Add reg_factor if needed
+                hasproperty(storage, :reg_factor) && (new_row[:reg_factor] = bus.reg_factor[bus_idx])
 
                 push!(storage, new_row, promote=true)
             end
@@ -395,6 +449,14 @@ function modify_model!(mod::Storage, config, data, model)
         )
     )
 
+    @expression(model,
+        routine_capex_stor[yr_idx in 1:nyr],
+        sum(
+            pcap_stor[stor_idx, yr_idx] * get_table_num(data, :storage, :routine_capex, stor_idx, yr_idx, :)
+            for stor_idx in axes(storage,1)
+        )
+    )
+
     
 
     @expression(model,
@@ -415,10 +477,24 @@ function modify_model!(mod::Storage, config, data, model)
             for stor_idx in axes(storage,1)
         )
     )
+    @expression(model,
+        transmission_capex_obj_stor[yr_idx in 1:nyr],
+        sum(
+            pcap_stor_inv_sim[stor_idx] * get_table_num(data, :storage, :transmission_capex_obj, stor_idx, yr_idx, :)
+            for stor_idx in axes(storage,1)
+        )
+    )
+    
 
     add_obj_exp!(data, model, PerMWhGen(), :vom_stor, oper = +)
     add_obj_exp!(data, model, PerMWCap(), :fom_stor, oper = +)
+    add_obj_exp!(data, model, PerMWCap(), :routine_capex_stor, oper = +)
     add_obj_exp!(data, model, PerMWCapInv(), :capex_obj_stor, oper = +) 
+    add_obj_exp!(data, model, PerMWCapInv(), :transmission_capex_obj_stor, oper = +) 
+
+    # Add some results so that policy mods can add to the investment subsidy
+    add_results_formula!(data, :storage, :invest_subsidy, "0", Dollars, "Investment subsidies to go to the producer")
+    add_results_formula!(data, :storage, :invest_subsidy_permw_perhr, "invest_subsidy / ecap_inv_total", DollarsPerMWCapacityPerHour, "Investment subsidies per MW per hour")
 end
 
 """
@@ -449,19 +525,21 @@ function modify_results!(mod::Storage, config, data)
 
     echarge_stor = weight_hourly(data, pcharge_stor)
     edischarge_stor = weight_hourly(data, pdischarge_stor)
+    lmp_bus = get_table_col(data, :bus, :lmp_elserv)
+    bus_idxs = storage.bus_idx::Vector{Int64}
+    lmp_stor = [lmp_bus[i] for i in bus_idxs]
 
     add_table_col!(data, :storage, :pcap, pcap_stor, MWCapacity, "Power Discharge capacity of the storage device")
     add_table_col!(data, :storage, :pcharge, pcharge_stor, MWCharged, "Rate of charging, in MW")
     add_table_col!(data, :storage, :pdischarge, pcharge_stor, MWDischarged, "Rate of discharging, in MW")
     add_table_col!(data, :storage, :echarge, echarge_stor, MWhCharged, "Energy that went into charging the storage device (includes any round-trip storage losses)")
     add_table_col!(data, :storage, :edischarge, edischarge_stor, MWhDischarged, "Energy that was discharged by the storage device")
-    add_table_col!(data, :storage, :pcap_inv_sim, pcap_inv_sim, MWCapacity, "Total power discharge capacity that was invested for the generator during the sim.  (single value).  Still the same even after retirement")
-    add_table_col!(data, :storage, :ecap_inv_sim, ecap_inv_sim, MWhCapacity, "Total yearly energy discharge capacity that was invested for the generator during the sim. (pcap_inv_sim * hours per year)  (single value).  Still the same even after retirement")
+    add_table_col!(data, :storage, :pcap_inv_sim, pcap_inv_sim, MWCapacity, "Total power discharge capacity that was invested for the storage unit during the sim.  (single value).  Still the same even after retirement")
+    add_table_col!(data, :storage, :ecap_inv_sim, ecap_inv_sim, MWhCapacity, "Total yearly energy discharge capacity that was invested for the storage unit during the sim. (pcap_inv_sim * hours per year)  (single value).  Still the same even after retirement")
+    add_table_col!(data, :storage, :lmp_e, lmp_stor, DollarsPerMWhDischarged, "Locational marginal price of electricity")
 
-
-    add_results_formula!(data, :storage, :pcap_total, "AverageYearly(pcap)", MWCapacity, "Total discharge power capacity (if multiple years given, calculates the average)")
-    add_results_formula!(data, :storage, :echarge_total, "SumHourly(echarge)", MWhCharged, "Total energy charged")
-    add_results_formula!(data, :storage, :edischarge_total, "SumHourly(edischarge)", MWhDischarged, "Total energy discharged")
+    # Update pcap_inv
+    storage.pcap_inv = max.(storage.pcap_inv, storage.pcap_inv_sim)
 
     transform!(storage,
         [:pcharge, :storage_efficiency] => ByRow((p,η) -> p * (1 - η)) => :ploss
@@ -471,11 +549,82 @@ function modify_results!(mod::Storage, config, data)
     eloss = weight_hourly(data, storage.ploss)
     add_table_col!(data, :storage, :eloss, eloss, MWhServed, "Energy that was lost by the battery, counted as served load")
 
+    add_results_formula!(data, :storage, :pcap_total, "AverageYearly(pcap)", MWCapacity, "Total discharge power capacity (if multiple years given, calculates the average)")
+    add_results_formula!(data, :storage, :echarge_total, "SumHourly(echarge)", MWhCharged, "Total energy charged")
+    add_results_formula!(data, :storage, :edischarge_total, "SumHourly(edischarge)", MWhDischarged, "Total energy discharged")
     add_results_formula!(data, :storage, :eloss_total, "SumHourly(eloss)", MWhLoss, "Total energy loss")
+    add_results_formula!(data, :storage, :ecap_inv_total, "SumHourlyWeighted(pcap_inv)", MWhCapacity, "Total invested energy discharge capacity over the time period given.")
+    
+    # Add electricity cost and revenue
+    add_results_formula!(data, :storage, :electricity_revenue, "SumHourly(lmp_e, edischarge)", Dollars, "Revenue from discharging electricity to the grid")
+    add_results_formula!(data, :storage, :electricity_cost, "SumHourly(lmp_e, echarge)", Dollars, "Cost of electricity to charge the storage units")
+    
+    # Add production costs
+    add_results_formula!(data, :storage, :vom_cost, "SumHourly(vom, edischarge)", Dollars, "Total variable operation and maintenance cost for discharging energy")
+    add_results_formula!(data, :storage, :vom_per_mwh, "vom_cost / edischarge_total", DollarsPerMWhDischarged, "Average variable operation and maintenance cost for discharging 1 MWh of energy")
+    add_results_formula!(data, :storage, :fom_cost, "SumHourlyWeighted(fom, pcap)", Dollars, "Total fixed operation and maintenance cost paid, in dollars")
+    add_results_formula!(data, :storage, :fom_per_mwh, "fom_cost / edischarge_total", DollarsPerMWhDischarged, "Average fixed operation and maintenance cost for discharging 1 MWh of energy")
+    add_results_formula!(data, :storage, :routine_capex_cost, "SumHourlyWeighted(routine_capex, pcap)", Dollars, "Total routine capex cost paid, in dollars")
+    add_results_formula!(data, :storage, :routine_capex_per_mwh, "fom_cost / edischarge_total", DollarsPerMWhDischarged, "Average routine capex cost for discharging 1 MWh of energy")
+    add_results_formula!(data, :storage, :capex_cost, "SumYearly(capex_obj, ecap_inv_sim)", Dollars, "Total annualized capital expenditures paid, in dollars")
+    add_results_formula!(data, :storage, :capex_per_mwh, "capex_cost / edischarge_total", DollarsPerMWhDischarged, "Average capital cost for discharging 1 MWh of energy")
+    add_results_formula!(data, :storage, :transmission_capex_cost, "SumYearly(transmission_capex_obj, ecap_inv_sim)", Dollars, "Total annualized transmission capital expenditures paid, in dollars")
+    add_results_formula!(data, :storage, :transmission_capex_per_mwh, "transmission_capex_cost / edischarge_total", DollarsPerMWhDischarged, "Average transmission capital cost for discharging 1 MWh of energy")
+    add_results_formula!(data, :storage, :invest_cost, "transmission_capex_cost + capex_cost", Dollars, "Total annualized investment costs, in dollars")
+    add_results_formula!(data, :storage, :invest_cost_permw_perhr, "invest_cost / ecap_inv_total", DollarsPerMWCapacityPerHour, "Average investment cost per MW of invested capacity per hour")    
 
+    # Variable costs
+    add_results_formula!(data, :storage, :variable_cost, "vom_cost", Dollars, "Total variable costs for operation, including vom.  One day if storage has fuel, this could include fuel also")
+    add_results_formula!(data, :storage, :variable_cost_per_mwh, "variable_cost / edischarge_total", DollarsPerMWhDischarged, "Average variable costs for operation, including vom, for discharging 1MWh from storage.  One day if storage has fuel, this could include fuel also")
+    add_results_formula!(data, :storage, :production_subsidy, "0", Dollars, "Total production subsidy for storage")
+    add_results_formula!(data, :storage, :production_subsidy_per_mwh, "production_subsidy / edischarge_total", DollarsPerMWhDischarged, "Average production subsidy for discharging 1 MWh from storage")
+    add_results_formula!(data, :storage, :past_invest_cost_total, "SumHourlyWeighted(past_invest_cost, pcap_inv)", Dollars, "Past investment cost for storage")
+    add_results_formula!(data, :storage, :past_invest_subsidy_total, "SumHourlyWeighted(past_invest_subsidy, pcap_inv)", Dollars, "Past investment subsidy for storage")
+    add_results_formula!(data, :storage, :net_variable_cost, "variable_cost - production_subsidy", Dollars, "Net variable costs for storage")
+    add_results_formula!(data, :storage, :net_variable_cost_per_mwh, "net_variable_cost / edischarge_total", DollarsPerMWhDischarged, "Average net variable costs per MWh of discharged energy")
+
+    # Fixed costs
+    add_results_formula!(data, :storage, :fixed_cost, "capex_cost + fom_cost", Dollars, "Total fixed costs including capex and fom costs")
+    add_results_formula!(data, :storage, :fixed_cost_permw_perhr, "fixed_cost / ecap_total", DollarsPerMWCapacityPerHour, "Fixed costs, per MW per hour")
+    add_results_formula!(data, :storage, :net_fixed_cost, "fixed_cost - invest_subsidy", Dollars, "Fixed costs minus investment subsidies")
+    add_results_formula!(data, :storage, :net_fixed_cost_permw_perhr, "net_fixed_cost / ecap_total", DollarsPerMWCapacityPerHour, "Average net fixed cost per MW per hour.")
+
+    # Production costs
+    add_results_formula!(data, :storage, :production_cost, "variable_cost + fixed_cost", Dollars, "Cost of production, includes fixed and variable costs but not energy cost")
+    add_results_formula!(data, :storage, :production_cost_per_mwh, "production_cost / edischarge_total", DollarsPerMWhDischarged, "Average cost of production for a MWh of energy discharge, including variable and fixed costs but not energy cost")
+    add_results_formula!(data, :storage, :net_production_cost, "net_variable_cost + net_fixed_cost", Dollars, "Net cost of production, includes fixed and variable costs and investment and production subsidies, but not energy cost")
+    add_results_formula!(data, :storage, :net_production_cost_per_mwh, "net_production_cost / edischarge_total", DollarsPerMWhDischarged, "Average net cost of discharging 1 MWh of energy")
+    
+    # Policy costs
+    add_results_formula!(data, :storage, :pol_cost, "-invest_subsidy - production_subsidy", Dollars, "Cost from all policy types")
+    add_results_formula!(data, :storage, :pol_cost_per_mwh, "pol_cost / edischarge_total", DollarsPerMWhDischarged, "Average policy cost per MWh of discharged energy")
+    add_results_formula!(data, :storage, :government_revenue, "- invest_subsidy - production_subsidy - past_invest_subsidy_total", Dollars, "Government revenue earned from storage of energy")
+    add_results_formula!(data, :storage, :going_forward_cost, "production_cost + pol_cost", Dollars, "Total cost of production and policies")
+    add_results_formula!(data, :storage, :total_cost_prelim, "going_forward_cost + past_invest_cost_total - past_invest_subsidy_total", Dollars, "Total cost of production, including  going_forward_cost, and past investment cost and subsidy.")
+    add_results_formula!(data, :storage, :net_total_revenue_prelim, "electricity_revenue - electricity_cost - total_cost_prelim", Dollars, "Preliminary net total revenue, including electricity costs/revenue and total cost, before adjusting for cost-of-service rebates")
+    add_results_formula!(data, :storage, :cost_of_service_rebate, "CostOfServiceRebate(storage)", Dollars, "This is a specially calculated result, which is the sum of net_total_revenue_prelim * reg_factor for each generator")
+    add_results_formula!(data, :storage, :total_cost, "total_cost_prelim + cost_of_service_rebate", Dollars, "The total cost after adjusting for the cost of service")
+    add_results_formula!(data, :storage, :net_total_revenue, "net_total_revenue_prelim - cost_of_service_rebate", Dollars, "Net total revenue after adjusting for the cost-of-service rebate")
+    add_results_formula!(data, :storage, :net_going_forward_revenue, "electricity_revenue - net_variable_cost - cost_of_service_rebate", Dollars, "Net going forward revenue, including electricity revenue minus going forward cost")
+
+    # Update Welfare
+    # Producer welfare
+    add_welfare_term!(data, :producer, :storage, :net_total_revenue_prelim, +)
+    add_welfare_term!(data, :producer, :storage, :cost_of_service_rebate, -)
+
+    # Consumer welfare
+    add_welfare_term!(data, :consumer, :storage, :cost_of_service_rebate, +)
+
+    # Government revenue
+    add_welfare_term!(data, :govermnent, :storage, :government_revenue, +)
+
+    # Update and save the storage table
     update_build_status!(config, data, :storage)
-
     save_updated_storage_table(config, data)
+
+    if issequential(get_iterator(config))
+        mod.file = get_out_path(config, "storage.csv")
+    end
 end
 export modify_results!
 
@@ -485,6 +634,10 @@ export modify_results!
 Saves the updated storage table with any additional storage units, updated capacities, etc.
 """
 function save_updated_storage_table(config, data)
+    years = get_years(data)
+    nyr = get_num_years(data)
+    year_end = last(years)
+
     storage = get_table(data, :storage)
     original_cols = data[:storage_table_original_cols]
 
@@ -499,15 +652,35 @@ function save_updated_storage_table(config, data)
 
     # Update pcap0 to be the last value of pcap
     storage_tmp.pcap0 = last.(storage.pcap)
-
     storage_tmp.pcap_inv = map(eachrow(storage)) do row
         row.build_status == "new" || return row.pcap_inv
         return row.pcap_inv_sim
     end
 
+    # Gather the past investment costs and subsidies
+    for i in 1:nrow(storage_tmp)
+        storage_tmp.build_status[i] == "new" || continue
+        @info "updating the past investment cost/subsidy for $i"
+        storage_tmp.past_invest_cost[i] =    maximum(yr_idx->compute_result(data, :storage, :invest_cost_permw_perhr, i, yr_idx), 1:nyr)
+        storage_tmp.past_invest_subsidy[i] = maximum(yr_idx->compute_result(data, :storage, :invest_subsidy_permw_perhr, i, yr_idx), 1:nyr)
+    end
+
     # Filter anything with capacity below the threshold
     thresh = config[:pcap_retirement_threshold]
-    filter!(:pcap0 => >(thresh), storage_tmp)
+    filter!(storage_tmp) do row
+        # Keep anything above the threshold
+        row.pcap0 > thresh && return true
+        row.pcap_inv <= thresh && return false 
+
+        row.build_type == "exog" && return false # We don't care to keep track of exogenous past capex
+
+        # Below the threshold, check to see if we are still within the economic lifetime
+        year_econ_life = add_to_year(row.year_on, row.econ_life)
+        year_econ_life > year_end && return true
+
+        return false
+    end
+
     storage_tmp.pcap_max = copy(storage_tmp.pcap0)
 
 
@@ -518,7 +691,9 @@ function save_updated_storage_table(config, data)
     )
     storage_tmp_combined.pcap_max = copy(storage_tmp_combined.pcap0)
 
-    CSV.write(get_out_path(config, "storage.csv"), storage_tmp_combined)
+    file_out = get_out_path(config, "storage.csv")
+    CSV.write(file_out, storage_tmp_combined)
+
     return nothing
 end
 export save_updated_storage_table

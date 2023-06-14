@@ -53,7 +53,7 @@ function E4ST.modify_setup_data!(pol::PTC, config, data)
         # note: >2 used here for PTC value and 0
         length(unique(pol.values)) > 2 && @warn "The current E4ST PTC mod isn't formulated correctly for both a variable PTC value (ie. 2020: 12, 2025: 15) and year_from_ref filters, please only specify a single PTC value"
 
-        add_table_col!(data, :gen, Symbol("$(pol.name)_capex_adj"), Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWBuiltCapacity, 
+        add_table_col!(data, :gen, Symbol("$(pol.name)_capex_adj"), Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWBuiltCapacityPerHour, 
         "Adjustment factor added to the obj function as a PerMWCapInv term to account for PTC payments that do not continue through the entire econ lifetime of a generator.")
     end
     #update column for gen_idx 
@@ -99,7 +99,13 @@ Calculates PTC policy cost as a results formula in the gen table. PTC Cost = PTC
 """
 function E4ST.modify_results!(pol::PTC, config, data)
     # policy cost, PTC value * generation
-    add_results_formula!(data, :gen, Symbol("$(pol.name)_cost"), "SumHourly($(pol.name), egen)", Dollars, "The cost of $(pol.name)")
+    result_name = "$(pol.name)_cost"
+    result_name_sym = Symbol(result_name)
+    add_results_formula!(data, :gen, result_name_sym, "SumHourly($(pol.name), egen)", Dollars, "The cost of $(pol.name)")
+    add_to_results_formula!(data, :gen, :production_subsidy, result_name)
+
+    should_adjust_invest_cost(pol) && add_results_formula!(data, :gen, Symbol("$(pol.name)_capex_adj_total"), "SumYearly(ecap_inv_sim, $(pol.name)_capex_adj)", Dollars, "The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.")
+    # Note there is no need to adjust welfare for the capex adjustment
 end
 
 

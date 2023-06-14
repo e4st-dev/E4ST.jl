@@ -178,7 +178,7 @@ function adjust_hourly!(config, data, row)
     vals = [row["h$h"] for h in 1:get_num_hours(data)]
 
     # Make sure the appropriate column is a Vector{Container}
-    _to_container!(table, variable_name)
+    to_container!(table, variable_name)
     for r in eachrow(table)
         r[variable_name] = operate_hourly(oper, r[variable_name], vals, yr_idx, nyr)
     end
@@ -215,7 +215,7 @@ function adjust_yearly!(config, data, row)
     vals = [row[y] for y in get_years(data)]
 
     # Make sure the appropriate column is a Vector{Container}
-    _to_container!(table, variable_name) 
+    to_container!(table, variable_name) 
 
     for r in eachrow(table)
         r[variable_name] = operate_yearly(oper, r[variable_name], vals)
@@ -251,7 +251,7 @@ function adjust_by_age!(config, data, row)
     age_type = row.age_type
 
     # Make sure the appropriate column is a Vector{Container}
-    _to_container!(table, variable_name)
+    to_container!(table, variable_name)
 
     last_sim_year = get(config, :year_previous_sim, config[:year_gen_data])
 
