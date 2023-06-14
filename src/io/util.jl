@@ -625,7 +625,11 @@ function Base.convert(T::Type{Symbol}, x::String)
     return Symbol(x)
 end
 
+"""
+    get_past_invest_percentages(g, years) -> ::ByYear
 
+Computes the percentage of past investment costs and/or subsidies to still be paid in each `year`, given the `year_on`, `year_unbuilt` and `econ_life` of `g`.
+"""
 function get_past_invest_percentages(g, years)
     year_on = g.year_on::AbstractString
     year_unbuilt = g.year_unbuilt::AbstractString
