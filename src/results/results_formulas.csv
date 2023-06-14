@@ -22,8 +22,6 @@ gen,variable_cost,fuel_cost+vom_cost,Dollars,"Variable costs for operation, incl
 gen,variable_cost_per_mwh,variable_cost/egen_total,Dollars,"Variable costs for operation, per MWh of generation.  Includes fuel and vom"
 gen,fixed_cost,capex_cost + fom_cost,Dollars,"Fixed costs, including capex (not just what the optimization saw) and fom"
 gen,fixed_cost_per_mwh,fixed_cost/egen_total,DollarsPerMWhGenerated,Fixed costs per mwh generated
-gen,total_cost,fixed_cost + variable_cost,Dollars,Total cost (fixed costs + variable costs) not accounting for subsidies
-gen,total_cost_per_mwh,total_cost/egen_total,DollarsPerMWhGenerated,Total cost (fixed and variable not including subsidies) per MWh of generation
 gen,emis_co2_total,"SumHourly(emis_co2,egen)",ShortTons,Total CO2 emissions
 gen,emis_nox_total,"SumHourly(emis_nox,egen)",Pounds,Total NOx emissions
 gen,emis_so2_total,"SumHourly(emis_so2,egen)",Pounds,Total SO2 emissions
