@@ -24,7 +24,7 @@ function summarize_table(::Val{:fuel_price})
     df = TableSummary()
     push!(df, 
         (:genfuel, String, NA, true, "The type of fuel that the price applies for. i.e. `ng` or `coal`"),
-        (:area, String, NA, true, "The area that the price applies for i.e. `country`.  Leave blank if grid-wide"),
+        (:area, String, NA, true, "The area that the price applies for i.e. `nation`.  Leave blank if grid-wide"),
         (:subarea, String, NA, true, "The subarea that the price applies for i.e. `narnia`.  Leave blank if grid-wide"),
         (:filter_, String, NA, false, "I.e. `filter1`, `filter2`, etc. Other filter conditions that the price applies for, see [`parse_comparison`](@ref) for ideas"),
         (:price, Float64, DollarsPerMMBtu, true, "The price of 1 MMBtu of fuel"),

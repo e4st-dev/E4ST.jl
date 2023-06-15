@@ -7,6 +7,6 @@ mods:
       y2035: 4000
       y2040: 3000
     gen_filters:
-      country: "[narnia, archenland]"
+      nation: "[narnia, archenland]"
 
 

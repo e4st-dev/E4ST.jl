@@ -1,7 +1,7 @@
 description,table_name,variable_name,operation,filter1,filter2,year,status,h1,h2,h3,h4,h5,h6,h7,h8
-Scale the vom of narnian solar generators to be higher in some hours,gen,vom,scale,country=>narnia,genfuel=>solar,,1,1.0,1.05,1.1,1.15,1.1,1.05,1.0,1.0
+Scale the vom of narnian solar generators to be higher in some hours,gen,vom,scale,nation=>narnia,genfuel=>solar,,1,1.0,1.05,1.1,1.15,1.1,1.05,1.0,1.0
 Add 0.1 to the CO2 emissions rate for winter hours for all ng plants,gen,emis_co2,add,genfuel=>ng,,,1,0,0,0,0,0.1,0.1,0.1,0.1
-Scale the vom of narnian solar generators to be even higher in some hours for 2030 only,gen,vom,scale,country=>narnia,genfuel=>solar,y2030,1,1.0,1.05,1.1,1.15,1.1,1.05,1.0,1.0
+Scale the vom of narnian solar generators to be even higher in some hours for 2030 only,gen,vom,scale,nation=>narnia,genfuel=>solar,y2030,1,1.0,1.05,1.1,1.15,1.1,1.05,1.0,1.0
 Add additional 0.2 to the CO2 emissions rate for winter hours for all ng plants in 2030 only,gen,emis_co2,add,genfuel=>ng,,y2030,1,0,0,0,0,0.2,0.2,0.2,0.2
 Set availability factors for wind turbines (here rather than in af table),gen,af,set,genfuel=>wind,,,1,0.9,0.8,0.7,0.9,0.9,0.8,0.7,0.9
 Scale NOX damages to be zero for winter hours,,r_dam_nox,scale,,,,1,1,1,1,1,0,0,0,0

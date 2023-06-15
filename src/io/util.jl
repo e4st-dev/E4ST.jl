@@ -181,7 +181,7 @@ Returns row indices of the passed-in table that correspond to `conditions`, wher
 * `pairs`, an iterator of `Pair`s - returns a Vector containing the indices which satisfy all the pairs as above.
 
 Some possible pairs to filter by:
-* `:country => "narnia"`: checks if the `country` column is equal to the string "narnia"
+* `:nation => "narnia"`: checks if the `nation` column is equal to the string "narnia"
 * `:emis_co2 => >=(0.1)`: checks if the `emis_co2` column is greater than or equal to 0.1
 * `:age => (2,10)`: checks if the `age` column is between 2, and 10, inclusive.  To be exclusive, use different values like (2.0001, 9.99999) for clarity
 * `:state => in(("alabama", "arkansas"))`: checks if the `state` column is either "alabama" or "arkansas"
@@ -290,7 +290,7 @@ end
 Parses the string, `s` for a comparison with which to filter `table`.
 
 Possible examples of strings `s` to parse:
-* `"country=>narnia"` - All rows for which row.country=="narnia"
+* `"nation=>narnia"` - All rows for which row.nation=="narnia"
 * `"bus_idx=>5"` - All rows for which row.bus_idx==5
 * `"year_on=>(y2002,y2030)"` - All rows for which `row.year_on` is between 2002 and 2030, inclusive.
 * `"emis_co2=>(0.0,4.99)"` - All rows for which `row.emis_co2` is between 0.0 and 4.99, inclusive. (Works for integers and negatives too)
@@ -337,7 +337,7 @@ function parse_comparison(s::AbstractString)
         return strip(m.captures[1])=>ar
     end
 
-    # In the form "country=>narnia" or "bus_idx=>5"
+    # In the form "nation=>narnia" or "bus_idx=>5"
     if (m = match(r"([\w\s]+)=>([\w\s]+)", s)) !== nothing
         return strip(m.captures[1])=>strip(m.captures[2])
     end
