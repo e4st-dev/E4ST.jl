@@ -14,7 +14,7 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
     bus = DataFrame(
         ref_bus = fill(false, n_bus),
         plnom = rand(n_bus),
-        country = rand(countries(), n_bus),
+        nation = rand(nations(), n_bus),
         reg_factor = rand(n_bus),
     )
     ref_bus_idx = rand(1:n_bus)
@@ -153,7 +153,7 @@ end
 function load_types()
     ("ev", "residential", "commercial", "industrial", "transportation")
 end
-function countries()
+function nations()
     ("narnia", "calormen", "archenland", "telmar")
 end
 
@@ -203,11 +203,11 @@ function rand_af(;n_hours, n_af)
     gt = gentypes()
     yrs = year_strs()
     while nrow(af) < n_af
-        for country in countries()
+        for nation in nations()
             joint += 1
             for genfuel in genfuels(), gentype in gt[genfuel]
                 year = rand(yrs)
-                push!(af, ("country", country, genfuel, gentype, year, joint, true, rand(n_hours)...))
+                push!(af, ("nation", nation, genfuel, gentype, year, joint, true, rand(n_hours)...))
                 if nrow(af) == n_af
                     break
                 end
@@ -236,11 +236,11 @@ function rand_load_shape(;n_hours, n_load_shape)
     yrs = year_strs()
     lts = load_types()
     while nrow(load_shape) < n_load_shape
-        for country in countries()
+        for nation in nations()
             joint += 1
             for lt in lts
                 year = rand(yrs)
-                push!(load_shape, ("country", country, lt, year, joint, true, rand(n_hours)...))
+                push!(load_shape, ("nation", nation, lt, year, joint, true, rand(n_hours)...))
                 if nrow(load_shape) == n_load_shape
                     break
                 end
@@ -267,10 +267,10 @@ function rand_load_match(;n_years, n_load_match)
     gt = gentypes()
     lts = load_types()
     while nrow(load_match) < n_load_match
-        for country in countries()
+        for nation in nations()
             joint += 1
             for lt in lts
-                push!(load_match, ("country", country, lt, joint, true, rand(n_years)...))
+                push!(load_match, ("nation", nation, lt, joint, true, rand(n_years)...))
                 if nrow(load_match) == n_load_match
                     break
                 end
@@ -299,11 +299,11 @@ function rand_load_add(;n_hours, n_load_add)
     yrs = year_strs()
     lts = load_types()
     while nrow(load_add) < n_load_add
-        for country in countries()
+        for nation in nations()
             joint += 1
             for lt in lts
                 year = rand(yrs)
-                push!(load_add, ("country", country, lt, year, joint, true, rand(n_hours)...))
+                push!(load_add, ("nation", nation, lt, year, joint, true, rand(n_hours)...))
                 if nrow(load_add) == n_load_add
                     break
                 end

@@ -2,16 +2,16 @@ mods:
   agg_res:
     type: AggregationTemplate
     file: ../data/3bus/aggregate_template.csv
-  gen_res_genfuel_country:
+  gen_res_genfuel_nation:
     type: YearlyTable
     table_name: gen
     groupby: 
-      - country
+      - nation
       - genfuel
   bus_res_season_time_of_day:
     type: YearlyTable
     table_name: bus
-    groupby: country
+    groupby: nation
     group_hours_by:
       - season
       - time_of_day

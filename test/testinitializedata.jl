@@ -56,8 +56,8 @@
         delete!(config, :load_match_file)
         delete!(config, :load_add_file)
         data = read_data(config)
-        archenland_buses = findall(==("archenland"), data[:bus].country)
-        narnia_buses = findall(==("narnia"), data[:bus].country)
+        archenland_buses = findall(==("archenland"), data[:bus].nation)
+        narnia_buses = findall(==("narnia"), data[:bus].nation)
         all_buses = 1:nrow(data[:bus])
 
 
@@ -82,8 +82,8 @@
         # config[:load_match_file] = abspath(@__DIR__, "data", "3bus","load_match.csv")
         delete!(config, :load_add_file)
         data = read_data(config)
-        archenland_buses = findall(==("archenland"), data[:bus].country)
-        narnia_buses = findall(==("narnia"), data[:bus].country)
+        archenland_buses = findall(==("archenland"), data[:bus].nation)
+        narnia_buses = findall(==("narnia"), data[:bus].nation)
         all_buses = 1:nrow(data[:bus])
 
         # The last row, the all-area match is enabled for 2030 and 2035
@@ -95,7 +95,7 @@
 
         # Test that ratio between load in naria and archenland stayed the same with scaling
         @testset for y in get_years(data)
-            @test get_elnom_load(data, :country=>"narnia", y, :)*10 ≈ get_elnom_load(data, :country=>"archenland", y, :)
+            @test get_elnom_load(data, :nation=>"narnia", y, :)*10 ≈ get_elnom_load(data, :nation=>"archenland", y, :)
         end
     end
 

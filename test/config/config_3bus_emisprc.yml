@@ -10,6 +10,6 @@ mods:
     years_after_ref_max: 10
     ref_year_col: "year_on"
     gen_filters:
-      country: "narnia"
+      nation: "narnia"
 
 
