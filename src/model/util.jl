@@ -63,6 +63,13 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
     pcap = model[pcap_name]
     years = get_years(data)
 
+    year_built_idx = map(1:nrow(table)) do row_idx
+        yr_idx = findlast(year -> table.year_on[row_idx] >= year, years)
+        yr_idx === nothing || return yr_idx
+        table.year_on[row_idx] < first(years) && return 1
+        return length(years) + 1
+    end
+
     # Constrain Capacity to 0 before the start/build year 
     if any(>(first(years)), table.year_on)
         name = Symbol("cons_$(pcap_name)_prebuild")
@@ -71,10 +78,10 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
                 row_idx in axes(table, 1),
                 yr_idx in 1:nyr;
                 # Only for years before the device came online
-                years[yr_idx] < table.year_on[row_idx]
+                yr_idx < year_built_idx[row_idx]
             ],
             pcap[row_idx, yr_idx] == 0
-        ) 
+        )
     end
 
     # Constrain existing capacity to only decrease (only retire, not add capacity)
@@ -84,7 +91,7 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
             [
                 row_idx in axes(table,1),
                 yr_idx in 1:(nyr-1);
-                years[yr_idx] >= table.year_on[row_idx]
+                yr_idx >= year_built_idx[row_idx]
             ], 
             pcap[row_idx, yr_idx+1] <= pcap[row_idx, yr_idx])
     end
@@ -101,8 +108,7 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
                     table.build_type[row_idx] == "exog" && 
                     table.build_status[row_idx] == "unbuilt" &&
                     (
-                        yr_idx == findfirst(year -> table.year_on[row_idx] >= year, years) ||
-                        (yr_idx == 1 && table.year_on[row_idx] < first(years))
+                        yr_idx == year_built_idx[row_idx]
                     )
                 )
             ],

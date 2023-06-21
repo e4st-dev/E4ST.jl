@@ -3,7 +3,7 @@ gen,egen_total,SumHourly(egen),MWhGenerated,"Total energy generated, in MWh"
 gen,pgen_avg,AverageHourly(pgen),MWGenerated,Average power generation
 gen,pgen_min,MinHourly(pgen),MWGenerated,Minimum power generation in an hour
 gen,pgen_max,MaxHourly(pgen),MWGenerated,Maximum power generation in an hour
-gen,ecap_total,SumHourlyWeighted(pcap),MWhCapacity,"Total energy capacity, in MWh"
+gen,ecap_total,SumHourlyWeighted(pcap),MWhCapacity,"Total energy capacity, in MWh.  This is equal to the power generation capacity multiplied by the number of hours."
 gen,pcap_total,AverageYearly(pcap),MWCapacity,"Average power capacity.  If multiple years given, the average is taken."
 gen,ecap_available_total,"SumHourlyWeighted(pcap,af)",MWhCapacity,"Total available energy capacity, in MWh"
 gen,pcap_start_total,Sum(pcap0),MWCapacity,Starting power capacity.

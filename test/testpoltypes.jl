@@ -299,6 +299,7 @@
             gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
 
             #@show compute_result(data, :gen, :egen_total, gen_idxs, [2, 3])
+            @test emis_co2_total > 0
             @test compute_result(data, :gen, :example_emisprc_cost) > 0.0
         end
     end

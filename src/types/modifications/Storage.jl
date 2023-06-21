@@ -255,9 +255,13 @@ function add_buildable_storage!(config, data)
 
     # Filter any already-built exogenous storage units
     filter!(build_storage) do row
-        row.build_type == "exog" && row.year_on >= config[:year_gen_data] && return false
+        if row.build_type == "exog"
+            row.year_on <= config[:year_gen_data] && return false
+            row.year_on > last(years) && return false
+        end
         return true
     end
+
 
     spec_names = filter!(
         !in((:bus_idx, :reg_factor, :year_off, :year_shutdown, :pcap_inv, :year_unbuilt, :past_invest_cost, :past_invest_subsidy)),

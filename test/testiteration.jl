@@ -128,10 +128,8 @@
         @test compute_result(data, :storage, :past_invest_cost_total)    > 0.0
         @test compute_result(data, :storage, :past_invest_subsidy_total) > 0.0
 
-        # Test that no past invest cost for exogenous generators
-        @test compute_result(data, :gen, :past_invest_cost_total, :build_type=>"exog") == 0.0
+        # Test that no past invest cost for new generators
         @test compute_result(data, :gen, :past_invest_cost_total, :build_status=>"new") == 0.0
-        @test compute_result(data, :gen, :past_invest_subsidy_total, :build_type=>"exog") == 0.0
         @test compute_result(data, :gen, :past_invest_subsidy_total, :build_status=>"new") == 0.0
 
         @test any(==("y2020"), gen.year_unbuilt)
