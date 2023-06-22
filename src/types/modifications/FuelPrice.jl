@@ -50,13 +50,22 @@ end
 Zero out the `fuel_price` column of the `gen` table, as it will get overwritten later by this Modification.  This is to avoid double-counting the fuel cost.
 """ 
 function modify_setup_data!(mod::FuelPrice, config, data)
-    # Set the fuel_price table to all zero.
+    # Set the fuel_price table to zero for generators that will get a fuel price from the table.
     gen = get_table(data, :gen)
+    prc_table = get_table(data, :fuel_price)
     if hasproperty(gen, :fuel_price)
-        gen.fuel_price = Container[Container(fc) for fc in gen.fuel_price]
-        v = fill(0.0, get_num_years(data))
-        for gen_idx in axes(gen,1)
-            gen.fuel_price[gen_idx] = set_yearly(gen.fuel_price[gen_idx], v)
+        gen.fuel_price = Container[Container(fc) for fc in gen.fuel_price] # make fuel_price a container
+        for i in 1:nrow(prc_table)
+            prc_row = prc_table[i, :]
+            
+            filters = parse_comparisons(prc_row) #should get any filters_ and genfuel
+            gen_idxs = get_row_idxs(gen, filters)
+
+            v = fill(0.0, get_num_years(data))
+            for gen_idx in gen_idxs
+                #set to a container of 0s if it is filtered by the prc_row
+                gen.fuel_price[gen_idx] = set_yearly(gen.fuel_price[gen_idx], v)
+            end
         end
     else
         bn = ByNothing(0.0)
