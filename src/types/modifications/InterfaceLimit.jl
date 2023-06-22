@@ -29,7 +29,7 @@ function summarize_table(::Val{:interface_limit})
     push!(df, 
         (:name, String, NA, false, "Name of the interface limit, not used"),
         (:description, String, NA, false, "Description of the interface limit, not used."),
-        (:f_filter, String, NA, true, "The filter for the bus table specifiying the region the power is flowing **f**rom.  I.e. `country=>narnia`, or `state=>[angard, stormness]`"),
+        (:f_filter, String, NA, true, "The filter for the bus table specifiying the region the power is flowing **f**rom.  I.e. `nation=>narnia`, or `state=>[angard, stormness]`"),
         (:t_filter, String, NA, true, "The filter for the bus table specifiying the region the power is flowing **t**o."),
         (:pflow_max, Float64, MWFlow, false, "The maximum allowable power flow in the direction of `f` to `t`. If left as ±Inf, no constraint made."),
         (:pflow_min, Float64, MWFlow, false, "The minimum allowable power flow in the direction of `f` to `t`.  Can be positive or negative.  If left as ±Inf, no constraint made."),

@@ -81,7 +81,7 @@
             @test tot ≈ compute_result(data, :gen, :egen_total, :emis_co2 => <=(0.1)) + compute_result(data, :gen, :egen_total, :emis_co2 => >(0.1))
 
             # Provide a region for filtering
-            @test tot ≈ compute_result(data, :gen, :egen_total, :country => "narnia") + compute_result(data, :gen, :egen_total, :country => !=("narnia"))
+            @test tot ≈ compute_result(data, :gen, :egen_total, :nation => "narnia") + compute_result(data, :gen, :egen_total, :nation => !=("narnia"))
 
             # Provide a tuple for filtering
             @test tot ≈ compute_result(data, :gen, :egen_total, :vom => (0,1.1) ) + compute_result(data, :gen, :egen_total, :vom => (1.1,Inf))
@@ -92,7 +92,7 @@
             # Provide an index(es) for filtering
             @test tot ≈ compute_result(data, :gen, :egen_total, 1 ) + compute_result(data, :gen, :egen_total, 2:nrow(data[:gen]))
 
-            @test aggregate_generation(data, :gentype, [:country=>"archenland"], "y2030", :season=>"summer") isa OrderedDict
+            @test aggregate_generation(data, :gentype, [:nation=>"archenland"], "y2030", :season=>"summer") isa OrderedDict
         end
 
         @testset "Test year_idx filters" begin
@@ -191,13 +191,13 @@
         end
 
         @testset "Test YearlyTable" begin
-            @testset "Test yearly bus table grouped by country, season, and time of day" begin
+            @testset "Test yearly bus table grouped by nation, season, and time of day" begin
                 # Make new mod
                 name = :bus_res_season_time_of_day
                 mod = YearlyTable(;
                     name,
                     table_name = :bus,
-                    groupby = "country",
+                    groupby = "nation",
                     group_hours_by = [:season, :time_of_day]
                 )
 
@@ -217,7 +217,7 @@
                     @test isfile(get_out_path(config, "$table_name.csv"))
                     @test haskey(results, table_name)
                     df = results[table_name]
-                    @test hasproperty(df, :country)
+                    @test hasproperty(df, :nation)
                     @test hasproperty(df, :season)
                     @test hasproperty(df, :time_of_day)
                     @test nrow(df) == len

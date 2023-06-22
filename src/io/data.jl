@@ -1194,7 +1194,7 @@ end
 
 Return the energy load by load elements corresponding to `load_idx` or `load_idxs`, for `year_idx` and `hour_idx`.  Note `year_idx` can be the index or the year string (i.e. "y2030").
 
-If pair(s) are given, filters the load elements by pair.  i.e. pairs = ("country"=>"narnia", "read_type"=>"residential").
+If pair(s) are given, filters the load elements by pair.  i.e. pairs = ("nation"=>"narnia", "read_type"=>"residential").
 """
 function get_elnom_load(data, load_idxs::AbstractVector{Int64}, year_idx::Int64, hour_idxs)
     load_arr = get_load_array(data)

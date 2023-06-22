@@ -1,5 +1,5 @@
 description,table_name,variable_name,operation,filter1,filter2,status,y2020,y2025,y2030,y2035,y2040,y2050,y2060,y2070
-Reduce the FOM in narnia for solar generators,gen,fom,add,country=>narnia,gentype=>solar,1,0.0,-0.1,-0.2,-0.3,-0.4,-0.5,-0.6,-0.6
+Reduce the FOM in narnia for solar generators,gen,fom,add,nation=>narnia,gentype=>solar,1,0.0,-0.1,-0.2,-0.3,-0.4,-0.5,-0.6,-0.6
 Scale the branch max power flow to match a 5% annual growth rate starting in 2020,branch,pflow_max,scale,,,1,1.0,1.276,1.629,2.079,2.653,4.322,7.040,11.467
 "Set the yearly value of damage rate of CO2, using values from Rennert et. al. (constant after 2040)",,r_dam_co2,set,,,1,150.26,166.91,183.56,198.59,213.61,213.61,213.61,213.61
 "Set the yearly value of damage rate of NOx emissions, in dollars per pound  (constant after 2040)",,r_dam_nox,set,,,1,24.18,27.11,30.05,33.00,35.60,35.60,35.60,35.60

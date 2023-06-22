@@ -1,5 +1,5 @@
 mods:
   ccus:
     type: CCUS
-    file: "../data/3bus/ccus_paths_by_country.csv"
-    groupby: "country"
+    file: "../data/3bus/ccus_paths_by_nation.csv"
+    groupby: "nation"

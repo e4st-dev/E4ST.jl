@@ -7,7 +7,7 @@ mods:
       type: "CreditByBenchmark"
       benchmark: 0.5
     gen_filters:
-      country: "archenland"
+      nation: "archenland"
     load_targets:
       anvard_ces:
         targets:
