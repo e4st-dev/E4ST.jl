@@ -102,7 +102,7 @@ function E4ST.modify_results!(pol::PTC, config, data)
     result_name = "$(pol.name)_cost"
     result_name_sym = Symbol(result_name)
     add_results_formula!(data, :gen, result_name_sym, "SumHourly($(pol.name), egen)", Dollars, "The cost of $(pol.name)")
-    add_to_results_formula!(data, :gen, :production_subsidy, result_name)
+    add_to_results_formula!(data, :gen, :ptc_subsidy, result_name)
 
     should_adjust_invest_cost(pol) && add_results_formula!(data, :gen, Symbol("$(pol.name)_capex_adj_total"), "SumYearly(ecap_inv_sim, $(pol.name)_capex_adj)", Dollars, "The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.")
     # Note there is no need to adjust welfare for the capex adjustment
