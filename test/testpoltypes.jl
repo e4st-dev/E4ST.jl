@@ -55,6 +55,12 @@
             @test haskey(data[:obj_vars], :example_ptc_capex_adj)
             @test haskey(model, :example_ptc_capex_adj)
 
+            # Test that all the capex adjustments are positive and are added to the objective as a cost
+            @test ~anyany(<(0), gen.example_ptc_capex_adj)
+            @test data[:obj_vars][:example_ptc_capex_adj][:term_sign] == (+)
+            @test ~anyany(<(0), gen.example_ptc)
+            @test data[:obj_vars][:example_ptc][:term_sign] == (-)
+
             #check that no capex_adj gets added when no age filter provided
             @test !haskey(data[:obj_vars], :example_ptc_no_age_filter_capex_adj)
             @test !haskey(model, :example_ptc_no_age_filter_capex_adj)
@@ -293,6 +299,13 @@
 
             # check that emissions are reduced for qualifying gens
             @test emis_co2_total < emis_co2_total_ref
+
+
+            # Test that all the capex adjustments are positive and are subtracted from the objective as a cost
+            @test ~anyany(<(0), gen.example_emisprc_capex_adj)
+            @test data[:obj_vars][:example_emisprc_capex_adj][:term_sign] == (-)
+            @test ~anyany(<(0), gen.example_emisprc)
+            @test data[:obj_vars][:example_emisprc][:term_sign] == (+)
 
             #test that cost restult is calculated
             pol = config[:mods][:example_emisprc]
