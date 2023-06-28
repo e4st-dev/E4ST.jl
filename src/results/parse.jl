@@ -182,10 +182,10 @@ function parse_power_results!(config, data)
     eflow_out_bus = map(x-> max(x,0), eflow_bus)
     eflow_in_bus = map(x-> max(-x,0), eflow_bus)
 
-    obj_pcap_price_raw = res_raw[:obj_coef][:pcap_gen]::Array{Float64, 2}
-    obj_pcap_price = obj_pcap_price_raw ./ hours_per_year
-    obj_pgen_price_raw = res_raw[:obj_coef][:pgen_gen]::Array{Float64, 3}
-    obj_pgen_price = unweight_hourly(data, obj_pgen_price_raw)
+    obj_pcap_cost_raw = res_raw[:obj_coef][:pcap_gen]::Array{Float64, 2}
+    obj_pcap_cost = obj_pcap_cost_raw ./ hours_per_year
+    obj_pgen_cost_raw = res_raw[:obj_coef][:pgen_gen]::Array{Float64, 3}
+    obj_pgen_cost = unweight_hourly(data, obj_pgen_cost_raw)
     obj_pcap_inv_price = res_raw[:obj_coef][:pcap_gen_inv_sim]::Vector{Float64}
     
     # Create new things as needed
@@ -231,8 +231,8 @@ function parse_power_results!(config, data)
     add_table_col!(data, :gen, :pcap_inv_sim, pcap_gen_inv_sim, MWCapacity, "Total power generation capacity that was invested for the generator during the sim.  (single value).  Still the same even after retirement")
     add_table_col!(data, :gen, :ecap_inv_sim, ecap_gen_inv_sim, MWhCapacity, "Total annual power generation energy capacity that was invested for the generator during the sim. (pcap_inv_sim * hours per year) (single value).  Still the same even after retirement")
     add_table_col!(data, :gen, :cf,    cf,        MWhGeneratedPerMWhCapacity, "Capacity Factor, or average power generation/power generation capacity, 0 when no generation")
-    add_table_col!(data, :gen, :obj_pcap_price, obj_pcap_price, DollarsPerMWCapacityPerHour, "Objective function coefficient, in dollars, for one hour of 1MW capacity")
-    add_table_col!(data, :gen, :obj_pgen_price, obj_pgen_price, DollarsPerMWhGenerated, "Objective function coefficient, in dollars, for one MWh of generation")
+    add_table_col!(data, :gen, :obj_pcap_cost, obj_pcap_cost, DollarsPerMWCapacityPerHour, "Objective function coefficient, in dollars, for one hour of 1MW capacity")
+    add_table_col!(data, :gen, :obj_pgen_cost, obj_pgen_cost, DollarsPerMWhGenerated, "Objective function coefficient, in dollars, for one MWh of generation")
     add_table_col!(data, :gen, :obj_pcap_inv_price, obj_pcap_inv_price, DollarsPerMWBuiltCapacityPerHour, "Objective function coefficient, in dollars, for one MW of capacity invested")
 
     # Add things to the branch table

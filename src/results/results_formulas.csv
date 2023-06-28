@@ -50,13 +50,13 @@ gen,ptc_subsidy,0,Dollars,Total production tax credit subsidy for generation.  D
 gen,ptc_subsidy_per_mwh,ptc_subsidy / egen_total,DollarsPerMWhGenerated,Average production tax credit subsidy for a MWh of generation.  Does not include means-tested nuclear subsidy that RFF sometimes includes in research.
 gen,net_variable_cost,variable_cost - ptc_subsidy,Dollars,Total variable costs minus production subsidies
 gen,net_variable_cost_per_mwh,net_variable_cost / egen_total,DollarsPerMWhGenerated,Average variable costs minus production subsidies for a MWh of energy
-gen,fixed_cost,fom_cost + routine_capex_cost + invest_cost,Dollars,"Fixed costs, including capex (not just what the optimization saw) and fom"
+gen,fixed_cost,fom_cost + routine_capex_cost + invest_cost,Dollars,"Fixed costs, including capex and fom before accounting for subsidies"
 gen,fixed_cost_permw_perhr,fixed_cost/ecap_total,DollarsPerMWCapacityPerHour,Fixed costs per mw per hour
 gen,invest_cost,transmission_capex_cost + capex_cost,Dollars,"Investment costs for generators, including capex cost and transmission capex cost"
 gen,invest_cost_permw_perhr,invest_cost / ecap_inv_total,DollarsPerMWBuiltCapacityPerHour,Average investment cost per MW invested per hour
 gen,invest_subsidy,0,Dollars,Investment subsidies to go to generators for exogenous or endogenous investments made in this simulation
 gen,invest_subsidy_permw_perhr,invest_subsidy / ecap_inv_total,DollarsPerMWBuiltCapacityPerHour,Average investment subsidy per MW invested per hour
-gen,net_fixed_cost,fixed_cost - invest_subsidy,Dollars,Fixed costs minus investment subsidies
+gen,net_fixed_cost,fixed_cost - invest_subsidy,Dollars,Fixed costs faced by investors after taking investment subsidies into account
 gen,net_fixed_cost_permw_perhr,net_fixed_cost / ecap_total,DollarsPerMWCapacityPerHour,Average net fixed cost per MW per hour.  Fixed costs minus investment subsidies
 gen,production_cost,variable_cost + fixed_cost,Dollars,"Cost of production, includes fixed and variable costs.  Does not include subsidies and costs from investments made prior to this simulation."
 gen,production_cost_per_mwh,production_cost / egen_total,DollarsPerMWhGenerated,"Average cost of production for a MWh of power, including variable and fixed costs"
@@ -72,8 +72,8 @@ gen,net_pol_cost_for_egus,emission_cap_cost + emission_cost - gs_rebate - invest
 gen,net_pol_cost_for_egus_per_mwh,net_pol_cost_for_egus / egen_total,DollarsPerMWhGenerated,"Average cost for all generators from all policy types, per MWh."
 gen,net_government_revenue,emission_cap_cost + emission_cost - invest_subsidy - ptc_subsidy - past_invest_subsidy_total,Dollars,Net government revenue earned from generators
 gen,going_forward_cost,production_cost + net_pol_cost_for_egus,Dollars,Total going forward cost
-gen,total_cost_prelim,going_forward_cost + past_invest_cost_total - past_invest_subsidy_total,Dollars,"Total cost of production, including past investment costs and subsidies"
-gen,total_cost_prelim_per_mwh,total_cost_prelim / egen_total,DollarsPerMWhGenerated,"Average cost of producing a MWh of power, including pst investment costs and subsidies"
+gen,total_cost_prelim,going_forward_cost + past_invest_cost_total - past_invest_subsidy_total,Dollars,"Total cost of production, including past investment costs and subsidies for investments still within their economic lifetimes, before adjusting for cost-of-service rebates"
+gen,total_cost_prelim_per_mwh,total_cost_prelim / egen_total,DollarsPerMWhGenerated,"Average cost of producing a MWh of power, including past investment costs and subsidies"
 gen,net_total_revenue_prelim,electricity_revenue - total_cost_prelim,Dollars,"Preliminary net total revenue, including electricity revenue minus total cost, before adjusting for cost-of-service rebates"
 gen,cost_of_service_rebate,CostOfServiceRebate(gen),Dollars,"This is a specially calculated result, which is the sum of net_total_revenue_prelim * reg_factor for each generator"
 gen,total_cost,total_cost_prelim + cost_of_service_rebate,Dollars,Total cost of production including the preliminary total cost and the cost of service rebate to consumers.
@@ -81,8 +81,8 @@ gen,total_cost_per_mwh,total_cost / egen_total,DollarsPerMWhGenerated,"Average c
 gen,net_total_revenue,net_total_revenue_prelim - cost_of_service_rebate,Dollars,Net total revenue after adjusting for the cost-of-service rebate
 gen,net_variable_revenue,electricity_revenue - net_variable_cost - cost_of_service_rebate,Dollars,Net variable revenue including electiricy revenue minus net variable costs
 gen,net_going_forward_revenue,electricity_revenue - going_forward_cost - cost_of_service_rebate,Dollars,"Net going forward revenue, including electricity revenue minus going forward cost"
-gen,obj_pcap_cost,"SumHourlyWeighted(pcap, obj_pcap_price)",Dollars,"Cost for pcap in the objective, including investment"
-gen,obj_pgen_cost,"SumHourly(egen, obj_pgen_price)",Dollars,Cost for pgen in the objective
+gen,obj_pcap_cost_total,"SumHourlyWeighted(pcap, obj_pcap_cost)",Dollars,"Cost for pcap in the objective, including investment"
+gen,obj_pgen_cost_total,"SumHourly(egen, obj_pgen_cost)",Dollars,Cost for pgen in the objective
 bus,elnom_total,SumHourly(elnom),MWhLoad,Nominal load energy
 bus,elserv_total,SumHourly(elserv),MWhServed,Total load energy served
 bus,eflow_in_total,SumHourly(eflow_in),MWhFlow,Total energy flowing into all the buses in this region (not necessarily net flow into the region)
