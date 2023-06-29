@@ -16,6 +16,7 @@ function setup_welfare!(config, data)
     add_welfare_term!(data, :user, :bus, :electricity_cost, -)
     add_welfare_term!(data, :user, :gen, :gs_rebate, -)
     add_welfare_term!(data, :user, :bus, :merchandising_surplus_total, +)
+    add_welfare_term!(data, :user, :bus, :distribution_cost_total, -)
     # Make sure to have a term for policy costs that would get transferred to users, for policies like nuclear preservation, installed reserve margins, portfolio standards
 
     # Government welfare
