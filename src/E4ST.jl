@@ -62,6 +62,7 @@ include("types/modifications/CoalCCSRetrofit.jl")
 include("types/modifications/CO2eCalc.jl")
 include("types/modifications/FuelPrice.jl")
 include("types/modifications/InterfaceLimit.jl")
+include("types/modifications/CapacityMarket.jl")
 
 
 # Include Policies

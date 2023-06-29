@@ -128,3 +128,15 @@ function get_credit(c::CreditByBenchmark, data, gen_row::DataFrameRow)
     credit = min.(1.0, max.( 1.0 .- gen_emis_rate ./ c.benchmark, 0.0))
     return credit
 end
+
+"""
+    UnitCredit <: Crediting
+
+Always gives credit value of 1.0
+"""
+struct UnitCredit <: Crediting end
+export UnitCredit
+
+function get_credit(::UnitCredit, data, gen_row)
+    return 1.0
+end
