@@ -96,6 +96,7 @@ bus,plcurt_max,MaxHourly(plcurt),MWCurtailed,Maximum hourly load power curtailed
 bus,plcurt_min,MinHourly(plcurt),MWCurtailed,Minimum hourly load power curtailed in the region
 bus,electricity_cost,"SumHourly(elserv,lmp_elserv)",Dollars,Total cost of electricity served
 bus,electricity_price,electricity_cost / elserv_total,DollarsPerMWhServed,Average cost of electricity served
+bus,merchandising_surplus_total,SumHourly(merchandising_surplus),Dollars,Total merchandising surplus from selling electricity for a higher price at one end of a line than another.  Lines that are split across the region add half of their merchandising surplus to each region.
 branch,eflow_total,SumHourly(eflow),MWhFlow,Total energy flowing in this branch
 branch,pflow_hourly_min,MinHourly(pflow),MWFlow,Minimum sum of power flowing in these branches
 branch,pflow_hourly_max,MaxHourly(pflow),MWFlow,Maximum sum of power flowing in these branches

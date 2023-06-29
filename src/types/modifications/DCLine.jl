@@ -78,3 +78,31 @@ function modify_model!(mod::DCLine, config, data, model)
     
     return nothing
 end
+
+function process_results!(mod::DCLine, config, data)
+    # Loop through each branch and add the hourly merchandising surplus, in dollars, to the appropriate bus
+    ms =      get_table_col(data, :bus, :merchandising_surplus)::Vector{SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Slice{OneTo{Int64}}, Slice{OneTo{Int64}}}, true}}
+    lmp_elserv = get_table_col(data, :bus, :lmp_elserv_preloss)::Vector{SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Slice{OneTo{Int64}}, Slice{OneTo{Int64}}}, true}}
+    dc_line = get_table(data, :dc_line)
+
+    # Get numbers used for indexing
+    ndc = nrow(dc_line)
+    nyr = get_num_years(data)
+    nhr = get_num_hours(data)
+
+    f_bus_idxs = dc_line.f_bus_idx::Vector{Int64}
+    t_bus_idxs = dc_line.t_bus_idx::Vector{Int64}
+    pflow_dc = res_raw[:pflow_dc]::Array{Float64, 3}
+    hour_weights = get_hour_weights(data)
+    hour_weights_mat = [hour_weights[hr_idx] for yr_idx in 1:nyr, hr_idx in 1:nhr]
+    for dc_idx in 1:nrow(branch)
+        f_bus_idx = f_bus_idxs[dc_idx]
+        t_bus_idx = t_bus_idxs[dc_idx]
+        f_bus_lmp = lmp_elserv[f_bus_idx] # nyr x nhr
+        t_bus_lmp = lmp_elserv[t_bus_idx] # nyr x nhr
+        pflow = view(pflow_dc, dc_idx, :, :) # nyr x nhr
+        ms_per_bus = abs.((f_bus_lmp .- t_bus_lmp) .* pflow) .* hour_weights_mat .* 0.5
+        ms[f_bus_idx] .+= ms_per_bus
+        ms[t_bus_idx] .+= ms_per_bus
+    end
+end

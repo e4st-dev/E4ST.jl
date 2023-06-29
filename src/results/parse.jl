@@ -258,6 +258,8 @@ Adds the locational marginal prices of electricity and power flow.
 | :branch | :lmp_pflow | DollarsPerMWFlow | Locational Marginal Price of Power Flow |
 """
 function parse_lmp_results!(config, data)
+    nyr = get_num_years(data)
+    nhr = get_num_hours(data)
     res_raw = get_raw_results(data)
     
     # Get the shadow price of the average power flow constraint ($/MW flowing)
@@ -275,7 +277,8 @@ function parse_lmp_results!(config, data)
 
         # lmp_elserv is dollars per MWh before losses, so we need to inflate the cost to compensate
         plserv_scalar = 1/(1-line_loss_rate)
-        add_table_col!(data, :bus, :lmp_elserv, lmp_elserv .* plserv_scalar, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
+        add_table_col!(data, :bus, :lmp_elserv, lmp_elserv .* plserv_scalar, DollarsPerMWhServed,"Locational Marginal Price of Energy Served (scaled up from lmp_elserv_preloss)")
+        add_table_col!(data, :bus, :lmp_elserv_preloss, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
     else
         add_table_col!(data, :bus, :lmp_elserv, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
     end
@@ -284,12 +287,33 @@ function parse_lmp_results!(config, data)
     gen = get_table(data, :gen)
     bus_idxs = gen.bus_idx::Vector{Int64}
     lmp_gen = [view(lmp_elserv, i, :, :) for i in bus_idxs]
-    add_table_col!(data, :gen, :lmp_egen, lmp_gen, DollarsPerMWhServed, "Locational Marginal Price of Energy Served")
+    add_table_col!(data, :gen, :lmp_egen, lmp_gen, DollarsPerMWhServed, "Locational Marginal Price of Energy Generated (pre-loss)")
 
     # # Get the shadow price of the positive and negative branch power flow constraints ($/(MW incremental transmission))      
     # cons_branch_pflow_neg = res_raw[:cons_branch_pflow_neg]::Containers.SparseAxisArray{Float64, 3, Tuple{Int64, Int64, Int64}}
     # cons_branch_pflow_pos = res_raw[:cons_branch_pflow_pos]::Array{Float64, 3}
     # lmp_pflow = -cons_branch_pflow_neg - cons_branch_pflow_pos
+
+    # Loop through each branch and add the hourly merchandising surplus, in dollars, to the appropriate bus
+    ms = zeros(size(lmp_elserv)) # nbus x nyr x nhr
+    branch = get_table(data, :branch)
+    f_bus_idxs = branch.f_bus_idx::Vector{Int64}
+    t_bus_idxs = branch.t_bus_idx::Vector{Int64}
+    pflow_branch = res_raw[:pflow_branch]::Array{Float64, 3}
+    hour_weights = get_hour_weights(data)
+    hour_weights_mat = [hour_weights[hr_idx] for yr_idx in 1:nyr, hr_idx in 1:nhr]
+    for branch_idx in 1:nrow(branch)
+        f_bus_idx = f_bus_idxs[branch_idx]
+        t_bus_idx = t_bus_idxs[branch_idx]
+        f_bus_lmp = view(lmp_elserv, f_bus_idx, :, :) # nyr x nhr
+        t_bus_lmp = view(lmp_elserv, t_bus_idx, :, :) # nyr x nhr
+        pflow = view(pflow_branch, branch_idx, :, :) # nyr x nhr
+        ms_per_bus = abs.((f_bus_lmp .- t_bus_lmp) .* pflow) .* hour_weights_mat .* 0.5
+        ms[f_bus_idx, :, :] .+= ms_per_bus
+        ms[t_bus_idx, :, :] .+= ms_per_bus
+    end
+
+    add_table_col!(data, :bus, :merchandising_surplus, ms, Dollars, "Merchandising surplus, in dollars, from selling electricity for a higher price at one end of a line than another.")
     
     # # Add the LMP's to the results and to the branch table
     # res_raw[:lmp_pflow_branch] = lmp_pflow
