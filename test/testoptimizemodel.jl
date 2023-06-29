@@ -26,7 +26,7 @@
     end
 
     @testset "Test bus results match gen results" begin
-        # Test that revenue of electricity for generators equals the cost for consumers
+        # Test that revenue of electricity for generators equals the cost for users
         line_loss_rate = config[:line_loss_rate]
         @test compute_result(data, :bus, :elserv_total) ≈ (compute_result(data, :gen, :egen_total)) * (1 - line_loss_rate)
         @test compute_result(data, :bus, :electricity_cost) ≈ compute_result(data, :gen, :electricity_revenue)

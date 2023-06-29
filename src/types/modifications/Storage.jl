@@ -617,7 +617,7 @@ function modify_results!(mod::Storage, config, data)
     add_welfare_term!(data, :producer, :storage, :cost_of_service_rebate, -)
 
     # Consumer welfare
-    add_welfare_term!(data, :consumer, :storage, :cost_of_service_rebate, +)
+    add_welfare_term!(data, :user, :storage, :cost_of_service_rebate, +)
 
     # Government revenue
     add_welfare_term!(data, :govermnent, :storage, :net_government_revenue, +)

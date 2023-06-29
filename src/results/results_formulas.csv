@@ -76,8 +76,8 @@ gen,total_cost_prelim,going_forward_cost + past_invest_cost_total - past_invest_
 gen,total_cost_prelim_per_mwh,total_cost_prelim / egen_total,DollarsPerMWhGenerated,"Average cost of producing a MWh of power, including past investment costs and subsidies"
 gen,net_total_revenue_prelim,electricity_revenue - total_cost_prelim,Dollars,"Preliminary net total revenue, including electricity revenue minus total cost, before adjusting for cost-of-service rebates"
 gen,cost_of_service_rebate,CostOfServiceRebate(gen),Dollars,"This is a specially calculated result, which is the sum of net_total_revenue_prelim * reg_factor for each generator"
-gen,total_cost,total_cost_prelim + cost_of_service_rebate,Dollars,Total cost of production including the preliminary total cost and the cost of service rebate to consumers.
-gen,total_cost_per_mwh,total_cost / egen_total,DollarsPerMWhGenerated,"Average cost of producing 1 MWh of energy, including the preliminary total cost and the cost of service rebate to consumers."
+gen,total_cost,total_cost_prelim + cost_of_service_rebate,Dollars,Total cost of production including the preliminary total cost and the cost of service rebate to users.
+gen,total_cost_per_mwh,total_cost / egen_total,DollarsPerMWhGenerated,"Average cost of producing 1 MWh of energy, including the preliminary total cost and the cost of service rebate to users."
 gen,net_total_revenue,net_total_revenue_prelim - cost_of_service_rebate,Dollars,Net total revenue after adjusting for the cost-of-service rebate
 gen,net_variable_revenue,electricity_revenue - net_variable_cost - cost_of_service_rebate,Dollars,Net variable revenue including electiricy revenue minus net variable costs
 gen,net_going_forward_revenue,electricity_revenue - going_forward_cost - cost_of_service_rebate,Dollars,"Net going forward revenue, including electricity revenue minus going forward cost"

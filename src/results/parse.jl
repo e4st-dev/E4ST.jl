@@ -271,7 +271,7 @@ function parse_lmp_results!(config, data)
     # Add the LMP's to the results and to the bus table
     res_raw[:lmp_elserv_bus] = lmp_elserv
 
-    # Compensate for line losses for lmp seen by consumers at buses.
+    # Compensate for line losses for lmp seen by users at buses.
     if config[:line_loss_type] == "plserv"
         line_loss_rate = config[:line_loss_rate]::Float64
 
