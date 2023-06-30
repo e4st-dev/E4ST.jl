@@ -12,6 +12,7 @@
     @test check(model)
 
     parse_results!(config, data, model)
+    process_results!(config, data)
 
     @testset "Test no curtailment" begin
         bus = get_table(data, :bus)
