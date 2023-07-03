@@ -12,6 +12,7 @@
     @test check(model)
 
     parse_results!(config, data, model)
+    process_results!(config, data)
 
     @testset "Test no curtailment" begin
         bus = get_table(data, :bus)
@@ -26,10 +27,15 @@
     end
 
     @testset "Test bus results match gen results" begin
-        # Test that revenue of electricity for generators equals the cost for consumers
+        # Test that revenue of electricity for generators equals the cost for users
         line_loss_rate = config[:line_loss_rate]
         @test compute_result(data, :bus, :elserv_total) ≈ (compute_result(data, :gen, :egen_total)) * (1 - line_loss_rate)
         @test compute_result(data, :bus, :electricity_cost) ≈ compute_result(data, :gen, :electricity_revenue)
+    end
+
+    @testset "Test misc. results computations" begin
+        @test compute_result(data, :bus, :distribution_cost_total) ≈ 60 * compute_result(data, :bus, :elserv_total)
+        @test compute_result(data, :bus, :merchandising_surplus_total) >= 0.0
     end
     
     @testset "Test DC lines" begin

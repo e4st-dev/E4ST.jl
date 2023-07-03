@@ -465,7 +465,7 @@ function modify_results!(mod::CCUS, config, data)
     add_results_formula!(data, :ccus_paths, :storer_profit_per_short_ton, "storer_profit_total/stored_co2_total", Dollars, "Total profit earned from storing a short ton of CO2 via this pathway, equal to the revenue minus the cost.")
 
     # Adjust welfare
-    add_to_results_formula!(data, :gen, :production_cost, "cost_capt_co2") # this gets added to producer welfare
+    add_to_results_formula!(data, :gen, :variable_cost, "cost_capt_co2") # this gets added to producer welfare
     add_welfare_term!(data, :sequesterer, :ccus_paths, :storer_profit_total, +)    
 
     # Throw error message if there are profits ≥ 0.

@@ -541,6 +541,10 @@ function setup_table!(config, data, ::Val{:bus})
     bus = get_table(data, :bus)
     bus_idx = collect(1:nrow(bus))
     add_table_col!(data, :bus, :bus_idx, bus_idx, NA, "The bus index of each bus, should correspond to the row number, used for joining.")
+
+    # Add distribution loss as a column
+    dist_cost = config[:distribution_cost] |> Float64
+    add_table_col!(data, :bus, :distribution_cost, fill(dist_cost, nrow(bus)), DollarsPerMWhServed, "The assumed cost per MWh of served power, for the transmission and distribution of the power.")
     return
 end
 export setup_table!

@@ -373,6 +373,7 @@ function parse_comparisons(row::DataFrameRow)
     hasproperty(row, :genfuel) && ~isempty(row.genfuel) && push!(pairs, parse_comparison("genfuel=>$(row.genfuel)"))
     hasproperty(row, :gentype) && ~isempty(row.gentype) && push!(pairs, parse_comparison("gentype=>$(row.gentype)"))
     hasproperty(row, :load_type) && ~isempty(row.load_type) && push!(pairs, parse_comparison("load_type=>$(row.load_type)"))
+    hasproperty(row, :build_id) && ~isempty(row.build_id) && push!(pairs, parse_comparison("build_id=>$(row.build_id)"))
     
     return pairs
 end

@@ -182,10 +182,10 @@ function parse_power_results!(config, data)
     eflow_out_bus = map(x-> max(x,0), eflow_bus)
     eflow_in_bus = map(x-> max(-x,0), eflow_bus)
 
-    obj_pcap_price_raw = res_raw[:obj_coef][:pcap_gen]::Array{Float64, 2}
-    obj_pcap_price = obj_pcap_price_raw ./ hours_per_year
-    obj_pgen_price_raw = res_raw[:obj_coef][:pgen_gen]::Array{Float64, 3}
-    obj_pgen_price = unweight_hourly(data, obj_pgen_price_raw)
+    obj_pcap_cost_raw = res_raw[:obj_coef][:pcap_gen]::Array{Float64, 2}
+    obj_pcap_cost = obj_pcap_cost_raw ./ hours_per_year
+    obj_pgen_cost_raw = res_raw[:obj_coef][:pgen_gen]::Array{Float64, 3}
+    obj_pgen_cost = unweight_hourly(data, obj_pgen_cost_raw)
     obj_pcap_inv_price = res_raw[:obj_coef][:pcap_gen_inv_sim]::Vector{Float64}
     
     # Create new things as needed
@@ -231,8 +231,8 @@ function parse_power_results!(config, data)
     add_table_col!(data, :gen, :pcap_inv_sim, pcap_gen_inv_sim, MWCapacity, "Total power generation capacity that was invested for the generator during the sim.  (single value).  Still the same even after retirement")
     add_table_col!(data, :gen, :ecap_inv_sim, ecap_gen_inv_sim, MWhCapacity, "Total annual power generation energy capacity that was invested for the generator during the sim. (pcap_inv_sim * hours per year) (single value).  Still the same even after retirement")
     add_table_col!(data, :gen, :cf,    cf,        MWhGeneratedPerMWhCapacity, "Capacity Factor, or average power generation/power generation capacity, 0 when no generation")
-    add_table_col!(data, :gen, :obj_pcap_price, obj_pcap_price, DollarsPerMWCapacityPerHour, "Objective function coefficient, in dollars, for one hour of 1MW capacity")
-    add_table_col!(data, :gen, :obj_pgen_price, obj_pgen_price, DollarsPerMWhGenerated, "Objective function coefficient, in dollars, for one MWh of generation")
+    add_table_col!(data, :gen, :obj_pcap_cost, obj_pcap_cost, DollarsPerMWCapacityPerHour, "Objective function coefficient, in dollars, for one hour of 1MW capacity")
+    add_table_col!(data, :gen, :obj_pgen_cost, obj_pgen_cost, DollarsPerMWhGenerated, "Objective function coefficient, in dollars, for one MWh of generation")
     add_table_col!(data, :gen, :obj_pcap_inv_price, obj_pcap_inv_price, DollarsPerMWBuiltCapacityPerHour, "Objective function coefficient, in dollars, for one MW of capacity invested")
 
     # Add things to the branch table
@@ -258,6 +258,8 @@ Adds the locational marginal prices of electricity and power flow.
 | :branch | :lmp_pflow | DollarsPerMWFlow | Locational Marginal Price of Power Flow |
 """
 function parse_lmp_results!(config, data)
+    nyr = get_num_years(data)
+    nhr = get_num_hours(data)
     res_raw = get_raw_results(data)
     
     # Get the shadow price of the average power flow constraint ($/MW flowing)
@@ -269,13 +271,14 @@ function parse_lmp_results!(config, data)
     # Add the LMP's to the results and to the bus table
     res_raw[:lmp_elserv_bus] = lmp_elserv
 
-    # Compensate for line losses for lmp seen by consumers at buses.
+    # Compensate for line losses for lmp seen by users at buses.
     if config[:line_loss_type] == "plserv"
         line_loss_rate = config[:line_loss_rate]::Float64
 
         # lmp_elserv is dollars per MWh before losses, so we need to inflate the cost to compensate
         plserv_scalar = 1/(1-line_loss_rate)
-        add_table_col!(data, :bus, :lmp_elserv, lmp_elserv .* plserv_scalar, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
+        add_table_col!(data, :bus, :lmp_elserv, lmp_elserv .* plserv_scalar, DollarsPerMWhServed,"Locational Marginal Price of Energy Served (scaled up from lmp_elserv_preloss)")
+        add_table_col!(data, :bus, :lmp_elserv_preloss, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
     else
         add_table_col!(data, :bus, :lmp_elserv, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
     end
@@ -284,12 +287,33 @@ function parse_lmp_results!(config, data)
     gen = get_table(data, :gen)
     bus_idxs = gen.bus_idx::Vector{Int64}
     lmp_gen = [view(lmp_elserv, i, :, :) for i in bus_idxs]
-    add_table_col!(data, :gen, :lmp_egen, lmp_gen, DollarsPerMWhServed, "Locational Marginal Price of Energy Served")
+    add_table_col!(data, :gen, :lmp_egen, lmp_gen, DollarsPerMWhServed, "Locational Marginal Price of Energy Generated (pre-loss)")
 
     # # Get the shadow price of the positive and negative branch power flow constraints ($/(MW incremental transmission))      
     # cons_branch_pflow_neg = res_raw[:cons_branch_pflow_neg]::Containers.SparseAxisArray{Float64, 3, Tuple{Int64, Int64, Int64}}
     # cons_branch_pflow_pos = res_raw[:cons_branch_pflow_pos]::Array{Float64, 3}
     # lmp_pflow = -cons_branch_pflow_neg - cons_branch_pflow_pos
+
+    # Loop through each branch and add the hourly merchandising surplus, in dollars, to the appropriate bus
+    ms = zeros(size(lmp_elserv)) # nbus x nyr x nhr
+    branch = get_table(data, :branch)
+    f_bus_idxs = branch.f_bus_idx::Vector{Int64}
+    t_bus_idxs = branch.t_bus_idx::Vector{Int64}
+    pflow_branch = res_raw[:pflow_branch]::Array{Float64, 3}
+    hour_weights = get_hour_weights(data)
+    hour_weights_mat = [hour_weights[hr_idx] for yr_idx in 1:nyr, hr_idx in 1:nhr]
+    for branch_idx in 1:nrow(branch)
+        f_bus_idx = f_bus_idxs[branch_idx]
+        t_bus_idx = t_bus_idxs[branch_idx]
+        f_bus_lmp = view(lmp_elserv, f_bus_idx, :, :) # nyr x nhr
+        t_bus_lmp = view(lmp_elserv, t_bus_idx, :, :) # nyr x nhr
+        pflow = view(pflow_branch, branch_idx, :, :) # nyr x nhr
+        ms_per_bus = abs.((f_bus_lmp .- t_bus_lmp) .* pflow) .* hour_weights_mat .* 0.5
+        ms[f_bus_idx, :, :] .+= ms_per_bus
+        ms[t_bus_idx, :, :] .+= ms_per_bus
+    end
+
+    add_table_col!(data, :bus, :merchandising_surplus, ms, Dollars, "Merchandising surplus, in dollars, from selling electricity for a higher price at one end of a line than another.")
     
     # # Add the LMP's to the results and to the branch table
     # res_raw[:lmp_pflow_branch] = lmp_pflow

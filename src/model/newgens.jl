@@ -46,7 +46,11 @@ function make_newgens!(config, data, newgen)
 
     # Filter any already-built exogenous generators
     filter!(build_gen) do row
-        row.build_type == "exog" && row.year_on >= config[:year_gen_data] && return false
+        if row.build_type == "exog"
+            row.year_on <= config[:year_gen_data] && return false
+            row.year_on > last(years) && return false
+        end
+        
         return true
     end
 

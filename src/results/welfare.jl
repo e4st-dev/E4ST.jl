@@ -12,13 +12,15 @@ function setup_welfare!(config, data)
     add_welfare_term!(data, :producer, :gen, :cost_of_service_rebate, -)
 
     # Consumer welfare
-    add_welfare_term!(data, :consumer, :gen, :cost_of_service_rebate, +)
-    add_welfare_term!(data, :consumer, :bus, :electricity_cost, -)
-    add_welfare_term!(data, :consumer, :gen, :gs_cost, +)
-    # Make sure to have a term for policy costs that would get transferred to consumers, for policies like nuclear preservation, installed reserve margins, portfolio standards
+    add_welfare_term!(data, :user, :gen, :cost_of_service_rebate, +)
+    add_welfare_term!(data, :user, :bus, :electricity_cost, -)
+    add_welfare_term!(data, :user, :gen, :gs_rebate, -)
+    add_welfare_term!(data, :user, :bus, :merchandising_surplus_total, +)
+    add_welfare_term!(data, :user, :bus, :distribution_cost_total, -)
+    # Make sure to have a term for policy costs that would get transferred to users, for policies like nuclear preservation, installed reserve margins, portfolio standards
 
     # Government welfare
-    add_welfare_term!(data, :government, :gen, :government_revenue, +)
+    add_welfare_term!(data, :government, :gen, :net_government_revenue, +)
     # Make sure that emissions caps and prices get added to govt. revenue and production cost.
 end
 export setup_welfare!

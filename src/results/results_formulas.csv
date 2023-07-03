@@ -3,7 +3,7 @@ gen,egen_total,SumHourly(egen),MWhGenerated,"Total energy generated, in MWh"
 gen,pgen_avg,AverageHourly(pgen),MWGenerated,Average power generation
 gen,pgen_min,MinHourly(pgen),MWGenerated,Minimum power generation in an hour
 gen,pgen_max,MaxHourly(pgen),MWGenerated,Maximum power generation in an hour
-gen,ecap_total,SumHourlyWeighted(pcap),MWhCapacity,"Total energy capacity, in MWh"
+gen,ecap_total,SumHourlyWeighted(pcap),MWhCapacity,"Total energy capacity, in MWh.  This is equal to the power generation capacity multiplied by the number of hours."
 gen,pcap_total,AverageYearly(pcap),MWCapacity,"Average power capacity.  If multiple years given, the average is taken."
 gen,ecap_available_total,"SumHourlyWeighted(pcap,af)",MWhCapacity,"Total available energy capacity, in MWh"
 gen,pcap_start_total,Sum(pcap0),MWCapacity,Starting power capacity.
@@ -34,55 +34,55 @@ gen,fom_cost,"SumHourlyWeighted(fom,pcap)",Dollars,"Fixed Operation and Maintena
 gen,fom_per_mwh,fom_cost/egen_total,DollarsPerMWhGenerated,Fixed Operation and Maintenance paid per MWh of energy generated
 gen,routine_capex_cost,"SumHourlyWeighted(routine_capex, pcap)",Dollars,"Routine capital expenditures incurred, in dollars"
 gen,routine_capex_per_mwh,routine_capex_cost / egen_total,DollarsPerMWhGenerated,Routine capital expenditures incurred per MWh of energy generated
-gen,capex_cost,"SumYearly(capex_obj, ecap_inv_sim)",Dollars,"Capital expenditures, in dollars, as seen by objective function"
+gen,capex_cost,"SumYearly(capex_obj, ecap_inv_sim)",Dollars,"Capital expenditures, in dollars, as seen by objective function, including endogenous and exogenous investments that were incurred for the simulation year."
 gen,capex_per_mwh,capex_cost/egen_total,DollarsPerMWhGenerated,Levelized capital expenditures per MWh of energy generated
-gen,transmission_capex_cost,"SumYearly(transmission_capex_obj, ecap_inv_sim)",Dollars,"Capital expenditures for transmission, in dollars, as seen by objective function"
+gen,transmission_capex_cost,"SumYearly(transmission_capex_obj, ecap_inv_sim)",Dollars,"Capital expenditures for transmission, in dollars, as seen by objective function.  This is only for transmission costs related to building the generator, beyond that included in the capex cost of the generator."
 gen,transmission_capex_per_mwh,transmission_capex_cost/egen_total,DollarsPerMWhGenerated,Levelized capital expenditures for transmission per MWh of energy generated
-gen,past_invest_cost_total,"SumHourlyWeighted(past_invest_cost, pcap_inv)",Dollars,Investment costs from past investments
-gen,past_invest_subsidy_total,"SumHourlyWeighted(past_invest_subsidy, pcap_inv)",Dollars,Investment subsidies from past investments
+gen,past_invest_cost_total,"SumHourlyWeighted(past_invest_cost, pcap_inv)",Dollars,"Investment costs from past investments.  This only applies to generators built prior to the simulation.  This includes the full annualized investment cost (""invest_cost""), times the percentage likelihood that the generator would still be within its the economic lifetime for the year calculated, given that endogenously built generators can be built in a range of years"
+gen,past_invest_subsidy_total,"SumHourlyWeighted(past_invest_subsidy, pcap_inv)",Dollars,"Investment subsidies from past investments.  This only applies to generators built prior to the simulation.  This includes the full annualized investment subsidy (""invest_subsidy""), times the percentage likelihood that the generator would still be within its the economic lifetime for the year calculated, given that endogenously built generators can be built in a range of years"
 gen,fuel_cost,"SumHourly(fuel_price,heat_rate,egen)",Dollars,Total cost of fuel
 gen,fuel_price_per_mwh,fuel_cost/egen_total,DollarsPerMWhGenerated,Fuel price per MWh generated
 gen,fuel_burned,"SumHourly(heat_rate,egen)",MMBtu,Amount of fuel burned
 gen,fuel_price_per_mmbtu,fuel_cost_total/fuel_burned,DollarsPerMMBtu,Average price of fuel burned
 gen,variable_cost,fuel_cost+vom_cost,Dollars,"Variable costs for operation, including fuel and vom."
 gen,variable_cost_per_mwh,variable_cost/egen_total,DollarsPerMWhGenerated,"Variable costs for operation, per MWh of generation.  Includes fuel and vom"
-gen,production_subsidy,0,Dollars,Total production subsidy for generation
-gen,production_subsidy_per_mwh,production_subsidy / egen_total,DollarsPerMWhGenerated,Average production subsidy for a MWh of generation
-gen,net_variable_cost,variable_cost - production_subsidy,Dollars,Total variable costs minus production subsidies
+gen,ptc_subsidy,0,Dollars,Total production tax credit subsidy for generation.  Does not include means-tested nuclear subsidy that RFF sometimes includes in research.
+gen,ptc_subsidy_per_mwh,ptc_subsidy / egen_total,DollarsPerMWhGenerated,Average production tax credit subsidy for a MWh of generation.  Does not include means-tested nuclear subsidy that RFF sometimes includes in research.
+gen,net_variable_cost,variable_cost - ptc_subsidy,Dollars,Total variable costs minus production subsidies
 gen,net_variable_cost_per_mwh,net_variable_cost / egen_total,DollarsPerMWhGenerated,Average variable costs minus production subsidies for a MWh of energy
-gen,fixed_cost,fom_cost + routine_capex_cost + invest_cost,Dollars,"Fixed costs, including capex (not just what the optimization saw) and fom"
+gen,fixed_cost,fom_cost + routine_capex_cost + invest_cost,Dollars,"Fixed costs, including capex and fom before accounting for subsidies"
 gen,fixed_cost_permw_perhr,fixed_cost/ecap_total,DollarsPerMWCapacityPerHour,Fixed costs per mw per hour
 gen,invest_cost,transmission_capex_cost + capex_cost,Dollars,"Investment costs for generators, including capex cost and transmission capex cost"
-gen,invest_cost_permw_perhr,invest_cost / ecap_inv_total,DollarsPerMWCapacityPerHour,Average investment cost per MW invested per hour
-gen,invest_subsidy,0,Dollars,Investment subsidies to go to generators
-gen,invest_subsidy_permw_perhr,invest_subsidy / ecap_inv_total,DollarsPerMWCapacityPerHour,Average investment subsidy per MW invested per hour
-gen,net_fixed_cost,fixed_cost - invest_subsidy,Dollars,Fixed costs minus investment subsidies
+gen,invest_cost_permw_perhr,invest_cost / ecap_inv_total,DollarsPerMWBuiltCapacityPerHour,Average investment cost per MW invested per hour
+gen,invest_subsidy,0,Dollars,Investment subsidies to go to generators for exogenous or endogenous investments made in this simulation
+gen,invest_subsidy_permw_perhr,invest_subsidy / ecap_inv_total,DollarsPerMWBuiltCapacityPerHour,Average investment subsidy per MW invested per hour
+gen,net_fixed_cost,fixed_cost - invest_subsidy,Dollars,Fixed costs faced by investors after taking investment subsidies into account
 gen,net_fixed_cost_permw_perhr,net_fixed_cost / ecap_total,DollarsPerMWCapacityPerHour,Average net fixed cost per MW per hour.  Fixed costs minus investment subsidies
-gen,production_cost,variable_cost + fixed_cost,Dollars,"Cost of production, includes fixed and variable costs"
+gen,production_cost,variable_cost + fixed_cost,Dollars,"Cost of production, includes fixed and variable costs.  Does not include subsidies and costs from investments made prior to this simulation."
 gen,production_cost_per_mwh,production_cost / egen_total,DollarsPerMWhGenerated,"Average cost of production for a MWh of power, including variable and fixed costs"
 gen,net_production_cost,net_variable_cost + net_fixed_cost,Dollars,"Net cost of production, including fixed and variable costs minus investment and production subsidies"
 gen,net_production_cost_per_mwh,net_production_cost / egen_total,DollarsPerMWhGenerated,"Average net cost of producing a MWh of power, including fixed and variable costs minus investment and production subsidies"
-gen,gs_cost,0,Dollars,Cost for load serving entities to buy credits from generators  for all generation standards
-gen,gs_cost_per_mwh,gs_cost / egen_total,DollarsPerMWhGenerated,"Average cost from generation standards, per MWh"
+gen,gs_rebate,0,Dollars,Rebate recieved by generators from load serving entities for credits for clean/renewable generation for all generation standards (RPS's and CES's)
+gen,gs_rebate_per_mwh,gs_rebate / egen_total,DollarsPerMWhGenerated,"Average rebate from generation standards, per every MWh generated in this region (not necessarily the same as the generating region for the standard(s))"
 gen,emission_cap_cost,0,Dollars,Cost for paying for allowances for all emissions caps.
-gen,emission_cap_cost_per_mwh,emission_cap_cost / egen_total,DollarsPerMWhGenerated,"Average cost, per MWh, for paying for allowances from all emission caps"
+gen,emission_cap_cost_per_mwh,emission_cap_cost / egen_total,DollarsPerMWhGenerated,"Average cost, per MWh, for paying for allowances from all emission caps.  egen_total includes all generation for specified area, not just qualifying generation."
 gen,emission_cost,0,Dollars,Cost for paying all emissions prices.
 gen,emission_cost_per_mwh,emission_cost / egen_total,DollarsPerMWhGenerated,"Average cost, per MWh, for paying emission prices"
-gen,pol_cost,emission_cap_cost + emission_cost - gs_cost - invest_subsidy - production_subsidy,Dollars,Cost for all generators from all policy types.
-gen,pol_cost_per_mwh,pol_cost / egen_total,DollarsPerMWhGenerated,"Average cost for all generators from all policy types, per MWh."
-gen,government_revenue,emission_cap_cost + emission_cost - invest_subsidy - production_subsidy - past_invest_subsidy_total,Dollars,Government revenue earned from generators
-gen,going_forward_cost,production_cost + pol_cost,Dollars,Total going forward cost
-gen,total_cost_prelim,going_forward_cost + past_invest_cost_total - past_invest_subsidy_total,Dollars,"Total cost of production, including past investment costs and subsidies"
-gen,total_cost_prelim_per_mwh,total_cost_prelim / egen_total,DollarsPerMWhGenerated,"Average cost of producing a MWh of power, including pst investment costs and subsidies"
+gen,net_pol_cost_for_egus,emission_cap_cost + emission_cost - gs_rebate - invest_subsidy - ptc_subsidy,Dollars,Net cost for all generators from all policy types.
+gen,net_pol_cost_for_egus_per_mwh,net_pol_cost_for_egus / egen_total,DollarsPerMWhGenerated,"Average cost for all generators from all policy types, per MWh."
+gen,net_government_revenue,emission_cap_cost + emission_cost - invest_subsidy - ptc_subsidy - past_invest_subsidy_total,Dollars,Net government revenue earned from generators
+gen,going_forward_cost,production_cost + net_pol_cost_for_egus,Dollars,Total going forward cost
+gen,total_cost_prelim,going_forward_cost + past_invest_cost_total - past_invest_subsidy_total,Dollars,"Total cost of production, including past investment costs and subsidies for investments still within their economic lifetimes, before adjusting for cost-of-service rebates"
+gen,total_cost_prelim_per_mwh,total_cost_prelim / egen_total,DollarsPerMWhGenerated,"Average cost of producing a MWh of power, including past investment costs and subsidies"
 gen,net_total_revenue_prelim,electricity_revenue - total_cost_prelim,Dollars,"Preliminary net total revenue, including electricity revenue minus total cost, before adjusting for cost-of-service rebates"
 gen,cost_of_service_rebate,CostOfServiceRebate(gen),Dollars,"This is a specially calculated result, which is the sum of net_total_revenue_prelim * reg_factor for each generator"
-gen,total_cost,total_cost_prelim + cost_of_service_rebate,Dollars,Total cost of production including the preliminary total cost and the cost of service rebate to consumers.
-gen,total_cost_per_mwh,total_cost / egen_total,DollarsPerMWhGenerated,"Average cost of producing 1 MWh of energy, including the preliminary total cost and the cost of service rebate to consumers."
+gen,total_cost,total_cost_prelim + cost_of_service_rebate,Dollars,Total cost of production including the preliminary total cost and the cost of service rebate to users.
+gen,total_cost_per_mwh,total_cost / egen_total,DollarsPerMWhGenerated,"Average cost of producing 1 MWh of energy, including the preliminary total cost and the cost of service rebate to users."
 gen,net_total_revenue,net_total_revenue_prelim - cost_of_service_rebate,Dollars,Net total revenue after adjusting for the cost-of-service rebate
 gen,net_variable_revenue,electricity_revenue - net_variable_cost - cost_of_service_rebate,Dollars,Net variable revenue including electiricy revenue minus net variable costs
 gen,net_going_forward_revenue,electricity_revenue - going_forward_cost - cost_of_service_rebate,Dollars,"Net going forward revenue, including electricity revenue minus going forward cost"
-gen,obj_pcap_cost,"SumHourlyWeighted(pcap, obj_pcap_price)",Dollars,"Cost for pcap in the objective, including investment"
-gen,obj_pgen_cost,"SumHourly(egen, obj_pgen_price)",Dollars,Cost for pgen in the objective
+gen,obj_pcap_cost_total,"SumHourlyWeighted(pcap, obj_pcap_cost)",Dollars,"Cost for pcap in the objective, including investment"
+gen,obj_pgen_cost_total,"SumHourly(egen, obj_pgen_cost)",Dollars,Cost for pgen in the objective
 bus,elnom_total,SumHourly(elnom),MWhLoad,Nominal load energy
 bus,elserv_total,SumHourly(elserv),MWhServed,Total load energy served
 bus,eflow_in_total,SumHourly(eflow_in),MWhFlow,Total energy flowing into all the buses in this region (not necessarily net flow into the region)
@@ -96,6 +96,8 @@ bus,plcurt_max,MaxHourly(plcurt),MWCurtailed,Maximum hourly load power curtailed
 bus,plcurt_min,MinHourly(plcurt),MWCurtailed,Minimum hourly load power curtailed in the region
 bus,electricity_cost,"SumHourly(elserv,lmp_elserv)",Dollars,Total cost of electricity served
 bus,electricity_price,electricity_cost / elserv_total,DollarsPerMWhServed,Average cost of electricity served
+bus,merchandising_surplus_total,SumHourly(merchandising_surplus),Dollars,Total merchandising surplus from selling electricity for a higher price at one end of a line than another.  Lines that are split across the region add half of their merchandising surplus to each region.
+bus,distribution_cost_total,"SumHourly(elserv, distribution_cost)",Dollars,Total cost to consumers per MWh of served power for the transmission and distribution of the power.
 branch,eflow_total,SumHourly(eflow),MWhFlow,Total energy flowing in this branch
 branch,pflow_hourly_min,MinHourly(pflow),MWFlow,Minimum sum of power flowing in these branches
 branch,pflow_hourly_max,MaxHourly(pflow),MWFlow,Maximum sum of power flowing in these branches
