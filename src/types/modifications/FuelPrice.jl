@@ -50,13 +50,19 @@ end
 Zero out the `fuel_price` column of the `gen` table, as it will get overwritten later by this Modification.  This is to avoid double-counting the fuel cost.
 """ 
 function modify_setup_data!(mod::FuelPrice, config, data)
-    # Set the fuel_price table to all zero.
+    # Set the fuel_price table to all zero for the areas affected by `mod`.
     gen = get_table(data, :gen)
+    fp = get_table(data, :fuel_price)
     if hasproperty(gen, :fuel_price)
-        gen.fuel_price = Container[Container(fc) for fc in gen.fuel_price]
+        to_container!(gen, :fuel_price)
         v = fill(0.0, get_num_years(data))
-        for gen_idx in axes(gen,1)
-            gen.fuel_price[gen_idx] = set_yearly(gen.fuel_price[gen_idx], v)
+        gdf = groupby(fp, Not([:price, :quantity]))
+        for sdf in gdf
+            row = sdf[1,:]
+            gen_idxs = get_row_idxs(gen, parse_comparisons(row))
+            for gen_idx in gen_idxs
+                gen.fuel_price[gen_idx] = set_yearly(gen.fuel_price[gen_idx], v)
+            end
         end
     else
         bn = ByNothing(0.0)
@@ -187,9 +193,6 @@ function modify_results!(mod::FuelPrice, config, data)
     nyr = get_num_years(data)
     nhr = get_num_hours(data)
     gen = get_table(data, :gen)
-    for row in eachrow(gen)
-        @assert all(==(0), row.fuel_price) "Found non-zero fuel_price in gen table with FuelPrice Modification.  That could mean double-counting of fuel cost in the objective function!"
-    end
 
     cp = Container[ByNothing(0.0) for _ in axes(fuel_markets, 1)]
 
@@ -206,6 +209,12 @@ function modify_results!(mod::FuelPrice, config, data)
     for row in eachrow(fuel_markets)
         # Find the index of the cheapest fuel price for each year in the market region
         fp_idxs = [argmin(pf_idx->mean(fuel_price.price[pf_idx][yr_idx, :]), row.fuel_price_idxs) for yr_idx in 1:nyr]
+
+        for gen_idx in row.gen_idxs
+            @assert all(==(0), gen.fuel_price[gen_idx]) "Found non-zero fuel_price in gen table with FuelPrice Modification.  That could mean double-counting of fuel cost in the objective function!"
+        end
+    
+
         
         # Find the shadow price of the fuel sold constraint.  I.e. the change in objective value, in dollars per MMBtu, by relaxing the `cons_fuel_sold` constraint.  
         # I.e. if we allowed one more unit of the cheaper fuel, this value is the difference between the clearing price and the price of the cheapest fuel.
