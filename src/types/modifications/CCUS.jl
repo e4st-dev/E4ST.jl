@@ -469,6 +469,6 @@ function modify_results!(mod::CCUS, config, data)
     add_welfare_term!(data, :sequesterer, :ccus_paths, :storer_profit_total, +)    
 
     # Throw error message if there are profits ≥ 0.
-    all(v->all(>=(0), v), ccus_paths.storer_profit) || @warn "All CCUS profits should be ≥ 0, but found $(minimum(minimum, ccus_paths.storer_profit))"    
+    all(v->all(>=(0), v), ccus_paths.storer_profit) || @warn "All CCUS profits should be ≥ 0, but found $(minimum(minimum, ccus_paths.storer_profit))"
 end
 export modify_results!

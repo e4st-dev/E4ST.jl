@@ -662,9 +662,9 @@ function save_updated_storage_table(config, data)
     end
 
     # Gather the past investment costs and subsidies
+    @info "updating the past investment cost/subsidy for new storage facilities"
     for i in 1:nrow(storage_tmp)
         storage_tmp.build_status[i] == "new" || continue
-        @info "updating the past investment cost/subsidy for $i"
         storage_tmp.past_invest_cost[i] =    maximum(yr_idx->compute_result(data, :storage, :invest_cost_permw_perhr, i, yr_idx), 1:nyr)
         storage_tmp.past_invest_subsidy[i] = maximum(yr_idx->compute_result(data, :storage, :invest_subsidy_permw_perhr, i, yr_idx), 1:nyr)
     end
