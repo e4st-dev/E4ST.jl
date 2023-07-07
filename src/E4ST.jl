@@ -286,7 +286,9 @@ function get_type(str::AbstractString)
         reload_types!()
         get(STR2TYPE, str) do
             get(STR2TYPE, last(split(str, '.'))) do
-                error("There has been no type $str defined!")
+                get(STR2TYPE, first(split(str, '{'))) do 
+                    error("There has been no type $str defined!")
+                end
             end
         end
     end
