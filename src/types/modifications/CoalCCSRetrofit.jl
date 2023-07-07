@@ -7,9 +7,9 @@
 Keyword Arguments:
 * `crf = 0.115642438` - the capital recovery factor (default value assumes 12 year economic lifetime)
 * `capt_co2_percent = 0.9` - (between 0 and 1) the percentage of CO₂ captured by the retrofit
-* `reduce_nox_percent = 0.5` - (between 0 and 1) the percent reduction in NOₓ emissions
-* `reduce_so2_percent = 1.0` - (between 0 and 1) the percent reduction in SO₂ emissions
-* `reduce_pm25_percent = 0.35` - (between 0 and 1) the percent reduction in PM2.5 emissions
+* `reduce_nox_percent =  0.25` - (between 0 and 1) the percent reduction in NOₓ emissions (default is midpoint of 0% and 50% reduction)
+* `reduce_so2_percent = 0.985` - (between 0 and 1) the percent reduction in SO₂ emissions (default is midpoint of 97% and 100% reduction)
+* `reduce_pm25_percent = 0.33` - (between 0 and 1) the percent reduction in PM2.5 emissions (default is midpoint of -4% and 70% reduction)
 * `econ_life = 12.0` - the assumed economic life of the retrofit.  Moves out the planned year_shutdown to be at the end of the retrofit economic lifetime if year_shutdown is earlier than the end of the econ life.
 
 Other Requirements:
@@ -21,9 +21,9 @@ Cost adjustment values come from a regression in EPA Schedule 6 data.
 Base.@kwdef struct CoalCCSRetrofit <: Retrofit 
     crf::Float64 = 0.115642438 # 12 year economic lifetime
     capt_co2_percent::Float64 = 0.9
-    reduce_nox_percent::Float64 = 0.5
-    reduce_so2_percent::Float64 = 1.0
-    reduce_pm25_percent::Float64 = 0.35
+    reduce_nox_percent::Float64 = 0.25  # midpoint of 0% and 50% reduction
+    reduce_so2_percent::Float64 = 0.985 # midpoint of 97% and 100% reduction
+    reduce_pm25_percent::Float64 = 0.33 # midpoint of -4% and 70% reduction
     econ_life::Float64 = 12.0
 end
 
