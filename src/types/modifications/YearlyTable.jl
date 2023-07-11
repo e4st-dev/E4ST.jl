@@ -26,7 +26,7 @@ function YearlyTable(;name, table_name, groupby = Symbol[], group_hours_by = Sym
     return YearlyTable(Symbol(name), Symbol(table_name), groupby, group_hours_by)
 end
 
-mod_rank(::Type{<:YearlyTable}) = 0.0
+mod_rank(::Type{<:YearlyTable}) = 5.0
 
 """
     modify_results!(mod::YearlyTable, config, data) -> nothing

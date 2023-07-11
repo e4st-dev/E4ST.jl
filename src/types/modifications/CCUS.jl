@@ -416,7 +416,7 @@ function modify_results!(mod::CCUS, config, data)
 
         # Compute the shadow price for this cheapest step to find the clearing price.
         cheapest_stor_idx = ccus_paths.stor_idx[cheapest_path_idx]
-        stor_shadow_price = view(cons_co2_stor,cheapest_stor_idx,:)
+        stor_shadow_price = view(cons_co2_stor,cheapest_stor_idx,:) # This should be <= 0 because the shadow price is the incremental cost of increasing the size of the cheapest step.  If the cheapest step is increased, that would result in a savings by the difference in cost of the cheapest step and the current price.
         price_total = cheapest_price_total .- stor_shadow_price
 
         # Compute the total cost of transport in this sending region, and divide by co2 sent to get average price of transport for this producer

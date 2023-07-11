@@ -539,7 +539,7 @@ function modify_results!(mod::Storage, config, data)
         side = sides[i]
         side == "load" ? lmp_bus_postloss[bus_idx] : lmp_bus_preloss[bus_idx]
     end
-    
+
     add_table_col!(data, :storage, :pcap, pcap_stor, MWCapacity, "Power Discharge capacity of the storage device")
     add_table_col!(data, :storage, :pcharge, pcharge_stor, MWCharged, "Rate of charging, in MW")
     add_table_col!(data, :storage, :pdischarge, pcharge_stor, MWDischarged, "Rate of discharging, in MW")
@@ -561,6 +561,7 @@ function modify_results!(mod::Storage, config, data)
     add_table_col!(data, :storage, :eloss, eloss, MWhServed, "Energy that was lost by the battery, counted as served load")
 
     add_results_formula!(data, :storage, :pcap_total, "AverageYearly(pcap)", MWCapacity, "Total discharge power capacity (if multiple years given, calculates the average)")
+    add_results_formula!(data, :storage, :ecap_total, "SumHourlyWeighted(pcap)", MWhCapacity, "Total energy capacity, in MWh.  This is equal to the power generation capacity multiplied by the number of hours.")
     add_results_formula!(data, :storage, :echarge_total, "SumHourly(echarge)", MWhCharged, "Total energy charged")
     add_results_formula!(data, :storage, :edischarge_total, "SumHourly(edischarge)", MWhDischarged, "Total energy discharged")
     add_results_formula!(data, :storage, :eloss_total, "SumHourly(eloss)", MWhLoss, "Total energy loss")
