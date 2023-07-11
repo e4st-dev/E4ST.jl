@@ -2,15 +2,17 @@
 """
     ReserveRequirement <: Modification
 
-Representation of reserve requirement, such that the sum of eligible capacity in the region is constrained to be ≥ than the load in the region. # TODO: served or nominal load?
+Representation of reserve requirement, such that the sum of eligible power injection capacity in the region (including both generators and storage devices) is constrained to be greater than or equal to some percentage above the load.
 
 Keyword arguments:
-* `name`: name of the modification
-* `filters`: the filters for the generating, storage, and load regions
-* `credit_gen = AvailabilityFactorCredit()`: the [`Crediting`](@ref) for the generators, defaults to [`AvailabilityFactorCredit`](@ref)
-* `credit_stor = StandardStorageCrediting()`: the [`Crediting`](@ref) for the storage facilities (see [`Storage`](@ref)), defaults to [`AvailabilityFactorCredit`](@ref)
-* `requirements`: an OrderedDict{Symbol, Float64} mapping a year symbol to a percent requirement of required reserve above the load.
-* `load_type = "plserv"`: a String for what type of load to consider.  Can be "plserv" or "plnom" - served load power or nominal load power.
+* `name` - name of the modification
+* `filters` - the filters for the generating, storage, and load regions.  Defaults to no filtering.
+* `credit_gen` - the [`Crediting`](@ref) for the generators, defaults to [`AvailabilityFactorCrediting`](@ref)
+* `credit_stor` - the [`Crediting`](@ref) for the storage facilities (see [`Storage`](@ref)), defaults to [`StandardStorageReserveCrediting`](@ref)
+* `requirements` - an `OrderedDict{Symbol, Float64}` mapping a year symbol to a percent requirement of required reserve above the load.
+* `load_type` - a `String` for what type of load to base the requirement off of.  Can be either: 
+  * `plserv` - (default), served load power
+  * `plnom` - nominal load power.
 
 Adds results:
 * `(:gen, :<name>_rebate)` - the total rebate for generators, for satisfying the reserve requirement.  This is payed for by electricity users.
@@ -27,7 +29,7 @@ struct ReserveRequirement <: Modification
     function ReserveRequirement(;
             name,
             filters = OrderedDict{Symbol, Any}(),
-            credit_gen  = AvailabilityFactorCredit(),
+            credit_gen  = AvailabilityFactorCrediting(),
             credit_stor = StandardStorageReserveCrediting(),
             requirements,
             load_type = "plserv"
