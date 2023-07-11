@@ -10,6 +10,7 @@ using MiniLoggers
 using Pkg
 using Statistics
 using E4STUtil
+using BasicInterpolators
 
 # Package Imports
 import Dates
@@ -62,7 +63,7 @@ include("types/modifications/CoalCCSRetrofit.jl")
 include("types/modifications/CO2eCalc.jl")
 include("types/modifications/FuelPrice.jl")
 include("types/modifications/InterfaceLimit.jl")
-include("types/modifications/CapacityMarket.jl")
+include("types/modifications/ReserveRequirement.jl")
 
 
 # Include Policies

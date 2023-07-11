@@ -631,7 +631,8 @@ function setup_table!(config, data, ::Val{:af_table})
     gens = get_table(data, :gen)
     default_af = ByNothing(1.0)
     gens.af = Container[default_af for _ in 1:nrow(gens)]
-    
+    af_threshold = config[:cf_threshold]::Float64
+
     # Return if there is no af_file
     if ~haskey(data, :af_table) 
         return
@@ -663,7 +664,7 @@ function setup_table!(config, data, ::Val{:af_table})
 
         isempty(gens) && continue
         
-        af = [row[i_hr] for i_hr in hr_idx:(hr_idx + nhr - 1)]
+        af = [(row[i_hr] < af_threshold ? 0.0 : row[i_hr]) for i_hr in hr_idx:(hr_idx + nhr - 1)]
         foreach(eachrow(gens)) do gen
             gen.af = set_hourly(gen.af, af, yr_idx, nyr)
         end

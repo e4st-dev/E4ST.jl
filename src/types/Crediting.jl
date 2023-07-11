@@ -140,3 +140,43 @@ export UnitCredit
 function get_credit(::UnitCredit, data, gen_row)
     return 1.0
 end
+
+
+"""
+    AvailabilityFactorCredit <: Crediting
+
+Returns the availability factor of the generator.
+"""
+struct AvailabilityFactorCredit <: Crediting end
+export AvailabilityFactorCredit
+
+function get_credit(::AvailabilityFactorCredit, data, gen_row)
+    return gen_row.af
+end
+
+
+"""
+    struct StandardStorageReserveCrediting <: Crediting
+
+Awards crediting to storage facilities based on their duration and capacity.  The values were retrieved from NYISO at the following website:
+
+`https://www.nyiso.com/documents/20142/23590734/20210805%20NYISO%20-%20Capacity%20Accreditation%20Current%20Rules%20Final.pdf`
+"""
+struct StandardStorageReserveCrediting <: Crediting
+    itp1::LinearInterpolator{Float64, NoBoundaries}
+    itp2::LinearInterpolator{Float64, NoBoundaries}
+    function StandardStorageReserveCrediting()
+        itp1 = LinearInterpolator([2., 4., 6., 8.], [0.45,  0.90, 1.00, 1.00], NoBoundaries())
+        itp2 = LinearInterpolator([2., 4., 6., 8.], [0.375, 0.75, 0.90, 1.00], NoBoundaries())
+        return new(itp1, itp2)
+    end
+end
+export StandardStorageReserveCrediting
+
+fieldnames_for_yaml(::Type{StandardStorageReserveCrediting}) = ()
+
+function get_credit(c::StandardStorageReserveCrediting, data, stor_row)
+    itp = c.itp1 # TODO: decide which interpolator to use and when.
+    duration = stor_row.duration_discharge::Float64
+    return itp(duration)
+end

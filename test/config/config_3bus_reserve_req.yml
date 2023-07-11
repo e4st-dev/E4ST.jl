@@ -1,0 +1,15 @@
+mods:
+  narnia_reserve:
+    type: ReserveRequirement
+    filters:
+      nation: narnia
+    requirements:
+      y2035: 0.2
+      y2040: 0.2
+  archenland_reserve:
+    type: ReserveRequirement
+    filters:
+      nation: archenland
+    requirements:
+      y2035: 0.2
+      y2040: 0.2
