@@ -68,18 +68,17 @@ function retrofit!(ret::CoalCCSRetrofit, newgen)
     # L:\Project-Gurobi\Workspace3\E4ST_InputDev\02_gen\03_NewGenerators\CCS\EPA
 
     newgen[:capex] += ret.crf * (274.41969538864595 + -0.7588175218134591 * pcap_avg + 0.0003898559487070511 * pcap_avg.^2 + 29.376250844468696 * hr;)
-    newgen[:fom] += 5.319790777926144 + -0.012826250368711684 * pcap_avg + 6.761709569376475e-6 * pcap_avg.^2 +  0.33100000951514025 * hr;
+    newgen[:fom] += 5.319790777926144  + -0.012826250368711684 * pcap_avg + 6.761709569376475e-6 * pcap_avg.^2 + 0.33100000951514025 * hr;
     newgen[:vom] += 1.3763849270664505 + -0.005877951956471406 * pcap_avg + 3.037289187311878e-6 * pcap_avg.^2 + 0.40775063672146333 * hr;
 
     newgen[:heat_rate] *= (1+hr_pen)
     newgen[:emis_co2] *= (1 + hr_pen) # This will get multiplied by the capt_co2_percent in the CCUS mod
     newgen[:capt_co2_percent] = ret.capt_co2_percent
 
-    haskey(newgen, :emis_nox) && (newgen[:emis_nox] *= ((1 - ret.reduce_nox_percent) * (1 + hr_pen)))
-    haskey(newgen, :emis_so2) && (newgen[:emis_so2] *= ((1 - ret.reduce_so2_percent) * (1 + hr_pen)))
+    haskey(newgen, :emis_nox)  && (newgen[:emis_nox]  *= ((1 - ret.reduce_nox_percent)  * (1 + hr_pen)))
+    haskey(newgen, :emis_so2)  && (newgen[:emis_so2]  *= ((1 - ret.reduce_so2_percent)  * (1 + hr_pen)))
     haskey(newgen, :emis_pm25) && (newgen[:emis_pm25] *= ((1 - ret.reduce_pm25_percent) * (1 + hr_pen)))
     newgen[:pcap_max] *= (1 - pcap_pen)
-    newgen[:pcap0] = 0
 
     newgen[:gentype] = "coal_ccus_retrofit"
 
