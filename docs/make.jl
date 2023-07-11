@@ -36,7 +36,8 @@ makedocs(
         ],
         "Modifications"=>Any[
             "Arbitrary Temporal Adjustments" => "types/modifications/adjust.md",
-            "Fuel Prices" => "types/modifications/fuel-price.md",
+            "Endogenous Fuel Prices" => "types/modifications/fuel-price.md",
+            "Reserve Requirements" => "types/modifications/reserve-requirement.md",
         ],
         "Technologies"=>Any[
             "CO₂ Capture, Utilization & Storage"=>"types/modifications/ccus.md",

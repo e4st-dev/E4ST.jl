@@ -11,6 +11,10 @@ Keyword arguments:
 * `credit_stor = StandardStorageCrediting()`: the [`Crediting`](@ref) for the storage facilities (see [`Storage`](@ref)), defaults to [`AvailabilityFactorCredit`](@ref)
 * `requirements`: an OrderedDict{Symbol, Float64} mapping a year symbol to a percent requirement of required reserve above the load.
 * `load_type = "plserv"`: a String for what type of load to consider.  Can be "plserv" or "plnom" - served load power or nominal load power.
+
+Adds results:
+* `(:gen, :<name>_rebate)` - the total rebate for generators, for satisfying the reserve requirement.  This is payed for by electricity users.
+* `(:storage, :<name>_rebate)` - (only added if storage included) the total rebate for storage units, for satisfying the reserve requirement.  This is payed for by electricity users.
 """
 struct ReserveRequirement <: Modification
     name::Symbol
