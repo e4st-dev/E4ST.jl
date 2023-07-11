@@ -12,13 +12,24 @@ Keyword arguments:
 * `requirements`: an OrderedDict{Symbol, Float64} mapping a year symbol to a percent requirement of required reserve above the load.
 * `load_type = "plserv"`: a String for what type of load to consider.  Can be "plserv" or "plnom" - served load power or nominal load power.
 """
-Base.@kwdef struct ReserveRequirement <: Modification
+struct ReserveRequirement <: Modification
     name::Symbol
-    filters::OrderedDict{Symbol} = OrderedDict{Symbol, Any}()
-    credit_gen::Crediting = AvailabilityFactorCredit()
-    credit_stor::Crediting = StandardStorageReserveCrediting()
+    filters::OrderedDict{Symbol} 
+    credit_gen::Crediting
+    credit_stor::Crediting
     requirements::OrderedDict{Symbol, Float64}
-    load_type::String = "plserv"
+    load_type::String
+
+    function ReserveRequirement(;
+            name,
+            filters = OrderedDict{Symbol, Any}(),
+            credit_gen  = AvailabilityFactorCredit(),
+            credit_stor = StandardStorageReserveCrediting(),
+            requirements,
+            load_type = "plserv"
+        )
+        return new(Symbol(name), filters, Crediting(credit_gen), Crediting(credit_stor), requirements, load_type)
+    end
 end
 export ReserveRequirement
 
