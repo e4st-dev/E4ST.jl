@@ -519,6 +519,7 @@ Also saves the updated storage table via [`save_updated_storage_table`](@ref).
 """
 function modify_results!(mod::Storage, config, data)
     storage = get_table(data, :storage)
+    bus = get_table(data, :bus)
     pcap_stor = get_raw_result(data, :pcap_stor)::Matrix{Float64}
     pcharge_stor = get_raw_result(data, :pcharge_stor)::Array{Float64, 3}
     pdischarge_stor = get_raw_result(data, :pdischarge_stor)::Array{Float64, 3}
@@ -530,7 +531,7 @@ function modify_results!(mod::Storage, config, data)
     echarge_stor = weight_hourly(data, pcharge_stor)
     edischarge_stor = weight_hourly(data, pdischarge_stor)
     lmp_bus_postloss = get_table_col(data, :bus, :lmp_elserv)
-    lmp_bus_preloss = get_table_col(data, :bus, :lmp_elserv_preloss)
+    lmp_bus_preloss = hasproperty(bus, :lmp_elserv_preloss) ? bus[:lmp_elserv_preloss] : lmp_bus_postloss
 
     bus_idxs = storage.bus_idx::Vector{Int64}
     sides = storage.side::Vector{<:AbstractString}
