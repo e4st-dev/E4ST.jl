@@ -176,6 +176,18 @@ end
 
 
 """
+    function YAML._print(io::IO, c::C, level::Int=0, ignore_level::Bool=false)
+
+Prints the field determined in fieldnames_for_yaml from the Crediting. 
+"""
+function YAML._print(io::IO, nt::NamedTuple, level::Int=0, ignore_level::Bool=false)
+    println(io)
+    dict = OrderedDict(pairs(nt))
+    YAML._print(io::IO, dict, level, ignore_level)
+end
+
+
+"""
     start_logging!(config)
 
 Starts logging according to `config[:logging]`.  Possible options for `config[:logging]`:

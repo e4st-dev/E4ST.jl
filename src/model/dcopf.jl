@@ -157,14 +157,16 @@ function setup_dcopf!(config, data, model)
 
     @expression(model,
         pcap_gen_inv_sim[gen_idx in axes(gen,1)],
-        begin
-            gen.build_status[gen_idx] == "unbuilt" || return 0.0
-            year_on = gen.year_on[gen_idx]
-            year_on > last(years) && return 0.0
-            yr_idx_on = findfirst(>=(year_on), years)
-            return pcap_gen[gen_idx, yr_idx_on]
-        end
+        AffExpr(0.0)
     )
+
+    for gen_idx in 1:nrow(gen)
+        gen.build_status[gen_idx] == "unbuilt" || continue
+        year_on = gen.year_on[gen_idx]
+        year_on > last(years) && continue
+        yr_idx_on = findfirst(>=(year_on), years)
+        add_to_expression!(pcap_gen_inv_sim[gen_idx], pcap_gen[gen_idx, yr_idx_on])
+    end
 
     add_obj_term!(data, model, PerMWCapInv(), :capex_obj, oper = +) 
     add_obj_term!(data, model, PerMWCapInv(), :transmission_capex_obj, oper = +) 

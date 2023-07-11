@@ -51,7 +51,7 @@ function E4ST.modify_setup_data!(pol::PTC, config, data)
     if should_adjust_invest_cost(pol)
         # warn if trying to specify more than one unique PTC value, model isn't currently set up to handle variable PTC 
         # note: >2 used here for PTC value and 0
-        length(unique(pol.values)) > 2 && @warn "The current E4ST PTC mod isn't formulated correctly for both a variable PTC value (ie. 2020: 12, 2025: 15) and year_from_ref filters, please only specify a single PTC value"
+        length(unique(values(pol.values))) > 2 && @warn "The current E4ST PTC mod isn't formulated correctly for both a variable PTC value (ie. 2020: 12, 2025: 15) and year_from_ref filters, please only specify a single PTC value"
 
         add_table_col!(data, :gen, Symbol("$(pol.name)_capex_adj"), Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWBuiltCapacityPerHour, 
         "Adjustment factor added to the obj function as a PerMWCapInv term to account for PTC payments that do not continue through the entire econ lifetime of a generator.")

@@ -35,6 +35,27 @@ end
 export Crediting
 
 """
+    fieldnames_for_yaml(::Type{C}) where {C<:Crediting}
+
+returns the fieldnames in a yaml, used for printing, modified for different types of crediting 
+"""
+function fieldnames_for_yaml(::Type{C}) where {C<:Crediting}
+    return setdiff(fieldnames(C), (:name,))
+end
+export fieldnames_for_yaml
+
+"""
+    function YAML._print(io::IO, c::C, level::Int=0, ignore_level::Bool=false) where {C<:Crediting}
+
+Prints the field determined in fieldnames_for_yaml from the Crediting. 
+"""
+function YAML._print(io::IO, c::C, level::Int=0, ignore_level::Bool=false) where {C<:Crediting}
+    println(io)
+    cdict = OrderedDict(:type => string(typeof(c)), (k=>getproperty(c, k) for k in fieldnames_for_yaml(C))...)
+    YAML._print(io::IO, cdict, level, ignore_level)
+end
+
+"""
     get_credit(c::Crediting, data, gen_row::DataFrame) -> 
 
 Return the credit value for the given generator and crediting type. 

@@ -353,9 +353,9 @@ function save_updated_gen_table(config, data)
     end
 
     # Gather the past investment costs and subsidies
+    @info "updating the past investment cost/subsidy for new generators"
     for i in 1:nrow(gen_tmp)
         gen_tmp.build_status[i] == "new" || continue
-        @info "updating the past investment cost/subsidy for $i"
         gen_tmp.past_invest_cost[i] =    maximum(yr_idx->compute_result(data, :gen, :invest_cost_permw_perhr, i, yr_idx), 1:nyr)
         gen_tmp.past_invest_subsidy[i] = maximum(yr_idx->compute_result(data, :gen, :invest_subsidy_permw_perhr, i, yr_idx), 1:nyr)
     end

@@ -519,6 +519,7 @@ Also saves the updated storage table via [`save_updated_storage_table`](@ref).
 """
 function modify_results!(mod::Storage, config, data)
     storage = get_table(data, :storage)
+    bus = get_table(data, :bus)
     pcap_stor = get_raw_result(data, :pcap_stor)::Matrix{Float64}
     pcharge_stor = get_raw_result(data, :pcharge_stor)::Array{Float64, 3}
     pdischarge_stor = get_raw_result(data, :pdischarge_stor)::Array{Float64, 3}
@@ -529,9 +530,16 @@ function modify_results!(mod::Storage, config, data)
 
     echarge_stor = weight_hourly(data, pcharge_stor)
     edischarge_stor = weight_hourly(data, pdischarge_stor)
-    lmp_bus = get_table_col(data, :bus, :lmp_elserv)
+    lmp_bus_postloss = get_table_col(data, :bus, :lmp_elserv)
+    lmp_bus_preloss = hasproperty(bus, :lmp_elserv_preloss) ? bus[!, :lmp_elserv_preloss] : lmp_bus_postloss
+
     bus_idxs = storage.bus_idx::Vector{Int64}
-    lmp_stor = [lmp_bus[i] for i in bus_idxs]
+    sides = storage.side::Vector{<:AbstractString}
+    lmp_stor = map(1:nrow(storage)) do i
+        bus_idx = bus_idxs[i]
+        side = sides[i]
+        side == "load" ? lmp_bus_postloss[bus_idx] : lmp_bus_preloss[bus_idx]
+    end
 
     add_table_col!(data, :storage, :pcap, pcap_stor, MWCapacity, "Power Discharge capacity of the storage device")
     add_table_col!(data, :storage, :pcharge, pcharge_stor, MWCharged, "Rate of charging, in MW")
@@ -554,6 +562,7 @@ function modify_results!(mod::Storage, config, data)
     add_table_col!(data, :storage, :eloss, eloss, MWhServed, "Energy that was lost by the battery, counted as served load")
 
     add_results_formula!(data, :storage, :pcap_total, "AverageYearly(pcap)", MWCapacity, "Total discharge power capacity (if multiple years given, calculates the average)")
+    add_results_formula!(data, :storage, :ecap_total, "SumHourlyWeighted(pcap)", MWhCapacity, "Total energy capacity, in MWh.  This is equal to the power generation capacity multiplied by the number of hours.")
     add_results_formula!(data, :storage, :echarge_total, "SumHourly(echarge)", MWhCharged, "Total energy charged")
     add_results_formula!(data, :storage, :edischarge_total, "SumHourly(edischarge)", MWhDischarged, "Total energy discharged")
     add_results_formula!(data, :storage, :eloss_total, "SumHourly(eloss)", MWhLoss, "Total energy loss")
@@ -609,7 +618,7 @@ function modify_results!(mod::Storage, config, data)
     add_results_formula!(data, :storage, :cost_of_service_rebate, "CostOfServiceRebate(storage)", Dollars, "This is a specially calculated result, which is the sum of net_total_revenue_prelim * reg_factor for each generator")
     add_results_formula!(data, :storage, :total_cost, "total_cost_prelim + cost_of_service_rebate", Dollars, "The total cost after adjusting for the cost of service")
     add_results_formula!(data, :storage, :net_total_revenue, "net_total_revenue_prelim - cost_of_service_rebate", Dollars, "Net total revenue after adjusting for the cost-of-service rebate")
-    add_results_formula!(data, :storage, :net_going_forward_revenue, "electricity_revenue - net_variable_cost - cost_of_service_rebate", Dollars, "Net going forward revenue, including electricity revenue minus going forward cost")
+    add_results_formula!(data, :storage, :net_going_forward_revenue, "electricity_revenue - electricity_cost - net_variable_cost - cost_of_service_rebate", Dollars, "Net going forward revenue, including electricity revenue minus going forward cost")
 
     # Update Welfare
     # Producer welfare
@@ -662,9 +671,9 @@ function save_updated_storage_table(config, data)
     end
 
     # Gather the past investment costs and subsidies
+    @info "updating the past investment cost/subsidy for new storage facilities"
     for i in 1:nrow(storage_tmp)
         storage_tmp.build_status[i] == "new" || continue
-        @info "updating the past investment cost/subsidy for $i"
         storage_tmp.past_invest_cost[i] =    maximum(yr_idx->compute_result(data, :storage, :invest_cost_permw_perhr, i, yr_idx), 1:nyr)
         storage_tmp.past_invest_subsidy[i] = maximum(yr_idx->compute_result(data, :storage, :invest_subsidy_permw_perhr, i, yr_idx), 1:nyr)
     end

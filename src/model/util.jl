@@ -98,22 +98,30 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
 
     # Constrain unbuilt exogenous generators to be built to pcap0 in the first year after year_on
     if any(row->(row.build_type==("exog") && row.build_status == "unbuilt" && last(years) >= row.year_on), eachrow(table))
-        name = Symbol("cons_$(pcap_name)_exog")
-        model[name] = @constraint(model,
-            [
-                row_idx in axes(table,1),
-                yr_idx in 1:nyr;
-                # Only for exogenous generators, and only for the build year.
-                (
-                    table.build_type[row_idx] == "exog" && 
+        # name = Symbol("cons_$(pcap_name)_exog")
+        # model[name] = @constraint(model,
+        #     [
+        #         row_idx in axes(table,1),
+        #         yr_idx in 1:nyr;
+        #         # Only for exogenous generators, and only for the build year.
+        #         (
+        #             table.build_type[row_idx] == "exog" && 
+        #             table.build_status[row_idx] == "unbuilt" &&
+        #             (
+        #                 yr_idx == year_built_idx[row_idx]
+        #             )
+        #         )
+        #     ],
+        #     pcap[row_idx, yr_idx] == table.pcap_max[row_idx]
+        # )
+
+        for row_idx in axes(table,1), yr_idx in 1:nyr
+            if table.build_type[row_idx] == "exog" && 
                     table.build_status[row_idx] == "unbuilt" &&
-                    (
-                        yr_idx == year_built_idx[row_idx]
-                    )
-                )
-            ],
-            pcap[row_idx, yr_idx] == table.pcap_max[row_idx]
-        )
+                    yr_idx == year_built_idx[row_idx]
+                fix(pcap[row_idx, yr_idx], table.pcap_max[row_idx], force=true)
+            end
+        end
     end
 
     # Enforce retirement
@@ -127,9 +135,11 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
         end
     end
 
-    # Make capacities of sites add up
+    # Make capacities of sites add up for endogenous sites
     matching_rows = Vector{Int64}[]
-    gdf = groupby(table, [:bus_idx, :build_id])
+    grouping_cols = intersect!([:bus_idx, :build_id, :genfuel, :gentype, :pcap_max], propertynames(table))
+    st = get_subtable(table, :build_type=>"endog")
+    gdf = groupby(st, grouping_cols)
     for key in keys(gdf)
         isempty(key.build_id) && continue
         sdf = gdf[key]

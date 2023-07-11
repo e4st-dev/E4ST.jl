@@ -43,7 +43,7 @@ gen,past_invest_subsidy_total,"SumHourlyWeighted(past_invest_subsidy, pcap_inv)"
 gen,fuel_cost,"SumHourly(fuel_price,heat_rate,egen)",Dollars,Total cost of fuel
 gen,fuel_price_per_mwh,fuel_cost/egen_total,DollarsPerMWhGenerated,Fuel price per MWh generated
 gen,fuel_burned,"SumHourly(heat_rate,egen)",MMBtu,Amount of fuel burned
-gen,fuel_price_per_mmbtu,fuel_cost_total/fuel_burned,DollarsPerMMBtu,Average price of fuel burned
+gen,fuel_price_per_mmbtu,fuel_cost/fuel_burned,DollarsPerMMBtu,Average price of fuel burned
 gen,variable_cost,fuel_cost+vom_cost,Dollars,"Variable costs for operation, including fuel and vom."
 gen,variable_cost_per_mwh,variable_cost/egen_total,DollarsPerMWhGenerated,"Variable costs for operation, per MWh of generation.  Includes fuel and vom"
 gen,ptc_subsidy,0,Dollars,Total production tax credit subsidy for generation.  Does not include means-tested nuclear subsidy that RFF sometimes includes in research.

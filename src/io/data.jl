@@ -184,7 +184,7 @@ function read_table(filenames::AbstractVector)
     for i in 2:length(filenames)
         filename = filenames[i]
         tmp = read_table(filename)
-        append!(table, tmp)
+        append!(table, tmp, promote=true)
     end
     return table
 end
@@ -199,7 +199,7 @@ Loads the table from the file in `config[p[1]]` into `data[p[2]]`
 function read_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
     optional===true && !haskey(config, first(p)) && return
     @info "Loading data[:$(last(p))] from $(config[first(p)])"
-    table_file = config[first(p)]::String
+    table_file = config[first(p)]
     table_name = last(p)
     table = read_table(data, table_file, table_name)
     st = get_table_summary(data, table_name)
