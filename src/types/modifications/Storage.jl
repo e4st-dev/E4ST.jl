@@ -531,7 +531,7 @@ function modify_results!(mod::Storage, config, data)
     echarge_stor = weight_hourly(data, pcharge_stor)
     edischarge_stor = weight_hourly(data, pdischarge_stor)
     lmp_bus_postloss = get_table_col(data, :bus, :lmp_elserv)
-    lmp_bus_preloss = hasproperty(bus, :lmp_elserv_preloss) ? bus[:lmp_elserv_preloss] : lmp_bus_postloss
+    lmp_bus_preloss = hasproperty(bus, :lmp_elserv_preloss) ? bus[!, :lmp_elserv_preloss] : lmp_bus_postloss
 
     bus_idxs = storage.bus_idx::Vector{Int64}
     sides = storage.side::Vector{<:AbstractString}
