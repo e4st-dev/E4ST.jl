@@ -279,7 +279,7 @@ function modify_model!(mod::CCUS, config, data, model)
     # Add capacity matching constraints for the sets of ccus_paths generators
     match_capacity!(data, model, :gen, :pcap_gen, :ccus, ccus_gen_sets)
 
-    # Make variables for amount of captured carbon going into each of the carbon markets bounded by [0, maximum co2 storage].  This is in units of million metric tons
+    # Make variables for amount of captured carbon going to each transport step bounded by [0, maximum co2 storage + 1].  This is in units of million metric tons
     @variable(model, 
         co2_trans[ts_idx in 1:nrow(ccus_paths), yr_idx in 1:nyear], 
         lower_bound = 0,
@@ -371,17 +371,11 @@ function modify_results!(mod::CCUS, config, data)
 
     # Compute clearing prices for each sending region
     ccus_producers.co2_sent = [view(co2_sent, i, :) for i in 1:nrow(ccus_producers)]
-    gdf_producers = groupby(ccus_producers, :producing_region)
+    gdf_producers = groupby(ccus_producers, [:producing_region, :ccus_type])
     df_producers = combine(gdf_producers,
         :path_idxs => ((v)->Ref(vcat(v...))) => :f_path_idxs,
         :gen_idxs =>   ((v)->Ref(vcat(v...))) => :gen_idxs,
         :co2_sent => (co2_sent->Ref(sum(co2_sent))) => :co2_sent,
-        [:co2_sent, :ccus_type] => 
-            ((co2_sent, ccus_type)->Ref(sum(co2_sent[i] for i in 1:length(co2_sent) if ccus_type[i] == "eor"))) =>
-            :co2_sent_eor,
-        [:co2_sent, :ccus_type] => 
-            ((co2_sent, ccus_type)->Ref(sum(co2_sent[i] for i in 1:length(co2_sent) if ccus_type[i] == "saline"))) =>
-            :co2_sent_saline,
         :path_idxs => ((v)->Ref([ccus_paths.stor_idx[path_idx] for path_idx in v])) => :stor_idxs
     )
 
@@ -398,7 +392,7 @@ function modify_results!(mod::CCUS, config, data)
     add_results_formula!(data, :gen, :cost_capt_co2, "SumHourly(egen,capt_co2,price_capt_co2)", Dollars, "Total cost paid by generators to transport and store a short ton of captured CO2, computed with the clearing price")
     add_results_formula!(data, :gen, :price_capt_co2_per_short_ton, "cost_capt_co2 / capt_co2_total", DollarsPerShortTonCO2Captured, "Average price paid by generators to transport and store a short ton of captured CO2, computed with the clearing price")
 
-    add_results_formula!(data, :gen, :cost_capt_co2_transport, "SumHourly(egen,capt_co2,price_capt_co2_store)", Dollars, "Total cost paid by generators to transport a short ton of captured CO2, computed with the clearing price")
+    add_results_formula!(data, :gen, :cost_capt_co2_transport, "SumHourly(egen,capt_co2,price_capt_co2_trans)", Dollars, "Total cost paid by generators to transport a short ton of captured CO2, computed with the clearing price")
     add_results_formula!(data, :gen, :price_capt_co2_transport_per_short_ton, "cost_capt_co2_transport / capt_co2_total", DollarsPerShortTonCO2Captured, "Average price paid by generators to transport a short ton of captured CO2, computed with the clearing price")
 
     add_results_formula!(data, :gen, :cost_capt_co2_store, "SumHourly(egen,capt_co2,price_capt_co2_store)", Dollars, "Total cost paid by generators to store a short ton of captured CO2, computed with the clearing price")
