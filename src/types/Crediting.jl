@@ -2,10 +2,11 @@
 """ 
     abstract type Crediting
 
-Crediting is used to set the credit levels of generators for policies. It is primarily (possibly entirely) used for GenerationStandards (RPS, CES, carveouts, etc). 
+Crediting is used to set the credit levels of generators for policies. It is primarily used for [`GenerationStandard`](@ref)s and [`ReserveRequirement`](@ref)s (RPS, CES, carveouts, etc). 
 
 ## Setup inside config yaml
 Crediting is specified in the yaml file. A type key must be specified, along with the approriate keys for the credit type you specified. Two examples are shown in the config below.
+
 ```yaml
 $(read(joinpath(@__DIR__,"../../test/config/config_3bus_rps.yml"), String))
 ```
@@ -127,4 +128,56 @@ function get_credit(c::CreditByBenchmark, data, gen_row::DataFrameRow)
     gen_emis_rate = gen_row[c.gen_col]
     credit = min.(1.0, max.( 1.0 .- gen_emis_rate ./ c.benchmark, 0.0))
     return credit
+end
+
+"""
+    UnitCredit <: Crediting
+
+Always gives credit value of 1.0
+"""
+struct UnitCredit <: Crediting end
+export UnitCredit
+
+function get_credit(::UnitCredit, data, gen_row)
+    return 1.0
+end
+
+
+"""
+    AvailabilityFactorCrediting <: Crediting
+
+Returns the availability factor of the generator.
+"""
+struct AvailabilityFactorCrediting <: Crediting end
+export AvailabilityFactorCrediting
+
+function get_credit(::AvailabilityFactorCrediting, data, gen_row)
+    return gen_row.af
+end
+
+
+"""
+    struct StandardStorageReserveCrediting <: Crediting
+
+Awards crediting to storage facilities based on their discharge duration and capacity.  The values were retrieved from NYISO at the following website:
+
+[`https://www.nyiso.com/documents/20142/23590734/20210805%20NYISO%20-%20Capacity%20Accreditation%20Current%20Rules%20Final.pdf`](https://www.nyiso.com/documents/20142/23590734/20210805%20NYISO%20-%20Capacity%20Accreditation%20Current%20Rules%20Final.pdf)
+"""
+struct StandardStorageReserveCrediting <: Crediting
+    itp1::LinearInterpolator{Float64, NoBoundaries}
+    itp2::LinearInterpolator{Float64, NoBoundaries}
+    function StandardStorageReserveCrediting()
+        itp1 = LinearInterpolator([2., 4., 6., 8.], [0.45,  0.90, 1.00, 1.00], NoBoundaries())
+        itp2 = LinearInterpolator([2., 4., 6., 8.], [0.375, 0.75, 0.90, 1.00], NoBoundaries())
+        return new(itp1, itp2)
+    end
+end
+export StandardStorageReserveCrediting
+
+fieldnames_for_yaml(::Type{StandardStorageReserveCrediting}) = ()
+
+function get_credit(c::StandardStorageReserveCrediting, data, stor_row)
+    itp = c.itp1 # TODO: decide which interpolator to use and when.
+    duration = stor_row.duration_discharge::Float64
+    return max(0.0, min(1.0, itp(duration)))
 end

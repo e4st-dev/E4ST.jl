@@ -475,4 +475,36 @@
         end
 
     end
+
+    @testset "Test ReserveRequirements" begin
+        config_file_ref = joinpath(@__DIR__, "config", "config_3bus.yml")
+        config_file = joinpath(@__DIR__, "config", "config_3bus_reserve_req.yml")
+        config_stor = joinpath(@__DIR__, "config", "config_stor.yml")
+        config = read_config(config_file_ref, config_file, config_stor)
+        # config = read_config(config_file_ref, config_file)
+        data = read_data(config)
+        model = setup_model(config, data)
+        optimize!(model)
+        parse_results!(config, data, model)
+        process_results!(config, data)
+        
+        @test compute_result(data, :bus, :elcurt_total) < 1e-6
+    
+        # Test for narnia
+        @test compute_result(data, :gen, :narnia_reserve_rebate, :, "y2030") == 0.0
+        @test compute_result(data, :gen, :narnia_reserve_rebate) > 0.0
+    
+        if compute_result(data, :storage, :edischarge_total, :nation=>"narnia") > 0
+            @test compute_result(data, :storage, :narnia_reserve_rebate, :, "y2030") == 0.0
+            @test compute_result(data, :storage, :narnia_reserve_rebate) > 0.0
+        end
+    
+        # Test for archenland
+        @test compute_result(data, :gen, :archenland_reserve_rebate, :, "y2030") == 0.0
+        @test compute_result(data, :gen, :archenland_reserve_rebate) > 0.0
+        if compute_result(data, :storage, :edischarge_total, :nation=>"archenland") > 0
+            @test compute_result(data, :storage, :archenland_reserve_rebate, :, "y2030") == 0.0
+            @test compute_result(data, :storage, :archenland_reserve_rebate) > 0.0
+        end
+    end
 end
