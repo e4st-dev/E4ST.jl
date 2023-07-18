@@ -314,6 +314,13 @@
             #@show compute_result(data, :gen, :egen_total, gen_idxs, [2, 3])
             @test emis_co2_total > 0
             @test compute_result(data, :gen, :example_emisprc_cost) > 0.0
+
+
+            summer_co2_cost = compute_result(data, :gen, :summer_co2_price_cost, :, :, :season=>"summer")
+            total_co2_cost = compute_result(data, :gen, :summer_co2_price_cost)
+
+            @test summer_co2_cost > 0
+            @test total_co2_cost ≈ summer_co2_cost
         end
     end
 

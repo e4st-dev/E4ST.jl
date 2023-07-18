@@ -10,8 +10,8 @@ Emission Price - A price on a certain emission for a given set of generators.
 * `years_after_ref_min`: Min (inclusive) number of years the sim year can be after gen reference year (ie. year_on, year_retrofit). If ref year is year_on then this would be equivaled to min gen age. This is rarely used in real policy, so be careful if changing from default value
 * `years_after_ref_max`: Max (inclusive) number of years the sim year can be after gen reference year (ie. year_on, year_retrofit). If ref year is year_on then this would be equivaled to max gen age. This is rarely used in real policy, so be careful if changing from default value
 * `ref_year_col`: Column name to use as reference year for min and max above. Must be a year column. If this is :year_on, then the years_after_ref filters will filter gen age. If this is :year_retrofit, the the years_after_ref filters will filter by time since retrofit. This is rarely used in real policy, so be careful if changing from default value
-
 * `gen_filters`: OrderedDict of generator filters
+* `hour_filters`: OrderedDict of hour filters
 """
 Base.@kwdef struct EmissionPrice <: Policy
     name::Symbol
@@ -20,7 +20,8 @@ Base.@kwdef struct EmissionPrice <: Policy
     years_after_ref_min::Float64 = 0.
     years_after_ref_max::Float64 = 9999.
     ref_year_col::String = "year_on"
-    gen_filters::OrderedDict
+    gen_filters::OrderedDict = OrderedDict()
+    hour_filters::OrderedDict = OrderedDict()
 end
 export EmissionPrice
 
@@ -39,6 +40,15 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
 
     gen = get_table(data, :gen)
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
+
+    hours = get_table(data, :hours)
+    nhr = get_num_hours(data)
+    hour_idxs = get_row_idxs(hours, parse_comparisons(pol.hour_filters))
+    if length(hour_idxs) < nhr
+        hour_multiplier = ByHour([i in hour_idxs ? 1.0 : 0.0 for i in 1:nhr])
+    else
+        hour_multiplier = 1.0
+    end
 
     @info "Applying Emission Price $(pol.name) to $(length(gen_idxs)) generators"
 
@@ -70,7 +80,7 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
         year_max = ref_year + pol.years_after_ref_max
         g_qual_year_idxs = findall(y -> year_min <= y <= year_max, years_int)
         qual_price_yearly = ByYear([(i in g_qual_year_idxs) ? price_yearly[i] : 0.0  for i in 1:length(years)])
-        gen[gen_idx, pol.name] = qual_price_yearly .* gen[gen_idx, pol.emis_col] #emission rate [st/MWh] * price [$/st] 
+        gen[gen_idx, pol.name] = qual_price_yearly .* gen[gen_idx, pol.emis_col] .* hour_multiplier #emission rate [st/MWh] * price [$/st] 
 
         # add capex adjustment term to the the pol.name _capex_adj column
         if should_adjust_invest_cost(pol)
