@@ -16,12 +16,13 @@ struct EmissionCap <: Policy
     emis_col::Symbol
     targets::OrderedDict
     gen_filters::OrderedDict
+    hour_filters::OrderedDict
     gen_cons::GenerationConstraint
 
-    function EmissionCap(;name, emis_col, targets, gen_filters=OrderedDict())
+    function EmissionCap(;name, emis_col, targets, gen_filters=OrderedDict(), hour_filters=OrderedDict())
         empty_mins = OrderedDict{}()
-        gen_cons = GenerationConstraint(Symbol(name), Symbol(emis_col), targets, empty_mins, gen_filters)
-        new(Symbol(name), Symbol(emis_col), targets, gen_filters, gen_cons)
+        gen_cons = GenerationConstraint(Symbol(name), Symbol(emis_col), targets, empty_mins, gen_filters, hour_filters)
+        new(Symbol(name), Symbol(emis_col), targets, gen_filters, hour_filters, gen_cons)
     end
 
 end
