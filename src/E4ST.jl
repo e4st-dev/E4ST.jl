@@ -10,6 +10,7 @@ using MiniLoggers
 using Pkg
 using Statistics
 using E4STUtil
+using BasicInterpolators
 
 # Package Imports
 import Dates
@@ -62,6 +63,7 @@ include("types/modifications/CoalCCSRetrofit.jl")
 include("types/modifications/CO2eCalc.jl")
 include("types/modifications/FuelPrice.jl")
 include("types/modifications/InterfaceLimit.jl")
+include("types/modifications/ReserveRequirement.jl")
 
 
 # Include Policies
@@ -286,10 +288,13 @@ function get_type(str::AbstractString)
         reload_types!()
         get(STR2TYPE, str) do
             get(STR2TYPE, last(split(str, '.'))) do
-                error("There has been no type $str defined!")
+                get(STR2TYPE, first(split(str, '{'))) do 
+                    error("There has been no type $str defined!")
+                end
             end
         end
     end
 end
+export get_type
 
 end # module

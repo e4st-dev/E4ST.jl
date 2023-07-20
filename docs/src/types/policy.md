@@ -57,6 +57,8 @@ get_credit
 StandardRPSCrediting
 CreditByGentype
 CreditByBenchmark
+AvailabilityFactorCrediting
+StandardStorageReserveCrediting
 ```
 
 ## CES

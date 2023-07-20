@@ -55,6 +55,12 @@
             @test haskey(data[:obj_vars], :example_ptc_capex_adj)
             @test haskey(model, :example_ptc_capex_adj)
 
+            # Test that all the capex adjustments are positive and are added to the objective as a cost
+            @test ~anyany(<(0), gen.example_ptc_capex_adj)
+            @test data[:obj_vars][:example_ptc_capex_adj][:term_sign] == (+)
+            @test ~anyany(<(0), gen.example_ptc)
+            @test data[:obj_vars][:example_ptc][:term_sign] == (-)
+
             #check that no capex_adj gets added when no age filter provided
             @test !haskey(data[:obj_vars], :example_ptc_no_age_filter_capex_adj)
             @test !haskey(model, :example_ptc_no_age_filter_capex_adj)
@@ -294,11 +300,19 @@
             # check that emissions are reduced for qualifying gens
             @test emis_co2_total < emis_co2_total_ref
 
+
+            # Test that all the capex adjustments are positive and are subtracted from the objective as a cost
+            @test ~anyany(<(0), gen.example_emisprc_capex_adj)
+            @test data[:obj_vars][:example_emisprc_capex_adj][:term_sign] == (-)
+            @test ~anyany(<(0), gen.example_emisprc)
+            @test data[:obj_vars][:example_emisprc][:term_sign] == (+)
+
             #test that cost restult is calculated
             pol = config[:mods][:example_emisprc]
             gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
 
             #@show compute_result(data, :gen, :egen_total, gen_idxs, [2, 3])
+            @test emis_co2_total > 0
             @test compute_result(data, :gen, :example_emisprc_cost) > 0.0
         end
     end
@@ -460,5 +474,37 @@
 
         end
 
+    end
+
+    @testset "Test ReserveRequirements" begin
+        config_file_ref = joinpath(@__DIR__, "config", "config_3bus.yml")
+        config_file = joinpath(@__DIR__, "config", "config_3bus_reserve_req.yml")
+        config_stor = joinpath(@__DIR__, "config", "config_stor.yml")
+        config = read_config(config_file_ref, config_file, config_stor)
+        # config = read_config(config_file_ref, config_file)
+        data = read_data(config)
+        model = setup_model(config, data)
+        optimize!(model)
+        parse_results!(config, data, model)
+        process_results!(config, data)
+        
+        @test compute_result(data, :bus, :elcurt_total) < 1e-6
+    
+        # Test for narnia
+        @test compute_result(data, :gen, :narnia_reserve_rebate, :, "y2030") == 0.0
+        @test compute_result(data, :gen, :narnia_reserve_rebate) > 0.0
+    
+        if compute_result(data, :storage, :edischarge_total, :nation=>"narnia") > 0
+            @test compute_result(data, :storage, :narnia_reserve_rebate, :, "y2030") == 0.0
+            @test compute_result(data, :storage, :narnia_reserve_rebate) > 0.0
+        end
+    
+        # Test for archenland
+        @test compute_result(data, :gen, :archenland_reserve_rebate, :, "y2030") == 0.0
+        @test compute_result(data, :gen, :archenland_reserve_rebate) > 0.0
+        if compute_result(data, :storage, :edischarge_total, :nation=>"archenland") > 0
+            @test compute_result(data, :storage, :archenland_reserve_rebate, :, "y2030") == 0.0
+            @test compute_result(data, :storage, :archenland_reserve_rebate) > 0.0
+        end
     end
 end

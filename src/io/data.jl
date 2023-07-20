@@ -184,7 +184,7 @@ function read_table(filenames::AbstractVector)
     for i in 2:length(filenames)
         filename = filenames[i]
         tmp = read_table(filename)
-        append!(table, tmp)
+        append!(table, tmp, promote=true)
     end
     return table
 end
@@ -199,7 +199,7 @@ Loads the table from the file in `config[p[1]]` into `data[p[2]]`
 function read_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
     optional===true && !haskey(config, first(p)) && return
     @info "Loading data[:$(last(p))] from $(config[first(p)])"
-    table_file = config[first(p)]::String
+    table_file = config[first(p)]
     table_name = last(p)
     table = read_table(data, table_file, table_name)
     st = get_table_summary(data, table_name)
@@ -541,6 +541,10 @@ function setup_table!(config, data, ::Val{:bus})
     bus = get_table(data, :bus)
     bus_idx = collect(1:nrow(bus))
     add_table_col!(data, :bus, :bus_idx, bus_idx, NA, "The bus index of each bus, should correspond to the row number, used for joining.")
+
+    # Add distribution loss as a column
+    dist_cost = config[:distribution_cost] |> Float64
+    add_table_col!(data, :bus, :distribution_cost, fill(dist_cost, nrow(bus)), DollarsPerMWhServed, "The assumed cost per MWh of served power, for the transmission and distribution of the power.")
     return
 end
 export setup_table!
@@ -627,7 +631,8 @@ function setup_table!(config, data, ::Val{:af_table})
     gens = get_table(data, :gen)
     default_af = ByNothing(1.0)
     gens.af = Container[default_af for _ in 1:nrow(gens)]
-    
+    af_threshold = config[:cf_threshold]::Float64
+
     # Return if there is no af_file
     if ~haskey(data, :af_table) 
         return
@@ -659,7 +664,7 @@ function setup_table!(config, data, ::Val{:af_table})
 
         isempty(gens) && continue
         
-        af = [row[i_hr] for i_hr in hr_idx:(hr_idx + nhr - 1)]
+        af = [(row[i_hr] < af_threshold ? 0.0 : row[i_hr]) for i_hr in hr_idx:(hr_idx + nhr - 1)]
         foreach(eachrow(gens)) do gen
             gen.af = set_hourly(gen.af, af, yr_idx, nyr)
         end

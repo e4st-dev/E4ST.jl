@@ -50,20 +50,17 @@ end
 Zero out the `fuel_price` column of the `gen` table, as it will get overwritten later by this Modification.  This is to avoid double-counting the fuel cost.
 """ 
 function modify_setup_data!(mod::FuelPrice, config, data)
-    # Set the fuel_price table to zero for generators that will get a fuel price from the table.
+    # Set the fuel_price table to all zero for the areas affected by `mod`.
     gen = get_table(data, :gen)
-    prc_table = get_table(data, :fuel_price)
+    fp = get_table(data, :fuel_price)
     if hasproperty(gen, :fuel_price)
-        gen.fuel_price = Container[Container(fc) for fc in gen.fuel_price] # make fuel_price a container
-        for i in 1:nrow(prc_table)
-            prc_row = prc_table[i, :]
-            
-            filters = parse_comparisons(prc_row) #should get any filters_ and genfuel
-            gen_idxs = get_row_idxs(gen, filters)
-
-            v = fill(0.0, get_num_years(data))
+        to_container!(gen, :fuel_price)
+        v = fill(0.0, get_num_years(data))
+        gdf = groupby(fp, Not([:price, :quantity]))
+        for sdf in gdf
+            row = sdf[1,:]
+            gen_idxs = get_row_idxs(gen, parse_comparisons(row))
             for gen_idx in gen_idxs
-                #set to a container of 0s if it is filtered by the prc_row
                 gen.fuel_price[gen_idx] = set_yearly(gen.fuel_price[gen_idx], v)
             end
         end
@@ -84,6 +81,8 @@ end
 * Add constraint `cons_fuel_bal[fuel_market_idx, yr_idx, hr_idx]`: constrain the amount of fuel sold in each market region to equal the amount of fuel used in each market region.
 """
 function modify_model!(mod::FuelPrice, config, data, model)
+    @info "Adding endogenous fuel prices to the model via FuelPrice Modification"
+
     table = get_table(data, :fuel_price)
     nhr = get_num_hours(data)
     nyr = get_num_years(data)
@@ -97,14 +96,19 @@ function modify_model!(mod::FuelPrice, config, data, model)
     rename!(fuel_markets, :x1=>:fuel_price_idxs)
     fuel_markets.filters = map(parse_comparisons, eachrow(fuel_markets))
     fuel_markets.gen_idxs = map(fuel_markets.filters) do filt
-        get_row_idxs(gen, filt)
+        idxs = get_row_idxs(gen, filt)
+        isempty(idxs) && @warn "No generators found for fuel market with filters $filt, removing from table"
+        return idxs
     end
+
+    filter!(:gen_idxs=>!isempty, fuel_markets)
 
     # Pull out other necessary data
     data[:fuel_markets] = fuel_markets
     egen = model[:egen_gen]
 
     # Create variable fuel_sold for fuel sold in each row of the fuel table
+    @info "Create variable fuel_sold for each price step"
     @variable(model,
         fuel_sold[
             fuel_idx in axes(table, 1),
@@ -114,6 +118,7 @@ function modify_model!(mod::FuelPrice, config, data, model)
     )
 
     # Create objective expression for fuel cost
+    @info "Create expression fuel_cost_obj for each price step"
     @expression(model,
         fuel_cost_obj[
             fuel_idx in axes(table, 1),
@@ -126,18 +131,20 @@ function modify_model!(mod::FuelPrice, config, data, model)
     add_obj_exp!(data, model, FuelCostTerm(), :fuel_cost_obj; oper=+)
 
     # Create an expression fuel_used for total fuel used by generators for each genfuel-area-subarea combo over a year.
+    @info "Create expression fuel_used for each price step"
     @expression(model,
         fuel_used[
             fm_idx in axes(fuel_markets,1),
             yr_idx in 1:nyr
         ],
-        sum0(
+        sum(
             (egen[gen_idx, yr_idx, hr_idx] * heat_rate[gen_idx][yr_idx, hr_idx])
             for gen_idx in fuel_markets.gen_idxs[fm_idx], hr_idx in 1:nhr
         )
     )
 
     # Set upper bound of fuel_sold to help the problem be more bounded, even though these will likely not be binding.
+    @info "Set upper bound of fuel_sold"
     for (idx, quantity) in enumerate(table.quantity)
         for yr_idx in 1:nyr
             isfinite(quantity[yr_idx, :]) || continue
@@ -146,6 +153,7 @@ function modify_model!(mod::FuelPrice, config, data, model)
     end
 
     # Constrain the fuel sold for each row for each year to be less than or equal to the quantity
+    @info "Add cons_fuel_sold constraint for each price step"
     @constraint(model,
         cons_fuel_sold[
             fuel_idx in axes(table,1),
@@ -156,6 +164,7 @@ function modify_model!(mod::FuelPrice, config, data, model)
     )
 
     # Constrain sum of fuel_sold in each genfuel-area-subarea combo to equal the fuel_used expression.
+    @info "Add cons_fuel_bal for each fuel region"
     @constraint(model,
         cons_fuel_bal[
             fm_idx in axes(fuel_markets, 1),
@@ -184,9 +193,6 @@ function modify_results!(mod::FuelPrice, config, data)
     nyr = get_num_years(data)
     nhr = get_num_hours(data)
     gen = get_table(data, :gen)
-    for row in eachrow(gen)
-        @assert all(==(0), row.fuel_price) "Found non-zero fuel_price in gen table with FuelPrice Modification.  That could mean double-counting of fuel cost in the objective function!"
-    end
 
     cp = Container[ByNothing(0.0) for _ in axes(fuel_markets, 1)]
 
@@ -203,6 +209,12 @@ function modify_results!(mod::FuelPrice, config, data)
     for row in eachrow(fuel_markets)
         # Find the index of the cheapest fuel price for each year in the market region
         fp_idxs = [argmin(pf_idx->mean(fuel_price.price[pf_idx][yr_idx, :]), row.fuel_price_idxs) for yr_idx in 1:nyr]
+
+        for gen_idx in row.gen_idxs
+            @assert all(==(0), gen.fuel_price[gen_idx]) "Found non-zero fuel_price in gen table with FuelPrice Modification.  That could mean double-counting of fuel cost in the objective function!"
+        end
+    
+
         
         # Find the shadow price of the fuel sold constraint.  I.e. the change in objective value, in dollars per MMBtu, by relaxing the `cons_fuel_sold` constraint.  
         # I.e. if we allowed one more unit of the cheaper fuel, this value is the difference between the clearing price and the price of the cheapest fuel.

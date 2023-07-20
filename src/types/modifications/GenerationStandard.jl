@@ -3,7 +3,7 @@
 
 A generation standard (also refered to as a portfolio standard) is a constraint on generation where a portion of generation from certain generators must meet the a portion of the load in a specified region.
 This encompasses RPSs, CESs, and technology carveouts.
-To assign the credit (the portion of generation that can contribute) to generators, the [Crediting](@ref) type is used.
+To assign the credit (the portion of generation that can contribute) to generators, the [`Crediting`](@ref) type is used.
 
 * `name` - Name of the policy 
 * `gen_filters` - Filters on which generation qualifies to fulfill the GS. Sometimes qualifying generators may be outside of the GS load region if they supply power to it. 
@@ -181,7 +181,7 @@ function modify_results!(pol::GenerationStandard, config, data)
     prc_name = Symbol("$(pol.name)_prc")
     cost_name = Symbol("$(pol.name)_cost")
     add_results_formula!(data, :gen, cost_name, "SumHourly($(prc_name), egen)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
-    add_to_results_formula!(data, :gen, :gs_cost, cost_name)
+    add_to_results_formula!(data, :gen, :gs_rebate, cost_name)
 end
 export modify_results!
 

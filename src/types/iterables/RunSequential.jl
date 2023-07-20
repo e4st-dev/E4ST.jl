@@ -71,8 +71,10 @@ function iterate!(iter::RunSequential, config, data)
     config[:out_path] = out_path_tmp
 
     # Update the years
+    config[:year_gen_data] = last(config[:years])
     years = check_years(iter.years[iter.state])
     config[:years] = years
+    
 
     return nothing
 end

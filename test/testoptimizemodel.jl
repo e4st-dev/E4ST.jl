@@ -12,6 +12,7 @@
     @test check(model)
 
     parse_results!(config, data, model)
+    process_results!(config, data)
 
     @testset "Test no curtailment" begin
         bus = get_table(data, :bus)
@@ -26,10 +27,15 @@
     end
 
     @testset "Test bus results match gen results" begin
-        # Test that revenue of electricity for generators equals the cost for consumers
+        # Test that revenue of electricity for generators equals the cost for users
         line_loss_rate = config[:line_loss_rate]
         @test compute_result(data, :bus, :elserv_total) ≈ (compute_result(data, :gen, :egen_total)) * (1 - line_loss_rate)
         @test compute_result(data, :bus, :electricity_cost) ≈ compute_result(data, :gen, :electricity_revenue)
+    end
+
+    @testset "Test misc. results computations" begin
+        @test compute_result(data, :bus, :distribution_cost_total) ≈ 60 * compute_result(data, :bus, :elserv_total)
+        @test compute_result(data, :bus, :merchandising_surplus_total) >= 0.0
     end
     
     @testset "Test DC lines" begin
@@ -174,10 +180,10 @@
 
         
     @testset "Test InterfaceLimit" begin
-        # Test that without InterfaceLimit, branch flow is sometimes less than 0.2
-        @test compute_result(data, :branch, :pflow_hourly_min, (:f_bus_idx=>1, :t_bus_idx=>2)) < 0.2 - 1e-9
+        # Test that without InterfaceLimit, branch flow is sometimes less than 0.4
+        @test compute_result(data, :branch, :pflow_hourly_min, (:f_bus_idx=>1, :t_bus_idx=>2)) < 0.4 - 1e-9
         
-        # Now run with interface limits and test that it is always >= 0.2
+        # Now run with interface limits and test that it is always >= 0.4
         config_file_if = joinpath(@__DIR__, "config", "config_3bus_if.yml")
         config = read_config(config_file, config_file_if)
         data = read_data(config)
@@ -187,7 +193,7 @@
         parse_results!(config, data, model)
 
         # Test that pflow limits were observed
-        @test compute_result(data, :branch, :pflow_hourly_min, (:f_bus_idx=>1, :t_bus_idx=>2)) >= 0.2 - 1e-9
+        @test compute_result(data, :branch, :pflow_hourly_min, (:f_bus_idx=>1, :t_bus_idx=>2)) >= 0.4 - 1e-9
 
         # Test that there was no curtailment
         @test compute_result(data, :bus, :elcurt_total) < 1e-6

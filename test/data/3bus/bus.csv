@@ -1,4 +1,4 @@
-ref_bus,reg_factor,plnom,nation,buildngcc,buildsolar,state
-0,0,0.2,narnia,1,1,beaverdam
-1,1,1.6,archenland,1,0,stormness
-0,1,0.2,archenland,1,1,anvard
+ref_bus,reg_factor,plnom,nation,buildngcc,buildsolar,state,iso
+0,0,0.2,narnia,1,1,beaverdam,na
+1,1,1.6,archenland,1,0,stormness,arciso
+0,1,0.2,archenland,1,1,anvard,arciso

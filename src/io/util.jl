@@ -366,13 +366,14 @@ function parse_comparisons(row::DataFrameRow)
     
     # Check for area/subarea
     if hasproperty(row, :area) && ~isempty(row.area) && hasproperty(row, :subarea) && ~isempty(row.subarea)
-        push!(pairs, row.area=>row.subarea)
+        push!(pairs, parse_comparison("$(row.area)=>$(row.subarea)"))
     end
 
     # Check for genfuel and gentype
     hasproperty(row, :genfuel) && ~isempty(row.genfuel) && push!(pairs, parse_comparison("genfuel=>$(row.genfuel)"))
     hasproperty(row, :gentype) && ~isempty(row.gentype) && push!(pairs, parse_comparison("gentype=>$(row.gentype)"))
     hasproperty(row, :load_type) && ~isempty(row.load_type) && push!(pairs, parse_comparison("load_type=>$(row.load_type)"))
+    hasproperty(row, :build_id) && ~isempty(row.build_id) && push!(pairs, parse_comparison("build_id=>$(row.build_id)"))
     
     return pairs
 end

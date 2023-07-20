@@ -11,7 +11,7 @@ function WelfareTable(;name, groupby = Symbol[], group_hours_by = Symbol[])
     return WelfareTable(Symbol(name), groupby, group_hours_by)
 end
 
-mod_rank(::Type{<:WelfareTable}) = 1.0
+mod_rank(::Type{<:WelfareTable}) = 5.0
 
 """
     modify_results!(mod::WelfareTable, config, data) -> nothing
