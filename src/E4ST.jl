@@ -295,5 +295,6 @@ function get_type(str::AbstractString)
         end
     end
 end
+export get_type
 
 end # module
