@@ -6,12 +6,13 @@ Representation of reserve requirement, such that the sum of eligible power injec
 
 Keyword arguments:
 * `name` - name of the modification
-* `filters` - the filters for the generating, storage, and load regions.  Defaults to no filtering.
+* `area` - the area by which to group the buses by for the reserve requirements.
 * `credit_gen` - the [`Crediting`](@ref) for the generators, defaults to [`AvailabilityFactorCrediting`](@ref)
 * `credit_stor` - the [`Crediting`](@ref) for the storage facilities (see [`Storage`](@ref)), defaults to [`StandardStorageReserveCrediting`](@ref)
-* `requirements` - an `OrderedDict{Symbol, Float64}` mapping a year symbol to a percent requirement of required reserve above the load.
+* `requirements_file` - a table with the subareas and the percent requirement of power capacity above the load.  See [`summarize_table(::Val{:reserve_requirements})`](@ref)
+* `flow_limits_file` - (optional) a table with positive and negative flow limits from each subarea to each other subarea.  See [`summarize_table(::Val{:reserve_flow_limits})`](@ref).  If none provided, it is assumed that no flow is permitted between regions.
 * `load_type` - a `String` for what type of load to base the requirement off of.  Can be either: 
-  * `plserv` - (default), served load power
+  * `plserv` - (default), served load power.
   * `plnom` - nominal load power.
 
 Adds results:
@@ -20,51 +21,103 @@ Adds results:
 """
 struct ReserveRequirement <: Modification
     name::Symbol
-    filters::OrderedDict{Symbol} 
+    area::String
     credit_gen::Crediting
     credit_stor::Crediting
-    requirements::OrderedDict{Symbol, Float64}
+    requirements_file::String
+    flow_limits_file::String
     load_type::String
 
     function ReserveRequirement(;
             name,
-            filters = OrderedDict{Symbol, Any}(),
+            area,
             credit_gen  = AvailabilityFactorCrediting(),
             credit_stor = StandardStorageReserveCrediting(),
-            requirements,
+            requirements_file,
+            flow_limits_file="",
             load_type = "plserv"
         )
-        return new(Symbol(name), filters, Crediting(credit_gen), Crediting(credit_stor), requirements, load_type)
+        return new(Symbol(name), area, Crediting(credit_gen), Crediting(credit_stor), requirements_file, flow_limits_file, load_type)
     end
 end
 export ReserveRequirement
 
 
+@doc """
+    summarize_table(::Val{:reserve_requirements})
+
+$(table2markdown(summarize_table(Val(:reserve_requirements))))
+"""
+function summarize_table(::Val{:reserve_requirements})
+    df = TableSummary()
+    push!(df, 
+        (:subarea, AbstractString, NA, true, "The subarea that the requirement is specified over"),
+        (:y_, Float64, Ratio, true, "The percent requirement of reserve capacity over the load.  Include a column for each year in the hours table.  I.e. `:y2020`, `:y2030`, etc"),
+    )
+    return df
+end
+
+@doc """
+    summarize_table(::Val{:reserve_flow_limits})
+
+$(table2markdown(summarize_table(Val(:reserve_flow_limits))))
+"""
+function summarize_table(::Val{:reserve_flow_limits})
+    df = TableSummary()
+    push!(df, 
+        (:f_subarea, Any, NA, true, "The subarea the reserve power flow originates **f**rom"),
+        (:t_subarea, Any, NA, true, "The subarea the reserve power flow goes **t**o"),
+        (:pflow_forward_max, Float64, MWFlow, true, "Maximum reserve power going from `f_subarea` to `t_subarea`"),
+        (:pflow_reverse_max, Float64, MWFlow, true, "Maximum reserve power going from `t_subarea` to `f_subarea`")
+    )
+    return df
+end
+
+function modify_raw_data!(mod::ReserveRequirement, config, data)
+    # Load in the reserve requirements table and the reserve flow limits table
+    name = mod.name
+    data[Symbol("$(name)_requirements")]    = read_table(data, mod.requirements_file, :reserve_requirements)
+    if ~isempty(mod.flow_limits_file)
+        data[Symbol("$(name)_flow_limits")] = read_table(data, mod.flow_limits_file, :reserve_flow_limits)
+    end
+    return nothing
+end
+
 mod_rank(::Type{<:ReserveRequirement}) = 0.0
 
 function modify_model!(mod::ReserveRequirement, config, data, model)
-    # Compute the capacity credit earned by each generator.
-    #get gen idxs 
-    
+    # Compute the capacity credit earned by each generator.    
     gen = get_table(data, :gen)
-    gen_idxs = get_row_idxs(gen, parse_comparisons(mod.filters))
     bus = get_table(data, :bus)
-    bus_idxs = get_row_idxs(bus, parse_comparisons(mod.filters))
     nyr = get_num_years(data)
     nhr = get_num_hours(data)
     ngen = nrow(get_table(data, :gen))
     years = get_years(data)
     requirements = mod.requirements
     c_gen = mod.credit_gen
+    
+    area = mod.area
+    requirements = get_table(data, "$(mod.name)_requirements")
 
-    @info "Applying $(mod.name) to $(length(gen_idxs)) generators by modifying setup data"
+    subareas = requirements.subareas
+    subarea2idx = Dict(subareas[i]=>i for i in axes(subareas,1))
+
+
+    gdf_gen = groupby(gen, area)
+    gdf_bus = groupby(bus, area)
+
+    gen_idx_sets = map(subarea -> getfield(gdf_gen[(subarea,)], :rows), subareas)
+    bus_idx_sets = map(subarea -> getfield(gdf_bus[(subarea,)], :rows), subareas)
+
+
+
 
     #create get table column for policy, set to zeros to start
-    credits = Container[ByNothing(0.0) for i in 1:nrow(gen)]
+    credits = Container[ByNothing(0.0) for i in axes(gen,1)]
     add_table_col!(data, :gen, mod.name, credits, CreditsPerMWCapacity,
         "Credit level for reserve requirement $(mod.name).  This gets multiplied by the power capacity in the reserve requirement constraint.")
 
-    for gen_idx in gen_idxs
+    for gen_idx in axes(gen, 1)
         credits[gen_idx] = Container(get_credit(c_gen, data, gen[gen_idx, :]))
     end
 
@@ -72,66 +125,138 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
     cons_name = Symbol("cons_pcap_$(mod.name)")
     pcap_gen = model[:pcap_gen]::Matrix{VariableRef}
     plserv_bus = model[:plserv_bus]::Array{AffExpr, 3}
-    expr_pcap = @expression(
+
+    pres_subarea = @expression(
         model,
-        [yr_idx in 1:nyr, hr_idx in 1:nhr],
-        sum(
-            pcap_gen[gen_idx, yr_idx] * credits[gen_idx][yr_idx, hr_idx] 
-            for gen_idx in gen_idxs
-        )
+        [sa_idx in axes(subareas,1), yr_idx in 1:nyr, hr_idx in 1:nhr],
+        AffExpr(0.0)
     )
-    
+
+    pres_gen_subarea = @expression(
+        model,
+        [sa_idx in axes(subareas,1), yr_idx in 1:nyr, hr_idx in 1:nhr],
+        AffExpr(0.0)
+    )
+
+    for sa_idx in axes(subareas,1)
+        gen_idxs = gen_idx_sets[sa_idx]
+        for gen_idx in gen_idxs, yr_idx in 1:nyr, hr_idx in 1:nhr
+            add_to_expression(pres_gen_subarea[sa_idx, yr_idx, hr_idx], pcap_gen[gen_idx, yr_idx], credits[gen_idx][yr_idx, hr_idx])
+        end
+    end
+
+    for sa_idx in axes(subareas,1), yr_idx in 1:nyr, hr_idx in 1:nhr
+        add_to_expression(pres_subarea[sa_idx, yr_idx, hr_idx], pres_gen_subarea[sa_idx, yr_idx, hr_idx])
+    end
+
+
+    # Set up expression for pres_req_subarea
     if mod.load_type == "plnom"
-        expr_pres = @expression(
+        pres_req_subarea = @expression(
             model,
-            [yr_idx in 1:nyr, hr_idx in 1:nhr],
-            (1 + get(requirements, Symbol(years[yr_idx]), -1.0)) * 
+            [sa_idx in axes(subareas, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
+            (1 + get(requirements[sa_idx, :], Symbol(years[yr_idx]), -1.0)) * 
             sum(
                 get_plnom(data, bus_idx, yr_idx, hr_idx)
-                for bus_idx in bus_idxs
+                for bus_idx in bus_idx_sets[sa_idx]
             )
         )
     else # mod.load_type == "plserv"
-        expr_pres = @expression(
+        pres_req_subarea = @expression(
             model,
             [yr_idx in 1:nyr, hr_idx in 1:nhr],
-            (1 + get(requirements, Symbol(years[yr_idx]), -1.0)) * 
+            (1 + get(requirements[sa_idx, :], Symbol(years[yr_idx]), -1.0)) * 
             sum(
                 plserv_bus[bus_idx, yr_idx, hr_idx]
-                for bus_idx in bus_idxs
+                for bus_idx in bus_idx_sets[sa_idx]
             )
         )
     end
 
-    model[Symbol("pcap_qual_$(mod.name)")] = expr_pcap
-    model[Symbol("pres_req_$(mod.name)")] = expr_pres
+    model[Symbol("pres_gen_subarea_$(mod.name)")] = pres_gen_subarea
+    model[Symbol("pres_req_subarea_$(mod.name)")] = pres_req_subarea
 
     # Add in credit for storage if applicable
     if haskey(data, :storage)
         stor = get_table(data, :storage)
-        stor_idxs = get_row_idxs(stor, parse_comparisons(mod.filters))
+        gdf_stor = groupby(stor, area)
+        stor_idx_sets = map(subarea -> getfield(gdf_stor[(subarea,)], :rows), subareas)
         c_stor = mod.credit_stor
 
         credits_stor = Container[ByNothing(0.0) for i in 1:nrow(stor)]
         add_table_col!(data, :storage, mod.name, credits_stor, CreditsPerMWCapacity,
         "Credit level for reserve requirement $(mod.name).  This gets multiplied by the power capacity in the reserve requirement constraint.")
 
-        for stor_idx in stor_idxs
+        for stor_idx in axes(stor, 1)
             credits_stor[stor_idx] = Container(get_credit(c_stor, data, stor[stor_idx, :]))
         end
 
+        # Make an expression for storag reserves
+        pres_stor_subarea = @expression(
+            model,
+            [sa_idx in axes(subareas,1), yr_idx in 1:nyr, hr_idx in 1:nhr],
+            AffExpr(0.0)
+        )
+
         pcap_stor = model[:pcap_stor]::Matrix{VariableRef}
-        for yr_idx in 1:nyr, hr_idx in 1:nhr
+        for sa_idx in axes(subareas, 1), yr_idx in 1:nyr, hr_idx in 1:nhr
+            stor_idxs = stor_idx_sets[sa_idx]
             for stor_idx in stor_idxs
-                add_to_expression!(expr_pcap[yr_idx, hr_idx], pcap_stor[stor_idx, yr_idx], credits_stor[stor_idx][yr_idx, hr_idx])
+                add_to_expression!(pres_stor_subarea[sa_idx, yr_idx, hr_idx], pcap_stor[stor_idx, yr_idx], credits_stor[stor_idx][yr_idx, hr_idx])
             end
         end
+
+        for sa_idx in axes(subareas,1), yr_idx in 1:nyr, hr_idx in 1:nhr
+            add_to_expression(pres_subarea[sa_idx, yr_idx, hr_idx], pres_stor_subarea[sa_idx, yr_idx, hr_idx])
+        end
+
+        model[Symbol("pres_stor_subarea_$(mod.name)")] = pres_stor_subarea
+    end
+
+    # Add variables for reserve capacity flow
+    if ~isempty(mod.flow_limits_file)
+        flow_limits = get_table(data, "$(mod.name)_flow_limits")
+        pflow_forward_max = flow_limits.pflow_forward_max::Vector{Float64}
+        pflow_reverse_max = flow_limits.pflow_reverse_max::Vector{Float64}
+
+        # Make a variable for each flow for each limit
+        pres_flow = @variable(
+            model,
+            [flow_idx in axes(flow_limits,1), yr_idx in 1:nyr, hr_idx in 1:nhr],
+            lower_bound = -pflow_reverse_max[flow_idx],
+            upper_bound =  pflow_forward_max[flow_idx],
+        )
+
+        # Make an expression for power flowing out of each subarea
+        pres_flow_subarea = @expression(
+            model,
+            [sa_idx in axes(subareas,1), yr_idx in 1:nyr, hr_idx in 1:nhr],
+            AffExpr(0.0)
+        )
+        
+        for flow_idx in axes(flow_limits, 1)
+            t_subarea_idx = subarea2idx[flow_limits.t_subarea[flow_idx]]
+            f_subarea_idx = subarea2idx[flow_limits.f_subarea[flow_idx]]
+            
+            for yr_idx in 1:nyr, hr_idx in 1:nhr
+                add_to_expression(pres_flow_subarea[f_subarea_idx, yr_idx, hr_idx], pres_flow[flow_idx, yr_idx, hr_idx])
+                add_to_expression(pres_flow_subarea[t_subarea_idx, yr_idx, hr_idx], pres_flow[flow_idx, yr_idx, hr_idx], -)
+            end
+        end
+
+        for sa_idx in axes(subareas,1), yr_idx in 1:nyr, hr_idx in 1:nhr
+            add_to_expression(pres_subarea[sa_idx, yr_idx, hr_idx], pres_flow_subarea[sa_idx, yr_idx, hr_idx], -1)
+        end
+
+        model[Symbol("pres_flow_subarea_$(mod.name)")] = pres_flow_subarea
+        model[Symbol("pres_flow_$(mod.name)")] = pres_flow
+
     end
 
     cons = @constraint(
         model,
-        [yr_idx in 1:nyr, hr_idx in 1:nhr],
-        expr_pcap[yr_idx, hr_idx] >= expr_pres[yr_idx, hr_idx]
+        [sa_idx in axes(subareas, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
+        pres_subarea[sa_idx, yr_idx, hr_idx] >= pres_req_subarea[sa_idx, yr_idx, hr_idx]
     )
     model[cons_name] = cons
 end
