@@ -193,6 +193,8 @@
         parse_results!(config, data, model)
         process_results!(config, data)
 
+        @test compute_result(data, :bus, :elcurt_total) < 1e-6
+
         # Test that pflow limits were observed
         @test compute_result(data, :branch, :pflow_hourly_min, (:f_bus_idx=>1, :t_bus_idx=>2)) >= 0.4 - 1e-9
 

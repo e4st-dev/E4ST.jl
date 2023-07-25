@@ -90,7 +90,7 @@ function modify_model!(mod::InterfaceLimit, config, data, model)
 
     for if_idx in axes(table, 1), yr_idx in 1:nyr, hr_idx in 1:nhr
         for branch_idx in table.forward_branch_idxs[if_idx]
-            add_to_expression!(pflow_if[if_idx], pflow_branch[branch_idx, yr_idx, hr_idx])
+            add_to_expression!(pflow_if[if_idx, yr_idx, hr_idx], pflow_branch[branch_idx, yr_idx, hr_idx])
         end
         for branch_idx in table.reverse_branch_idxs[if_idx]
             add_to_expression!(pflow_if[if_idx], pflow_branch[branch_idx, yr_idx, hr_idx], -1)
