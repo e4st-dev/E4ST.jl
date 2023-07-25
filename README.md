@@ -25,8 +25,27 @@ E4ST.jl uses the speed and extensibility of Julia to enable faster deployment of
 > As with most models, quality of analysis using E4ST.jl is heavily dependent on the inputs and assumptions.  For this reason, the E4ST team at RFF does not implicitly endorse all analysis done using E4ST.jl. If you have questions about the model inputs and assumptions used for our work at RFF, please contact us.
 
 # Citation
-TODO: Sally can you add here?
+If you use E4ST.jl in your work, we request that you cite the [following paper]{https://www.sciencedirect.com/science/article/abs/pii/S0928765513000900}: 
 
+```
+@article{Shawhan2014,
+    author = {Daniel Shawhan, John T. Taber, Di Shi, Ray D. Zimmerman, Jubo Yan, Charles M. Marquet, Yingying Qi, Biao Mao, Richard E. Schuler, William Schulze, D.J. Tylavsky},
+    title = {{D}oes a {D}etailed {M}odel of the {E}lectricity {G}rid {M}atter? {E}stimating the {I}mpacts of the {R}egional {G}reenhouse {G}as {I}nitiative},
+    journal = {Resource and Energy Economics},
+    year = {2014},
+    doi = {10.1016/j.reseneeco.2013.11.015}}
+```
+
+Alternatively, you can cite the [following paper]{https://www.sciencedirect.com/science/article/abs/pii/S0301421518304865}: 
+
+```
+@article{Shawhan2014,
+    author = {Daniel Shawhan, Paul D. Picciano},
+    title = {{C}osts and benefits of saving unprofitable generators: {A} simulation case study for {US} coal and nuclear power plants},
+    journal = {Energy Policy},
+    year = {2019},
+    doi = {https://doi.org/10.1016/j.enpol.2018.07.040}}
+```
 # Installation
 
 ## Install From the REPL (preferred)
