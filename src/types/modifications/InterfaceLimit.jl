@@ -85,9 +85,17 @@ function modify_model!(mod::InterfaceLimit, config, data, model)
 
     @expression(model,
         pflow_if[if_idx in axes(table, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
-        sum0(branch_idx -> pflow_branch[branch_idx, yr_idx, hr_idx], table.forward_branch_idxs[if_idx]) - 
-        sum0(branch_idx -> pflow_branch[branch_idx, yr_idx, hr_idx], table.reverse_branch_idxs[if_idx])
+        AffExpr(0.0)
     )
+
+    for if_idx in axes(table, 1), yr_idx in 1:nyr, hr_idx in 1:nhr
+        for branch_idx in table.forward_branch_idxs[if_idx]
+            add_to_expression!(pflow_if[if_idx], pflow_branch[branch_idx, yr_idx, hr_idx])
+        end
+        for branch_idx in table.reverse_branch_idxs[if_idx]
+            add_to_expression!(pflow_if[if_idx], pflow_branch[branch_idx, yr_idx, hr_idx], -1)
+        end
+    end
     
     # Add DC line flow to expression where relevant.
     if hasproperty(table, :include_dc) && any(table.include_dc) && has_table(data, :dc_line) && haskey(model, :pflow_dc)
@@ -177,6 +185,7 @@ function modify_model!(mod::InterfaceLimit, config, data, model)
 end
 
 function modify_results!(mod::InterfaceLimit, config, data)
+    @info "Modifying results for InterfaceLimit mod"
     pflow_if = get_raw_result(data, :pflow_if)::Array{Float64, 3}
     eflow_if = weight_hourly(data, pflow_if)
     table = get_table(data, :interface_limit)
