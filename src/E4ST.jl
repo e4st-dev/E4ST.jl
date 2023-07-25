@@ -125,6 +125,7 @@ function run_e4st(config::OrderedDict)
     t_start = now()
 
     # Initial config setup
+    sort_mods_by_rank!(config)
     save_config(config)
     start_logging!(config)
 
