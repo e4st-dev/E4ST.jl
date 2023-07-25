@@ -191,7 +191,7 @@ function modify_results!(mod::InterfaceLimit, config, data)
     table = get_table(data, :interface_limit)
 
     add_table_col!(data, :interface_limit, :pflow, pflow_if, MWFlow, "MW of power flowing from `f` to `t` in each hour.")
-    add_table_col!(data, :interface_limit, :eflow, eflow_if, MWFlow, "MWh of power flowing from `f` to `t` in each weighted representative hour.")
+    add_table_col!(data, :interface_limit, :eflow, eflow_if, MWhFlow, "MWh of power flowing from `f` to `t` in each weighted representative hour.")
     add_results_formula!(data, :interface_limit, :pflow_if_max, "MaxHourly(pflow)", MWFlow, "Maximum net hourly directional flow")
     add_results_formula!(data, :interface_limit, :pflow_if_min, "MinHourly(pflow)", MWFlow, "Minimum net hourly directional flow")
     add_results_formula!(data, :interface_limit, :pflow_if_avg, "AverageHourly(pflow)", MWFlow, "Average net hourly directional flow")
@@ -203,7 +203,7 @@ function modify_results!(mod::InterfaceLimit, config, data)
         add_table_col!(data, :interface_limit, :interface_limit_cost, cost, Dollars, "Cost on the net flow of electricity from `f` to `t` in each representative hour, from an explicitly specified price.")
     end
 
-    # Do we need shadow price costs from the max/min pflow/eflow constraints?
+    # Do we need shadow price costs from the max/min pflow/eflow constraints?  Maybe eventually, but will hold off for now.
 
 
 end
