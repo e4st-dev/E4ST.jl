@@ -199,7 +199,7 @@
             # Added to the gen table 
             @test hasproperty(gen, :example_emiscap)
             for i in 1:nrow(gen)
-                @test gen[i, :example_emiscap] == true
+                @test all(==(true), gen[i, :example_emiscap])
             end
 
 
@@ -244,12 +244,14 @@
             #check that policy is binding 
             cap_prices = get_raw_result(data, :cons_example_emiscap_max)
 
-            @test abs(cap_prices[:y2035]) + abs(cap_prices[:y2040]) > 1e-6 # At least one will be binding, but potentially not both bc of perfect foresight
+            @test abs(cap_prices[2]) + abs(cap_prices[3]) > 1e-6 # At least one will be binding, but potentially not both bc of perfect foresight
 
             #check that results are calculated
             @test hasproperty(gen, :example_emiscap_prc)
             @test sum(prc -> sum(prc.v), gen.example_emiscap_prc) > 0
             @test compute_result(data, :gen, :example_emiscap_cost) > 0
+
+            @test compute_result(data, :gen, :emis_co2_total, :, 1, :season=>"summer") ≈ 1000
         end
     end
 
@@ -314,6 +316,13 @@
             #@show compute_result(data, :gen, :egen_total, gen_idxs, [2, 3])
             @test emis_co2_total > 0
             @test compute_result(data, :gen, :example_emisprc_cost) > 0.0
+
+
+            summer_co2_cost = compute_result(data, :gen, :summer_co2_price_cost, :, :, :season=>"summer")
+            total_co2_cost = compute_result(data, :gen, :summer_co2_price_cost)
+
+            @test summer_co2_cost > 0
+            @test total_co2_cost ≈ summer_co2_cost
         end
     end
 
