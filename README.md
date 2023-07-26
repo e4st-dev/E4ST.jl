@@ -24,11 +24,7 @@ E4ST.jl was written with maximum flexibility and speed in mind. E4ST.jl is a bri
 E4ST.jl uses the speed and extensibility of Julia to enable faster deployment of detailed and adaptable models to inform policy decision-makers and technology developers.
 
 > **Warning**
-<<<<<<< HEAD
 > As with most models, quality of analysis using E4ST.jl is heavily dependent on the inputs and assumptions.  For this reason, the E4ST team at RFF does not implicitly endorse all analysis done using E4ST.jl. If you have questions about the model inputs and assumptions used for our work at RFF, please contact us.
-=======
-> As with most models, quality of analysis using E4ST.jl is heavily dependent on the inputs and assumptions.  For this reason, the E4ST team at RFF does not implicitly endorse analyses done using E4ST.jl.
->>>>>>> 5a7ee6f9ac9a6dfe673b8f68bfff15f5ae5e6864
 
 # Citation
 If you use E4ST.jl in your work, we request that you cite the [following paper](https://www.sciencedirect.com/science/article/abs/pii/S0928765513000900): 
