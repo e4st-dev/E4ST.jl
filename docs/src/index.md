@@ -1,14 +1,5 @@
 # E4ST.jl
 
-![GitHub contributors](https://img.shields.io/github/contributors/e4st-dev/E4ST.jl?logo=GitHub)
-![GitHub last commit](https://img.shields.io/github/last-commit/e4st-dev/E4ST.jl/main?logo=GitHub)
-[![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
-[![CI](https://github.com/e4st-dev/E4ST.jl/workflows/CI/badge.svg)](https://github.com/e4st-dev/E4ST.jl/actions?query=workflow%3ACI)
-[![Code Coverage](https://codecov.io/gh/e4st-dev/E4ST.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/e4st-dev/E4ST.jl)
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://e4st-dev.github.io/E4ST.jl/stable/)
-[![In Development](https://img.shields.io/badge/docs-dev-blue.svg)](https://e4st-dev.github.io/E4ST.jl/dev/)
-
-
 This is the Julia rewrite of the Engineering, Economic, and Environmental Electricity Simulation Tool (E4ST).  The MATLAB-based model built on top of MATPOWER can be found [here](https://github.com/e4st-dev/e4st-mp).  The original idea for E4ST was developed by Daniel Shawhan and Ray Zimmerman at Cornell and Resources for the Future.
 
 At the heart of E4ST is a detailed engineering representation of the power grid, and an optimization problem that represents the decisions of the system operators, electricity end-users, generators, and generation developers. The model represents these operation, consumption, investment, and retirement decisions by minimizing the sum of generator variable costs, fixed costs, investment costs, and end-user consumer surplus losses. E4ST provides detailed analysis to better inform policymakers, investors, and stakeholders.
