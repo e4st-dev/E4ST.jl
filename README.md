@@ -25,7 +25,7 @@ E4ST.jl uses the speed and extensibility of Julia to enable faster deployment of
 > As with most models, quality of analysis using E4ST.jl is heavily dependent on the inputs and assumptions.  For this reason, the E4ST team at RFF does not implicitly endorse all analysis done using E4ST.jl. If you have questions about the model inputs and assumptions used for our work at RFF, please contact us.
 
 # Citation
-If you use E4ST.jl in your work, we request that you cite the [following paper]{https://www.sciencedirect.com/science/article/abs/pii/S0928765513000900}: 
+If you use E4ST.jl in your work, we request that you cite the [following paper](https://www.sciencedirect.com/science/article/abs/pii/S0928765513000900): 
 
 ```
 @article{Shawhan2014,
@@ -36,7 +36,7 @@ If you use E4ST.jl in your work, we request that you cite the [following paper]{
     doi = {10.1016/j.reseneeco.2013.11.015}}
 ```
 
-Alternatively, you can cite the [following paper]{https://www.sciencedirect.com/science/article/abs/pii/S0301421518304865}: 
+Alternatively, you can cite the [following paper](https://www.sciencedirect.com/science/article/abs/pii/S0301421518304865): 
 
 ```
 @article{Shawhan2014,
