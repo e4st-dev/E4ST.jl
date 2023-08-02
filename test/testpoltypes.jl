@@ -500,5 +500,7 @@
         end
 
         @test haskey(data[:results][:raw], :pres_flow_subarea_state_reserve)
+
+        @test compute_result(data, :bus, :state_reserve_merchandising_surplus_total) > 0.0
     end
 end
