@@ -569,6 +569,20 @@ function replace_nans!(v, x)
 end
 export replace_nans!
 
+"""
+    replace_zeros!(v, x) -> v
+
+Replaces all zero values in `v` with `x`
+"""
+function replace_zeros!(v, x)
+    for i in eachindex(v)
+        iszero(v[i]) || continue
+        v[i] = x
+    end
+    return v
+end
+export replace_zeros!
+
 
 function table2markdown(df::DataFrame)
     io = IOBuffer()
