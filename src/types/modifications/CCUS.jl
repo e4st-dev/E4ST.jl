@@ -279,11 +279,11 @@ function modify_model!(mod::CCUS, config, data, model)
     # Add capacity matching constraints for the sets of ccus_paths generators
     match_capacity!(data, model, :gen, :pcap_gen, :ccus, ccus_gen_sets)
 
-    # Make variables for amount of captured carbon going to each transport step bounded by [0, maximum co2 storage + 1].  This is in units of million metric tons
+    # Make variables for amount of captured carbon going to each transport step bounded by [0, maximum co2 storage * 1.1].  This is in units of million metric tons
     @variable(model, 
         co2_trans[ts_idx in 1:nrow(ccus_paths), yr_idx in 1:nyear], 
         lower_bound = 0,
-        upper_bound=ccus_paths.step_quantity[ts_idx]/co2_scalar + 1 # NOTE: +1 here to prevent the upper bound from being binding - that would take the shadow price away from the cons_co2_stor constraint.
+        upper_bound=ccus_paths.step_quantity[ts_idx]/co2_scalar*1.1 # NOTE: 10% margin here to prevent the upper bound from being binding - that would take the shadow price away from the cons_co2_stor constraint.
     ) 
 
     # Setup expressions for each year's total sequestration cost.
