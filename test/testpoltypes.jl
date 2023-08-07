@@ -500,20 +500,18 @@
         @test compute_result(data, :bus, :elcurt_total) < 1e-6
     
         # Test for narnia
-        @test compute_result(data, :gen, :narnia_reserve_rebate, :, "y2030") == 0.0
-        @test compute_result(data, :gen, :narnia_reserve_rebate) > 0.0
+        @test compute_result(data, :gen, :state_reserve_rebate, :, "y2030") == 0.0
+        @test compute_result(data, :gen, :state_reserve_rebate) > 0.0
     
         if compute_result(data, :storage, :edischarge_total, :nation=>"narnia") > 0
-            @test compute_result(data, :storage, :narnia_reserve_rebate, :, "y2030") == 0.0
-            @test compute_result(data, :storage, :narnia_reserve_rebate) > 0.0
+            @test compute_result(data, :storage, :state_reserve_rebate, :, "y2030") == 0.0
+            @test compute_result(data, :storage, :state_reserve_rebate) > 0.0
         end
-    
-        # Test for archenland
-        @test compute_result(data, :gen, :archenland_reserve_rebate, :, "y2030") == 0.0
-        @test compute_result(data, :gen, :archenland_reserve_rebate) > 0.0
-        if compute_result(data, :storage, :edischarge_total, :nation=>"archenland") > 0
-            @test compute_result(data, :storage, :archenland_reserve_rebate, :, "y2030") == 0.0
-            @test compute_result(data, :storage, :archenland_reserve_rebate) > 0.0
-        end
+
+        @test haskey(data[:results][:raw], :pres_flow_subarea_state_reserve)
+
+        @test compute_result(data, :bus, :state_reserve_merchandising_surplus_total) > 0.0
+
+        @test compute_result(data, :bus, :state_reserve_cost) ≈ compute_result(data, :gen, :state_reserve_rebate) + compute_result(data, :storage, :state_reserve_rebate) + compute_result(data, :bus, :state_reserve_merchandising_surplus_total)
     end
 end

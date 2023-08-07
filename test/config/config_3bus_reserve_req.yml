@@ -1,15 +1,6 @@
 mods:
-  narnia_reserve:
+  state_reserve:
     type: ReserveRequirement
-    filters:
-      nation: narnia
-    requirements:
-      y2035: 0.2
-      y2040: 0.2
-  archenland_reserve:
-    type: ReserveRequirement
-    filters:
-      nation: archenland
-    requirements:
-      y2035: 0.2
-      y2040: 0.2
+    area: state
+    requirements_file: ../data/3bus/reserve_requirements_state.csv
+    flow_limits_file: ../data/3bus/reserve_flow_limits_state.csv
