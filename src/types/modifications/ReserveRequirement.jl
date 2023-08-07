@@ -181,7 +181,8 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
         end
     end
 
-    # Set up expression for the reserve requirement pres_req_subarea
+    
+    # Set up the expression for the reserve requirement contribution from each bus.  This is used for welfare accounting
     if mod.load_type == "plnom"
         pres_req = @expression(
             model,
@@ -198,6 +199,7 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
         )
     end
 
+    # Set up expression for the reserve requirement for each subarea by aggregating the buses
     pres_req_subarea = @expression(
         model,
         [sa_idx in axes(subareas, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
@@ -207,6 +209,7 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
         )
     )
 
+    # Store things into the model
     model[Symbol("pres_gen_subarea_$(mod.name)")] = pres_gen_subarea
     model[Symbol("pres_total_subarea_$(mod.name)")] = pres_subarea
     model[Symbol("pres_req_subarea_$(mod.name)")] = pres_req_subarea
@@ -264,18 +267,6 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
             upper_bound =  pflow_forward_max[flow_idx],
         )
 
-        # cons_pres_flow_forward = @constraint(
-        #     model,
-        #     [flow_idx in axes(flow_limits,1), yr_idx in 1:nyr, hr_idx in 1:nhr],
-        #     pres_flow[flow_idx, yr_idx, hr_idx] <= pflow_forward_max[flow_idx]
-        # )
-
-        # cons_pres_flow_reverse = @constraint(
-        #     model,
-        #     [flow_idx in axes(flow_limits,1), yr_idx in 1:nyr, hr_idx in 1:nhr],
-        #     pres_flow[flow_idx, yr_idx, hr_idx] >= -pflow_reverse_max[flow_idx]
-        # )
-
         # Make an expression for power flowing out of each subarea
         pres_flow_subarea = @expression(
             model,
@@ -300,10 +291,9 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
             add_to_expression!(pres_subarea[sa_idx, yr_idx, hr_idx], pres_flow_subarea[sa_idx, yr_idx, hr_idx], -1)
         end
 
+        # Store the newly created variables into the model
         model[Symbol("pres_flow_subarea_$(mod.name)")] = pres_flow_subarea
         model[Symbol("pres_flow_$(mod.name)")] = pres_flow
-        # model[Symbol("cons_pres_flow_forward_$(mod.name)")] = cons_pres_flow_forward
-        # model[Symbol("cons_pres_flow_reverse_$(mod.name)")] = cons_pres_flow_reverse
     end
 
     # Make the reserve requirment constraint
@@ -324,6 +314,7 @@ function modify_results!(mod::ReserveRequirement, config, data)
     rebate_result_name = Symbol("$(mod.name)_rebate")
     cost_col_name = Symbol("$(mod.name)_cost_per_mw")
     cost_result_name = Symbol("$(mod.name)_cost")
+    pres_name = Symbol("$(mod.name)_pres")
     pres_req_name = Symbol("$(mod.name)_pres_req")
     
     requirements = get_table(data, "$(mod.name)_requirements")
@@ -336,7 +327,7 @@ function modify_results!(mod::ReserveRequirement, config, data)
     # `sp` is currently a misleading shadow price - it is for the capacity in each hour, but it is not for the hourly capacity.  Must divide by # of hours spent at each hour to get an accurate "price"
     hourly_price_per_credit = unweight_hourly(data, sp, -)::Array{Float64,3}
 
-    # Pull out the reserve power of each bus
+    # Pull out the reserve power requirement contribution of each bus
     pres_req_bus = get_raw_result(data, Symbol("pres_req_bus_$(mod.name)"))::Array{Float64, 3} # nbus x nyr x nhr
     add_table_col!(data, :bus, pres_req_name, pres_req_bus, MWReserve, "The required reserve power in from $(mod.name), in MW.")
 
@@ -356,6 +347,11 @@ function modify_results!(mod::ReserveRequirement, config, data)
         end
     end
 
+    pres_gen = map(1:nrow(gen)) do gen_idx
+        ByYear(gen.pcap[gen_idx]) .* gen[gen_idx, mod.name]
+    end
+
+    add_table_col!(data, :gen, pres_name, pres_gen, MWCapacity, "The power reserve capacity used to fill $(mod.name)")
     add_table_col!(data, :gen, rebate_col_name, price_per_mw_per_hr_gen, DollarsPerMWCapacityPerHour, "This is the rebate recieved by EGU's for each qualifying MW of reserves for each hour from the $(mod.name) reserve requirement.")
     add_table_col!(data, :bus, cost_col_name, price_per_mw_per_hr_bus, DollarsPerMWCapacityPerHour, "This is the rebate payed by users to EGU's for each MW of demand for each hour from the $(mod.name) reserve requirement.")
 
@@ -380,12 +376,18 @@ function modify_results!(mod::ReserveRequirement, config, data)
         # Make a storage table column for it
         price_per_mw_per_hr_stor = Container[ByNothing(0.0) for _ in axes(stor,1)]
         for req_idx in axes(requirements, 1)
+            cur_hourly_price_per_credit = ByYearAndHour(view(hourly_price_per_credit, req_idx, :, :))
             stor_idxs = stor_idx_sets[req_idx]
             for stor_idx in stor_idxs
-                price_per_mw_per_hr_stor[stor_idx] = credit_per_mw_stor[stor_idx] .* ByYearAndHour(view(hourly_price_per_credit, req_idx, :, :))
+                price_per_mw_per_hr_stor[stor_idx] = credit_per_mw_stor[stor_idx] .* cur_hourly_price_per_credit
             end
         end
 
+        pres_stor = map(1:nrow(stor)) do stor_idx
+            ByYear(stor.pcap[stor_idx]) .* stor[stor_idx, mod.name]
+        end
+
+        add_table_col!(data, :storage, pres_name, pres_stor, MWCapacity, "The power reserve capacity used to fill $(mod.name)")
         add_table_col!(data, :storage, rebate_col_name, price_per_mw_per_hr_stor, DollarsPerMWCapacityPerHour, "This is the rebate recieved by storage facilities for each MW for each hour from the $(mod.name) reserve requirement.")
 
         # Make a results formula
@@ -398,15 +400,11 @@ function modify_results!(mod::ReserveRequirement, config, data)
     # Add merchandising surplus if applicable
     if ~isempty(mod.flow_limits_file)
         flow_limits = get_table(data, "$(mod.name)_flow_limits")
-        pflow_forward_max = flow_limits.pflow_forward_max::Vector{Float64}
-        pflow_reverse_max = flow_limits.pflow_reverse_max::Vector{Float64}
-
         pres_flow = get_raw_result(data, Symbol("pres_flow_$(mod.name)"))::Array{Float64, 3}
         # cons_pres_flow_forward = get_raw_result(data, Symbol("cons_pres_flow_forward_$(mod.name)"))
         # cons_pres_flow_reverse = get_raw_result(data, Symbol("cons_pres_flow_reverse_$(mod.name)"))
 
         ms_bus = zeros(nrow(bus), nyr, nhr)
-        ms_subarea = zeros(nrow(requirements), nyr, nhr)
 
         hour_weights = get_hour_weights(data)
         hour_weights_mat = [hour_weights[hr_idx] for yr_idx in 1:nyr, hr_idx in 1:nhr]
@@ -419,6 +417,7 @@ function modify_results!(mod::ReserveRequirement, config, data)
             f_price_per_credit = view(hourly_price_per_credit, f_subarea_idx, :, :)
 
             # Compute merchandising suplus to give to the f subarea and the t subarea
+            # Downstream customers probably paid most of the cost for the transmission capacity to be built, so it is more likely that they would get the revenues from the transmission.
             f_ms = max.(0.0, (f_price_per_credit .- t_price_per_credit) .* flow .* hour_weights_mat)
             t_ms = max.(0.0, (t_price_per_credit .- f_price_per_credit) .* flow .* hour_weights_mat)
 
@@ -428,6 +427,7 @@ function modify_results!(mod::ReserveRequirement, config, data)
             f_bus_pres_req_total = replace_zeros!(sum(view(pres_req_bus, bus_idx, :, :) for bus_idx in f_bus_idxs), 1e-9)
             t_bus_pres_req_total = replace_zeros!(sum(view(pres_req_bus, bus_idx, :, :) for bus_idx in t_bus_idxs), 1e-9)
 
+            # Distribute the total merchandising surplus across all the buses in the subarea
             for bus_idx in f_bus_idxs
                 ms_bus[bus_idx, :, :] .+= (f_ms .* view(pres_req_bus, bus_idx, :, :) ./ f_bus_pres_req_total)
             end

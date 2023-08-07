@@ -551,6 +551,11 @@ function (f::SumHourlyWeighted{2})(data, table, idxs, yr_idxs, hr_idxs)
     hc = data[:hours_container]::HoursContainer
     _sum_hourly(table[!, col1], table[!, col2], hc, idxs, yr_idxs, hr_idxs)
 end
+function (f::SumHourlyWeighted{3})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2,col3 = f.cols
+    hc = data[:hours_container]::HoursContainer
+    _sum_hourly(table[!, col1], table[!, col2], table[!, col3], hc, idxs, yr_idxs, hr_idxs)
+end
 
 
 @doc raw"""
