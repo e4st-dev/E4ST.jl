@@ -48,11 +48,11 @@ makedocs(
         ],
         
     ],
-    # TODO: Comment out format line before deploying, this is only for testing locally
-    format = Documenter.HTML(prettyurls = false)
+    # format = Documenter.HTML(prettyurls = false)
 )
 
 # TODO: Uncomment below to deploy the docs to the github repo!
-# deploydocs(
-#     repo = "https://github.com/e4st-dev/E4ST.jl"
-# )
+deploydocs(
+    repo = "https://github.com/e4st-dev/E4ST.jl",
+    devbranch = "main"
+)
