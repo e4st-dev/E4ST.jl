@@ -11,5 +11,13 @@ mods:
     ref_year_col: "year_on"
     gen_filters:
       nation: "narnia"
+  summer_co2_price:
+    type: "EmissionPrice"
+    emis_col: "emis_co2"
+    prices: 
+      y2035: 1.0
+      y2040: 1.2
+    hour_filters:
+      season: summer
 
 

@@ -23,7 +23,7 @@ get_egen_gen
 ```
 
 ### Model Mutation Functions
-These functions are used to modify the model, specifically creating and adding terms to the objective expression. The Term abstract type is used to determine how the term (cost or benefit) should be added to the objective function.
+These functions are used to modify the model, specifically creating and adding terms to the objective expression. The `Term` abstract type is used to determine how the term (cost or benefit) should be added to the objective function.
 
 ```@docs
 Term

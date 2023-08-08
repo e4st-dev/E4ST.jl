@@ -16,7 +16,7 @@ Base.@kwdef struct GenerationConstraint <: Modification
     max_values::OrderedDict = OrderedDict()
     min_values::OrderedDict = OrderedDict()
     gen_filters::OrderedDict = OrderedDict()
-
+    hour_filters::OrderedDict = OrderedDict()
 end
 export GenerationConstraint
 
@@ -32,14 +32,30 @@ function E4ST.modify_model!(cons::GenerationConstraint, config, data, model)
 
     gen = get_table(data, :gen)
     years = Symbol.(get_years(data))
+    nyr = get_num_years(data)
 
-    #get qualifying gen idxs
+    # Get qualifying gen idxs
     gen_idxs = get_row_idxs(gen, parse_comparisons(cons.gen_filters))
 
-    v = zeros(Bool, nrow(gen))
+    # Get qualifying hour idxs
+    hours = get_table(data, :hours)
+    nhr = get_num_hours(data)
+    hour_idxs = get_row_idxs(hours, parse_comparisons(cons.hour_filters))
+    if length(hour_idxs) < nhr
+        hour_multiplier = ByHour([i in hour_idxs ? 1.0 : 0.0 for i in 1:nhr])
+    else
+        hour_multiplier = ByNothing(1.0)
+    end
+
+
+
+    v = zeros(nrow(gen))
     add_table_col!(data, :gen, cons.name, v, NA,
-        "Boolean value for whether a gen is constrained by $(cons.name)") 
-    gen[gen_idxs, cons.name] .= 1 
+        "Boolean value for whether a gen is constrained by $(cons.name)")
+    to_container!(gen, cons.name)
+    for gen_idx in gen_idxs
+        gen[gen_idx, cons.name] = hour_multiplier
+    end
 
     # get only years from cons.values that are in the sim
     max_years = collect(keys(cons.max_values))
@@ -57,15 +73,34 @@ function E4ST.modify_model!(cons::GenerationConstraint, config, data, model)
 
     if ~isempty(max_years)
         @info "Creating a maximum generation constraint based on $(cons.col) for $(length(gen_idxs)) generators. Constraint name is $(max_cons_name)"
-        model[Symbol(max_cons_name)] = @constraint(model, [y=max_years], 
-            sum(get_egen_gen(data, model, gen_idx, findfirst(==(y), years), hour_idx)*get_table_num(data, :gen, cons.col, gen_idx, findfirst(==(y), years), hour_idx) for gen_idx=gen_idxs, hour_idx=1:nhours) <= cons.max_values[y]) #TODO: make it so that emis can be indexed by hour 
+        model[Symbol(max_cons_name)] = @constraint(model, 
+            [
+                yr_idx in 1:nyr;
+                years[yr_idx] in max_years
+            ], 
+            sum(
+                get_egen_gen(data, model, gen_idx, yr_idx, hour_idx) * 
+                get_table_num(data, :gen, cons.name, gen_idx, yr_idx, hour_idx) *
+                get_table_num(data, :gen, cons.col, gen_idx, yr_idx, hour_idx)
+                for gen_idx=gen_idxs, hour_idx=1:nhours
+            ) <= cons.max_values[years[yr_idx]]
+        )
     end
 
     if ~isempty(min_years)
-        @info "Creating a miminum generation constraint based on $(cons.col) for $(length(gen_idxs)) generators. Constraint name is $(min_cons_name)"
-        model[Symbol(min_cons_name)] = @constraint(model, [y=min_years], 
-            sum(get_egen_gen(data, model, gen_idx, findfirst(==(y), years), hour_idx)*get_table_num(data, :gen, cons.col, gen_idx, findfirst(==(y), years), hour_idx) for gen_idx=gen_idxs, hour_idx=1:nhours) >= cons.min_values[y])  #TODO: make it so that emis can be indexed by hour 
+        @info "Creating a minimum generation constraint based on $(cons.col) for $(length(gen_idxs)) generators. Constraint name is $(min_cons_name)"
+        model[Symbol(min_cons_name)] = @constraint(model, 
+            [
+                yr_idx in 1:nyr;
+                years[yr_idx] in min_years
+            ], 
+            sum(
+                get_egen_gen(data, model, gen_idx, yr_idx, hour_idx) * 
+                get_table_num(data, :gen, cons.name, gen_idx, yr_idx, hour_idx) *
+                get_table_num(data, :gen, cons.col, gen_idx, yr_idx, hour_idx)
+                for gen_idx=gen_idxs, hour_idx=1:nhours
+            ) >= cons.min_values[years[yr_idx]]
+        )
     end
-
 end
 

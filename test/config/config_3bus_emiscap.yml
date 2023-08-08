@@ -8,5 +8,12 @@ mods:
       y2040: 3000
     gen_filters:
       nation: "[narnia, archenland]"
+  example_summer_emiscap:
+    type: "EmissionCap"
+    emis_col: "emis_co2"
+    targets: 
+      y2030: 1000
+    hour_filters:
+      season: "summer"
 
 

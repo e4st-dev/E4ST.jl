@@ -85,9 +85,17 @@ function modify_model!(mod::InterfaceLimit, config, data, model)
 
     @expression(model,
         pflow_if[if_idx in axes(table, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
-        sum0(branch_idx -> pflow_branch[branch_idx, yr_idx, hr_idx], table.forward_branch_idxs[if_idx]) - 
-        sum0(branch_idx -> pflow_branch[branch_idx, yr_idx, hr_idx], table.reverse_branch_idxs[if_idx])
+        AffExpr(0.0)
     )
+
+    for if_idx in axes(table, 1), yr_idx in 1:nyr, hr_idx in 1:nhr
+        for branch_idx in table.forward_branch_idxs[if_idx]
+            add_to_expression!(pflow_if[if_idx, yr_idx, hr_idx], pflow_branch[branch_idx, yr_idx, hr_idx])
+        end
+        for branch_idx in table.reverse_branch_idxs[if_idx]
+            add_to_expression!(pflow_if[if_idx], pflow_branch[branch_idx, yr_idx, hr_idx], -1)
+        end
+    end
     
     # Add DC line flow to expression where relevant.
     if hasproperty(table, :include_dc) && any(table.include_dc) && has_table(data, :dc_line) && haskey(model, :pflow_dc)
@@ -174,6 +182,73 @@ function modify_model!(mod::InterfaceLimit, config, data, model)
         )
         add_obj_exp!(data, model, PerMWhFlow(), :interface_flow_cost_obj, oper=+)
     end
+end
+
+function modify_results!(mod::InterfaceLimit, config, data)
+    @info "Modifying results for InterfaceLimit mod"
+    pflow_if = get_raw_result(data, :pflow_if)::Array{Float64, 3}
+    eflow_if = weight_hourly(data, pflow_if)
+    table = get_table(data, :interface_limit)
+
+    add_table_col!(data, :interface_limit, :pflow, pflow_if, MWFlow, "MW of power flowing from `f` to `t` in each hour.")
+    add_table_col!(data, :interface_limit, :eflow, eflow_if, MWhFlow, "MWh of power flowing from `f` to `t` in each weighted representative hour.")
+    add_results_formula!(data, :interface_limit, :pflow_if_max, "MaxHourly(pflow)", MWFlow, "Maximum net hourly directional flow")
+    add_results_formula!(data, :interface_limit, :pflow_if_min, "MinHourly(pflow)", MWFlow, "Minimum net hourly directional flow")
+    add_results_formula!(data, :interface_limit, :pflow_if_avg, "AverageHourly(pflow)", MWFlow, "Average net hourly directional flow")
+    add_results_formula!(data, :interface_limit, :eflow_if_total, "SumHourlyWeighted(pflow)", MWhFlow, "Total net MWh of energy flow across the interface")
+    add_results_formula!(data, :interface_limit, :pflow_line_max, "MaxSingleLineHourly()", MWFlow, "Maximum net hourly directional flow for a single line")
+
+    if hasproperty(table, :price)
+        cost = table.price .* table.eflow
+        add_table_col!(data, :interface_limit, :interface_limit_cost, cost, Dollars, "Cost on the net flow of electricity from `f` to `t` in each representative hour, from an explicitly specified price.")
+    end
+
+    # Do we need shadow price costs from the max/min pflow/eflow constraints?  Maybe eventually, but will hold off for now.
+
+
+end
+
+@doc raw"""
+    MaxSingleLineHourly(cols...) <: Function
+
+This function is made specially for the InterfaceLimit Modification, calculating the maximum single line's power flow
+
+```math
+\max_{y \in \text{yr\_idxs}, h \in \text{hr\_idxs}} \sum_{i \in \text{idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
+```
+"""
+struct MaxSingleLineHourly <: Function
+end
+export MaxSingleLineHourly
+
+function (f::MaxSingleLineHourly)(data, table, idxs, yr_idxs, hr_idxs)
+    pflow_branch = get_raw_result(data, :pflow_branch)::Array{Float64, 3}
+    forward_branch_idxs = table.forward_branch_idxs::Vector{Vector{Int64}}
+    reverse_branch_idxs = table.reverse_branch_idxs::Vector{Vector{Int64}}
+
+    m = -Inf
+    for i in idxs
+        if ~isempty(forward_branch_idxs[i])
+            m = max(m, maximum(view(pflow_branch, forward_branch_idxs[i], yr_idxs, hr_idxs)))
+        end
+        if ~isempty(reverse_branch_idxs[i])
+            m = max(m,-minimum(view(pflow_branch, reverse_branch_idxs[i], yr_idxs, hr_idxs)))
+        end
+    end
+    if hasproperty(table, :forward_dc_idxs)
+        pflow_dc = get_raw_result(data, :pflow_dc)::Array{Float64, 3}
+        forward_dc_idxs = table.forward_dc_idxs::Vector{Vector{Int64}}
+        reverse_dc_idxs = table.reverse_dc_idxs::Vector{Vector{Int64}}
+        for i in idxs
+            if ~isempty(forward_dc_idxs[i])
+                m = max(m, maximum(view(pflow_dc, forward_dc_idxs[i], yr_idxs, hr_idxs)))
+            end
+            if ~isempty(reverse_dc_idxs[i])
+                m = max(m,-minimum(view(pflow_dc, reverse_dc_idxs[i], yr_idxs, hr_idxs)))
+            end
+        end
+    end
+    return m
 end
 
 struct PerMWhFlow <: Term end

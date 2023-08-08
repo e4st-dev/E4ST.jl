@@ -56,6 +56,7 @@ struct MWLoad <: Unit end; export MWLoad
 struct MWCurtailed <: Unit end; export MWCurtailed
 struct MWCharged <: Unit end; export MWCharged
 struct MWDischarged <: Unit end; export MWDischarged
+struct MWReserve <: Unit end; export MWReserve
 struct MMBtu <: Unit end; export MMBtu
 
 
