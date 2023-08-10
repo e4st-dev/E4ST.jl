@@ -48,7 +48,11 @@ makedocs(
         ],
         
     ],
-    # format = Documenter.HTML(prettyurls = false)
+    # TODO: Comment out format line before deploying, this is only for testing locally
+    format = Documenter.HTML(
+        assets = ["assets/favicon.ico"],
+        prettyurls = false
+    )
 )
 
 # TODO: Uncomment below to deploy the docs to the github repo!
