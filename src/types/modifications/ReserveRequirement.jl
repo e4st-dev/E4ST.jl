@@ -63,7 +63,7 @@ $(table2markdown(summarize_table(Val(:reserve_requirements))))
 function summarize_table(::Val{:reserve_requirements})
     df = TableSummary()
     push!(df, 
-        (:subarea, AbstractString, NA, true, "The subarea that the requirement is specified over"),
+        (:subarea, Any, NA, true, "The subarea that the requirement is specified over"),
         (:y_, Float64, Ratio, true, "The percent requirement of reserve capacity over the load.  Include a column for each year in the hours table.  I.e. `:y2020`, `:y2030`, etc"),
     )
     return df
@@ -90,7 +90,14 @@ function modify_raw_data!(mod::ReserveRequirement, config, data)
     name = mod.name
     data[Symbol("$(name)_requirements")]    = read_table(data, mod.requirements_file, :reserve_requirements)
     if ~isempty(mod.flow_limits_file)
-        data[Symbol("$(name)_flow_limits")] = read_table(data, mod.flow_limits_file, :reserve_flow_limits)
+        flow_limits = read_table(data, mod.flow_limits_file, :reserve_flow_limits)
+        data[Symbol("$(name)_flow_limits")] = flow_limits
+
+        n_wrong = count(row->row.pflow_forward_max+row.pflow_reverse_max < 0, eachrow(flow_limits))
+        if n_wrong > 0
+            @warn "$n_wrong reserve power flow limits given where pflow_forward_max > -pflow_reverse_max, removing these limits to avoid model infeasibility!"
+            filter!(row->row.pflow_forward_max + row.pflow_reverse_max >= 0, flow_limits)
+        end
     end
     return nothing
 end
@@ -401,8 +408,6 @@ function modify_results!(mod::ReserveRequirement, config, data)
     if ~isempty(mod.flow_limits_file)
         flow_limits = get_table(data, "$(mod.name)_flow_limits")
         pres_flow = get_raw_result(data, Symbol("pres_flow_$(mod.name)"))::Array{Float64, 3}
-        # cons_pres_flow_forward = get_raw_result(data, Symbol("cons_pres_flow_forward_$(mod.name)"))
-        # cons_pres_flow_reverse = get_raw_result(data, Symbol("cons_pres_flow_reverse_$(mod.name)"))
 
         ms_bus = zeros(nrow(bus), nyr, nhr)
 
