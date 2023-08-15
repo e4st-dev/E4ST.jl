@@ -12,8 +12,8 @@ Keyword arguments:
 * `requirements_file` - a table with the subareas and the percent requirement of power capacity above the load.  See [`summarize_table(::Val{:reserve_requirements})`](@ref)
 * `flow_limits_file` - (optional) a table with positive and negative flow limits from each subarea to each other subarea.  See [`summarize_table(::Val{:reserve_flow_limits})`](@ref).  If none provided, it is assumed that no flow is permitted between regions.
 * `load_type` - a `String` for what type of load to base the requirement off of.  Can be either: 
-  * `plserv` - (default), served load power.
-  * `plnom` - nominal load power.
+    * `plnom` - (default), nominal load power.
+    * `plserv` - served load power.
 
 Model Modification:
 * Variables
@@ -47,7 +47,7 @@ struct ReserveRequirement <: Modification
             credit_stor = StandardStorageReserveCrediting(),
             requirements_file,
             flow_limits_file="",
-            load_type = "plserv"
+            load_type = "plnom"
         )
         return new(Symbol(name), area, Crediting(credit_gen), Crediting(credit_stor), requirements_file, flow_limits_file, load_type)
     end
@@ -183,18 +183,21 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
     for req_idx in axes(requirements,1)
         for bus_idx in requirements.bus_idx_sets[req_idx]
             for (yr_idx, year) in enumerate(years_sym)
-                bus_yr_idx_2_req[bus_idx, yr_idx] = get(requirements[req_idx,:], year, -1.0)
+                plmax = maximum(get_plnom(data, bus_idx, yr_idx, hr_idx) for hr_idx in 1:nhr)
+                bus_yr_idx_2_req[bus_idx, yr_idx] = plmax * get(requirements[req_idx,:], year, -0.0)
             end
         end
     end
 
-    
+    # Make a nbusxnyear matrix containing the annual peak load for the year
+    bus_yr_idx_2_plmax = [maximum(get_plnom(data, bus_idx, yr_idx, hr_idx) for hr_idx in 1:nhr) for bus_idx in axes(bus,1), yr_idx in 1:nyr]
+
     # Set up the expression for the reserve requirement contribution from each bus.  This is used for welfare accounting
     if mod.load_type == "plnom"
         pres_req = @expression(
             model,
             [bus_idx in axes(bus, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
-            (1 + bus_yr_idx_2_req[bus_idx, yr_idx]) * get_plnom(data, bus_idx, yr_idx, hr_idx)
+            bus_yr_idx_2_req[bus_idx, yr_idx] == 0.0 ? 0.0 : get_plnom(data, bus_idx, yr_idx, hr_idx) + bus_yr_idx_2_req[bus_idx, yr_idx]
         )
 
         
@@ -202,7 +205,7 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
         pres_req = @expression(
             model,
             [bus_idx in axes(bus, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
-            (1 + bus_yr_idx_2_req[bus_idx, yr_idx]) * plserv_bus[bus_idx, yr_idx, hr_idx]
+            bus_yr_idx_2_req[bus_idx, yr_idx] == 0.0 ? 0.0 : plserv_bus[bus_idx, yr_idx, hr_idx] + bus_yr_idx_2_req[bus_idx, yr_idx]
         )
     end
 
