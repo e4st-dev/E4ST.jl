@@ -258,7 +258,7 @@ function compute_result(data, table_name, result_name, idxs=(:), yr_idxs=(:), hr
 
     if res_formula.isderived === false
         fn = res_formula.fn
-        return (fn(data, table, _idxs, _yr_idxs, _hr_idxs) |> zeroifnan)::Float64
+        return fn(data, table, _idxs, _yr_idxs, _hr_idxs)::Float64
     else
         # Recursive
         dep_cols = res_formula.dependent_columns
@@ -267,7 +267,7 @@ function compute_result(data, table_name, result_name, idxs=(:), yr_idxs=(:), hr
         d = DictWrapper(
             col=>compute_result(data, table_name, col, _idxs, _yr_idxs, _hr_idxs) for col in dep_cols
         )
-        return (fn(d) |> zeroifnan)::Float64
+        return fn(d)::Float64
     end
 end
 export compute_result
@@ -288,7 +288,7 @@ function compute_results!(df, data, table_name, result_name, idx_sets, year_idx_
     if res_formula.isderived === false
         fn = res_formula.fn
         res = [
-            (fn(data, table, idxs, yr_idxs, hr_idxs) |> zeroifnan)::Float64
+            fn(data, table, idxs, yr_idxs, hr_idxs)::Float64
             for idxs in idx_sets for yr_idxs in year_idx_sets for hr_idxs in hour_idx_sets
         ]
         
