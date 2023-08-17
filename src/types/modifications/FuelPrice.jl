@@ -20,6 +20,8 @@ Base.@kwdef struct FuelPrice <: Modification
 end
 export FuelPrice
 
+mod_rank(m::FuelPrice) = 0.0
+
 @doc """
     summarize_table(::Val{:fuel_price})
 

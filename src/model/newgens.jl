@@ -61,7 +61,7 @@ function make_newgens!(config, data, newgen)
     ) #this needs to be updated if there is anything else in gen that isn't a spec
 
     for n in spec_names
-        hasproperty(build_gen, n) || error("Gen table has column $n, but not found in build_gen table.")
+        hasproperty(build_gen, n) || error("Gen table has column $n, but not found in build_gen table. If this is a mod specific column, consider adding it to build_gen using modify_raw_data!()")
     end
 
     for spec_row in eachrow(build_gen)
