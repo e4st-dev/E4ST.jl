@@ -12,8 +12,8 @@ Keyword arguments:
 * `requirements_file` - a table with the subareas and the percent requirement of power capacity above the load.  See [`summarize_table(::Val{:reserve_requirements})`](@ref)
 * `flow_limits_file` - (optional) a table with positive and negative flow limits from each subarea to each other subarea.  See [`summarize_table(::Val{:reserve_flow_limits})`](@ref).  If none provided, it is assumed that no flow is permitted between regions.
 * `load_type` - a `String` for what type of load to base the requirement off of.  Can be either: 
-  * `plserv` - (default), served load power.
-  * `plnom` - nominal load power.
+    * `plnom` - (default), nominal load power.
+    * `plserv` - served load power.
 
 Model Modification:
 * Variables
@@ -47,7 +47,7 @@ struct ReserveRequirement <: Modification
             credit_stor = StandardStorageReserveCrediting(),
             requirements_file,
             flow_limits_file="",
-            load_type = "plserv"
+            load_type = "plnom"
         )
         return new(Symbol(name), area, Crediting(credit_gen), Crediting(credit_stor), requirements_file, flow_limits_file, load_type)
     end
@@ -63,7 +63,7 @@ $(table2markdown(summarize_table(Val(:reserve_requirements))))
 function summarize_table(::Val{:reserve_requirements})
     df = TableSummary()
     push!(df, 
-        (:subarea, AbstractString, NA, true, "The subarea that the requirement is specified over"),
+        (:subarea, Any, NA, true, "The subarea that the requirement is specified over"),
         (:y_, Float64, Ratio, true, "The percent requirement of reserve capacity over the load.  Include a column for each year in the hours table.  I.e. `:y2020`, `:y2030`, etc"),
     )
     return df
@@ -90,7 +90,14 @@ function modify_raw_data!(mod::ReserveRequirement, config, data)
     name = mod.name
     data[Symbol("$(name)_requirements")]    = read_table(data, mod.requirements_file, :reserve_requirements)
     if ~isempty(mod.flow_limits_file)
-        data[Symbol("$(name)_flow_limits")] = read_table(data, mod.flow_limits_file, :reserve_flow_limits)
+        flow_limits = read_table(data, mod.flow_limits_file, :reserve_flow_limits)
+        data[Symbol("$(name)_flow_limits")] = flow_limits
+
+        n_wrong = count(row->row.pflow_forward_max+row.pflow_reverse_max < 0, eachrow(flow_limits))
+        if n_wrong > 0
+            @warn "$n_wrong reserve power flow limits given where pflow_forward_max > -pflow_reverse_max, removing these limits to avoid model infeasibility!"
+            filter!(row->row.pflow_forward_max + row.pflow_reverse_max >= 0, flow_limits)
+        end
     end
     return nothing
 end
@@ -176,18 +183,21 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
     for req_idx in axes(requirements,1)
         for bus_idx in requirements.bus_idx_sets[req_idx]
             for (yr_idx, year) in enumerate(years_sym)
-                bus_yr_idx_2_req[bus_idx, yr_idx] = get(requirements[req_idx,:], year, -1.0)
+                plmax = maximum(get_plnom(data, bus_idx, yr_idx, hr_idx) for hr_idx in 1:nhr)
+                bus_yr_idx_2_req[bus_idx, yr_idx] = plmax * get(requirements[req_idx,:], year, -0.0)
             end
         end
     end
 
-    
+    # Make a nbusxnyear matrix containing the annual peak load for the year
+    bus_yr_idx_2_plmax = [maximum(get_plnom(data, bus_idx, yr_idx, hr_idx) for hr_idx in 1:nhr) for bus_idx in axes(bus,1), yr_idx in 1:nyr]
+
     # Set up the expression for the reserve requirement contribution from each bus.  This is used for welfare accounting
     if mod.load_type == "plnom"
         pres_req = @expression(
             model,
             [bus_idx in axes(bus, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
-            (1 + bus_yr_idx_2_req[bus_idx, yr_idx]) * get_plnom(data, bus_idx, yr_idx, hr_idx)
+            bus_yr_idx_2_req[bus_idx, yr_idx] == 0.0 ? 0.0 : get_plnom(data, bus_idx, yr_idx, hr_idx) + bus_yr_idx_2_req[bus_idx, yr_idx]
         )
 
         
@@ -195,7 +205,7 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
         pres_req = @expression(
             model,
             [bus_idx in axes(bus, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
-            (1 + bus_yr_idx_2_req[bus_idx, yr_idx]) * plserv_bus[bus_idx, yr_idx, hr_idx]
+            bus_yr_idx_2_req[bus_idx, yr_idx] == 0.0 ? 0.0 : plserv_bus[bus_idx, yr_idx, hr_idx] + bus_yr_idx_2_req[bus_idx, yr_idx]
         )
     end
 
@@ -401,8 +411,6 @@ function modify_results!(mod::ReserveRequirement, config, data)
     if ~isempty(mod.flow_limits_file)
         flow_limits = get_table(data, "$(mod.name)_flow_limits")
         pres_flow = get_raw_result(data, Symbol("pres_flow_$(mod.name)"))::Array{Float64, 3}
-        # cons_pres_flow_forward = get_raw_result(data, Symbol("cons_pres_flow_forward_$(mod.name)"))
-        # cons_pres_flow_reverse = get_raw_result(data, Symbol("cons_pres_flow_reverse_$(mod.name)"))
 
         ms_bus = zeros(nrow(bus), nyr, nhr)
 

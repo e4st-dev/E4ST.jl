@@ -93,7 +93,7 @@ function modify_model!(mod::InterfaceLimit, config, data, model)
             add_to_expression!(pflow_if[if_idx, yr_idx, hr_idx], pflow_branch[branch_idx, yr_idx, hr_idx])
         end
         for branch_idx in table.reverse_branch_idxs[if_idx]
-            add_to_expression!(pflow_if[if_idx], pflow_branch[branch_idx, yr_idx, hr_idx], -1)
+            add_to_expression!(pflow_if[if_idx, yr_idx, hr_idx], pflow_branch[branch_idx, yr_idx, hr_idx], -1)
         end
     end
     
