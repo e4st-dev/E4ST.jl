@@ -162,7 +162,7 @@ function _ResultsFunction(s::String)
     fn = _Func(s)
     _ResultsFunction{fn}()
 end
-(::_ResultsFunction{F})(args...) where F = F(args...)
+(::_ResultsFunction{F})(args...) where F = zeroifnan(F(args...))
 
 struct Op{F, A} <: Function end
 struct Args{A1, A2} <: Function end
@@ -242,6 +242,8 @@ export get_results_formula
 Computes result `result_name` for table `table_name` for table indexes `idxs`, year indexes `yr_idxs` and hour indexes `hr_idxs`.  See [`add_results_formula!`](@ref) to add other results formulas for computing results.
 
 Note that this will recursively compute results for any derived result, as needed.
+
+If any result is computed to be `NaN`, returns `0.0` instead, so that the NaN does not "infect" other results.
 """
 function compute_result(data, table_name, result_name, idxs=(:), yr_idxs=(:), hr_idxs=(:))
     table = get_table(data, table_name)
@@ -256,7 +258,7 @@ function compute_result(data, table_name, result_name, idxs=(:), yr_idxs=(:), hr
 
     if res_formula.isderived === false
         fn = res_formula.fn
-        return fn(data, table, _idxs, _yr_idxs, _hr_idxs)::Float64
+        return (fn(data, table, _idxs, _yr_idxs, _hr_idxs) |> zeroifnan)::Float64
     else
         # Recursive
         dep_cols = res_formula.dependent_columns
@@ -265,7 +267,7 @@ function compute_result(data, table_name, result_name, idxs=(:), yr_idxs=(:), hr
         d = DictWrapper(
             col=>compute_result(data, table_name, col, _idxs, _yr_idxs, _hr_idxs) for col in dep_cols
         )
-        return fn(d)::Float64
+        return (fn(d) |> zeroifnan)::Float64
     end
 end
 export compute_result
@@ -286,7 +288,7 @@ function compute_results!(df, data, table_name, result_name, idx_sets, year_idx_
     if res_formula.isderived === false
         fn = res_formula.fn
         res = [
-            fn(data, table, idxs, yr_idxs, hr_idxs)::Float64
+            (fn(data, table, idxs, yr_idxs, hr_idxs) |> zeroifnan)::Float64
             for idxs in idx_sets for yr_idxs in year_idx_sets for hr_idxs in hour_idx_sets
         ]
         

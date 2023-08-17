@@ -285,9 +285,9 @@ function comparison(value, ::Type)
 end
 
 """
-    parse_comparison(table, s) -> comp
+    parse_comparison(s) -> comp
 
-Parses the string, `s` for a comparison with which to filter `table`.
+Parses the string, `s` for a comparison with which to filter a table.
 
 Possible examples of strings `s` to parse:
 * `"nation=>narnia"` - All rows for which row.nation=="narnia"
@@ -348,6 +348,7 @@ export parse_comparison
     parse_comparisons(row::DataFrameRow) -> pairs
 
 Returns a set of pairs to be used in filtering rows of another table.  Looks for the following properties in the row:
+* `area, subarea` - if the row has a non-empty area and subarea, it will parse the comparison `row.area=>row.subarea`
 * `filter_` - if the row has any non-empty `filter_` (i.e. `filter1`, `filter2`) values, it will parse the comparison via [`parse_comparison`](@ref)
 * `genfuel` - if the row has a non-empty `genfuel`, it will add an comparion that checks that each row's `genfuel` equals this value
 * `gentype` - if the row has a non-empty `gentype`, it will add an comparion that checks that each row's `gentype` equals this value
@@ -582,6 +583,11 @@ function replace_zeros!(v, x)
     return v
 end
 export replace_zeros!
+
+function zeroifnan(x::T) where {T <: Number}
+    isnan(x) ? zero(T) : x
+end
+zeroifnan(v::Vector{T}) where {T<:Number} = replace_nans!(v, zero(T))
 
 
 function table2markdown(df::DataFrame)
