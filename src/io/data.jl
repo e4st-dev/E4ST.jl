@@ -334,7 +334,7 @@ export read_voll!
 """
     read_num_params!(config, data) -> 
 
-Any parameter specified as a numeric in the config will be added to `data`. This is so that parameters with a single value (i.e. VOLL, ng_ch4_fuel_content) can be tracked and accessed easily in data. 
+Any parameter specified as a numeric in the config will be added to `data`. This is so that parameters with a single value (i.e. VOLL, ng_upstream_ch4_leakage) can be tracked and accessed easily in data. 
 """
 function read_num_params!(config, data)
     for (k,v) in config
