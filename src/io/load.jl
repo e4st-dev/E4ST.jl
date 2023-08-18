@@ -41,9 +41,9 @@ Shapes the hourly load to match profiles given in `config[:load_shape_file]`.  S
 Load power often changes on an hourly basis. The `load_shape_table` allows the user to provide hourly load profiles with which to scale the base load power for load regions, types, or even specific load elements.  Each row of the table represents a set of load elements, and the hourly load profile with which to scale them.  For load elements that fall in multiple sets, the hourly load will be scaled by each profile, in order.
 """
 function shape_nominal_load!(config, data)
-    load_shape_table = data[:load_shape]
+    load_shape_table = get_table(data, :load_shape)
     bus_table = get_table(data, :bus)
-    nominal_load = data[:nominal_load]
+    nominal_load = get_table(data, :nominal_load)
     load_arr = get_load_array(data)
     
     # Grab the hour index for later use
@@ -77,9 +77,9 @@ function shape_nominal_load!(config, data)
 
     # Loop through each row in the load_shape_table
     for (i, row) in enumerate(eachrow(load_shape_table))
-        shape = Float64[row[i_hr] for i_hr in hr_idx:(hr_idx + nhr - 1)]
-
         get(row, :status, true) || continue
+
+        shape = Float64[row[i_hr] for i_hr in hr_idx:(hr_idx + nhr - 1)]
 
         if !hasproperty(row, :year) || isempty(row.year)
             yr_idx = 1:get_num_years(data)

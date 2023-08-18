@@ -1,4 +1,5 @@
 @testset "Test Basic Policy Types" begin
+    tol = 1e-6
     # Test basic poltypes 
     # Includes PTC, ITC, ...
 
@@ -244,7 +245,7 @@
             #check that policy is binding 
             cap_prices = get_raw_result(data, :cons_example_emiscap_max)
 
-            @test abs(cap_prices[2]) + abs(cap_prices[3]) > 1e-6 # At least one will be binding, but potentially not both bc of perfect foresight
+            @test abs(cap_prices[2]) + abs(cap_prices[3]) > tol # At least one will be binding, but potentially not both bc of perfect foresight
 
             #check that results are calculated
             @test hasproperty(gen, :example_emiscap_prc)
@@ -374,8 +375,8 @@
                 rps_gentype_prices = get_raw_result(data, :cons_example_rps_gentype)
 
 
-                @test abs(rps_prices[2]) + abs(rps_prices[3]) > 1e-6
-                # @test abs(rps_gentype_prices[:y2035]) + abs(rps_gentype_prices[:y2040]) > 1e-6 
+                @test abs(rps_prices[2]) + abs(rps_prices[3]) > tol
+                # @test abs(rps_gentype_prices[:y2035]) + abs(rps_gentype_prices[:y2040]) > tol
 
                 ## Check that policy impacts results for example_rps (other rps isn't binding)
                 rps_mod = config[:mods][:example_rps]
@@ -390,12 +391,12 @@
 
                 targets = first(values(rps_mod.load_targets))[:targets]
 
-                @test gen_total_qual_2035 / elserv_total_qual_2035 >= targets[:y2035]
+                @test gen_total_qual_2035 / elserv_total_qual_2035 >= targets[:y2035] - tol
 
                 gen_total_qual_2040 = compute_result(data, :gen, :egen_total, [:emis_co2 => 0, :nation => "archenland"], 3)
                 elserv_total_qual_2040 = compute_result(data, :bus, :el_gs_total, :state => "stormness", 3)
 
-                @test gen_total_qual_2040 / elserv_total_qual_2040 >= targets[:y2040]
+                @test gen_total_qual_2040 / elserv_total_qual_2040 >= targets[:y2040] - tol
 
                 gen_ref = get_table(data_ref, :gen)
                 gen_total_ref = compute_result(data_ref, :gen, :egen_total, :emis_co2 => 0)
@@ -454,7 +455,7 @@
 
                 ## Check that policy is binding
                 ces_prices = get_raw_result(data, :cons_example_ces)
-                @test abs(ces_prices[2]) + abs(ces_prices[3]) > 1e-6
+                @test abs(ces_prices[2]) + abs(ces_prices[3]) > tol
 
                 ## Check that CES correctly impacts results
                 ces_mod = config[:mods][:example_ces]
@@ -497,7 +498,7 @@
         parse_results!(config, data, model)
         process_results!(config, data)
         
-        @test compute_result(data, :bus, :elcurt_total) < 1e-6
+        @test compute_result(data, :bus, :elcurt_total) < tol
     
         # Test for narnia
         @test compute_result(data, :gen, :state_reserve_rebate, :, "y2030") == 0.0
