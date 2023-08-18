@@ -479,7 +479,7 @@ function scale_hourly!(ar::AbstractArray{Float64}, shape, yr_idxs)
     return nothing
 end
 function scale_hourly!(ar::AbstractArray{Float64}, shape::AbstractVector{Float64}, idxs::Int64...)
-    view(ar, idxs..., :) .+= shape
+    view(ar, idxs..., :) .*= shape
     return nothing
 end
 
