@@ -72,6 +72,9 @@
             for (table_name, result_name) in keys(results_formulas)
                 @test compute_result(data, table_name, result_name) isa Float64
             end
+
+            # Test that NaN values turn to zero
+            @test compute_result(data, :gen, :vom_per_mwh, :genfuel=>"not a real genfuel so that generation is zero") == 0.0
         end
         
         @testset "Test gen_idx filters" begin
@@ -188,6 +191,8 @@
             @test isfile(get_out_path(config, "$name.csv"))
             results = get_results(data)
             @test haskey(results, name)
+            table = get_result(data, name)
+            @test table[end, :filter1] |> contains("=>")
         end
 
         @testset "Test YearlyTable" begin
