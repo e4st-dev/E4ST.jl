@@ -38,6 +38,7 @@ makedocs(
             "Arbitrary Temporal Adjustments" => "types/modifications/adjust.md",
             "Endogenous Fuel Prices" => "types/modifications/fuel-price.md",
             "Reserve Requirements" => "types/modifications/reserve-requirement.md",
+            "Annual Capacity Factor Limit" => "types/modifications/annual-cf-lim.md",
         ],
         "Technologies"=>Any[
             "CO₂ Capture, Utilization & Storage"=>"types/modifications/ccus.md",
