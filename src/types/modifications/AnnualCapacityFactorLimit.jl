@@ -31,7 +31,7 @@ function summarize_table(::Val{:annual_cf_lim})
         (:area, AbstractString, NA, false, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, AbstractString, NA, false, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),    
         (:filter_, String, NA, false, "There can be multiple filter conditions - `filter1`, `filter2`, etc.  It denotes a comparison used for selecting the table rows to apply the adjustment to.  See `parse_comparison` for examples"),
-        (:status, Bool, NA, false, "Whether or not to use this adjustment"),
+        (:status, Bool, NA, false, "Whether or not to use this limit"),
         (:annual_cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum annual capacity factor ∈ [0,1]"),
         (:annual_cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum annual capacity factor ∈ [0,1]"),
     )
@@ -47,6 +47,7 @@ end
 
 function modify_model!(m::AnnualCapacityFactorLimit, config, data, model)
     table = get_table(data, m.name)
+    hasproperty(table, :status) && filter!(:status=> ==(true), table)
     gen = get_table(data, :gen)
     pcap = model[:pcap_gen]::Array{VariableRef,2} # ngen x nyr
     pgen = model[:pgen_gen]::Array{VariableRef,3} # ngen x nyr x nhr
