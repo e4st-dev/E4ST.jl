@@ -79,7 +79,7 @@ Base.@kwdef struct Adjust{T} <: Modification
     file::String
 end
 
-mod_rank(::Type{<: Adjust}) = -2.0
+mod_rank(::Type{<:Adjust}) = -2.0
 """
     AdjustHourly(;file, name)
 
