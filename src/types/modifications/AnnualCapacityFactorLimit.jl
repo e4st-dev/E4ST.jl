@@ -32,8 +32,8 @@ function summarize_table(::Val{:annual_cf_lim})
         (:subarea, AbstractString, NA, false, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),    
         (:filter_, String, NA, false, "There can be multiple filter conditions - `filter1`, `filter2`, etc.  It denotes a comparison used for selecting the table rows to apply the adjustment to.  See `parse_comparison` for examples"),
         (:status, Bool, NA, false, "Whether or not to use this limit"),
-        (:annual_cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum annual capacity factor ∈ [0,1]"),
-        (:annual_cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum annual capacity factor ∈ [0,1]"),
+        (:annual_cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum annual capacity factor ∈ (0,1].  If outside these bounds, not set.  Be very careful - easy to make model infeasible if contradictory to availability factors."),
+        (:annual_cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum annual capacity factor ∈ [0,1).  If outside these bounds, not set."),
     )
     return df
 end
@@ -85,7 +85,7 @@ function modify_model!(m::AnnualCapacityFactorLimit, config, data, model)
                 row_idx in axes(table,1),
                 gen_idx in gen_idx_sets[row_idx],
                 yr_idx in 1:nyr;
-                annual_cf_min[row_idx] > 0 # Only set it if the min is > 0.
+                annual_cf_min[row_idx] > 0 && annual_cf_min[row_idx] <= 1
             ],
             egen_gen_annual[gen_idx, yr_idx] >= pcap[gen_idx] * hrs_per_yr * annual_cf_min[row_idx]
         )
@@ -100,7 +100,7 @@ function modify_model!(m::AnnualCapacityFactorLimit, config, data, model)
                 row_idx in axes(table,1),
                 gen_idx in gen_idx_sets[row_idx],
                 yr_idx in 1:nyr;
-                annual_cf_max[row_idx] < 1 # Only set it if the max is < 1.
+                annual_cf_max[row_idx] >= 0 && annual_cf_max[row_idx] < 1
             ],
             egen_gen_annual[gen_idx, yr_idx] <= pcap[gen_idx] * hrs_per_yr * annual_cf_max[row_idx]
         )
