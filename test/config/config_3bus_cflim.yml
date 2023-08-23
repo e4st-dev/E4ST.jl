@@ -1,0 +1,4 @@
+mods:
+  annual_cf_lim_ng:
+    type: AnnualCapacityFactorLimit
+    file: ../data/3bus/annual_cf_lim.csv

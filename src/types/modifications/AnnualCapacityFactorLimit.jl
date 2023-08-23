@@ -61,7 +61,9 @@ function modify_model!(m::AnnualCapacityFactorLimit, config, data, model)
     end
     table.gen_idx_sets = gen_idx_sets
 
-    egen_gen_annual = get(model, :egen_gen_annual) do
+    if haskey(model, :egen_gen_annual)
+        egen_gen_annual = model[:egen_gen_annual]::Matrix{AffExpr}
+    else
         @expression(
             model,
             egen_gen_annual[
@@ -70,7 +72,7 @@ function modify_model!(m::AnnualCapacityFactorLimit, config, data, model)
             ],
             sum(hr_idx -> (hour_weights[hr_idx] * pgen[gen_idx, yr_idx, hr_idx]), 1:nhr)
         )
-    end::Matrix{AffExpr}
+    end
 
 
     # Set the min annual capacity limit, if applicable.
@@ -83,7 +85,7 @@ function modify_model!(m::AnnualCapacityFactorLimit, config, data, model)
                 gen_idx in gen_idx_sets[row_idx],
                 yr_idx in 1:nyr;
                 annual_cf_min[row_idx] > 0 # Only set it if the min is > 0.
-            ]
+            ],
             egen_gen_annual[gen_idx, yr_idx] >= pcap[gen_idx] * hrs_per_yr * annual_cf_min[row_idx]
         )
     end
@@ -98,7 +100,7 @@ function modify_model!(m::AnnualCapacityFactorLimit, config, data, model)
                 gen_idx in gen_idx_sets[row_idx],
                 yr_idx in 1:nyr;
                 annual_cf_max[row_idx] < 1 # Only set it if the max is < 1.
-            ]
+            ],
             egen_gen_annual[gen_idx, yr_idx] <= pcap[gen_idx] * hrs_per_yr * annual_cf_max[row_idx]
         )
     end
