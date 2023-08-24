@@ -252,6 +252,8 @@ function log_start(config)
         version_info_string(),
         "\nE4ST Info:\n",
         package_status_string(),
+        "\nModifications:",
+        mods_string(config),
     )
 end
 export log_start
@@ -275,6 +277,28 @@ function header_string(header)
     string("#"^80, "\n",header,"\n","#"^80)
 end
 export header_string
+
+"""
+    mods_string(config) -> s
+
+Returns a string of the ordered list of mods, giving the 
+"""
+function mods_string(config)
+    # Compute the maximum length of any of the mod names
+    max_len = maximum(s->length(string(s)), keys(config[:mods]))
+    
+    # Print to an IOBuffer
+    io = IOBuffer()
+    for p in config[:mods]
+        print(io, "    ")
+        print(io, rpad("$(p[1]):", max_len+2))
+        print(io, typeof(p[2]))
+        print(io, '\n')
+    end
+    s = String(take!(io))
+    close(io)
+    return s
+end
 
 """
     time_string() -> s

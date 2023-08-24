@@ -54,11 +54,11 @@ function modify_results!(mod::AggregationTemplate, config, data)
         if col_to_expand == :filter_hours
             area = row.filter_hours
             hours_table_col = get_table_col(data, :hours, area)
-            subareas = unique(hours_table_col)
+            subareas = sort!(unique(hours_table_col))
         else
             area = row[col_to_expand]
             data_table_col = get_table_col(data, row.table_name, area)
-            subareas = unique(data_table_col)
+            subareas = sort!(unique(data_table_col))
         end
 
         

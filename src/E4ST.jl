@@ -52,6 +52,7 @@ include("types/Retrofit.jl")
 # Include Modifications
 include("types/modifications/DCLine.jl")
 include("types/modifications/AggregationTemplate.jl")
+include("types/modifications/AnnualCapacityFactorLimit.jl")
 include("types/modifications/GenerationConstraint.jl")
 include("types/modifications/GenerationStandard.jl")
 include("types/modifications/YearlyTable.jl")

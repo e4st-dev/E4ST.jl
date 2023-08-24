@@ -208,4 +208,22 @@
         @test compute_result(data, :interface_limit, :pflow_line_max, 1) <= compute_result(data, :interface_limit, :pflow_if_max, 1)
     end
 
+    @testset "Test AnnualCapacityFactorLimit" begin
+        # Test that the average capacity factor is above 0.9
+        @test compute_result(data, :gen, :cf_avg, :genfuel=>"ng") > 0.9
+
+        # Run the model with the capacity factor limit
+        config_file_cflim = joinpath(@__DIR__, "config", "config_3bus_cflim.yml")
+        config = read_config(config_file, config_file_cflim)
+        data = read_data(config)
+        model = setup_model(config, data)
+        optimize!(model)
+        parse_results!(config, data, model)
+        process_results!(config, data)
+
+        @test compute_result(data, :gen, :cf_avg, :genfuel=>"ng") <= 0.9
+        @test compute_result(data, :gen, :cf_hourly_max, :genfuel=>"ng") > 0.9 # Want to make sure we're not limiting hourly
+
+    end
+
 end
