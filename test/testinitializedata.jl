@@ -15,6 +15,7 @@
         for table_name in table_names
             @test has_table(data, table_name)
             table_name == :summary_table && continue
+            startswith(string(table_name), "adj") && continue
             @test summarize_table(table_name) isa DataFrame
             table = get_table(data, table_name)
             for col_name in names(table)
@@ -45,10 +46,6 @@
         #TODO: Create test Mod that applied in modify_raw_data!
 
     end
-
-    #Test yearly and hourly adjustment to data
-    include("testadjust.jl")
-
 
     @testset "Test load with shaping" begin
         config = read_config(config_file)

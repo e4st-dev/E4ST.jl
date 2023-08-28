@@ -30,6 +30,7 @@ rm(joinpath(@__DIR__, "out"), force=true, recursive=true)
     include("teststorage.jl")
     include("testccus.jl")
     include("testretrofits.jl")
+    include("testadjust.jl")
     include("testutil.jl")
 end
 
