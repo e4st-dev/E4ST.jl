@@ -122,6 +122,7 @@ end
 
 function modify_setup_data!(mod::Adjust{T}, config, data) where T
     table = get_table(data, mod.name)
+    table.num_adjusted .= 0
     for row in eachrow(table)
         get(row, :status, true) || continue
         adjust!(mod, config, data, row)
@@ -166,6 +167,7 @@ function adjust_hourly!(config, data, row)
         vals = [row["h$h"] for h in 1:get_num_hours(data)]
         c = get(data, key, ByNothing(0.0))
         data[key] = operate_hourly(oper, c, vals, yr_idx, nyr)
+        row.num_adjusted = 1
         return
     end
 
@@ -175,12 +177,13 @@ function adjust_hourly!(config, data, row)
     isempty(table) && return
     hasproperty(table, variable_name) || error("Table $table_name has no column $variable_name to adjust in `adjust_hourly!`")
 
+    row.num_adjusted = nrow(table)
 
     # Perform the adjustment on each row of the table
     vals = [row["h$h"] for h in 1:get_num_hours(data)]
 
     # Make sure the appropriate column is a Vector{Container}
-    to_container!(table, variable_name)
+    to_container!(get_table(data, table_name), variable_name)
     for r in eachrow(table)
         r[variable_name] = operate_hourly(oper, r[variable_name], vals, yr_idx, nyr)
     end
@@ -217,6 +220,7 @@ function adjust_yearly_by_sim_year!(config, data, row)
         vals = [row[y] for y in get_years(data)]
         c = get(data, key, ByNothing(0.0))
         data[key] = operate_yearly(oper, c, vals)
+        row.num_adjusted = 1
         return
     end
 
@@ -230,7 +234,9 @@ function adjust_yearly_by_sim_year!(config, data, row)
     vals = [row[y] for y in get_years(data)]
 
     # Make sure the appropriate column is a Vector{Container}
-    to_container!(table, variable_name) 
+    to_container!(get_table(data, table_name), variable_name)
+
+    row.num_adjusted = nrow(table)
 
     for r in eachrow(table)
         r[variable_name] = operate_yearly(oper, r[variable_name], vals)
@@ -258,21 +264,27 @@ function adjust_yearly_by_year_col!(config, data, row)
     hasproperty(table, variable_name) || error("Table $table_name has no column $variable_name to adjust in `adjust_yearly!`")
     hasproperty(table, year_col) || error("Table $table_name has no column $year_col to adjust by in `adjust_yearly!`")
 
-    to_container!(table, variable_name) 
+    to_container!(get_table(data, table_name), variable_name)
 
+    num_adjusted = 0
+    bad_years = Set{String}()
     for r in eachrow(table)
         year = (r[year_col] |> YearString)::String
 
         # Skip if the year is not found.
         if !haskey(row, year)
-            @warn "AdjustYearly mod does not have a value for $year, skipping."
+            push!(bad_years, year)
             continue
         end
 
         val = row[year]::Float64
         v = fill(val, nyr)
         r[variable_name] = operate_yearly(oper, r[variable_name], v)
+        num_adjusted += 1
     end
+    row.num_adjusted = num_adjusted
+    isempty(bad_years) || @warn "AdjustYearly mod does not have a value for the following years, so it skipped those adjustments:\n$(sort(collect(bad_years)))"
+    return nothing
 end
 export adjust_yearly_by_year_col!
 
@@ -299,12 +311,13 @@ function adjust_by_age!(config, data, row)
     hasproperty(table, variable_name) || error("Table $table_name has no column $variable_name to adjust in `adjust_hourly!`")
 
     # Perform the adjustment on each row of the table
+    row.num_adjusted = nrow(table)
     val = row.value
     age = row.age
     age_type = row.age_type
 
     # Make sure the appropriate column is a Vector{Container}
-    to_container!(table, variable_name)
+    to_container!(get_table(data, table_name), variable_name)
 
     last_sim_year = get(config, :year_previous_sim, config[:year_gen_data])
 
