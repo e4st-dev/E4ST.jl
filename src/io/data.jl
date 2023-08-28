@@ -127,9 +127,6 @@ function setup_data!(config, data)
     setup_table!(config, data, :nominal_load)
     setup_table!(config, data, :gen) # needs to come after build_gen setup for newgens
     setup_table!(config, data, :af_table)
-    setup_table!(config, data, :adjust_yearly)
-    setup_table!(config, data, :adjust_hourly)
-    setup_table!(config, data, :adjust_by_age)
 end
 export setup_data!
 
