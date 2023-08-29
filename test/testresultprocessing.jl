@@ -177,6 +177,11 @@
             co2_rate = compute_result(data, :gen, :emis_co2_rate)
             @test co2e_rate > co2_rate
 
+            ch4_total = compute_result(data, :gen, :emis_upstream_ch4_total)
+            @test ch4_total > 0
+            ch4_rate = compute_result(data, :gen, :emis_upstream_ch4_rate)
+            @test ch4_rate > 0
+
 
         end
 
