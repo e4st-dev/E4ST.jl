@@ -110,7 +110,7 @@ mutable struct ByNothing <: Container{Float64, 0}
 end
 export ByNothing
 ByNothing(v::AbstractArray) = ByNothing(v...)
-Base.setindex!(c::ByNothing, val::Float64, idxs::Vararg) = (c.v = val)
+Base.setindex!(c::ByNothing, val::Number, idxs::Vararg) = (c.v = val)
 
 struct ByYear <: Container{Float64, 1}
     v::Vector{Float64}
