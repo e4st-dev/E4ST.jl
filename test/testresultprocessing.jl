@@ -165,6 +165,19 @@
             end
             egen_total = compute_result(data, :gen, :egen_total)
             @test sum(egen_by_genfuel) ≈ egen_total
+
+            #test that CO2e formulas are working and are higher than CO2
+            process_results!(config, data) #need to process so that mod is applied
+
+            co2e_total = compute_result(data, :gen, :emis_co2e_total)
+            co2_total = compute_result(data, :gen, :emis_co2_total)
+            @test co2e_total > co2_total
+
+            co2e_rate = compute_result(data, :gen, :emis_co2e_rate)
+            co2_rate = compute_result(data, :gen, :emis_co2_rate)
+            @test co2e_rate > co2_rate
+
+
         end
 
     end
