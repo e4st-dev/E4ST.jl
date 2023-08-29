@@ -14,7 +14,6 @@ Container(x::Number) = OriginalContainer(x, ByNothing(x))
 Container(c::Container) = c
 Base.getindex(c::Container, inds::Vararg) = c.v[inds...]
 Base.setindex!(c::Container, val, inds::Vararg) = (c.v[inds...] = val)
-Base.setindex!(c::ByNothing, val, inds::Vararg) = (c.v = val)
 
 Base.isempty(c::Container) = false
 Base.size(c::Container) = size(c.v)
@@ -111,7 +110,7 @@ mutable struct ByNothing <: Container{Float64, 0}
 end
 export ByNothing
 ByNothing(v::AbstractArray) = ByNothing(v...)
-Base.setindex!(c::ByNothing, val::Float64, idxs::Vararg) = (c.v = val)
+Base.setindex!(c::ByNothing, val::Number, idxs::Vararg) = (c.v = val)
 
 struct ByYear <: Container{Float64, 1}
     v::Vector{Float64}
