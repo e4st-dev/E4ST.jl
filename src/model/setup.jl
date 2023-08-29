@@ -73,6 +73,10 @@ function setup_model(config, data)
         @info "Loading model from:\n$(config[:model_presolve_file])"
         model = deserialize(config[:model_presolve_file])
     else
+
+        #create capex_obj and tranmission_capex_obj
+        create_capex_obj!(config, data)
+
         model = JuMP.Model()
 
         # Comment this out for debugging so you can see variable names.  Saves quite a bit of RAM to leave out
@@ -159,6 +163,30 @@ export constrain_pbal!
 function add_optimizer!(config, data, model)
     optimizer_factory = getoptimizer(config)
     set_optimizer(model, optimizer_factory; add_bridges=false)
+end
+
+"""
+    create_capex_obj!(config, data) -> 
+
+Creates capex_obj and transmission_capex_obj columns which are the capex cost seen in the objective function. It is a ByYear column that is only non zero for year_on.
+Set to capex for unbuilt generators in and after the year_on
+Set to 0 for already built capacity because capacity expansion isn't considered for existing generators  
+"""
+function create_capex_obj!(config, data)
+    gen = get_table(data, :gen)
+
+    #warn if capex_obj already exists
+    :capex_obj in propertynames(data[:gen]) && @warn "capex_obj hasn't been calculated yet but appears in the gen table. It will be overwritten."
+
+    capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
+    transmission_capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
+    for (idx_g, g) in enumerate(eachrow(gen))
+        g.build_status == "unbuilt" || continue
+        capex_obj[idx_g] = ByYear([g.capex * (year >= g.year_on && year < add_to_year(g.year_on, g.econ_life)) for year in get_years(data)])
+        transmission_capex_obj[idx_g] = ByYear([g.transmission_capex * (year >= g.year_on && year < add_to_year(g.year_on, g.econ_life)) for year in get_years(data)])
+    end
+    add_table_col!(data, :gen, :capex_obj, capex_obj, DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
+    add_table_col!(data, :gen, :transmission_capex_obj, transmission_capex_obj, DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures for transmission that is passed into the objective function. 0 for already built capacity")
 end
 
 """

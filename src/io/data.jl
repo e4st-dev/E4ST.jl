@@ -408,7 +408,6 @@ end
 Sets up the generator table.
 Creates potential new generators and exogenously built generators. 
 Calls [`setup_new_gens!`](@ref)
-Creates capex_obj column which is the capex cost seen in the objective function. It is a ByYear column that is only non zero for year_on.
 Creates age column which is a ByYear column. Unbuilt generators have a negative age before year_on.
 """
 function setup_table!(config, data, ::Val{:gen})
@@ -464,15 +463,15 @@ function setup_table!(config, data, ::Val{:gen})
     # set to capex for unbuilt generators in and after the year_on
     # set to 0 for already built capacity because capacity expansion isn't considered for existing generators
     
-    capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
-    transmission_capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
-    for (idx_g, g) in enumerate(eachrow(gen))
-        g.build_status == "unbuilt" || continue
-        capex_obj[idx_g] = ByYear([g.capex * (year >= g.year_on && year < add_to_year(g.year_on, g.econ_life)) for year in get_years(data)])
-        transmission_capex_obj[idx_g] = ByYear([g.transmission_capex * (year >= g.year_on && year < add_to_year(g.year_on, g.econ_life)) for year in get_years(data)])
-    end
-    add_table_col!(data, :gen, :capex_obj, capex_obj, DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
-    add_table_col!(data, :gen, :transmission_capex_obj, transmission_capex_obj, DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures for transmission that is passed into the objective function. 0 for already built capacity")
+    # capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
+    # transmission_capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
+    # for (idx_g, g) in enumerate(eachrow(gen))
+    #     g.build_status == "unbuilt" || continue
+    #     capex_obj[idx_g] = ByYear([g.capex * (year >= g.year_on && year < add_to_year(g.year_on, g.econ_life)) for year in get_years(data)])
+    #     transmission_capex_obj[idx_g] = ByYear([g.transmission_capex * (year >= g.year_on && year < add_to_year(g.year_on, g.econ_life)) for year in get_years(data)])
+    # end
+    # add_table_col!(data, :gen, :capex_obj, capex_obj, DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
+    # add_table_col!(data, :gen, :transmission_capex_obj, transmission_capex_obj, DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures for transmission that is passed into the objective function. 0 for already built capacity")
 
     # capex_econ = Container[ByNothing(0.0) for i in 1:nrow(gen)]
     # for idx_g in 1:nrow(gen)

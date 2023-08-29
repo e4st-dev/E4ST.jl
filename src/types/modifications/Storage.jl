@@ -182,17 +182,7 @@ function modify_setup_data!(mod::Storage, config, data)
         storage.duration_charge = copy(storage.duration_discharge)
     end
 
-    ### Create capex_obj (the capex used in the optimization/objective function)
-    # set to capex for unbuilt storage units in the year_on
-    # set to 0 for already built capacity because capacity expansion isn't considered for existing storage units
-    add_table_col!(data, :storage, :capex_obj, Container[ByNothing(0.0) for i in 1:nrow(storage)], DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
-    add_table_col!(data, :storage, :transmission_capex_obj, Container[ByNothing(0.0) for i in 1:nrow(storage)], DollarsPerMWBuiltCapacityPerHour, "Hourly transmission capital expenditures that is passed into the objective function. 0 for already built capacity")
-
-    for row in eachrow(storage)
-        row.build_status == "unbuilt" || continue
-        row.capex_obj = ByYear([row.capex * (year >= row.year_on && year < add_to_year(row.year_on, row.econ_life)) for year in years])
-        row.transmission_capex_obj = ByYear([row.transmission_capex * (year >= row.year_on && year < add_to_year(row.year_on, row.econ_life)) for year in years])
-    end
+    
 
     storage.num_intervals = fill(0, nrow(storage))
     storage.intervals = fill(Vector{Int64}[], nrow(storage))
@@ -332,6 +322,19 @@ function modify_model!(mod::Storage, config, data, model)
     nyr = get_num_years(data)
     years = get_years(data)
     hour_weights = get_hour_weights(data)
+
+    ### Create capex_obj (the capex used in the optimization/objective function)
+    # set to capex for unbuilt storage units in and after the year_on
+    # set to 0 for already built capacity because capacity expansion isn't considered for existing storage units
+    add_table_col!(data, :storage, :capex_obj, Container[ByNothing(0.0) for i in 1:nrow(storage)], DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
+    add_table_col!(data, :storage, :transmission_capex_obj, Container[ByNothing(0.0) for i in 1:nrow(storage)], DollarsPerMWBuiltCapacityPerHour, "Hourly transmission capital expenditures that is passed into the objective function. 0 for already built capacity")
+
+    for row in eachrow(storage)
+        row.build_status == "unbuilt" || continue
+        row.capex_obj = ByYear([row.capex * (year >= row.year_on && year < add_to_year(row.year_on, row.econ_life)) for year in years])
+        row.transmission_capex_obj = ByYear([row.transmission_capex * (year >= row.year_on && year < add_to_year(row.year_on, row.econ_life)) for year in years])
+    end
+
 
     ### Create Variables
     # Power discharge capacity

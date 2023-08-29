@@ -47,8 +47,13 @@ function E4ST.modify_setup_data!(pol::ITCStorage, config, data)
     for stor_idx in stor_idxs
         stor = storage[stor_idx, :]
 
-        # credit yearly * capex_obj for that year, capex_obj is only non zero in year_on so ITCStorage should only be non zero in year_on
-        vals_tmp = [credit_yearly[i]*stor.capex_obj[i,:] for i in 1:length(years)]
+        # credit yearly * capex using the same filtering as capex_obj will
+        # only non-zero for new builds, in an after their year_on and until end of econ life
+        if stor.build_status = "unbuilt"
+            vals_tmp = [(years[i] >= stor.year_on && years[i] < add_to_year(stor.year_on, stor.econ_life)) ? credit_yearly[i]*stor.capex[i,:] : 0.0 for i in 1:length(years)]
+        else 
+            vals_tmp = [0.0 for i in length(years)]
+        end
         stor[pol.name] = ByYear(vals_tmp)
     end
 end

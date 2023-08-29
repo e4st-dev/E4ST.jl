@@ -8,8 +8,12 @@
         config = read_config(config_file)
 
         data = read_data(config)
+        gen = get_table(data, :gen)
         model = setup_model(config, data)
         @test model isa JuMP.Model
+
+
+        @test hasproperty(gen, :capex_obj)
 
         @test haskey(data[:obj_vars], :fom)
         @test haskey(data[:obj_vars], :fuel_price)

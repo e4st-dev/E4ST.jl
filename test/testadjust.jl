@@ -67,6 +67,9 @@
 
         @testset "Test adjusting by age" begin
             @testset "Test age triggers" begin
+                model = setup_model(config, data) # so that capex_obj is added to gen
+                gen = get_table(data, :gen)
+
                 # Test age triggers
                 coal_idxs = get_table_row_idxs(data, :gen, :genfuel=>"coal")
                 coal_idx = first(coal_idxs)

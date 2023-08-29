@@ -22,7 +22,7 @@ export ITC
 
 Creates a column in the gen table with the ITC value in each simulation year for the qualifying generators.
  
-ITC values are calculated based on `capex_obj` so ITC values only apply in `year_on` for a generator.
+ITC values are only calculated when the year is the year_on.
 """
 function E4ST.modify_setup_data!(pol::ITC, config, data)
     gen = get_table(data, :gen)
@@ -42,8 +42,13 @@ function E4ST.modify_setup_data!(pol::ITC, config, data)
     for gen_idx in gen_idxs
         g = gen[gen_idx, :]
 
-        # credit yearly * capex_obj for that year, capex_obj is only non zero in year_on so ITC should only be non zero in year_on
-        vals_tmp = [credit_yearly[i]*g.capex_obj[i,:] for i in 1:length(years)]
+        # credit yearly * capex using the same filtering as capex_obj will
+        # only non-zero for new builds, in an after their year_on and until end of econ life
+        if g.build_status = "unbuilt"
+            vals_tmp = [(years[i] >= g.year_on && years[i] < add_to_year(g.year_on, g.econ_life)) ? credit_yearly[i]*g.capex[i,:] : 0.0 for i in 1:length(years)]
+        else 
+            vals_tmp = [0.0 for i in length(years)]
+        end
         gen[gen_idx, pol.name] = ByYear(vals_tmp)
     end
 end
