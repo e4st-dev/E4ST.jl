@@ -18,8 +18,15 @@ function modify_setup_data!(mod::CO2eCalc, config, data)
 
 
     hasproperty(gen, :emis_co2e) && @warn "The CO2e values specified in the input gen table will be overwritten by the CO2eCalc mod."
+    
+    if !hasproperty(gen, :chp)
+        @warn "The gen table has no column `chp`. Assuming all generators are not combined heat and power (setting gen[:,:chp] .= 0), and not adjusting CO2e calculation for CHP."
+    end
+    
     # set to the emis_co2 rate as a default
     emis_co2e = Container[Container(row[:emis_co2]) for row in eachrow(gen)]  
+    add_table_col!(data, :gen, :emis_co2e, emis_co2e, ShortTonsPerMWhGenerated,
+    "CO2e emission rate including adjustments for eor leakage, biomass and CHP adjustments, and upstream methane.")
 
     # get necessary parameters from data
     ch4_gwp = get_val(data, :ch4_gwp) # ByYear container (or possibly vector) of methane global warming potential 
@@ -28,75 +35,42 @@ function modify_setup_data!(mod::CO2eCalc, config, data)
     bio_pctco2e = get_val(data, :bio_pctco2e)
 
     #iterate through gen and change co2e as needed
-    genfuel = gen.genfuel
-    gentype = gen.gentype
-    emis_co2 = gen.emis_co2
-    heat_rate = gen.heat_rate
-    chp_co2_multi = gen.chp_co2_multi
-
-    calc_co2e!(emis_co2e, genfuel, gentype, emis_co2, heat_rate, chp_co2_multi, ch4_gwp, ng_upstream_ch4_leakage, coal_upstream_ch4_leakage, bio_pctco2e)
-    add_table_col!(data, :gen, :emis_co2e, emis_co2e, ShortTonsPerMWhGenerated,
-    "CO2e emission rate including adjustments for eor leakage, biomass and CHP adjustments, and methane.")
-
-    add_upstream_methane!(data, ng_upstream_ch4_leakage, coal_upstream_ch4_leakage)
+    calc_co2e!(gen, ch4_gwp, ng_upstream_ch4_leakage, coal_upstream_ch4_leakage, bio_pctco2e)
     
-    # # add methane emissions for ng, coal, and DAC
-    # ch4_gwp = get_val(data, :ch4_gwp) # ByYear container (or possibly vector) of methane global warming potential 
-
-    # ng_upstream_ch4_leakage = get_val(data, :ng_upstream_ch4_leakage)
-    # ng_rows = get_subtable(gen, :genfuel=>"ng") #when DAC is added it can be grouped into this for loop because it uses ng ch4 fuel content
-    # #ng_rows.emis_co2e .= ByYear([ng_rows.emis_co2 + ng_upstream_ch4_leakage*ng_rows.hr*ch4_gwp[year_idx] for year_idx in 1:nyears])
-    # for row in eachrow(ng_rows)
-    #     co2e = row.emis_co2 + ng_upstream_ch4_leakage*row.hr*ch4_gwp
-    #     row[:emis_co2e] = co2e
-    # end
-
-    # coal_upstream_ch4_leakage = get_val(data, :coal_upstream_ch4_leakage)
-    # coal_rows = get_subtable(gen, :genfuel=>"coal")
-    # #coal_rows.emis_co2e .= ByYear([coal_rows.emis_co2 + coal_upstream_ch4_leakage*ng_rows.hr*ch4_gwp[year_idx] for year_idx in 1:nyears])
-    # for row in eachrow(coal_rows)
-    #     co2e = row.emis_co2 + coal_upstream_ch4_leakage*ch4_gwp*row.hr
-    #     row[:emis_co2e] = ByYear(co2e)
-    # end
-
-    # # update biomass CO2e with percentage that we want to reduce from upstream carbon sequestering from plants 
-    # biomass_rows = get_subtable(gen, :genfuel=>"biomass")
-    # bio_pctco2e = get_val(data, :bio_pctco2e)
-    # #biomass_rows.emis_co2e .= bio_pctco2e.*biomass_rows.emis_co2
-    # for row in eachrow(biomass_rows)
-    #     co2e = row.emis_co2*bio_pctco2e
-    #     row[:emis_co2e] = ByYear(co2e)
-    # end
-
-    # # update for CHP plants
-    # chp_rows = get_subtable(gen, :gentype=>"chp")
-    # chp_rows.emis_co2e .= chp_rows.emisco2e .* chp_rows.chp_co2_multi
-
-    # eor leakage is already accounted for in the emis_co2 for CCS (and also planned to be for DAC)
-    
+    # add column for upstream ch4 rate
+    add_upstream_methane_col!(data, ng_upstream_ch4_leakage, coal_upstream_ch4_leakage)
+  
 end
 
-function calc_co2e!(emis_co2e, genfuel, gentype, emis_co2, heat_rate, chp_co2_multi, ch4_gwp, ng_upstream_ch4_leakage, coal_upstream_ch4_leakage, bio_pctco2e)
-    for i in eachindex(emis_co2e)
-        if genfuel[i] == "ng"
-            emis_co2e[i] = Container(emis_co2[i] .+ ng_upstream_ch4_leakage .* heat_rate[i] .* ch4_gwp)
-        elseif genfuel[i] == "coal"
-            emis_co2e[i] = Container(emis_co2[i] .+ coal_upstream_ch4_leakage .* heat_rate[i] .* ch4_gwp)
-        elseif genfuel[i] == "biomass"
-            emis_co2e[i] = Container(bio_pctco2e .*  emis_co2[i])
+"""
+    calc_co2e!(gen, ch4_gwp, ng_upstream_ch4_leakage, coal_upstream_ch4_leakage, bio_pctco2e)
+
+Calculate CO2e based on genfuel (ng, biomass, coal) and then adjusted for CHP plants. 
+Includes upstream methane leakage for ng and coal in CO2e calculation. 
+"""
+function calc_co2e!(gen, ch4_gwp, ng_upstream_ch4_leakage, coal_upstream_ch4_leakage, bio_pctco2e)
+    for r in eachrow(gen)
+        if r.genfuel == "ng"
+            r.emis_co2e = Container(r.emis_co2 .+ ng_upstream_ch4_leakage .* r.heat_rate .* ch4_gwp)
+        elseif r.genfuel == "coal"
+            r.emis_co2e = Container(r.emis_co2 .+ coal_upstream_ch4_leakage .* r.heat_rate .* ch4_gwp)
+        elseif r.genfuel == "biomass"
+            r.emis_co2e = Container(r.emis_co2 .* bio_pctco2e)
         end
 
-        if gentype[i] == "chp"
-            emis_co2e[i] = Container(emis_co2e[i] .* chp_co2_multi[i])
+        if get(r, :chp, 0) == 1
+            r.emis_co2e = Container(r.emis_co2e .* r.chp_co2_multi)
         end
     end
     return nothing
 end
 
 """
-    add_upstream_methane!(data, ng_upstream_ch4_leakage, coal_upstream_ch4_leakage) -> 
+    add_upstream_methane_col!(data, ng_upstream_ch4_leakage, coal_upstream_ch4_leakage) -> 
+
+Adding the emis_upstream_ch4 column to the gen table for ng and coal. 
 """
-function add_upstream_methane!(data, ng_upstream_ch4_leakage, coal_upstream_ch4_leakage)
+function add_upstream_methane_col!(data, ng_upstream_ch4_leakage, coal_upstream_ch4_leakage)
     gen = get_table(data, :gen)
 
     add_table_col!(data, :gen, :emis_upstream_ch4,  Container[ByNothing(0.0) for i in 1:nrow(gen)], ShortTonsPerMWhGenerated,
@@ -106,5 +80,14 @@ function add_upstream_methane!(data, ng_upstream_ch4_leakage, coal_upstream_ch4_
         row.genfuel == "ng" && (row.emis_upstream_ch4 = ByNothing(row.heat_rate * ng_upstream_ch4_leakage))
         row.genfuel == "coal" && (row.emis_upstream_ch4 = ByNothing(row.heat_rate * coal_upstream_ch4_leakage))
     end
-    
+end
+
+"""
+    modify_results!(mod::CO2eCalc, config, data)  -> 
+"""
+function modify_results!(mod::CO2eCalc, config, data)    
+    add_results_formula!(data, :gen, :emis_co2e_total, "SumHourly(emis_co2e,egen)", ShortTons, "Total CO2e emissions")
+    add_results_formula!(data, :gen, :emis_co2e_rate, "emis_co2e_total/egen_total", ShortTonsPerMWhGenerated, "Average rate of CO2e emissions")
+    add_results_formula!(data, :gen, :emis_upstream_ch4_total, "SumHourly(emis_upstream_ch4,egen)", ShortTons, "Total upstream methane emissions")
+    add_results_formula!(data, :gen, :emis_upstream_ch4_rate, "emis_upstream_ch4_total/egen_total", ShortTonsPerMWhGenerated, "Average rate of upstream methane emissions")
 end

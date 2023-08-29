@@ -65,12 +65,11 @@ mutable struct OriginalContainer{T, D, C} <: Container{T,D}
     original::Float64
     v::C
     function OriginalContainer(x, c::C) where {T,D, C<:Container{T,D}}
-        new{T, D, C}(x, c)
+        new{T, D, C}(Float64(x), c)
     end
 end
 
-OriginalContainer(x::Bool, v::Container) = OriginalContainer(Float64(x), v)
-
+OriginalContainer(x, c::OriginalContainer) = OriginalContainer(x, c.v)
 
 
 function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{OC}}, ::Type{ElType}) where  {ElType, C<:Container, T, D, OC<:OriginalContainer{T, D, C}}
@@ -110,7 +109,7 @@ mutable struct ByNothing <: Container{Float64, 0}
 end
 export ByNothing
 ByNothing(v::AbstractArray) = ByNothing(v...)
-Base.setindex!(c::ByNothing, val::Float64, idxs::Vararg) = (c.v = val)
+Base.setindex!(c::ByNothing, val::Number, idxs::Vararg) = (c.v = val)
 
 struct ByYear <: Container{Float64, 1}
     v::Vector{Float64}
