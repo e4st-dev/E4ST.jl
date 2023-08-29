@@ -221,8 +221,8 @@
         parse_results!(config, data, model)
         process_results!(config, data)
 
-        @test compute_result(data, :gen, :cf_avg, :genfuel=>"ng") <= 0.9
-        @test compute_result(data, :gen, :cf_hourly_max, :genfuel=>"ng") > 0.9 # Want to make sure we're not limiting hourly
+        @test compute_result(data, :gen, :cf_avg, :genfuel=>"ng") <= 0.9 + 1e-3 # for tolerance
+        @test compute_result(data, :gen, :cf_hourly_max, :genfuel=>"ng") > 0.9 + 1e-3 # Want to make sure we're not limiting hourly
 
     end
 
