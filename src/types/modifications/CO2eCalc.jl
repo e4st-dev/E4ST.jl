@@ -21,7 +21,6 @@ function modify_setup_data!(mod::CO2eCalc, config, data)
     
     if !hasproperty(gen, :chp)
         @warn "The gen table has no column `chp`. Assuming all generators are not combined heat and power (setting gen[:,:chp] .= 0), and not adjusting CO2e calculation for CHP."
-        gen[:, :chp] .= 0
     end
     
     # set to the emis_co2 rate as a default
@@ -59,7 +58,7 @@ function calc_co2e!(gen, ch4_gwp, ng_upstream_ch4_leakage, coal_upstream_ch4_lea
             r.emis_co2e = Container(r.emis_co2 .* bio_pctco2e)
         end
 
-        if r.chp == 1
+        if get(r, :chp, 0) == 1
             r.emis_co2e = Container(r.emis_co2e .* r.chp_co2_multi)
         end
     end
