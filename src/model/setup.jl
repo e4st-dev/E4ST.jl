@@ -174,20 +174,24 @@ Set to 0 for already built capacity because capacity expansion isn't considered 
 """
 function create_capex_obj!(config, data)
     gen = get_table(data, :gen)
+    years = get_years(data)
 
     #warn if capex_obj already exists
     :capex_obj in propertynames(data[:gen]) && @warn "capex_obj hasn't been calculated yet but appears in the gen table. It will be overwritten."
 
     capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
     transmission_capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
-    for (idx_g, g) in enumerate(eachrow(gen))
-        g.build_status == "unbuilt" || continue
-        capex_obj[idx_g] = ByYear([g.capex * (year >= g.year_on && year < add_to_year(g.year_on, g.econ_life)) for year in get_years(data)])
-        transmission_capex_obj[idx_g] = ByYear([g.transmission_capex * (year >= g.year_on && year < add_to_year(g.year_on, g.econ_life)) for year in get_years(data)])
-    end
     add_table_col!(data, :gen, :capex_obj, capex_obj, DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
     add_table_col!(data, :gen, :transmission_capex_obj, transmission_capex_obj, DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures for transmission that is passed into the objective function. 0 for already built capacity")
+
+
+    for (idx_g, g) in enumerate(eachrow(gen))
+        capex_years = filter(year -> year >= g.year_on && year < add_to_year(g.year_on, g.econ_life), years)
+        g.capex_obj = g.capex .* ByYear([(year in capex_years) for year in years])
+        g.transmission_capex_obj = g.transmission_capex .* ByYear([(year in capex_years) for year in years])
+    end
 end
+export create_capex_obj!
 
 """
     summarize(data) -> summary::String
