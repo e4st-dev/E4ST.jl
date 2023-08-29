@@ -81,3 +81,13 @@ function add_upstream_methane_col!(data, ng_upstream_ch4_leakage, coal_upstream_
         row.genfuel == "coal" && (row.emis_upstream_ch4 = ByNothing(row.heat_rate * coal_upstream_ch4_leakage))
     end
 end
+
+"""
+    modify_results!(mod::CO2eCalc, config, data)  -> 
+"""
+function modify_results!(mod::CO2eCalc, config, data)    
+    add_results_formula!(data, :gen, :emis_co2e_total, "SumHourly(emis_co2e,egen)", ShortTons, "Total CO2e emissions")
+    add_results_formula!(data, :gen, :emis_co2e_rate, "emis_co2e_total/egen_total", ShortTonsPerMWhGenerated, "Average rate of CO2e emissions")
+    add_results_formula!(data, :gen, :emis_upstream_ch4_total, "SumHourly(emis_upstream_ch4,egen)", ShortTons, "Total upstream methane emissions")
+    add_results_formula!(data, :gen, :emis_upstream_ch4_rate, "emis_upstream_ch4_total/egen_total", ShortTonsPerMWhGenerated, "Average rate of upstream methane emissions")
+end
