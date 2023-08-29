@@ -82,10 +82,10 @@ function modify_setup_data!(ret::Retrofit, config, data)
 
             retrofit!(ret, newgen)
             
-            # Set capex_obj
-            v = zeros(nyr)
-            v[yr_idx:end] .= newgen[:capex]
-            newgen[:capex_obj] = ByYear(v)
+            # # Set capex_obj
+            # v = zeros(nyr)
+            # v[yr_idx:end] .= newgen[:capex]
+            # newgen[:capex_obj] = ByYear(v)
 
             # Add newgen to the gen table, add it to retrofits.
             push!(gen, newgen)

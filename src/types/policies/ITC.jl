@@ -44,10 +44,10 @@ function E4ST.modify_setup_data!(pol::ITC, config, data)
 
         # credit yearly * capex using the same filtering as capex_obj will
         # only non-zero for new builds, in an after their year_on and until end of econ life
-        if g.build_status = "unbuilt"
-            vals_tmp = [(years[i] >= g.year_on && years[i] < add_to_year(g.year_on, g.econ_life)) ? credit_yearly[i]*g.capex[i,:] : 0.0 for i in 1:length(years)]
+        if g.build_status == "unbuilt"
+            vals_tmp = vec([(years[i] >= g.year_on && years[i] < add_to_year(g.year_on, g.econ_life)) ? credit_yearly[i]*g.capex[i,:] : 0.0 for i in 1:length(years)])
         else 
-            vals_tmp = [0.0 for i in length(years)]
+            vals_tmp = fill(0.0, length(years))
         end
         gen[gen_idx, pol.name] = ByYear(vals_tmp)
     end
