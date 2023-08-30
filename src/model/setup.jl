@@ -185,9 +185,8 @@ function create_capex_obj!(config, data)
     add_table_col!(data, :gen, :transmission_capex_obj, transmission_capex_obj, DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures for transmission that is passed into the objective function. 0 for already built capacity")
 
 
-    for (idx_g, g) in enumerate(eachrow(gen))
+    for g in eachrow(gen)
         g.build_status == "unbuilt" || continue
-        # capex_years = filter(year -> year >= g.year_on && year < add_to_year(g.year_on, g.econ_life), years)
         capex_filter = ByYear(map(year -> year >= g.year_on && year < add_to_year(g.year_on, g.econ_life), years))
         g.capex_obj = g.capex .* capex_filter
         g.transmission_capex_obj = g.transmission_capex .* capex_filter

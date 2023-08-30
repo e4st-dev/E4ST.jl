@@ -331,8 +331,9 @@ function modify_model!(mod::Storage, config, data, model)
 
     for row in eachrow(storage)
         row.build_status == "unbuilt" || continue
-        row.capex_obj = ByYear([row.capex * (year >= row.year_on && year < add_to_year(row.year_on, row.econ_life)) for year in years])
-        row.transmission_capex_obj = ByYear([row.transmission_capex * (year >= row.year_on && year < add_to_year(row.year_on, row.econ_life)) for year in years])
+        capex_filter = ByYear(map(year -> year >= row.year_on && year < add_to_year(row.year_on, row.econ_life), years))
+        row.capex_obj = row.capex .* capex_filter
+        row.transmission_capex_obj = row.transmission_capex .* capex_filter
     end
 
 
