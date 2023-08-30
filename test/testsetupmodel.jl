@@ -18,7 +18,7 @@
         @test !any(g -> g.build_status != "unbuilt" && sum(g.capex_obj.v) > 0, eachrow(gen)) # test that no existing generators have capex_obj
         for g in eachrow(gen)
             g.build_status == "unbuilt" || continue
-            @test all(g.capex_obj[findall(year -> year < g.year_on, years)] .== 0.0)
+            @test all(g.capex_obj[findall(year -> year < g.year_on, years)] .== 0.0) #capex_obj is 0 before year_on
         end
 
         @test haskey(data[:obj_vars], :fom)
