@@ -73,15 +73,15 @@
                 # Test age triggers
                 coal_idxs = get_table_row_idxs(data, :gen, :genfuel=>"coal")
                 coal_idx = first(coal_idxs)
-                @test get_table_num(data, :gen, :capex_obj, coal_idx, "y2030", :) == 0
-                @test get_table_num(data, :gen, :capex_obj, coal_idx, "y2035", :) == 0
-                @test get_table_num(data, :gen, :capex_obj, coal_idx, "y2040", :) > 0
+                @test get_table_num(data, :gen, :routine_capex, coal_idx, "y2030", :) == 0.2
+                @test get_table_num(data, :gen, :routine_capex, coal_idx, "y2035", :) == 0.2
+                @test get_table_num(data, :gen, :routine_capex, coal_idx, "y2040", :) > 0.2
 
                 wind_idxs = get_table_row_idxs(data, :gen, [:genfuel=>"wind", :build_status=>"built"])
                 wind_idx = first(wind_idxs)
-                @test get_table_num(data, :gen, :capex_obj, wind_idx, "y2030", :) > 0
-                @test get_table_num(data, :gen, :capex_obj, wind_idx, "y2035", :) == 0
-                @test get_table_num(data, :gen, :capex_obj, wind_idx, "y2040", :) == 0
+                @test get_table_num(data, :gen, :routine_capex, wind_idx, "y2030", :) == 0.8
+                @test get_table_num(data, :gen, :routine_capex, wind_idx, "y2035", :) == 0.3
+                @test get_table_num(data, :gen, :routine_capex, wind_idx, "y2040", :) == 0.3
             end
 
             @testset "Test exact age and after age" begin

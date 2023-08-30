@@ -186,9 +186,11 @@ function create_capex_obj!(config, data)
 
 
     for (idx_g, g) in enumerate(eachrow(gen))
-        capex_years = filter(year -> year >= g.year_on && year < add_to_year(g.year_on, g.econ_life), years)
-        g.capex_obj = g.capex .* ByYear([(year in capex_years) for year in years])
-        g.transmission_capex_obj = g.transmission_capex .* ByYear([(year in capex_years) for year in years])
+        g.build_status == "unbuilt" || continue
+        # capex_years = filter(year -> year >= g.year_on && year < add_to_year(g.year_on, g.econ_life), years)
+        capex_filter = ByYear(map(year -> year >= g.year_on && year < add_to_year(g.year_on, g.econ_life), years))
+        g.capex_obj = g.capex .* capex_filter
+        g.transmission_capex_obj = g.transmission_capex .* capex_filter
     end
 end
 export create_capex_obj!
