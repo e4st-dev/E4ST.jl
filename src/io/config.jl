@@ -252,7 +252,7 @@ function log_start(config)
         version_info_string(),
         "\nE4ST Info:\n",
         package_status_string(),
-        "\nModifications:",
+        "\nModifications:\n",
         mods_string(config),
     )
 end
