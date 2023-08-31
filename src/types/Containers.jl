@@ -65,12 +65,11 @@ mutable struct OriginalContainer{T, D, C} <: Container{T,D}
     original::Float64
     v::C
     function OriginalContainer(x, c::C) where {T,D, C<:Container{T,D}}
-        new{T, D, C}(x, c)
+        new{T, D, C}(Float64(x), c)
     end
 end
 
-OriginalContainer(x::Bool, v::Container) = OriginalContainer(Float64(x), v)
-
+OriginalContainer(x, c::OriginalContainer) = OriginalContainer(x, c.v)
 
 
 function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{OC}}, ::Type{ElType}) where  {ElType, C<:Container, T, D, OC<:OriginalContainer{T, D, C}}

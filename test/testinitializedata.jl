@@ -135,7 +135,6 @@
         data = read_data(config)
         gen = get_table(data, :gen)
 
-        @test hasproperty(gen, :capex_obj)
         @test hasproperty(gen, :age)
         @test typeof(gen.age) == Vector{Container}
         @test all(age->age isa E4ST.ByYear, gen.age)
