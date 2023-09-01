@@ -322,6 +322,7 @@ function modify_model!(mod::Storage, config, data, model)
     nyr = get_num_years(data)
     years = get_years(data)
     hour_weights = get_hour_weights(data)
+    hours_per_year = sum(hour_weights)
 
     ### Create capex_obj (the capex used in the optimization/objective function)
     # set to capex for unbuilt storage units in and after the year_on
@@ -367,6 +368,16 @@ function modify_model!(mod::Storage, config, data, model)
     )
 
     ### Create Constraints
+    # Constrain the power charging and discharging
+    @constraint(model,
+        cons_pcharge_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
+        pcharge_stor[stor_idx, yr_idx, hr_idx] <= pcap_stor[stor_idx, yr_idx] * storage.duration_charge[stor_idx] / (storage.duration_discharge[stor_idx] * storage.storage_efficiency[stor_idx])
+    )
+    @constraint(model,
+        cons_pdischarge_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
+        pdischarge_stor[stor_idx, yr_idx, hr_idx] <= pcap_stor[stor_idx, yr_idx]
+    )
+
     # Constrain start and end of each device's intervals to be the same
     @constraint(model,
         cons_stor_charge_bal[stor_idx in axes(storage,1), yr_idx in 1:nyr, int_idx in 1:storage.num_intervals[stor_idx]],
@@ -452,7 +463,7 @@ function modify_model!(mod::Storage, config, data, model)
     @expression(model,
         fom_stor[yr_idx in 1:nyr],
         sum(
-            pcap_stor[stor_idx, yr_idx] * get_table_num(data, :storage, :fom, stor_idx, yr_idx, :)
+            hours_per_year * pcap_stor[stor_idx, yr_idx] * get_table_num(data, :storage, :fom, stor_idx, yr_idx, :)
             for stor_idx in axes(storage,1)
         )
     )
@@ -460,12 +471,10 @@ function modify_model!(mod::Storage, config, data, model)
     @expression(model,
         routine_capex_stor[yr_idx in 1:nyr],
         sum(
-            pcap_stor[stor_idx, yr_idx] * get_table_num(data, :storage, :routine_capex, stor_idx, yr_idx, :)
+            hours_per_year * pcap_stor[stor_idx, yr_idx] * get_table_num(data, :storage, :routine_capex, stor_idx, yr_idx, :)
             for stor_idx in axes(storage,1)
         )
     )
-
-    
 
     @expression(model,
         pcap_stor_inv_sim[stor_idx in axes(storage,1)],
@@ -481,19 +490,20 @@ function modify_model!(mod::Storage, config, data, model)
     @expression(model,
         capex_obj_stor[yr_idx in 1:nyr],
         sum(
-            pcap_stor_inv_sim[stor_idx] * get_table_num(data, :storage, :capex_obj, stor_idx, yr_idx, :)
+            hours_per_year * pcap_stor_inv_sim[stor_idx] * get_table_num(data, :storage, :capex_obj, stor_idx, yr_idx, :)
             for stor_idx in axes(storage,1)
         )
     )
+
     @expression(model,
         transmission_capex_obj_stor[yr_idx in 1:nyr],
         sum(
-            pcap_stor_inv_sim[stor_idx] * get_table_num(data, :storage, :transmission_capex_obj, stor_idx, yr_idx, :)
+            hours_per_year * pcap_stor_inv_sim[stor_idx] * get_table_num(data, :storage, :transmission_capex_obj, stor_idx, yr_idx, :)
             for stor_idx in axes(storage,1)
         )
     )
-    
 
+    # Add cost expressions to the objective
     add_obj_exp!(data, model, PerMWhGen(), :vom_stor, oper = +)
     add_obj_exp!(data, model, PerMWCap(), :fom_stor, oper = +)
     add_obj_exp!(data, model, PerMWCap(), :routine_capex_stor, oper = +)
@@ -582,7 +592,7 @@ function modify_results!(mod::Storage, config, data)
     add_results_formula!(data, :storage, :fom_cost, "SumHourlyWeighted(fom, pcap)", Dollars, "Total fixed operation and maintenance cost paid, in dollars")
     add_results_formula!(data, :storage, :fom_per_mwh, "fom_cost / edischarge_total", DollarsPerMWhDischarged, "Average fixed operation and maintenance cost for discharging 1 MWh of energy")
     add_results_formula!(data, :storage, :routine_capex_cost, "SumHourlyWeighted(routine_capex, pcap)", Dollars, "Total routine capex cost paid, in dollars")
-    add_results_formula!(data, :storage, :routine_capex_per_mwh, "fom_cost / edischarge_total", DollarsPerMWhDischarged, "Average routine capex cost for discharging 1 MWh of energy")
+    add_results_formula!(data, :storage, :routine_capex_per_mwh, "routine_capex_cost / edischarge_total", DollarsPerMWhDischarged, "Average routine capex cost for discharging 1 MWh of energy")
     add_results_formula!(data, :storage, :capex_cost, "SumYearly(capex_obj, ecap_inv_sim)", Dollars, "Total annualized capital expenditures paid, in dollars, as seen by objective function, including endogenous and exogenous investments that were incurred in the simulation year.")
     add_results_formula!(data, :storage, :capex_per_mwh, "capex_cost / edischarge_total", DollarsPerMWhDischarged, "Average capital cost for discharging 1 MWh of energy")
     add_results_formula!(data, :storage, :transmission_capex_cost, "SumYearly(transmission_capex_obj, ecap_inv_sim)", Dollars, "Total annualized transmission capital expenditures paid, in dollars.  This is only for transmission costs related to building the storage unit, beyond that included in the capex cost of the generator.")
