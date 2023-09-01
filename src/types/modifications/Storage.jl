@@ -357,12 +357,12 @@ function modify_model!(mod::Storage, config, data, model)
     @variable(model,
         pcharge_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
         lower_bound = 0,
-        upper_bound = storage.pcap_max[stor_idx]  * storage.duration_charge[stor_idx] / (storage.duration_discharge[stor_idx] * storage.storage_efficiency[stor_idx])
+        upper_bound = storage.pcap_max[stor_idx]  * storage.duration_discharge[stor_idx] / (storage.duration_charge[stor_idx] * storage.storage_efficiency[stor_idx])
     )
 
     # initial energy stored in the device
     @variable(model,
-        e0_stor[stor_idx in axes(storage, 1)],
+        e0_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr],
         lower_bound = 0,
         upper_bound = storage.pcap_max[stor_idx] * storage.duration_discharge[stor_idx]
     )
@@ -371,14 +371,18 @@ function modify_model!(mod::Storage, config, data, model)
     # Constrain the power charging and discharging
     @constraint(model,
         cons_pcharge_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
-        pcharge_stor[stor_idx, yr_idx, hr_idx] <= pcap_stor[stor_idx, yr_idx] * storage.duration_charge[stor_idx] / (storage.duration_discharge[stor_idx] * storage.storage_efficiency[stor_idx])
+        pcharge_stor[stor_idx, yr_idx, hr_idx] <= pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx] / (storage.duration_charge[stor_idx] * storage.storage_efficiency[stor_idx])
     )
     @constraint(model,
         cons_pdischarge_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
         pdischarge_stor[stor_idx, yr_idx, hr_idx] <= pcap_stor[stor_idx, yr_idx]
     )
+    @constraint(model,
+        cons_e0_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr],
+        e0_stor[stor_idx, yr_idx] <= pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
+    )
 
-    # Constrain start and end of each device's intervals to be the same
+    # Constrain start and end charge of each device's intervals to be the same
     @constraint(model,
         cons_stor_charge_bal[stor_idx in axes(storage,1), yr_idx in 1:nyr, int_idx in 1:storage.num_intervals[stor_idx]],
         sum(
@@ -402,13 +406,13 @@ function modify_model!(mod::Storage, config, data, model)
         ],
         sum(
             (
-                pdischarge_stor[stor_idx, yr_idx, hr_idx] -
-                pcharge_stor[stor_idx, yr_idx, hr_idx] * storage.storage_efficiency[stor_idx]
+                pcharge_stor[stor_idx, yr_idx, hr_idx] * storage.storage_efficiency[stor_idx] -
+                pdischarge_stor[stor_idx, yr_idx, hr_idx]
+                
             ) *
             storage.interval_hour_duration[stor_idx][hr_idx]
             for hr_idx in storage.intervals[stor_idx][int_idx][1:_hr_idx]
-        # ) <= pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
-        )  + e0_stor[stor_idx] <= pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
+        )  + e0_stor[stor_idx, yr_idx] <= pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
     )
     
     # Constrain lower limit on charge
@@ -421,13 +425,13 @@ function modify_model!(mod::Storage, config, data, model)
         ],
         sum(
             (
-                pdischarge_stor[stor_idx, yr_idx, hr_idx] - 
-                pcharge_stor[stor_idx, yr_idx, hr_idx] * storage.storage_efficiency[stor_idx]
+                pcharge_stor[stor_idx, yr_idx, hr_idx] * storage.storage_efficiency[stor_idx] -
+                pdischarge_stor[stor_idx, yr_idx, hr_idx]
             ) * 
             storage.interval_hour_duration[stor_idx][hr_idx] 
             for hr_idx in storage.intervals[stor_idx][int_idx][1:_hr_idx]
         # ) >= 0 # -pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
-        ) + e0_stor[stor_idx] >= 0 # -pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
+        ) + e0_stor[stor_idx, yr_idx] >= 0 # -pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
     )
 
     ### Add build constraints for endogenous batteries
@@ -557,7 +561,7 @@ function modify_results!(mod::Storage, config, data)
 
     add_table_col!(data, :storage, :pcap, pcap_stor, MWCapacity, "Power Discharge capacity of the storage device")
     add_table_col!(data, :storage, :pcharge, pcharge_stor, MWCharged, "Rate of charging, in MW")
-    add_table_col!(data, :storage, :pdischarge, pcharge_stor, MWDischarged, "Rate of discharging, in MW")
+    add_table_col!(data, :storage, :pdischarge, pdischarge_stor, MWDischarged, "Rate of discharging, in MW")
     add_table_col!(data, :storage, :echarge, echarge_stor, MWhCharged, "Energy that went into charging the storage device (includes any round-trip storage losses)")
     add_table_col!(data, :storage, :edischarge, edischarge_stor, MWhDischarged, "Energy that was discharged by the storage device")
     add_table_col!(data, :storage, :pcap_inv_sim, pcap_inv_sim, MWCapacity, "Total power discharge capacity that was invested for the storage unit during the sim.  (single value).  Still the same even after retirement")
