@@ -160,11 +160,15 @@ function setup_dcopf!(config, data, model)
         AffExpr(0.0)
     )
 
-    for gen_idx in 1:nrow(gen)
-        gen.build_status[gen_idx] == "unbuilt" || continue
-        year_on = gen.year_on[gen_idx]
-        year_on > last(years) && continue
-        yr_idx_on = findfirst(>=(year_on), years)
+    for (gen_idx,g) in enumerate(eachrow(gen))
+        g.build_status in ("unbuilt", "unretrofitted") || continue
+
+        # Retrieve the investment year (either the retrofit year or the build year)
+        year_retrofit = get(g, :year_retrofit, "")
+        year_invest = isempty(year_retrofit) ? g.year_on : year_retrofit
+
+        year_invest > last(years) && continue
+        yr_idx_on = findfirst(>=(year_invest), years)
         add_to_expression!(pcap_gen_inv_sim[gen_idx], pcap_gen[gen_idx, yr_idx_on])
     end
 

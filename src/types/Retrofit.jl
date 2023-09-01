@@ -79,6 +79,8 @@ function modify_setup_data!(ret::Retrofit, config, data)
             # capex for the retrofit will be added in retrofit!()
             newgen[:capex] = 0
             newgen[:pcap0] = 0
+            newgen[:transmission_capex] = 0
+            newgen[:build_status] = "unretrofitted"
 
             retrofit!(ret, newgen)
             
@@ -152,41 +154,7 @@ function modify_model!(ret::Retrofit, config, data, model)
         ],
         pcap_gen[gen_idx, yr_idx] == 0.0
     )
-
-    # Remove noadd constraints before retrofit
-    if haskey(model, :cons_pcap_gen_noadd)
-        cons = model[:cons_pcap_gen_noadd]
-        for gen_idx in 1:nrow(gen)
-            row = gen[gen_idx, :]
-
-            # Check to see if this is a retrofit generator
-            isempty(row.year_retrofit) && continue
-            retro_yr_idx = findfirst(>=(row.year_retrofit), years)
-            retro_yr_idx === nothing && continue # Must be a previously retrofit generator, no need to remove constraints
-
-            for yr_idx in 1:(retro_yr_idx-1)
-                delete(model, cons[gen_idx, yr_idx])
-            end
-        end
-    end
-
-    # Add the retrofit capacity to the pcap_gen_inv_sim expression
-    expr = model[:pcap_gen_inv_sim]::Vector{AffExpr}
-    for gen_idx in 1:nrow(gen)
-        row = gen[gen_idx, :]
-
-        # Check to see if this is a retrofit generator
-        isempty(row.year_retrofit) && continue
-        retro_yr_idx = findfirst(>=(row.year_retrofit), years)
-        retro_yr_idx === nothing && continue 
-
-        # Zero out the expression
-        add_to_expression!(expr[gen_idx], expr[gen_idx], -1)
-
-        # Add the correct pcap_gen to the expression
-        add_to_expression!(expr[gen_idx], pcap_gen[gen_idx, retro_yr_idx])        
-    end
-    
+        
     return nothing
 end
 

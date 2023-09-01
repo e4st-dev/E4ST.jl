@@ -186,8 +186,15 @@ function create_capex_obj!(config, data)
 
 
     for g in eachrow(gen)
-        g.build_status == "unbuilt" || continue
-        capex_filter = ByYear(map(year -> year >= g.year_on && year < add_to_year(g.year_on, g.econ_life), years))
+        # Do not change the capex_obj for anything that has been built, unless it is a retrofit
+        g.build_status in ("unbuilt", "unretrofitted") || continue
+        
+        # Retrieve the investment year (either the retrofit year or the build year)
+        year_retrofit = get(g, :year_retrofit, "")
+        year_invest = isempty(year_retrofit) ? g.year_on : year_retrofit
+
+        # Create a mask that is 1 for years during the econ life of the investment, and 0 before
+        capex_filter = ByYear(map(year -> year >= year_invest && year < add_to_year(year_invest, g.econ_life), years))
         g.capex_obj = g.capex .* capex_filter
         g.transmission_capex_obj = g.transmission_capex .* capex_filter
     end
