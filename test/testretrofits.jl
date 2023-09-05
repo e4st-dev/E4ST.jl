@@ -1,16 +1,20 @@
 @testset "Test Retrofits" begin
     config_file = joinpath(@__DIR__, "config/config_3bus.yml")
-    config = read_config(config_file)
+    config_ccus_file = joinpath(@__DIR__, "config/config_ccus.yml")
+    config = read_config(config_file, config_ccus_file)
     mods = get_mods(config)
     mods[:coal_ccs_retro] = CoalCCSRetrofit()
+    E4ST.sort_mods_by_rank!(config)
 
     data = read_data(config)
     gen = get_table(data, :gen)
     years = get_years(data)
     nyr = get_num_years(data)
+
+    model = setup_model(config, data)
     
-    # Test that data has 3 retrofits - one for each year
-    @test length(get_table_row_idxs(data, :gen, :gentype=>"coal_ccus_retrofit")) == 3
+    # Test that data has 6 retrofits - one for each year x 1 for each CCUS type
+    @test length(get_table_row_idxs(data, :gen, :gentype=>"coal_ccus_retrofit")) == 6
     retrofits = data[:retrofits]
 
     for (gen_idx, ret_idxs) in retrofits
@@ -21,8 +25,6 @@
             @test gen.year_retrofit[ret_idx] in years
         end
     end
-
-    model = setup_model(config, data)
 
     @test haskey(model, :cons_pcap_gen_retro_max)
     @test haskey(model, :cons_pcap_gen_retro_min)
