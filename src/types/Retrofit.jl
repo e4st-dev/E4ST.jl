@@ -54,11 +54,11 @@ function modify_setup_data!(ret::Retrofit, config, data)
     # Add year_retrofit column to the gen table
     gen = get_table(data, :gen)
     hasproperty(gen, :year_retrofit) || add_table_col!(data, :gen, :year_retrofit, fill("", nrow(gen)), Year, "Year in which the unit was retrofit, or blank if not a retrofit.")
+    hasproperty(gen, :retrofit_original_gen_idx)  || add_table_col!(data, :gen, :retrofit_original_gen_idx, fill(-1, nrow(gen)), NA, "Index of the original generator of a retrofit. `-1` if not a retrofit.")
 
     # Initialize with the Retrofit type
     init!(ret, config, data)
     years = get_years(data)
-    retrofits = get!(data, :retrofits, OrderedDict{Int64, Vector{Int64}}())::OrderedDict{Int64, Vector{Int64}}
     ngen = nrow(gen)
     nyr = get_num_years(data)
 
@@ -74,6 +74,7 @@ function modify_setup_data!(ret::Retrofit, config, data)
             # Set year_retrofit
             year = years[yr_idx]
             newgen[:year_retrofit] = year
+            newgen[:retrofit_original_gen_idx] = gen_idx
 
             #set capex = 0 because original capex of the plant will continue to be paid based on pcap_inv of the pre retrofit generator
             # capex for the retrofit will be added in retrofit!()
@@ -86,8 +87,6 @@ function modify_setup_data!(ret::Retrofit, config, data)
             
             # Add newgen to the gen table, add it to retrofits.
             push!(gen, newgen)
-            current_gen_retrofit_idxs = get!(retrofits, gen_idx, Int64[])
-            push!(current_gen_retrofit_idxs, nrow(gen))
         end
     end
 
@@ -111,10 +110,19 @@ function modify_model!(ret::Retrofit, config, data, model)
     nyr = get_num_years(data)
     gen = get_table(data, :gen)
     years = get_years(data)
-    retrofits = data[:retrofits]::OrderedDict{Int64, Vector{Int64}}
     pcap_gen = model[:pcap_gen]::Array{VariableRef, 2}
     pcap_max = gen.pcap_max
     pcap_min = gen.pcap_min
+
+    # Make a Dict of retrofits to be generated, mapping original generator to retrofit(s)
+    retrofits = get!(data, :retrofits, OrderedDict{Int64, Vector{Int64}}())::OrderedDict{Int64, Vector{Int64}}
+    original_idxs = gen.retrofit_original_gen_idx::Vector{Int64}
+    for (gen_idx, original_idx) in enumerate(original_idxs)
+        if original_idx > 0
+            current_gen_retrofit_idxs = get!(retrofits, original_idx, Int64[])
+            push!(current_gen_retrofit_idxs, gen_idx)
+        end
+    end
 
     # Make constraint on the sum of the retrofit capacities
     @constraint(model, 
