@@ -20,8 +20,8 @@
     cons_stor_charge_bal = get_raw_result(data, :cons_stor_charge_bal)
     e0_stor = get_raw_result(data, :e0_stor)
     pcharge_stor = get_raw_result(data, :pcharge_stor)
-    pdischarge_stor = get_raw_result(data, :pdischarge_stor)    
-
+    pdischarge_stor = get_raw_result(data, :pdischarge_stor)
+    
     @test pcap_stor > 0.05
 
     # Test that there is some endogenous storage being built

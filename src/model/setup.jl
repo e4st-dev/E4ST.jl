@@ -212,46 +212,50 @@ function summarize(data)
     return summary
 end
 
+# These utilities are for summarizing the model, which can be used for debugging numerical issues.
+_get_jump_type(ar::AbstractArray) = Base.typename(eltype(ar)).name
+_get_jump_type(x) = Base.typename(typeof(x)).name
+_get_jump_length(x) = 1
+_get_jump_length(x::AbstractArray) = length(x)::Int64
+_get_jump_size(x::AbstractArray) = string(size(x))
+_get_jump_size(x) = "irregular"
+_get_jump_size(x::JuMP.Containers.SparseAxisArray) = "irregular"
+
 """
     summarize(model::Model) -> summary::String
 """
 function summarize(model::Model)
     buf = IOBuffer()
-    df = DataFrame(:variable=>Symbol[], :type=>Symbol[], :dimensions=>[], :length=>[], :rhs_range=>[], :matrix_range=>[], :bounds_range=>[])
+    df = DataFrame(:variable=>Symbol[], :type=>Symbol[], :dimensions=>[], :length=>Int64[], 
+        :rhs_min=>Float64[], 
+        :rhs_max=>Float64[],
+        :matrix_min=>Float64[],
+        :matrix_max=>Float64[],
+        :bounds_min=>Float64[],
+        :bounds_max=>Float64[]
+    )
     d = object_dictionary(model)
     for (key, obj) in d
-        if obj isa AbstractArray
-            t = Base.typename(eltype(obj)).name
-        else
-            t = Base.typename(typeof(obj)).name
-        end
-        len = try
-            length(obj)
-        catch
-            1
-        end
-        if obj isa AbstractArray
-            s = try
-                size(obj)
-            catch
-                "irregular"
-            end
-        else
-            s = (1,)
-        end
-        rhs_range = get_rhs_range(obj)
-        matrix_range = get_matrix_range(obj)
-        bounds_range = get_bounds_range(obj)
+        t = _get_jump_type(obj)
+        s = _get_jump_size(obj)
+        len = _get_jump_length(obj)
 
-        push!(df, (key, t, s, len, rhs_range, matrix_range, bounds_range))
+        len == 0 && continue
+
+        rhs_min, rhs_max = get_rhs_range(obj)
+        matrix_min, matrix_max = get_matrix_range(obj)
+        bounds_min, bounds_max = get_bounds_range(obj)
+
+        push!(df, (key, t, s, len, rhs_min, rhs_max, matrix_min, matrix_max, bounds_min, bounds_max))
     end
     println(buf, "Model Summary:")
 
-    filter!(:type=>!=(:GenericAffExpr), df)
     sort!(df, [:type, :variable])
 
     println(buf, df)
     summary = String(take!(buf))
+    close(buf)
+    return summary
 end
 export summarize
 
@@ -260,24 +264,36 @@ export summarize
 
 Returns min and max of non-zero absolute value of matrix range
 """
-get_matrix_range(c::AbstractArray{<:ConstraintRef}) = (get_limit(minimum, c), get_limit(maximum, c))
-get_matrix_range(c) = nothing
+get_matrix_range(c::AbstractArray{<:ConstraintRef}) = (get_limit(minimum, c)::Float64, get_limit(maximum, c)::Float64)
+get_matrix_range(c) = (NaN, NaN)
 
 """
     get_bounds_range(v) -> (min, max)
 
 Returns min and max of non-zero absolute value of variable bounds range
 """
-get_bounds_range(v::AbstractArray{<:VariableRef}) = (get_limit(minimum, v), get_limit(maximum, v))
-get_bounds_range(v) = nothing
+get_bounds_range(v::AbstractArray{<:VariableRef}) = (get_limit(minimum, v)::Float64, get_limit(maximum, v)::Float64)
+get_bounds_range(v) = (NaN, NaN)
 
 """
     get_rhs_range(v) -> (min, max)
 
 Returns min and max of non-zero absolute value of constraint right hand side range range
 """
-get_rhs_range(c::AbstractArray{<:ConstraintRef}) = (get_rhs_limit(minimum, c), get_rhs_limit(maximum, c))
-get_rhs_range(c) = nothing
+get_rhs_range(c::AbstractArray{<:ConstraintRef}) = begin
+    ll = Inf
+    ul = 0.0
+    for cons in c
+        rhs = get_rhs(cons)
+        rhs == 0.0 && continue
+        a = abs(rhs)
+        a > ul && (ul = a)
+        a < ll && (ll = a)
+    end
+    ll == Inf && (ll = 0.0)
+    (ll, ul)
+end
+get_rhs_range(c) = (NaN, NaN)
 
 get_limit(f, obj::AbstractArray{<:VariableRef}) = try; f(abs(x) for x in get_limit.(f, obj) if x != 0); catch; 0.0; end;
 
@@ -300,7 +316,6 @@ function get_terms(c::ConstraintRef)
 end
 export get_terms
 
-get_rhs_limit(f, obj::AbstractArray{<:ConstraintRef}) = try; f(abs(x) for x in get_rhs.(obj) if x != 0); catch; 0.0; end;
 function get_rhs(c::ConstraintRef)
     co = constraint_object(c)
     rhs = _get_value(co.set)

@@ -275,6 +275,7 @@ function modify_model!(mod::CCUS, config, data, model)
     nhour = get_num_hours(data)
     nstor = nrow(ccus_storers)
     nsend = nrow(ccus_producers)
+    egen = model[:egen_gen]::Array{AffExpr, 3}
 
     # Add capacity matching constraints for the sets of ccus_paths generators
     match_capacity!(data, model, :gen, :pcap_gen, :ccus, ccus_gen_sets)
@@ -295,8 +296,14 @@ function modify_model!(mod::CCUS, config, data, model)
     # Setup expressions for carbon stored for each of the carbon sequesterers as a function of the co2 transported
     @expression(model, 
         co2_stor[stor_idx in 1:nstor, yr_idx in 1:nyear],
-        sum(co2_trans[ts_idx, yr_idx] for ts_idx in ccus_storers.path_idxs[stor_idx])
+        AffExpr(0.0)
     )
+    for stor_idx in 1:nstor, yr_idx in 1:nyear
+        e = co2_stor[stor_idx, yr_idx]::AffExpr
+        for ts_idx in ccus_storers.path_idxs[stor_idx]
+            add_to_expression!(e, co2_trans[ts_idx, yr_idx])
+        end
+    end
     
     # Constrain the co2 sold to each sequestration step must be less than the step quantity
     @constraint(model, 
@@ -307,17 +314,26 @@ function modify_model!(mod::CCUS, config, data, model)
     # Create expression for total CO2 for each sending region of each type
     @expression(model, 
         co2_sent[send_idx in 1:nsend, yr_idx in 1:nyear],
-        sum(co2_trans[ts_idx, yr_idx] for ts_idx in ccus_producers.path_idxs[send_idx])
+        AffExpr(0.0)
     )
-
+    for send_idx in 1:nsend, yr_idx in 1:nyear
+        e = co2_sent[send_idx, yr_idx]::AffExpr
+        for ts_idx in ccus_producers.path_idxs[send_idx]
+            add_to_expression!(e, co2_trans[ts_idx, yr_idx])
+        end
+    end
+       
     # Create expression for total CO2 for each sending region of each type
     @expression(model, 
         co2_prod[send_idx in 1:nsend, yr_idx in 1:nyear],
-        sum(
-            model[:egen_gen][gen_idx, yr_idx, hr_idx] * get_table_num(data, :gen, :capt_co2, gen_idx, yr_idx, hr_idx)
-            for gen_idx in ccus_producers.gen_idxs[send_idx], hr_idx in 1:nhour
-        )
+        AffExpr(0.0)
     )
+    for send_idx in 1:nsend, yr_idx in 1:nyear
+        e = co2_prod[send_idx, yr_idx]::AffExpr
+        for gen_idx in ccus_producers.gen_idxs[send_idx], hr_idx in 1:nhour
+            add_to_expression!(e, egen[gen_idx, yr_idx, hr_idx], get_table_num(data, :gen, :capt_co2, gen_idx, yr_idx, hr_idx))
+        end
+    end
 
     # Constrain that co2 captured in a region must equal the CO2 sold in that region. "CO2 balancing constraint"
     # LHS is divided by sqrt of co2_scalar, rhs is multiplied, so that they meet in the middle of coefficient range.

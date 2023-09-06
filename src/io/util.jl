@@ -432,15 +432,16 @@ Parse a year comparison.  Could take the following forms:
 function parse_hour_idxs(s::AbstractString)
     isempty(s) && return (:)
     
-    # "1"
-    if (m=match(r"\d+", s)) !== nothing
-        return parse(Int64, m.match)
-    end
-    
     # "season=>winter"
     if (m = match(r"([\w\s]+)=>([\w\s]+)", s)) !== nothing
         return strip(m.captures[1])=>strip(m.captures[2])
     end
+
+    # "1"
+    if (m=match(r"\d+", s)) !== nothing
+        return parse(Int64, m.match)
+    end
+
 
     error("No match found for $s")
 end
