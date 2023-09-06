@@ -50,7 +50,7 @@ Example Result Queries
 * `compute_result(data, :gen, :cost_capt_co2, :ccus_type=>"eor", yr_idx)`
 * `compute_result(data, :gen, :cost_capt_co2_store, :gentype=>"coalccs", yr_idx)`
 * `compute_result(data, :gen, :cost_capt_co2_trans, :, yr_idx)`
-* `compute_result(data, :ccus_paths, :storer_cost_total, :storing_region=>"narnia")
+* `compute_result(data, :ccus_paths, :storer_cost_total, :storing_region=>"narnia")`
 * `compute_result(data, :ccus_paths, :storer_revenue_total, :producing_region=>"narnia")`
 * `compute_result(data, :ccus_paths, :storer_profit_total, :ccus_type=>"eor")`
 
