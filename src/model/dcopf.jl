@@ -37,7 +37,7 @@ function setup_dcopf!(config, data, model)
     # Capacity
     @variable(model, 
         pcap_gen[gen_idx in 1:ngen, year_idx in 1:nyear], 
-        start=0.0, #get_table_num(data, :gen, :pcap0, gen_idx, year_idx, :), # Setting to 0.0 for feasibility
+        start = get_table_num(data, :gen, :pcap0, gen_idx, year_idx, :),
         lower_bound = get_pcap_min(data, gen_idx, year_idx),
         upper_bound = get_pcap_max(data, gen_idx, year_idx),
     )
@@ -45,9 +45,9 @@ function setup_dcopf!(config, data, model)
     # Power Generation
     @variable(model, 
         pgen_gen[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour], 
-        start=0.0,
+        start = get_table_num(data, :gen, :pcap0, gen_idx, year_idx, :) * get_cf_max(config, data, gen_idx, year_idx, hour_idx),
         lower_bound = 0.0,
-        upper_bound = get_pcap_max(data, gen_idx, year_idx)+1, # +1 here to allow cons_pgen_max to always be binding
+        upper_bound = get_pcap_max(data, gen_idx, year_idx) * 1.1, # 10% buffer here to allow cons_pgen_max to always be binding
     )
 
     # Power Curtailed

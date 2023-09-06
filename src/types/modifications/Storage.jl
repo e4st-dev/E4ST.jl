@@ -368,14 +368,18 @@ function modify_model!(mod::Storage, config, data, model)
     )
 
     ### Create Constraints
-    # Constrain the power charging and discharging
+    # Constrain the power charging and discharging maximum rates
     @constraint(model,
         cons_pcharge_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
-        pcharge_stor[stor_idx, yr_idx, hr_idx] <= pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx] / (storage.duration_charge[stor_idx] * storage.storage_efficiency[stor_idx])
+        pcharge_stor[stor_idx, yr_idx, hr_idx] <= 
+            min(1, storage.duration_charge[stor_idx] / storage.interval_hour_duration[stor_idx][hr_idx]) * # This term represents the max rate or charge vs max charge, whichever is more binding.  I.e. if the interval is too short to fully charge, the charge rate is binding.  If interval is too long, the charge capacity is binding.
+            pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx] / (storage.duration_charge[stor_idx] * storage.storage_efficiency[stor_idx]) # This term represents the max rate
     )
     @constraint(model,
         cons_pdischarge_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
-        pdischarge_stor[stor_idx, yr_idx, hr_idx] <= pcap_stor[stor_idx, yr_idx]
+        pdischarge_stor[stor_idx, yr_idx, hr_idx] <= 
+            min(1, storage.duration_discharge[stor_idx] / storage.interval_hour_duration[stor_idx][hr_idx]) * # This term represents the max rate of discharge vs max discharge, whichever is more binding.  I.e. if the interval is too short to fully discharge, the discharge rate is binding.  If interval is too long, the charge capacity is binding.
+            pcap_stor[stor_idx, yr_idx]
     )
     @constraint(model,
         cons_e0_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr],
