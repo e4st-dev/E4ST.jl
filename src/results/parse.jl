@@ -412,7 +412,7 @@ function update_build_status!(config, data, table_name)
 
     for row in eachrow(gen)
         bs = row.build_status
-        if bs == "unbuilt"
+        if bs in ("unbuilt", "unretrofitted")
             last(row.pcap) >= thresh || continue
             row.build_status = "new"
         elseif bs == "built"
