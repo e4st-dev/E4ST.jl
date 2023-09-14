@@ -355,7 +355,7 @@ Returns a set of pairs to be used in filtering rows of another table.  Looks for
 * `load_type` - if the row has a non-empty `load_type`, it will add an comparion that checks that each row's `load_type` equals this value
 """
 function parse_comparisons(row::DataFrameRow)
-    pairs = []
+    pairs = []::Any
     for i in 1:10000
         name = "filter$i"
         hasproperty(row, name) || break
@@ -387,6 +387,8 @@ Returns a set of pairs to be used in filtering rows of another table, where each
 """
 function parse_comparisons(d::AbstractDict)
     pairs = collect(parse_comparison("$k=>$v") for (k,v) in d if ~isempty(v))
+    pairs = convert(Vector{Any}, pairs)
+    return pairs
 end
 
 
