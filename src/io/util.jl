@@ -298,7 +298,10 @@ Possible examples of strings `s` to parse:
 * `"year_on=> >(y2002)` - All rows for which `row.year_on` is greater than "y2002" (works for fractional years too, such as "y2002.4")
 * `"genfuel=>[ng, wind, solar]"` - All rows for which `row.genfuel` is "ng", "wind", or "solar".  Works for Ints and Floats too.
 """
-function parse_comparison(s::AbstractString)
+function parse_comparison(_s::AbstractString)
+    # Remove any quote characters from _s
+    s = replace(_s, "\""=>"")
+
     # In the form "emis_rate=>(0.0001,4.9999)" (should work for Ints, negatives, and Inf too)
     if (m=match(r"([\w\s]+)=>\s*\((\s*-?\s*(?:Inf)?[\d.]*)\s*,\s*-?\s*(?:Inf)?([\d.]*)\s*\)", s)) !== nothing
         r1 = parse(Float64, replace(m.captures[2], ' '=>""))
@@ -355,7 +358,7 @@ Returns a set of pairs to be used in filtering rows of another table.  Looks for
 * `load_type` - if the row has a non-empty `load_type`, it will add an comparion that checks that each row's `load_type` equals this value
 """
 function parse_comparisons(row::DataFrameRow)
-    pairs = []
+    pairs = []::Vector{Any}
     for i in 1:10000
         name = "filter$i"
         hasproperty(row, name) || break
@@ -387,6 +390,8 @@ Returns a set of pairs to be used in filtering rows of another table, where each
 """
 function parse_comparisons(d::AbstractDict)
     pairs = collect(parse_comparison("$k=>$v") for (k,v) in d if ~isempty(v))
+    pairs = convert(Vector{Any}, pairs)
+    return pairs
 end
 
 
