@@ -280,7 +280,7 @@
 
     @testset "Test results processing from already-saved results" begin
         ### Run E4ST
-        out_path, _ = run_e4st(config_file, log_model_summary=true)
+        out_path = run_e4st(config_file, log_model_summary=true)
 
         # Now read the config from the out_path, with some results processing mods too.  Could also add the mods manually here.
         mod_file= joinpath(@__DIR__, "config/config_res.yml")
