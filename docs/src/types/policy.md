@@ -12,6 +12,9 @@ Policy
 ITC
 modify_setup_data!(pol::ITC, config, data)
 modify_model!(pol::ITC, config, data, model)
+ITCStorage
+modify_setup_data!(pol::ITCStorage, config, data)
+modify_model!(pol::ITCStorage, config, data, model)
 ```
 
 ## PTC
