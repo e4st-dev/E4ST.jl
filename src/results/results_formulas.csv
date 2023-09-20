@@ -12,8 +12,8 @@ gen,pcap_retired_total,SumYearly(pcap_retired),MWCapacity,Total power capacity r
 gen,pcap_retired_percent,pcap_retired_total / pcap_start_total,MWCapacity,Percent of existing power capacity that was retired.  Could be misleading if multiple years and generators were built and retired.
 gen,ecap_inv_total,SumHourlyWeighted(pcap_inv),MWhCapacity,Total invested energy capacity over the time given
 gen,cf_avg,egen_total/ecap_total,MWhGeneratedPerMWhCapacity,Average Capacity Factor
-gen,cf_hourly_min,MinHourly(cf),MWhGeneratedPerMWhCapacity,Minimum observed capacity factor
-gen,cf_hourly_max,MaxHourly(cf),MWhGeneratedPerMWhCapacity,Maximum observed capacity factor
+gen,cf_hourly_min,MinValue(cf),MWhGeneratedPerMWhCapacity,Minimum observed capacity factor
+gen,cf_hourly_max,MaxValue(cf),MWhGeneratedPerMWhCapacity,Maximum observed capacity factor
 gen,heat_rate_avg,fuel_burned / egen_total,MMBtuPerMWhGenerated,Average heat rate (fuel burned in MMBtu per MWh)
 gen,emis_co2_total,"SumHourly(emis_co2,egen)",ShortTons,Total CO2 emissions
 gen,emis_nox_total,"SumHourly(emis_nox,egen)",Pounds,Total NOx emissions

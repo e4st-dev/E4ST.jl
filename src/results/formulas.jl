@@ -476,7 +476,8 @@ end
 @doc raw"""
     MaxHourly(cols...) <: Function
 
-This function returns the maximum hourly value.
+This function returns the maximum aggregated hourly value. Sums up all values for that hour over the given idxs, then takes the maximum. 
+Suited for results like load where you want to know the maximum of the regional load. 
 
 ```math
 \max_{y \in \text{yr\_idxs}, h \in \text{hr\_idxs}} \sum_{i \in \text{idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
@@ -493,6 +494,43 @@ function (f::MaxHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
     v1 = table[!, col1]
     maximum(_sum_hourly(v1, idxs, y, h) for h in hr_idxs for y in yr_idxs)
 end
+
+"""
+    MaxValue()
+
+This function returns the maximum hourly value from all hours for all of the given idxs. These values are not weighted hourly and are not aggregated. 
+This is suited for results like capacity factor and things that are characteristics of an hour that should not be summed. 
+"""
+struct MaxValue{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+MaxValue(cols::Symbol...) = MaxValue(cols)
+export MaxValue
+
+function (f::MaxValue{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    v1 = table[!, col1]
+    maximum(_collect_hourly(v1, idxs, yr_idxs, hr_idxs))
+end
+
+"""
+    MinValue()
+
+This function returns the minimum hourly value from all hours for all of the given idxs. These values are not weighted hourly and are not aggregated. 
+This is suited for results like capacity factor and things that are characteristics of an hour that should not be summed. 
+"""
+struct MinValue{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+MinValue(cols::Symbol...) = MinValue(cols)
+export MaxValue
+
+function (f::MinValue{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    v1 = table[!, col1]
+    minimum(_collect_hourly(v1, idxs, yr_idxs, hr_idxs))
+end
+
 
 @doc raw"""
     SumHourly(cols...) <: Function
@@ -639,4 +677,16 @@ function _sum_hourly(v1, v2, v3, idxs, yr_idxs, hr_idxs)
 end
 function _sum_hourly(v1, v2, v3, v4, idxs, yr_idxs, hr_idxs)
     sum(_getindex(v1, i, y, h)*_getindex(v2, i, y, h)*_getindex(v3, i, y, h)*_getindex(v4, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
+end
+
+function _collect_hourly(v1, idxs, yr_idxs, hr_idxs)
+    vals = []
+    for i in idxs
+        for y in yr_idxs
+            for h in hr_idxs
+                append!(vals, _getindex(v1, i, y, h))
+            end
+        end
+    end
+    return vals
 end
