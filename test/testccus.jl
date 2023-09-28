@@ -1,7 +1,7 @@
 @testset "Test CCUS" begin
     config_file = joinpath(@__DIR__, "config/config_3bus.yml")
     ccus_config_file = joinpath(@__DIR__, "config/config_ccus.yml")
-    out_path, _ = run_e4st(config_file, ccus_config_file)
+    out_path = run_e4st(config_file, ccus_config_file)
 
     data = read_processed_results(out_path)
     nyear = get_num_years(data)

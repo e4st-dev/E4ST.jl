@@ -53,7 +53,8 @@ makedocs(
     format = Documenter.HTML(
         assets = ["assets/favicon.ico"],
         prettyurls = false
-    )
+    ),
+    warnonly=true,
 )
 
 # TODO: Uncomment below to deploy the docs to the github repo!

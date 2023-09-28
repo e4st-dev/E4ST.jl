@@ -102,9 +102,9 @@ include("results/util.jl")
 
 
 """
-    run_e4st(config) -> out_path, results
+    run_e4st(config) -> out_path
 
-    run_e4st(filename(s)) -> out_path, results
+    run_e4st(filename(s)) -> out_path
 
 Top-level function for running E4ST.  Here is a general overview of what happens:
 1. Book-keeping
@@ -146,7 +146,12 @@ function run_e4st(config::OrderedDict)
     
         run_optimize!(config, data, model)
 
-        check(model) || return model # all_results
+        if ~check(model)
+            @info "Model did not pass the check, saving model and data to model_debug.jls and data_debug.jls"
+            serialize(get_out_path(config, "model_debug.jls"), model)
+            serialize(get_out_path(config, "data_debug.jls"), data)
+            return get_out_path(config) # all_results
+        end
 
         ### Results
         parse_results!(config, data, model)
@@ -175,7 +180,7 @@ function run_e4st(config::OrderedDict)
 
 
 
-    return get_out_path(config), all_results
+    return get_out_path(config)
 end
 
 run_e4st(path...; kwargs...) = run_e4st(read_config(path...; kwargs...))

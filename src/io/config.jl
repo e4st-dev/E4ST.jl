@@ -74,13 +74,13 @@ end
 export summarize_config
 
 @doc """
-    read_config(filename; kwargs...) -> config::OrderedDict{Symbol,Any}
+    read_config(filename; create_out_path = true, kwargs...) -> config::OrderedDict{Symbol,Any}
 
-    read_config(filenames; kwargs...) -> config::OrderedDict{Symbol,Any}
+    read_config(filenames; create_out_path = true, kwargs...) -> config::OrderedDict{Symbol,Any}
 
-    read_config(path; kwargs...) -> config::OrderedDict{Symbol, Any}
+    read_config(path; create_out_path = true, kwargs...) -> config::OrderedDict{Symbol, Any}
 
-Load the config file from `filename`, inferring any necessary settings as needed.  If `path` given, checks for `joinpath(path, "config.yml")`.  This can be used with the `out_path` returned by [`run_e4st`](@ref)  See [`read_data`](@ref) to see how the `config` is used.  If multiple filenames given, (in a vector, or separated by commas) merges them, preserving the settings found in the last file, when there are conflicts, appending the list of [`Modification`](@ref)s.  Uses [`summarize_config`](@ref) to infer defaults, when applicable.  Any specified `kwargs` are added to the config, over-writing anything except the list of [`Modification`](@ref)s.  Note
+Load the config file from `filename`, inferring any necessary settings as needed.  If `path` given, checks for `joinpath(path, "config.yml")`.  This can be used with the `out_path` returned by [`run_e4st`](@ref)  See [`read_data`](@ref) to see how the `config` is used.  If multiple filenames given, (in a vector, or separated by commas) merges them, preserving the settings found in the last file, when there are conflicts, appending the list of [`Modification`](@ref)s.  Uses [`summarize_config`](@ref) to infer defaults, when applicable.  Any specified `kwargs` are added to the config, over-writing anything except the list of [`Modification`](@ref)s.
 
 The Config File is a file that fully specifies all the necessary information.  Note that when filenames are given as a relative path, they are assumed to be relative to the location of the config file.
 
@@ -91,11 +91,11 @@ $(table2markdown(summarize_config()))
 $(read_sample_config_file())
 ```
 """
-function read_config(filenames...; kwargs...)
+function read_config(filenames...; create_out_path = true, kwargs...)
     config = _read_config(filenames; kwargs...)
     check_config!(config)
     check_years!(config)
-    make_out_path!(config)
+    create_out_path && make_out_path!(config)
     convert_mods!(config)
     sort_mods_by_rank!(config)
     convert_iter!(config)
