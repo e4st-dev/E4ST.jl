@@ -139,8 +139,10 @@
             emis_co2_min, emis_co2_max = extrema(all_emis_co2)
             @test emis_co2_min <= compute_result(data, :gen, :emis_co2_rate, :, "y2030", :) <= emis_co2_max
         
-            # Test that the average capacity factor for solar generators is between 0 and 1
+            # Test that the average capacity factor for solar generators is between 0 and af_avg, and that cf_hourly_max is < 1
             @test 0 <= compute_result(data, :gen, :cf_avg, :gentype=>"solar", :, :) <= compute_result(data, :gen, :af_avg, :gentype=>"solar", :, :)
+            @test 0 <= compute_result(data, :gen, :cf_hourly_max, :, :, :) <= 1
+            @test 0 <= compute_result(data, :gen, :cf_hourly_min, :, :, :) <= 1
         
             # Test that the average LMP times energy served equals the sum of LMP
             elec_cost = compute_result(data, :bus, :electricity_cost)
