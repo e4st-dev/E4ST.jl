@@ -8,6 +8,7 @@ mods:
       benchmark: 0.5
     gen_filters:
       nation: "archenland"
+      genfuel: "![coal,ng]"
     load_targets:
       anvard_ces:
         targets:
