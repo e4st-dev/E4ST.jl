@@ -1,5 +1,10 @@
 import E4ST: Container, ByNothing, ByHour, ByYear, ByYearAndHour, OriginalContainer, scale_hourly, scale_yearly, add_hourly, add_yearly, set_hourly, set_yearly, get_original
-
+function Base.:(==)(f1::ComposedFunction, f2::ComposedFunction)
+    return (f1.inner == f2.inner) && (f1.outer == f2.outer)
+end
+function Base.:(==)(f1::Base.Fix2, f2::Base.Fix2)
+    return (f1.f == f2.f) && (f1.x == f2.x)
+end
 function container_compare(c::Container, v::Vector{<:Vector}, nyr, nhr)
     return all(h->(all(y->(c[y,h]==v[y][h]),1:nyr)), 1:nhr)
 end
@@ -37,10 +42,15 @@ end
         @test parse_comparison("emis_rate => >=y2020") == ("emis_rate" => >=("y2020"))
         @test parse_comparison("emis_rate => <=y2020") == ("emis_rate" => <=("y2020"))
 
-        @test parse_comparison("genfuel => [ng ,solar, wind ]") == ("genfuel" => ["ng", "solar", "wind"])
-        @test parse_comparison("region => [northern marsh]") == ("region" => ["northern marsh"])
-        @test parse_comparison("bus_idx => [1, 2 ,3 ]") == ("bus_idx" => [1,2,3])
-        @test parse_comparison("emis_rate => [1.5, 2.5 ,3.5 ] ") == ("emis_rate" => [1.5,2.5,3.5])
+        @test parse_comparison("genfuel => [ng ,solar, wind ]") == ("genfuel" => in(["ng", "solar", "wind"]))
+        @test parse_comparison("region => [northern marsh]") == ("region" => in(["northern marsh"]))
+        @test parse_comparison("bus_idx => [1, 2 ,3 ]") == ("bus_idx" => in([1,2,3]))
+        @test parse_comparison("emis_rate => [1.5, 2.5 ,3.5 ] ") == ("emis_rate" => in([1.5,2.5,3.5]))
+
+        @test parse_comparison("genfuel => ![ng ,solar, wind ]") == ("genfuel" => !in(["ng", "solar", "wind"]))
+        @test parse_comparison("region => ![northern marsh]") == ("region" => !in(["northern marsh"]))
+        @test parse_comparison("bus_idx => ![1, 2 ,3 ]") == ("bus_idx" => !in([1,2,3]))
+        @test parse_comparison("emis_rate => ![1.5, 2.5 ,3.5 ] ") == ("emis_rate" => !in([1.5,2.5,3.5]))
 
         @test parse_comparison("emis_rate => (- Inf, 1)") == ("emis_rate" => (-Inf, 1))
         @test parse_comparison("emis_rate => (-1, 1)") == ("emis_rate" => (-1, 1))

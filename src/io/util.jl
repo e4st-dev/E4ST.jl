@@ -297,6 +297,7 @@ Possible examples of strings `s` to parse:
 * `"emis_co2=> >(0)"` - All rows for which `row.emis_co2` is greater than 0 (Works for integers and negatives too)
 * `"year_on=> >(y2002)` - All rows for which `row.year_on` is greater than "y2002" (works for fractional years too, such as "y2002.4")
 * `"genfuel=>[ng, wind, solar]"` - All rows for which `row.genfuel` is "ng", "wind", or "solar".  Works for Ints and Floats too.
+* `"genfuel=>![ng, coal, biomass]"` - All rows for which `row.genfuel` is not "ng", "coal", or "biomass".  Works for Ints and Floats too.
 """
 function parse_comparison(_s::AbstractString)
     # Remove any quote characters from _s
@@ -335,9 +336,14 @@ function parse_comparison(_s::AbstractString)
     end
 
     # In the form "genfuel=>[ng,solar,wind]"
-    if (m=match(r"([\w\s]+)=>\s*\[([\w,.\s]*)\]", s)) !== nothing
+    if (m=match(r"([\w\s]+)=>\s*!?\[([\w,.\s]*)\]", s)) !== nothing
         ar = str2array(m.captures[2])
-        return strip(m.captures[1])=>ar
+        name = strip(m.captures[1])
+        if contains(s, "![")
+            return name => !in(ar)
+        else
+            return name => in(ar)
+        end
     end
 
     # In the form "nation=>narnia" or "bus_idx=>5"
