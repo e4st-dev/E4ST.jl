@@ -106,17 +106,18 @@ Awards credit of each generator based on how that generator's `gen_col` compares
 * `gen_col::Symbol` - the column of the `gen` table to compare against
 * `benchmark::Float64` - the benchmark rate to compare with, in the same units as the `gen_col`.
 """
-struct CreditByBenchmark <: Crediting
-    gen_col::Symbol
-    benchmark::Float64
+Base.@kwdef struct CreditByBenchmark <: Crediting
+    gen_col::Symbol = :emis_co2e
+    benchmark::Float64 
+    gen_filters::OrderedDict = OrderedDict()
 
-    function CreditByBenchmark(gen_col, benchmark)
-        return new(Symbol(gen_col), Float64(benchmark))
-    end
+    # function CreditByBenchmark(gen_col, benchmark, gen_filters)
+    #     return new(Symbol(gen_col), Float64(benchmark), gen_filters)
+    # end
 end
 export CreditByBenchmark
 
-CreditByBenchmark(;gen_col = :emis_co2e, benchmark) = CreditByBenchmark(gen_col, benchmark)
+#CreditByBenchmark(;gen_col = :emis_co2e, benchmark) = CreditByBenchmark(gen_col, benchmark, gen_filters = OrderedDict())
 
 
 """
@@ -125,8 +126,12 @@ CreditByBenchmark(;gen_col = :emis_co2e, benchmark) = CreditByBenchmark(gen_col,
 Returns the credit level based on the formula `max(1.0 - (gen_row[gen_col] / c.benchmark), 0.0)`. 
 """
 function get_credit(c::CreditByBenchmark, data, gen_row::DataFrameRow)
-    gen_emis_rate = gen_row[c.gen_col]
-    credit = min.(1.0, max.( 1.0 .- gen_emis_rate ./ c.benchmark, 0.0))
+    if row_comparison(gen_row, parse_comparisons(c.gen_filters)) # meets gen filters
+        gen_emis_rate = gen_row[c.gen_col]
+        credit = min.(1.0, max.( 1.0 .- gen_emis_rate ./ c.benchmark, 0.0))
+    else
+        credit = 0
+    end
     return credit
 end
 
