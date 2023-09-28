@@ -126,11 +126,11 @@ export CreditByBenchmark
 Returns the credit level based on the formula `max(1.0 - (gen_row[gen_col] / c.benchmark), 0.0)`. 
 """
 function get_credit(c::CreditByBenchmark, data, gen_row::DataFrameRow)
-    if row_comparison(gen_row, parse_comparisons(c.gen_filters)) # meets gen filters
-        gen_emis_rate = gen_row[c.gen_col]
+    gen_emis_rate = gen_row[c.gen_col]
+    if row_comparison(gen_row, parse_comparisons(c.gen_filters)) # meets gen filters   
         credit = min.(1.0, max.( 1.0 .- gen_emis_rate ./ c.benchmark, 0.0))
     else
-        credit = 0
+        credit = 0.0 .* gen_emis_rate
     end
     return credit
 end

@@ -238,14 +238,13 @@ export get_row_idxs
 Compares a single DataFrameRow to the pairs given and returns the true/false result of the comparison. 
 """
 function row_comparison(row::DataFrameRow, pairs)
-    result = true # start as true and will turn false if any of the pairs isn't met
     for pair in pairs
         key, val = pair
         v = row[key]
         comp = comparison(val, v)
-        result = result && comp(v)
+        comp(v) == false && return false
     end
-    return result
+    return true
 end
 export row_comparison
 
