@@ -510,7 +510,7 @@ export MaxValue
 function (f::MaxValue{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
     v1 = table[!, col1]
-    maximum(_collect_hourly(v1, idxs, yr_idxs, hr_idxs))
+    maximum(_iterator_hourly(v1, idxs, yr_idxs, hr_idxs))
 end
 
 """
@@ -528,7 +528,7 @@ export MaxValue
 function (f::MinValue{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
     v1 = table[!, col1]
-    minimum(_collect_hourly(v1, idxs, yr_idxs, hr_idxs))
+    minimum(_iterator_hourly(v1, idxs, yr_idxs, hr_idxs))
 end
 
 
@@ -679,14 +679,6 @@ function _sum_hourly(v1, v2, v3, v4, idxs, yr_idxs, hr_idxs)
     sum(_getindex(v1, i, y, h)*_getindex(v2, i, y, h)*_getindex(v3, i, y, h)*_getindex(v4, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
 end
 
-function _collect_hourly(v1, idxs, yr_idxs, hr_idxs)
-    vals = []
-    for i in idxs
-        for y in yr_idxs
-            for h in hr_idxs
-                append!(vals, _getindex(v1, i, y, h))
-            end
-        end
-    end
-    return vals
+function _iterator_hourly(v1, idxs, yr_idxs, hr_idxs)
+    return (_getindex(v1, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
 end
