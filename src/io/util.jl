@@ -232,6 +232,22 @@ function get_row_idxs(table, pair::Pair)
 end
 export get_row_idxs
 
+"""
+    row_comparison(row::DataFrameRow, pairs)
+
+Compares a single DataFrameRow to the pairs given and returns the true/false result of the comparison. 
+"""
+function row_comparison(row::DataFrameRow, pairs)
+    for pair in pairs
+        key, val = pair
+        v = row[key]
+        comp = comparison(val, v)
+        comp(v) == false && return false
+    end
+    return true
+end
+export row_comparison
+
 
 """
     comparison(value, v) -> comp::Function
@@ -248,6 +264,10 @@ function comparison(value, v::AbstractVector)
     comparison(value, eltype(v))
 end
 export comparison
+
+function comparison(value, v::Any)
+    comparison(value, eltype(v))
+end
 
 function comparison(value::Function, ::Type)
     return value

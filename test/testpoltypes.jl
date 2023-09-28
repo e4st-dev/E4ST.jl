@@ -439,6 +439,9 @@
 
                 @test ~any(credit -> any(x -> x > (1.0) || x < (0.0), credit), gen[!, :example_ces])
 
+                fossil_gen = get_subtable(gen, :genfuel => ["coal", "ng", "oil"])
+                @test ~any(credit -> any(x -> x != 0, credit), fossil_gen[:, :example_ces])
+
             end
 
             @testset "Adding CES to model" begin
