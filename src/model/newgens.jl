@@ -56,7 +56,7 @@ function make_newgens!(config, data, newgen)
 
     #get the names of specifications that will be pulled from the build_gen table
     spec_names = filter!(
-        !in((:bus_idx, :gen_latitude, :gen_longitude, :reg_factor, :year_off, :year_shutdown, :pcap_inv, :year_unbuilt, :past_invest_cost, :past_invest_subsidy)), 
+        !in((:bus_idx, :gen_latitude, :gen_longitude, :gen_state, :gen_county, :reg_factor, :year_off, :year_shutdown, :pcap_inv, :year_unbuilt, :past_invest_cost, :past_invest_subsidy)), 
         propertynames(newgen)
     ) #this needs to be updated if there is anything else in gen that isn't a spec
 
@@ -101,6 +101,8 @@ function make_newgens!(config, data, newgen)
                     #add gen location
                     hasproperty(newgen, :gen_latitude) && (newgen_row[:gen_latitude] = bus.bus_latitude[bus_idx])
                     hasproperty(newgen, :gen_longitude) && (newgen_row[:gen_longitude] = bus.bus_longitude[bus_idx])
+                    hasproperty(newgen, :gen_state) && (newgen_row[:gen_state] = bus.state[bus_idx])
+                    hasproperty(newgen, :gen_county) && (newgen_row[:gen_county] = bus.county[bus_idx])
                     hasproperty(newgen, :reg_factor) && (newgen_row[:reg_factor] = bus.reg_factor[bus_idx])
 
                     push!(newgen, newgen_row, promote=true)
