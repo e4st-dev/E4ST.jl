@@ -355,9 +355,9 @@ function save_updated_gen_table(config, data)
     #update pcap_plant_avg, pcap_hist and pgen to -1 instead of -Inf to be excel compatible 
     for row in eachrow(gen_tmp)
         row.build_type == "endog" || continue
-        row.pcap_plant_avg == -Inf && (row.pcap_plant_avg = -1.)
-        row.pcap_hist == -Inf && (row.pcap_hist = -1.)
-        row.pgen_hist == -Inf && (row.pgen_hist = -1.)
+        haskey(row, :pcap_plant_avg) && row.pcap_plant_avg == -Inf && (row.pcap_plant_avg = -1.)
+        haskey(row, :pcap_hist) && row.pcap_hist == -Inf && (row.pcap_hist = -1.)
+        haskey(row, :pgen_hist) && row.pgen_hist == -Inf && (row.pgen_hist = -1.)
     end
 
     # Gather the past investment costs and subsidies
