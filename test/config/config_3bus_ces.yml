@@ -10,6 +10,7 @@ mods:
         genfuel: "[solar, wind, water, water, biomass, hydrogen, nuclear, geothermal, other]"
     gen_filters:
       nation: "archenland"
+      genfuel: "![coal,ng]"
     load_targets:
       anvard_ces:
         targets:
