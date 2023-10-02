@@ -50,7 +50,7 @@ function retrofit!(ret::CoalCCSRetrofit, newgen)
     hr = newgen[:heat_rate]
 
     pcap_avg = newgen[:pcap_plant_avg] # Could give lower/upper bounds
-    
+
     # Calculate the heat rate penalty
     hr_pen = 0.89774 + -0.002513148 * pcap_avg + 0.0000012907 * pcap_avg.^2 + 0.05 * hr;
     if hr_pen < 0
