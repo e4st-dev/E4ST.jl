@@ -409,6 +409,12 @@ Ensures that `config` has required fields listed in [`summarize_config`](@ref)
 """
 function check_config!(config)
     summary = summarize_config()
+    _check_config!(config, summary)
+    return nothing
+end
+export check_config!
+
+function _check_config!(config, summary) 
     for row in eachrow(summary)
         name = row.name
         default = row.default
@@ -421,7 +427,6 @@ function check_config!(config)
     end
     return nothing
 end
-export check_config!
 
 """
     make_paths_absolute!(config, filename)

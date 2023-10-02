@@ -100,6 +100,8 @@ include("results/formulas.jl")
 include("results/welfare.jl")
 include("results/util.jl")
 
+# Include postprocessing
+include("post/post.jl")
 
 """
     run_e4st(config) -> out_path

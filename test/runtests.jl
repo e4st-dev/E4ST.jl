@@ -32,6 +32,7 @@ rm(joinpath(@__DIR__, "out"), force=true, recursive=true)
     include("testretrofits.jl")
     include("testadjust.jl")
     include("testutil.jl")
+    include("testpost.jl")
 end
 
 global_logger(original_logger)
