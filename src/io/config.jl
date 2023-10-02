@@ -485,19 +485,25 @@ export latest_out_path
 If `config[:out_path]` provided, does nothing.  Otherwise, makes sure `config[:base_out_path]` exists, making it as needed.  Creates a new time-stamped folder via [`time_string`](@ref), stores it into `config[:out_path]`.  See [`get_out_path`](@ref) to create paths for output files. 
 """
 function make_out_path!(config)
-    haskey(config, :out_path) && return nothing
-    base_out_path = config[:base_out_path]
+    if haskey(config, :out_path) 
+        out_path = config[:out_path]
+        isdir(out_path) && return nothing
+    else
 
-    # Make out_path as necessary
-    ~isdir(base_out_path) && mkpath(base_out_path)  
-    
-    out_path = joinpath(base_out_path, time_string())
-    while isdir(out_path)
+        base_out_path = config[:base_out_path]
+
+        # Make out_path as necessary
+        ~isdir(base_out_path) && mkpath(base_out_path)  
+        
         out_path = joinpath(base_out_path, time_string())
+        while isdir(out_path)
+            out_path = joinpath(base_out_path, time_string())
+        end
+
+        config[:out_path] = out_path
     end
-    
     mkpath(out_path)
-    config[:out_path] = out_path
+    
 
     return nothing
 end
