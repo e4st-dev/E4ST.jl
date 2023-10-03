@@ -44,6 +44,8 @@ function make_newgens!(config, data, newgen)
     gen = get_table(data, :gen)
     years = get_years(data)
 
+    newgen_cols = Symbol.(names(newgen))
+
     # Filter any already-built exogenous generators
     filter!(build_gen) do row
         if row.build_type == "exog"
@@ -125,6 +127,15 @@ function make_newgens!(config, data, newgen)
                 newgen_row[:year_unbuilt] = add_to_year(newgen_row[:year_on], -1)
                 newgen_row[:past_invest_cost] = Container(0.0)
                 newgen_row[:past_invest_subsidy] = Container(0.0)
+
+                # set gen_state and gen_county if specified, otherwise set to bus location
+                hasproperty(newgen, :gen_state) &&  (hasproperty(spec_row, :gen_state) ? (newgen_row[:gen_state] = spec_row[:gen_state]) : (newgen_row[:gen_state] = bus.state[bus_idx]))
+                hasproperty(newgen, :gen_county) && (hasproperty(spec_row, :gen_county) ? (newgen_row[:gen_county] = spec_row[:gen_county]) : (newgen_row[:gen_county] = bus.county[bus_idx]))
+
+                #check that all necessary columns are present in newgen_row
+                newgen_row_cols = keys(newgen_row)
+                issetequal(newgen_cols, newgen_row_cols) || @warn("The newgen_row does not contain the following columns that are in the newgen table: $(setdiff(newgen_cols, newgen_row_cols))")
+                #@show setdiff(newgen_cols, newgen_row_cols)
 
                 push!(newgen, newgen_row, promote=true)
             end
