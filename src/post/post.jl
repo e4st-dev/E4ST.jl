@@ -22,7 +22,6 @@ e4st_post(filenames::String...; kwargs...) = e4st_post(read_post_config(filename
 Reads a config file for [`e4st_post`](@ref).  See [`summarize_post_config`](@ref) for the required fields.
 """
 function read_post_config(filenames...; create_out_path = true, kwargs...)
-    @show filenames
     post_config = _read_config(filenames; kwargs...)
     check_post_config!(post_config)
     create_out_path && make_out_path!(post_config)
