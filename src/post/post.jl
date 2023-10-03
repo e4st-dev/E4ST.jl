@@ -20,7 +20,6 @@ e4st_post(filenames::String...; kwargs...) = e4st_post(read_post_config(filename
     read_post_config(filenames...; create_out_path = true, kwargs...) -> post_config
 """
 function read_post_config(filenames...; create_out_path = true, kwargs...)
-    @show filenames
     post_config = _read_config(filenames; kwargs...)
     check_post_config!(post_config)
     create_out_path && make_out_path!(post_config)
