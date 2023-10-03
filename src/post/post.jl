@@ -18,6 +18,8 @@ e4st_post(filenames::String...; kwargs...) = e4st_post(read_post_config(filename
 
 """
     read_post_config(filenames...; create_out_path = true, kwargs...) -> post_config
+
+Reads a config file for [`e4st_post`](@ref).  See [`summarize_post_config`](@ref) for the required fields.
 """
 function read_post_config(filenames...; create_out_path = true, kwargs...)
     @show filenames
@@ -72,6 +74,7 @@ function summarize_post_config()
         # Required
         (:sim_paths, true, nothing, "The paths to the desired simulation outputs."),
         (:sim_names, false, nothing, "The names of each of the sims. This will get used in post processing.  If none given, `e4st_post` will check the configs in each of the `sim_paths` to see if there is a `name` given."),
+        (:base_sim_name, false, "", "The name of the base simulation to use for comparisons.  Used by Modifications"),
         (:out_path, true, nothing, "The path to the desired output path for the results of postprocessing."),
         (:mods, false, OrderedDict{Symbol, Modification}(), "A list of `Modification`s specifying changes for how `e4st_post` runs.  See [`extract_results`](@ref) and [`combine_results`](@ref)."),
     )
@@ -154,3 +157,25 @@ Combine results and probably save them to the out path specified in `post_config
 """
 function combine_results(post_mod::Modification, post_config, post_data)
 end
+
+
+"""
+    join_sim_tables(post_mod_data, keep_col)
+
+Joins tables for multiple sims stored in `post_mod_data`, with `keep_col` as the column to keep, and the remaining columns as the joining columns.
+"""
+function join_sim_tables(post_mod_data, keep_col)
+    first_sim_name = first(keys(post_mod_data))
+    res = deepcopy(post_mod_data[first_sim_name])
+    joining_cols = filter!(!=(string(keep_col)), names(res))
+    rename!(res, keep_col=>first_sim_name)
+
+    for (sim_name, df) in post_mod_data
+        sim_name === first_sim_name && continue
+        leftjoin!(res, df, on=joining_cols, matchmissing=:equal)
+        rename!(res, keep_col=>sim_name)
+    end
+
+    return res
+end
+export join_sim_tables
