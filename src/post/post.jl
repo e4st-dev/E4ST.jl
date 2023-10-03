@@ -2,34 +2,14 @@
     e4st_post(post_config)
 
 Runs post-processing on `post_config`.  See [`read_post_config`](@ref) for information about the `post_config`.  The general outline of post processing is:
-* Initialize an `OrderedDict` for each `post_mod` to drop relevant results into.
-* Loop through each of the `post_config[sim_paths]`, reading in the processed data from each path.  Give each `post_mod` a chance to extract necessary information via [`extract_results`](@ref)
-* For each `post_mod`, call [`combine_results`](@ref) to allow the mod to combine anything into a single result, plot, etc.  Store any output into [`get_out_path(post_config)`](@ref).
+* `post_data = ` [`extract_results(post_config)`](@ref): Create a `post_data` file and extract the results from each simulation from each mod into it.
+* [`combine_results(post_config, post_data)`](@ref): allow the mod to combine anything into a single result, plot, etc.  Store any output into [`get_out_path(post_config)`](@ref).
 """
 function e4st_post(post_config)
-    sim_paths = post_config[:sim_paths]::Vector{String}
-    sim_names = post_config[:sim_names]::Vector{String}
-    post_mods = get_mods(post_config)
-    post_data = OrderedDict{Symbol, Any}()
 
-    # Initialize an OrderedDict for each mod to drop their results into.
-    for (key, post_mod) in post_mods
-        post_data[key] = OrderedDict{String, Any}()
-    end
+    post_data = extract_results(post_config)
 
-    # Pull in the processed results for each of the paths and transfer/compute necessary things, add to `post_data`
-    for (sim_path, sim_name) in zip(sim_paths, sim_names)
-        data = read_processed_results(sim_path)
-        config = read_config(sim_path)
-        for (key, post_mod) in post_mods
-            post_data[key][sim_name] = extract_results(post_mod, config, data)
-        end
-    end
-    
-    # Combine results
-    for (key, post_mod) in post_mods
-        combine_results(post_mod, post_config, post_data[key])
-    end
+    combine_results(post_config, post_data)
 end
 
 export e4st_post
@@ -107,6 +87,36 @@ function get_sim_names(post_config)
 end
 export get_sim_names
 
+"""
+    extract_results(post_config) -> post_data::OrderedDict{Symbol, Any}
+
+Initializes `post_data`, and extracts results for each modification in `post_config[:mods]`, for each of the simulations in `post_config[:sim_paths]` and `post_config[:sim_names]`.  
+
+Calls `extract_results(post_mod, config, data)` for each `post_mod`, where `config` is the simulation config, and `data` is the simulation data, read in from `read_processed_results`.
+"""
+function extract_results(post_config)
+    post_data = OrderedDict{Symbol, Any}()
+    post_mods = get_mods(post_config)
+    sim_names = post_config[:sim_names]::Vector{String}
+    sim_paths = post_config[:sim_paths]::Vector{String}
+
+    # Initialize an OrderedDict for each mod to drop their results into.
+    for (key, post_mod) in post_mods
+        post_data[key] = OrderedDict{String, Any}()
+    end
+
+    # Pull in the processed results for each of the paths and transfer/compute necessary things, add to `post_data`
+    for (sim_path, sim_name) in zip(sim_paths, sim_names)
+        data = read_processed_results(sim_path)
+        config = read_config(sim_path)
+        for (key, post_mod) in post_mods
+            post_data[key][sim_name] = extract_results(post_mod, config, data)
+        end
+    end
+    return post_data
+end
+export extract_results
+
 
 """
     extract_results(post_mod::Modification, config, data) -> results
@@ -118,12 +128,29 @@ Note that we do this to prevent excessive memory usage.  If [`e4st_post`](@ref) 
 function extract_results(post_mod::Modification, config, data)
 end
 
+
 """
-    combine_results(post_mod::Modification, post_config, post_data)
+    combine_results(post_config, post_data) -> nothing
+
+Combine results for each of the `mods` in `post_config[:mods]`.  Calls `combine_results(post_mod, post_config, post_mod_data)`, where `post_mod_data` is `post_data[mod_name]`.
+"""
+function combine_results(post_config, post_data)
+    # Pull out the mods
+    post_mods = get_mods(post_config)
+
+    # Combine results
+    for (key, post_mod) in post_mods
+        combine_results(post_mod, post_config, post_data[key])
+    end
+end
+export combine_results
+
+"""
+    combine_results(post_mod::Modification, post_config, post_mod_data)
 
 Combine results and probably save them to the out path specified in `post_config`.
 
-`post_data` is an OrderedDict mapping `sim_name` to the extracted `results` from [`extract_results`](@ref).
+`post_mod_data` is the porton of `post_data` for this particular `post_mod`, an OrderedDict mapping `sim_name` to the extracted `results` from [`extract_results`](@ref).
 """
 function combine_results(post_mod::Modification, post_config, post_data)
 end
