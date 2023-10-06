@@ -264,12 +264,7 @@ function modify_results!(mod::FuelPrice, config, data)
         #     push!(fp_idxs, fp_idx)
         # end
 
-        for gen_idx in row.gen_idxs
-            #@assert all(==(0), gen.fuel_price[gen_idx]) "Found non-zero fuel_price in gen table with FuelPrice Modification.  That could mean double-counting of fuel cost in the objective function!"
-            all(==(0), gen.fuel_price[gen_idx]) && @warn "Found non-zero fuel_price in gen table with FuelPrice Modification.  That could mean double-counting of fuel cost in the objective function!"
-        end
-    
-        
+        all(gen_idx->all(==(0), gen.fuel_price[gen_idx]), row.gen_idxs) || @warn "Found non-zero fuel_price in gen table with FuelPrice Modification.  That could mean double-counting of fuel cost in the objective function!"    
 
         
         # Find the shadow price of the fuel sold constraint.  I.e. the change in objective value, in dollars per MMBtu, by relaxing the `cons_fuel_sold` constraint.  

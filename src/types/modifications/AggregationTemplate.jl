@@ -89,6 +89,32 @@ function modify_results!(mod::AggregationTemplate, config, data)
     return
 end
 
+function extract_results(m::AggregationTemplate, config, data)
+    results = get_results(data)
+    haskey(results, m.name) || modify_results!(m, config, data)
+    return get_result(data, m.name)
+end
+
+function combine_results(m::AggregationTemplate, post_config, post_data)
+    sim_names = get_sim_names(post_config)
+    
+    # Create result DataFrame
+    first_sim_name = first(sim_names)
+    res = deepcopy(post_data[first_sim_name])
+    joining_cols = filter!(!=(:value), propertynames(res))
+    rename!(res, :value=>first_sim_name)
+
+    
+    for sim_name in sim_names
+        sim_name === first(sim_names) && continue
+        df = post_data[sim_name]
+        leftjoin!(res, df, on=joining_cols, matchmissing=:equal)
+        rename!(res, :value=>sim_name)
+    end
+
+    CSV.write(get_out_path(post_config, "$(m.name)_combined.csv"), res)
+end
+
 function not_a_full_filter(row::DataFrameRow)
     not_a_full_filter(row.filter_years) && return true
     not_a_full_filter(row.filter_hours) && return true
