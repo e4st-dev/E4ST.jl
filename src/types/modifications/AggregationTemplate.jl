@@ -96,21 +96,8 @@ function extract_results(m::AggregationTemplate, config, data)
 end
 
 function combine_results(m::AggregationTemplate, post_config, post_data)
-    sim_names = get_sim_names(post_config)
     
-    # Create result DataFrame
-    first_sim_name = first(sim_names)
-    res = deepcopy(post_data[first_sim_name])
-    joining_cols = filter!(!=(:value), propertynames(res))
-    rename!(res, :value=>first_sim_name)
-
-    
-    for sim_name in sim_names
-        sim_name === first(sim_names) && continue
-        df = post_data[sim_name]
-        leftjoin!(res, df, on=joining_cols, matchmissing=:equal)
-        rename!(res, :value=>sim_name)
-    end
+    res = join_sim_tables(post_data, :value)
 
     CSV.write(get_out_path(post_config, "$(m.name)_combined.csv"), res)
 end
