@@ -174,13 +174,16 @@ function join_sim_tables(post_mod_data, keep_col; replace_missing = 0.)
     for (sim_name, df) in post_mod_data
         sim_name === first_sim_name && continue
         res = outerjoin(res, df, on=joining_cols, matchmissing=:equal)
-        replace!(res[!, keep_col], missing => replace_missing)
         rename!(res, keep_col=>sim_name)
     end
 
     # Call dropmissing to change the types from Vector{Union{Missing, etc}}
+    for col in names(res)
+        replace!(res[!, col], missing=>replace_missing)
+    end
+
     dropmissing!(res)
-    
+
     return res
 end
 export join_sim_tables
