@@ -216,7 +216,7 @@ end
 function _getindex(v::Vector{<:AbstractVector{<:Real}}, i::Int64, y::Int64)
     return v[i][y]::Float64
 end
-_getindex(args...) = getindex(args...)::Float64
+_getindex(args...) = getindex(args...) |> Float64
 
 
 # Assume that if we are trying to index into a vector of vectors, it is for yearly data only
