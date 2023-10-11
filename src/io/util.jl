@@ -336,22 +336,24 @@ function parse_comparison(_s::AbstractString)
     end
 
     # In the form "emis_rate=>>(0)" (should work for Ints, negatives, and Inf too)
-    if (m=match(r"([\w\s]+)=>\s*([><]{1}=?)\s*\(?\s*(-?\s*[\d.]+)\s*\)?", s)) !== nothing
+    if (m=match(r"([\w\s]+)=>\s*([><!]{1}=?)\s*\(?\s*(-?\s*[\d.]+)\s*\)?", s)) !== nothing
         r1 = parse(Float64, replace(m.captures[3],' '=>""))
         m.captures[2]==">" && (comp = >(r1))
         m.captures[2]=="<" && (comp = <(r1))
         m.captures[2]==">=" && (comp = >=(r1))
         m.captures[2]=="<=" && (comp = <=(r1))
+        m.captures[2] ∈ ("!", "!=") && (comp = !=(r1))
         return strip(m.captures[1])=>comp
     end
 
     # In the form "year_on=> >(y2020)" (should work decimals)
-    if (m=match(r"([\w\s]+)=>\s*([><]{1}=?)\s*\(?\s*(y[\d.]+)\s*\)?", s)) !== nothing
+    if (m=match(r"([\w\s]+)=>\s*([><!]{1}=?)\s*\(?\s*([\w\d.]+)\s*\)?", s)) !== nothing
         r1 = String(m.captures[3])
         m.captures[2]==">" && (comp = >(r1))
         m.captures[2]=="<" && (comp = <(r1))
         m.captures[2]==">=" && (comp = >=(r1))
         m.captures[2]=="<=" && (comp = <=(r1))
+        m.captures[2] ∈ ("!", "!=") && (comp = !=(r1))
         return strip(m.captures[1])=>comp
     end
 
