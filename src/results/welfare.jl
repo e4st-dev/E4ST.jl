@@ -49,3 +49,18 @@ function add_welfare_term!(data, welfare_type::Symbol, table_name::Symbol, resul
     subsubwelfare[result_name] = oper
 end
 export add_welfare_term!
+
+function compute_welfare(data, welfare_type::Symbol, idxs...)
+    value = 0.0
+    welfare = get_welfare(data)
+    table_names = welfare[welfare_type]
+    for (table_name, result_names) in table_names
+        for (result_name, result_sign) in result_names
+            res = compute_result(data, table_name, result_name, idxs...) |> result_sign
+            value += res
+        end
+    end
+    return value
+end
+
+export compute_welfare

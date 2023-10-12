@@ -130,6 +130,10 @@
         end
 
         @testset "Other Aggregation Tests" begin
+            @test compute_welfare(data, :government) isa Float64
+            @test compute_welfare(data, :producer) isa Float64
+            @test compute_welfare(data, :user) isa Float64
+            
 
             # Test that summing the co2 emissions for solar in 2030 is zero
             @test compute_result(data, :gen, :emis_co2_total, :gentype=>"solar", "y2030", :) ≈ 0.0
