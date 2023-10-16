@@ -87,6 +87,21 @@ function modify_results!(mod::WelfareTable, config, data)
         end
     end
 
+    add_result!(data, Symbol(out_name), df)
+
     CSV.write(out_file, df)
 end
 export modify_results!
+
+function extract_results(m::WelfareTable, config, data)
+    results = get_results(data)
+    haskey(results, m.name) || modify_results!(m, config, data)
+    return get_result(data, m.name)
+end
+
+function combine_results(m::WelfareTable, post_config, post_data)
+    
+    res = join_sim_tables(post_data, :value)
+
+    CSV.write(get_out_path(post_config, "$(m.name)_combined.csv"), res)
+end

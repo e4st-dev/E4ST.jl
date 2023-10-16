@@ -666,6 +666,9 @@ function modify_results!(mod::Storage, config, data)
     # Government revenue
     add_welfare_term!(data, :govermnent, :storage, :net_government_revenue, +)
 
+    # Add to system cost welfare check 
+    add_welfare_term!(data, :system_cost_check, :storage, :production_cost, +)
+
     # Update and save the storage table
     update_build_status!(config, data, :storage)
     save_updated_storage_table(config, data)

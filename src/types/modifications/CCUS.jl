@@ -478,6 +478,11 @@ function modify_results!(mod::CCUS, config, data)
     add_to_results_formula!(data, :gen, :variable_cost, "cost_capt_co2") # this gets added to producer welfare
     add_welfare_term!(data, :sequesterer, :ccus_paths, :storer_profit_total, +)    
 
+    # Add to system cost welfare check
+    # here storer_profit_total is added instead of storer_cost_total because the cost to sequester and transport the co2 is already paid by the generators in the :variable_cost and will be included in production_cost_total
+    # This term will almost always be close to 0 but it is added in case the cost paid to sequesterers isn't enough to cover the cost in which case we would need to include those costs here
+    add_welfare_term!(data, :system_cost_check, :ccus_paths, :storer_profit_total, +) 
+
     # Throw error message if there are profits ≥ 0.
     all(v->all(>=(0), v), ccus_paths.storer_profit) || @warn "All CCUS profits should be ≥ 0, but found $(minimum(minimum, ccus_paths.storer_profit))"
 end

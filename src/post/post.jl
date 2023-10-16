@@ -184,6 +184,8 @@ function join_sim_tables(post_mod_data, keep_col; replace_missing = 0.)
 
     dropmissing!(res)
 
+    sort!(res)
+
     return res
 end
 export join_sim_tables
