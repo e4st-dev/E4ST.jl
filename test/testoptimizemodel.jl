@@ -237,6 +237,8 @@ end
         parse_results!(config, data, model)
         process_results!(config, data)
 
+        @test sum(abs, get_raw_result(data, :pflow_dc)) > 0.1
+
         # Test that revenue of electricity for generators equals the cost for users
         line_loss_rate = config[:line_loss_rate]
         @test compute_result(data, :bus, :elcurt_total) < 1e-6
@@ -246,6 +248,7 @@ end
         @test compute_result(data, :bus, :merchandising_surplus_total) > 10 # Not truly a requirement, except that we want to design our test case so that this is true.
 
         @test compute_result(data, :bus, :electricity_cost) - compute_result(data, :bus, :merchandising_surplus_total) ≈ compute_result(data, :gen, :electricity_revenue)
+        @test compute_welfare(data, :electricity_payments) < 1e-6
     end
 
     @testset "With Storage" begin
@@ -268,6 +271,10 @@ end
         parse_results!(config, data, model)
         process_results!(config, data)
 
+        @test compute_result(data, :storage, :eloss_total) > 0.0
+
+        @test sum(abs, get_raw_result(data, :pflow_dc)) > 0.1
+
         # Test that revenue of electricity for generators equals the cost for users
         line_loss_rate = config[:line_loss_rate]
         @test compute_result(data, :bus, :elcurt_total) < 1e-6
@@ -288,6 +295,7 @@ end
             compute_result(data, :gen, :electricity_revenue) +
             compute_result(data, :storage, :electricity_revenue)
         )
+        @test compute_welfare(data, :electricity_payments) < 1e-6
     end
 
     # @testset "With Storage and Reserve Requirements" begin
@@ -312,6 +320,9 @@ end
 
     #     parse_results!(config, data, model)
     #     process_results!(config, data)
+
+    #     @test sum(abs, get_raw_result(data, :pflow_dc)) > 0.1
+
 
     #     # Test that revenue of electricity for generators equals the cost for users
     #     line_loss_rate = config[:line_loss_rate]

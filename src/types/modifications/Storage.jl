@@ -669,6 +669,10 @@ function modify_results!(mod::Storage, config, data)
     # Add to system cost welfare check 
     add_welfare_term!(data, :system_cost_check, :storage, :production_cost, +)
 
+    # Add the costs to the electricity_payments
+    add_welfare_term!(data, :electricity_payments, :storage, :electricity_cost, +)
+    add_welfare_term!(data, :electricity_payments, :storage, :electricity_revenue, -)
+
     # Update and save the storage table
     update_build_status!(config, data, :storage)
     save_updated_storage_table(config, data)

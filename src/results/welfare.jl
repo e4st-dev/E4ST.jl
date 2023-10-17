@@ -26,6 +26,11 @@ function setup_welfare!(config, data)
     # Create welfare check by calculating system cost, change in system cost should equal the change in net non-enviro (this welfare) benefits
     add_welfare_term!(data, :system_cost_check, :gen, :production_cost, +)
     add_welfare_term!(data, :system_cost_check, :bus, :distribution_cost_total, +)
+
+    # Create welfare check for the electricity payments.  Should sum to zero
+    add_welfare_term!(data, :electricity_payments, :bus, :electricity_cost, +)
+    add_welfare_term!(data, :electricity_payments, :bus, :merchandising_surplus_total, -)
+    add_welfare_term!(data, :electricity_payments, :gen, :electricity_revenue, -)
 end
 export setup_welfare!
 
