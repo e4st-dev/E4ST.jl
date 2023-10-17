@@ -12,3 +12,5 @@ mods:
     values:
       y2035: 0.7
       y2040: 0.6
+other_config_files:
+  - "config_3bus_emiscap.yml"

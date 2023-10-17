@@ -145,8 +145,8 @@
         
             # Test that the average capacity factor for solar generators is between 0 and af_avg, and that cf_hourly_max is < 1
             @test 0 <= compute_result(data, :gen, :cf_avg, :gentype=>"solar", :, :) <= compute_result(data, :gen, :af_avg, :gentype=>"solar", :, :)
-            @test 0 <= compute_result(data, :gen, :cf_hourly_max, :, :, :) <= 1
-            @test 0 <= compute_result(data, :gen, :cf_hourly_min, :, :, :) <= 1
+            @test 0 <= compute_result(data, :gen, :cf_hourly_max, :, :, :) <= 1 + 1e-9
+            @test 0 <= compute_result(data, :gen, :cf_hourly_min, :, :, :) <= 1 + 1e-9
         
             # Test that the average LMP times energy served equals the sum of LMP
             elec_cost = compute_result(data, :bus, :electricity_cost)

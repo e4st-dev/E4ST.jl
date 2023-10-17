@@ -45,7 +45,10 @@ function E4ST.modify_results!(pol::EmissionCap, config, data)
     gen = get_table(data, :gen)
     
     # create column for per MWh price of the policy in :gen
-    shadow_prc = get_shadow_price_as_ByYear(data, Symbol("cons_$(pol.name)_max")) #($/EmissionsUnit)
+    cons_name = Symbol("cons_$(pol.name)_max")
+    haskey(data[:results][:raw], cons_name) || return
+        
+    shadow_prc = get_shadow_price_as_ByYear(data, cons_name) #($/EmissionsUnit)
 
     prc_col = [(-shadow_prc) .* g[pol.name] .* g[pol.emis_col] for g in eachrow(gen)] #($/MWh Generated)
 

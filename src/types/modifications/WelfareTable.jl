@@ -87,7 +87,7 @@ function modify_results!(mod::WelfareTable, config, data)
         end
     end
 
-    add_result!(data, Symbol(out_name), df)
+    add_result!(data, mod.name, df)
 
     CSV.write(out_file, df)
 end

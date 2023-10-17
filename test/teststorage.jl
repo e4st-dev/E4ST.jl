@@ -2,7 +2,7 @@
     config_file = joinpath(@__DIR__, "config/config_3bus.yml")
     storage_config_file = joinpath(@__DIR__, "config/config_stor.yml")
 
-    config = read_config(config_file, storage_config_file; build_gen_file = nothing) # Run without endogenous generation
+    config = read_config(config_file, storage_config_file)
 
     data = read_data(config)
 
