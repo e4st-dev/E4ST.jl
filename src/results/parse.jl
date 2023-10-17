@@ -53,30 +53,6 @@ function parse_results!(config, data, model)
 end
 
 """
-    parse_results!(config, data)
-
-This function is only meant to be used when rerunning results processing if you need to make a change in how results are parsed. 
-There is no model saved in the outputs but the necessary information is already saved in the data.jls output file. 
-This takes in the version of data from the data.jls file and then performs the rest of the parsing on it. 
-"""
-function parse_results!(config, data)
-    # I think just copy the function above from parse_lmp() but need to check this
-
-end
-
-"""
-    read_data_jls(path::String)
-
-This loads in the data.jls file saved as an output of run_e4st. 
-This is meant to assist in running the @[`parse_results!(config, data)`](@ref) function when reprocessing results.
-"""
-function read_data_jls(path::String)
-    file = joinpath(out_path, "data.jls")
-    isfile(file) || error("No data.jls file found at $file")
-    return deserialize(file)
-end
-
-"""
     value_or_shadow_price(constraints, obj_scalar) -> shadow_prices*obj_scalar
 
     value_or_shadow_price(variables, obj_scalar) -> values
@@ -302,9 +278,7 @@ function parse_lmp_results!(config, data)
         # lmp_elserv is dollars per MWh before losses, so we need to inflate the cost to compensate
         plserv_scalar = 1/(1-line_loss_rate)
         add_table_col!(data, :bus, :lmp_elserv_preloss, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served, before including T&D losses")
-
-        lmp_elserv .= lmp_elserv .* plserv_scalar
-        add_table_col!(data, :bus, :lmp_elserv, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served (scaled up from lmp_elserv_preloss to include T&D losses)")
+        add_table_col!(data, :bus, :lmp_elserv, lmp_elserv .* plserv_scalar, DollarsPerMWhServed,"Locational Marginal Price of Energy Served (scaled up from lmp_elserv_preloss to include T&D losses)")
     else
         add_table_col!(data, :bus, :lmp_elserv, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
     end
