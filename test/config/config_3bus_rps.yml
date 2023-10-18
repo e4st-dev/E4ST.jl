@@ -12,7 +12,7 @@ mods:
           state: stormness
         targets:
           y2035: 0.9
-          y2040: 0.95
+          y2040: 0.92
   example_rps_gentype:
     type: "RPS"
     crediting: 
