@@ -11,8 +11,8 @@ mods:
         filters:
           state: stormness
         targets:
-          y2035: 0.9
-          y2040: 0.92
+          y2035: 0.85
+          y2040: 0.9
   example_rps_gentype:
     type: "RPS"
     crediting: 

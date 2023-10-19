@@ -44,7 +44,8 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 
 | Name | Constraint | Symbol |  Unit | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| $C_{PB_{b,y,h}}$ | $P_{G_{b,y,h}} - P_{S_{b,y,h}} = P_{F_{b,y,h}}$ | `:cons_pbal` | MW | Constrain the power flow at each bus |
+| $C_{PB_{b,y,h}}$ | $P_{G_{b,y,h}} - P_{S_{b,y,h}} \geq P_{F_{b,y,h}}$ | `:cons_pbal_geq` | MW | Constrain the power flow at each bus |
+| $C_{PB_{b,y,h}}$ | $P_{G_{b,y,h}} - P_{S_{b,y,h}} \leq P_{F_{b,y,h}}$ | `:cons_pbal_leq` | MW | Constrain the power flow at each bus |
 | $C_{PG_{g,y,h}}^{\text{min}}$ | $P_{G_{g,y,h}} \geq P_{C_{b,y}}^{\text{min}}$ | `:cons_pgen_min` | MW | Constrain the generated power to be above minimum capacity factor, if given. |
 | $C_{PG_{g,y,h}}^{\text{max}}$ | $P_{G_{g,y,h}} \leq P_{C_{b,y}}^{\text{max}}$ | `:cons_pgen_max` | MW | Constrain the generated power to be below min(availability factor, max capacity factor) |
 | $C_{PS_{g,y,h}}^{\text{min}}$ | $P_{S_{b,y,h}} \geq 0$ | `:cons_plserv_min` | MW | Constrain the served power to be greater than zero |
@@ -144,14 +145,22 @@ function constrain_pbal!(config, data, model)
             pflow_out_bus[bus_idx, year_idx, hour_idx] - pflow_in_bus[bus_idx, year_idx, hour_idx] == pflow_bus[bus_idx, year_idx, hour_idx]
         )
         @constraint(model, 
-            cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            pgen_bus[bus_idx, year_idx, hour_idx] - plserv_bus[bus_idx, year_idx, hour_idx] - pflow_out_bus[bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * pflow_in_bus[bus_idx, year_idx, hour_idx] == 0.0
+            cons_pbal_geq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+            pgen_bus[bus_idx, year_idx, hour_idx] - plserv_bus[bus_idx, year_idx, hour_idx] - pflow_out_bus[bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * pflow_in_bus[bus_idx, year_idx, hour_idx] >= 0.0
+        )
+        @constraint(model, 
+            cons_pbal_leq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+            pgen_bus[bus_idx, year_idx, hour_idx] - plserv_bus[bus_idx, year_idx, hour_idx] - pflow_out_bus[bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * pflow_in_bus[bus_idx, year_idx, hour_idx] <= 0.0
         )
     elseif line_loss_type == "plserv"
         plserv_scalar = 1/(1-line_loss_rate)
         @constraint(model, 
-            cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] * plserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] == 0.0
+            cons_pbal_geq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] * plserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] >= 0.0
+        )
+        @constraint(model, 
+            cons_pbal_leq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] * plserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] <= 0.0
         )
     else
         error("config[:line_loss_type] must be `plserv` or `pflow`, but $line_loss_type was given")
