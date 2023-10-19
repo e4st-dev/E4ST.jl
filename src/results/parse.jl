@@ -263,7 +263,9 @@ function parse_lmp_results!(config, data)
     res_raw = get_raw_results(data)
     
     # Get the shadow price of the average power flow constraint ($/MW flowing)
-    cons_pbal = res_raw[:cons_pbal]::Array{Float64,3}
+    cons_pbal_geq = res_raw[:cons_pbal_geq]::Array{Float64, 3}
+    cons_pbal_leq = res_raw[:cons_pbal_leq]::Array{Float64, 3}
+    cons_pbal = cons_pbal_geq .- cons_pbal_leq
 
     # Divide by number of hours because we want $/MWh, not $/MW
     lmp_elserv = unweight_hourly(data, cons_pbal, -)
@@ -308,7 +310,7 @@ function parse_lmp_results!(config, data)
         f_bus_lmp = view(lmp_elserv, f_bus_idx, :, :) # nyr x nhr
         t_bus_lmp = view(lmp_elserv, t_bus_idx, :, :) # nyr x nhr
         pflow = view(pflow_branch, branch_idx, :, :) # nyr x nhr
-        ms_per_bus = abs.((f_bus_lmp .- t_bus_lmp) .* pflow) .* hour_weights_mat .* 0.5
+        ms_per_bus = ((t_bus_lmp .- f_bus_lmp) .* pflow) .* hour_weights_mat .* 0.5
         ms[f_bus_idx, :, :] .+= ms_per_bus
         ms[t_bus_idx, :, :] .+= ms_per_bus
     end

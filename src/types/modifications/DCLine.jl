@@ -106,7 +106,7 @@ function modify_results!(mod::DCLine, config, data)
         f_bus_lmp = lmp_elserv[f_bus_idx] # nyr x nhr
         t_bus_lmp = lmp_elserv[t_bus_idx] # nyr x nhr
         pflow = view(pflow_dc, dc_idx, :, :) # nyr x nhr
-        ms_per_bus = abs.((f_bus_lmp .- t_bus_lmp) .* pflow) .* hour_weights_mat .* 0.5
+        ms_per_bus = ((t_bus_lmp .- f_bus_lmp) .* pflow) .* hour_weights_mat .* 0.5
         ms[f_bus_idx] .+= ms_per_bus
         ms[t_bus_idx] .+= ms_per_bus
     end
