@@ -51,7 +51,7 @@ function Storage(;name, file, build_file="")
 end
 export Storage
 
-mod_rank(::Type{<:Storage}) = -3.0
+mod_rank(::Type{<:Storage}) = -4.0
 
 @doc """
     summarize_table(::Val{:storage})

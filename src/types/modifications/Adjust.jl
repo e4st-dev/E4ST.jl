@@ -226,10 +226,15 @@ function adjust_yearly_by_sim_year!(config, data, row)
 
     # Get the filtered table with which to perform the adjustment
     pairs = parse_comparisons(row)
+    
+    if !haskey(data, Symbol(table_name))
+        @warn "No table $table_name found for adjust_yearly"
+        return
+    end
+
     table = get_table(data, table_name, pairs)
     isempty(table) && return
-    hasproperty(table, variable_name) || error("Table $table_name has no column $variable_name to adjust in `adjust_yearly!`")
-
+    hasproperty(table, variable_name) || (@warn("Table $table_name has no column $variable_name to adjust in `adjust_yearly!`"); return)
     # Perform the adjustment on each row of the table
     vals = [row[y] for y in get_years(data)]
 
@@ -259,10 +264,15 @@ function adjust_yearly_by_year_col!(config, data, row)
 
     # Get the filtered table with which to perform the adjustment
     pairs = parse_comparisons(row)
+    if !haskey(data, Symbol(table_name))
+        @warn "No table $table_name found for adjust_yearly"
+        return
+    end
+
     table = get_table(data, table_name, pairs)
     isempty(table) && return
-    hasproperty(table, variable_name) || error("Table $table_name has no column $variable_name to adjust in `adjust_yearly!`")
-    hasproperty(table, year_col) || error("Table $table_name has no column $year_col to adjust by in `adjust_yearly!`")
+    hasproperty(table, variable_name) || (@warn("Table $table_name has no column $variable_name to adjust in `adjust_yearly!`"); return)
+    hasproperty(table, year_col) || (@warn("Table $table_name has no column $year_col to adjust by in `adjust_yearly!`"); return)
 
     to_container!(get_table(data, table_name), variable_name)
 
