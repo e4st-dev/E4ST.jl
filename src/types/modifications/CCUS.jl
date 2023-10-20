@@ -338,9 +338,13 @@ function modify_model!(mod::CCUS, config, data, model)
     # Constrain that co2 captured in a region must equal the CO2 sold in that region. "CO2 balancing constraint"
     # LHS is divided by sqrt of co2_scalar, rhs is multiplied, so that they meet in the middle of coefficient range.
     @constraint(model, 
-        cons_co2_bal[send_idx in 1:nsend, yr_idx in 1:nyear], 
-        co2_prod[send_idx, yr_idx] / sqrt(co2_scalar) == co2_sent[send_idx, yr_idx] * sqrt(co2_scalar)
-    ) 
+        cons_co2_bal_geq[send_idx in 1:nsend, yr_idx in 1:nyear], 
+        co2_prod[send_idx, yr_idx] / sqrt(co2_scalar) >= co2_sent[send_idx, yr_idx] * sqrt(co2_scalar)
+    )
+    @constraint(model, 
+        cons_co2_bal_leq[send_idx in 1:nsend, yr_idx in 1:nyear], 
+        co2_prod[send_idx, yr_idx] / sqrt(co2_scalar) <= co2_sent[send_idx, yr_idx] * sqrt(co2_scalar)
+    )
 
     add_obj_exp!(data, model, CCUSTerm(), :cost_ccus_obj; oper=+)
 
@@ -368,7 +372,11 @@ function modify_results!(mod::CCUS, config, data)
     raw_results[:co2_stor] .*= co2_scalar
     raw_results[:co2_trans] .*= co2_scalar
     raw_results[:cons_co2_stor] ./= co2_scalar
-    raw_results[:cons_co2_bal] ./= sqrt(co2_scalar)
+
+    # Join the co2 balancing constraints into a single shadow price
+    raw_results[:cons_co2_bal] = (raw_results[:cons_co2_bal_geq] .- raw_results[:cons_co2_bal_leq]) ./ sqrt(co2_scalar)
+    delete!(raw_results, :cons_co2_bal_geq)
+    delete!(raw_results, :cons_co2_bal_leq)
 
     ccus_storers = get_table(data, :ccus_storers)
     ccus_producers = get_table(data, :ccus_producers)

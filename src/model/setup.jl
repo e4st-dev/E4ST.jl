@@ -54,7 +54,7 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 | $C_{PC_{g}}^{\text{max}}$ | $P_{C_{g,y}} \leq P_{C_{g,y}}^{\text{max}}\quad \forall y = y_{S_g}$ | `:cons_pcap_max` | MW | Constrain the power generation capacity to be less than or equal to its minimum for its starting year. |
 | $C_{PL_{l,y,h}}^{+}$ | $P_{F_{l,y,h}} \leq P_{L_{l,y,h}}^{\text{max}}$ | `:cons_branch_pflow_pos` | MW | Constrain the branch power flow to be less than or equal to its maximum. |
 | $C_{PL_{l,y,h}}^{-}$ | $-P_{F_{l,y,h}} \leq P_{L_{l,y,h}}^{\text{max}}$ | `:cons_branch_pflow_neg` | MW | Constrain the negative branch power flow to be less than or equal to its maximum. |
-| $C_{PCGPB_{g,y}}$ | $P_{C_{g,y}} = 0 \quad \forall \left\{ y<y_{S_g} \right\}$ | `:cons_pcap_gen_prebuild` | MW | Constrain the power generation capacity to be zero before the start year. |
+| $C_{PCGPB_{g,y}}$ | $P_{C_{g,y}} = 0 \quad \forall \left\{ y<y_{S_g} \right\}$ | `N/A` | MW | Constrain the power generation capacity to be zero before the start year. Implemented by fixing the variable.  |
 | $C_{PCGNA_{g,y}}$ | $P_{C_{g,y+1}} <= P_{C_{g,y}} \quad \forall \left\{ y >= y_{S_g} \right\}$ | `:cons_pcap_gen_noadd` | MW | Constrain the power generation capacity to be non-increasing after the start year. Generation capacity is only added when building new generators in their start year.|
 | $C_{PCGE_{g,y}}$ | $P_{C_{g,y}} == P_{C_{0_{g}}} \quad \forall \left\{ first y >= y_{S_g} \right\}$ | `:cons_pcap_gen_exog` | MW | Constrain unbuilt exogenous generators to be built to `pcap0` in the first year after `year_on`. |
 
@@ -141,8 +141,11 @@ function constrain_pbal!(config, data, model)
         plserv_bus = model[:plserv_bus]
 
         # Constrain power flowing out of the bus.
-        @constraint(model, cons_pflow_in_out[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
-            pflow_out_bus[bus_idx, year_idx, hour_idx] - pflow_in_bus[bus_idx, year_idx, hour_idx] == pflow_bus[bus_idx, year_idx, hour_idx]
+        @constraint(model, cons_pflow_in_out_geq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
+            pflow_out_bus[bus_idx, year_idx, hour_idx] - pflow_in_bus[bus_idx, year_idx, hour_idx] >= pflow_bus[bus_idx, year_idx, hour_idx]
+        )
+        @constraint(model, cons_pflow_in_out_leq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
+            pflow_out_bus[bus_idx, year_idx, hour_idx] - pflow_in_bus[bus_idx, year_idx, hour_idx] <= pflow_bus[bus_idx, year_idx, hour_idx]
         )
         @constraint(model, 
             cons_pbal_geq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],

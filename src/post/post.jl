@@ -101,6 +101,7 @@ function extract_results(post_config)
     post_mods = get_mods(post_config)
     sim_names = post_config[:sim_names]::Vector{String}
     sim_paths = post_config[:sim_paths]::Vector{String}
+    
 
     # Initialize an OrderedDict for each mod to drop their results into.
     for (key, post_mod) in post_mods
@@ -109,11 +110,15 @@ function extract_results(post_config)
 
     # Pull in the processed results for each of the paths and transfer/compute necessary things, add to `post_data`
     for (sim_path, sim_name) in zip(sim_paths, sim_names)
+        @info "Beginning extract_results for $sim_name"
         data = read_processed_results(sim_path)
+        @info "Data has been read, starting result extraction"
         config = read_config(sim_path)
         for (key, post_mod) in post_mods
             post_data[key][sim_name] = extract_results(post_mod, config, data)
         end
+        @info "Done extracting results"
+        
     end
     return post_data
 end

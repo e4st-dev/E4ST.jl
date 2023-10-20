@@ -160,14 +160,10 @@ function modify_model!(ret::Retrofit, config, data, model)
     )
 
     # Constrain their capacities to be zero before year_retrofit
-    @constraint(model,
-        cons_pcap_gen_preretro[
-            gen_idx = axes(gen, 1),
-            yr_idx = 1:nyr;
-            (!isempty(gen.year_retrofit[gen_idx]) && years[yr_idx] < gen.year_retrofit[gen_idx])
-        ],
-        pcap_gen[gen_idx, yr_idx] == 0.0
-    )
+    for gen_idx = axes(gen,1), yr_idx = 1:nyr
+        (!isempty(gen.year_retrofit[gen_idx]) && years[yr_idx] < gen.year_retrofit[gen_idx]) || continue
+        fix(pcap_gen[gen_idx, yr_idx], 0.0, force=true)
+    end
         
     return nothing
 end

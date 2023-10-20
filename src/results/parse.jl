@@ -67,6 +67,10 @@ end
 function value_or_shadow_price(ar::AbstractArray{<:AbstractJuMPScalar}, obj_scalar)
     value.(ar)
 end
+function value_or_shadow_price(cons::ConstraintRef{M, CI}, obj_scalar) where {F, M <: AbstractModel, CI<:MOI.ConstraintIndex{F, MOI.EqualTo{Float64}}}
+    @warn "Shadow price is misleading for equality constraints!"
+    shadow_price(cons) * obj_scalar
+end
 function value_or_shadow_price(cons::ConstraintRef, obj_scalar)
     shadow_price(cons) * obj_scalar
 end
