@@ -186,6 +186,7 @@ function modify_model!(mod::FuelPrice, config, data, model)
             fuel_markets.fuel_price_idxs[fm_idx]
         ) == fuel_used[fm_idx, yr_idx] #both fuel_sold and fuel_used should be divide by the scalar so this is all set
     )
+    do_not_parse!(data, :cons_fuel_bal)
 end
 
 """
@@ -211,10 +212,11 @@ function modify_results!(mod::FuelPrice, config, data)
         cons_fuel_sold[i] /= fp_scalar
     end
 
-    cons_fuel_bal = get_raw_result(data, :cons_fuel_bal)
-    for i in eachindex(cons_fuel_bal)
-        cons_fuel_bal[i] /= fp_scalar
-    end
+    # Do not need cons_fuel_bal
+    # cons_fuel_bal = get_raw_result(data, :cons_fuel_bal)
+    # for i in eachindex(cons_fuel_bal)
+    #     cons_fuel_bal[i] /= fp_scalar
+    # end
     
     # get easy access data
     fuel_sold = get_raw_result(data, :fuel_sold)

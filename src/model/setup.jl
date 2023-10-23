@@ -70,6 +70,12 @@ function setup_model(config, data)
 
     log_header("SETTING UP MODEL")
 
+    # Create set of model keys not to parse
+    data[:do_not_parse_model_keys] = Set{Symbol}()
+    do_not_parse!(data, :cons_pgen_max)
+    do_not_parse!(data, :cons_pgen_min)
+    do_not_parse!(data, :cons_pcap_gen_noadd)
+
     if haskey(config, :model_presolve_file)
         @info "Loading model from:\n$(config[:model_presolve_file])"
         model = deserialize(config[:model_presolve_file])
@@ -171,6 +177,17 @@ function constrain_pbal!(config, data, model)
     return nothing
 end
 export constrain_pbal!
+
+"""
+    do_not_parse!(data, s)
+
+Signifies to E4ST not to parse the symbol `s` when pulling in values and shadow prices into the raw results.
+"""
+function do_not_parse!(data, s)
+    d = data[:do_not_parse_model_keys]::Set{Symbol}
+    push!(d, Symbol(s))
+    return nothing    
+end
 
 function add_optimizer!(config, data, model)
     optimizer_factory = getoptimizer(config)
