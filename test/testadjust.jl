@@ -29,8 +29,8 @@
             @test all(branch_idx->(get_table_num(data, :branch, :pflow_max, branch_idx, 3, 1) ≈ get_table_num(data0, :branch, :pflow_max, branch_idx, 3, 1) * 2.653), branch_idxs)
 
             # Test that yearly value of damage rate of CO2 has been set.
-            @test_throws Exception get_num(data0, :rdam_co2, 1, 1)
-            @test get_num(data, :r_dam_co2, 1, 1) ≈ 183.56
+            @test_throws Exception get_num(data0, :dam_co2, 1, 1)
+            @test get_num(data, :dam_co2, 1, 1) ≈ 183.56
         end
         @testset "Test Hourly Adjustments" begin
 

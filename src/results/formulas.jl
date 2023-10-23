@@ -322,6 +322,12 @@ end
 
 Base.getproperty(d::DictWrapper, s::Symbol) = getfield(d, :d)[s]
 
+function col_or_container(data, table, s::Symbol)
+    hasproperty(table, s) && return table[!, s]
+    haskey(data, s) && return data[s]
+    error("table has no column $s and data has no variable $s")
+end
+
 
 @doc raw"""
     Sum(cols...) <: Function
@@ -340,15 +346,15 @@ export Sum
 
 function (f::Sum{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
-    _sum(table[!, col1], idxs)
+    _sum(col_or_container(data, table, col1), idxs)
 end
 function (f::Sum{2})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2 = f.cols
-    _sum(table[!, col1], table[!, col2], idxs)
+    _sum(col_or_container(data, table, col1), col_or_container(data, table, col2), idxs)
 end
 function (f::Sum{3})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2,col3 = f.cols
-    _sum(table[!, col1], table[!, col2], table[!, col3], idxs)
+    _sum(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), idxs)
 end
 
 
@@ -369,7 +375,7 @@ export MinYearly
 
 function (f::MinYearly{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
-    v1 = table[!, col1]
+    v1 = col_or_container(data, table, col1)
     minimum(_sum_yearly(v1, idxs, y, hr_idxs) for y in yr_idxs)
 end
 
@@ -390,7 +396,7 @@ export MaxYearly
 
 function (f::MaxYearly{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
-    v1 = table[!, col1]
+    v1 = col_or_container(data, table, col1)
     maximum(_sum_yearly(v1, idxs, y, hr_idxs) for y in yr_idxs)
 end
 
@@ -411,17 +417,17 @@ export AverageYearly
 
 function (f::AverageYearly{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
-    _sum_yearly(table[!, col1], idxs, yr_idxs) / length(yr_idxs)
+    _sum_yearly(col_or_container(data, table, col1), idxs, yr_idxs) / length(yr_idxs)
 end
 
 function (f::AverageYearly{2})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2 = f.cols
-    _sum_yearly(table[!, col1], table[!, col2], idxs, yr_idxs) / length(yr_idxs)
+    _sum_yearly(col_or_container(data, table, col1), col_or_container(data, table, col2), idxs, yr_idxs) / length(yr_idxs)
 end
 
 function (f::AverageYearly{3})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2,col3 = f.cols
-    _sum_yearly(table[!, col1], table[!, col2], table[!, col3], idxs, yr_idxs) / length(yr_idxs)
+    _sum_yearly(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), idxs, yr_idxs) / length(yr_idxs)
 end
 
 @doc raw"""
@@ -441,15 +447,15 @@ export SumYearly
 
 function (f::SumYearly{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
-    _sum_yearly(table[!, col1], idxs, yr_idxs)
+    _sum_yearly(col_or_container(data, table, col1), idxs, yr_idxs)
 end
 function (f::SumYearly{2})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2 = f.cols
-    _sum_yearly(table[!, col1], table[!, col2], idxs, yr_idxs)
+    _sum_yearly(col_or_container(data, table, col1), col_or_container(data, table, col2), idxs, yr_idxs)
 end
 function (f::SumYearly{3})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2,col3 = f.cols
-    _sum_yearly(table[!, col1], table[!, col2], table[!, col3], idxs, yr_idxs)
+    _sum_yearly(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), idxs, yr_idxs)
 end
 
 @doc raw"""
@@ -469,7 +475,7 @@ export MinHourly
 
 function (f::MinHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
-    v1 = table[!, col1]
+    v1 = col_or_container(data, table, col1)
     minimum(_sum_hourly(v1, idxs, y, h) for h in hr_idxs for y in yr_idxs)
 end
 
@@ -491,7 +497,7 @@ export MaxHourly
 
 function (f::MaxHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
-    v1 = table[!, col1]
+    v1 = col_or_container(data, table, col1)
     maximum(_sum_hourly(v1, idxs, y, h) for h in hr_idxs for y in yr_idxs)
 end
 
@@ -509,7 +515,7 @@ export MaxValue
 
 function (f::MaxValue{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
-    v1 = table[!, col1]
+    v1 = col_or_container(data, table, col1)
     maximum(_iterator_hourly(v1, idxs, yr_idxs, hr_idxs))
 end
 
@@ -527,7 +533,7 @@ export MaxValue
 
 function (f::MinValue{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
-    v1 = table[!, col1]
+    v1 = col_or_container(data, table, col1)
     minimum(_iterator_hourly(v1, idxs, yr_idxs, hr_idxs))
 end
 
@@ -549,20 +555,20 @@ export SumHourly
 
 function (f::SumHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
-    _sum_hourly(table[!, col1], idxs, yr_idxs, hr_idxs)
+    _sum_hourly(col_or_container(data, table, col1), idxs, yr_idxs, hr_idxs)
 end
 function (f::SumHourly{2})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2 = f.cols
-    _sum_hourly(table[!, col1], table[!, col2], idxs, yr_idxs, hr_idxs)
+    _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), idxs, yr_idxs, hr_idxs)
 end
 function (f::SumHourly{3})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2,col3 = f.cols
-    _sum_hourly(table[!, col1], table[!, col2], table[!, col3], idxs, yr_idxs, hr_idxs)
+    _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), idxs, yr_idxs, hr_idxs)
 end
 
 # function (f::SumHourly{4})(data, table, idxs, yr_idxs, hr_idxs)
 #     col1,col2,col3,col4 = f.cols
-#     _sum_hourly(table[!, col1], table[!, col2], table[!, col3], table[!, col4], idxs, yr_idxs, hr_idxs)
+#     _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), col_or_container(data, table, col4), idxs, yr_idxs, hr_idxs)
 # end
 
 
@@ -584,17 +590,17 @@ export SumHourlyWeighted
 function (f::SumHourlyWeighted{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
     hc = data[:hours_container]::HoursContainer
-    _sum_hourly(table[!, col1], hc, idxs, yr_idxs, hr_idxs)
+    _sum_hourly(col_or_container(data, table, col1), hc, idxs, yr_idxs, hr_idxs)
 end
 function (f::SumHourlyWeighted{2})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2 = f.cols
     hc = data[:hours_container]::HoursContainer
-    _sum_hourly(table[!, col1], table[!, col2], hc, idxs, yr_idxs, hr_idxs)
+    _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), hc, idxs, yr_idxs, hr_idxs)
 end
 function (f::SumHourlyWeighted{3})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2,col3 = f.cols
     hc = data[:hours_container]::HoursContainer
-    _sum_hourly(table[!, col1], table[!, col2], table[!, col3], hc, idxs, yr_idxs, hr_idxs)
+    _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), hc, idxs, yr_idxs, hr_idxs)
 end
 
 
@@ -616,19 +622,19 @@ export AverageHourly
 function (f::AverageHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
     hour_weights = get_hour_weights(data)
-    _sum_hourly(table[!, col1], idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
+    _sum_hourly(col_or_container(data, table, col1), idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
 end
 
 function (f::AverageHourly{2})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2 = f.cols
     hour_weights = get_hour_weights(data)
-    _sum_hourly(table[!, col1], table[!, col2], idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
+    _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
 end
 
 function (f::AverageHourly{3})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2,col3 = f.cols
     hour_weights = get_hour_weights(data)
-    _sum_hourly(table[!, col1], table[!, col2], table[!, col3], idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
+    _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
 end
 
 

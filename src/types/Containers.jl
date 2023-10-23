@@ -216,7 +216,11 @@ end
 function _getindex(v::Vector{<:AbstractVector{<:Real}}, i::Int64, y::Int64)
     return v[i][y]::Float64
 end
+_getindex(c::Container, i::Int64, y::Int64, h::Int64) = c[y,h]
+_getindex(c::Container, i::Int64, y::Int64) = c[y,(:)]
+_getindex(c::Container, i::Int64) = error("Cannot use _getindex into container $c with a single index")
 _getindex(args...) = getindex(args...) |> Float64
+
 
 
 # Assume that if we are trying to index into a vector of vectors, it is for yearly data only

@@ -90,4 +90,11 @@ function modify_results!(mod::CO2eCalc, config, data)
     add_results_formula!(data, :gen, :emis_co2e_rate, "emis_co2e_total/egen_total", ShortTonsPerMWhGenerated, "Average rate of CO2e emissions")
     add_results_formula!(data, :gen, :emis_upstream_ch4_total, "SumHourlyWeighted(emis_upstream_ch4,pgen)", ShortTons, "Total upstream methane emissions")
     add_results_formula!(data, :gen, :emis_upstream_ch4_rate, "emis_upstream_ch4_total/egen_total", ShortTonsPerMWhGenerated, "Average rate of upstream methane emissions")
+    if haskey(data, :dam_co2)
+        add_results_formula!(data, :gen, :climate_damages_co2e_total, "SumHourlyWeighted(emis_co2e, pgen, dam_co2)", Dollars, "Total climate damages from CO2e")
+        add_results_formula!(data, :gen, :climate_damages_co2e_per_mwh, "climate_damages_total / egen_total", Dollars, "Climate damages from CO2e, per MWh of power generation")
+        add_welfare_term!(data, :climate, :gen, :climate_damages_co2e_total, -)
+    else
+        @warn "CO2eCalc found no damages rate `dam_co2` inside `data`, not adding results formulas and welfare terms for climate damages"
+    end
 end

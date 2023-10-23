@@ -2,6 +2,8 @@
 
     config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
     config = read_config(config_file, log_model_summary=true)
+    config[:mods][:adj_yearly] = AdjustYearly(file=joinpath(@__DIR__, "data", "3bus", "adjust_yearly.csv"), name=:adj_yearly) #overwrites previous adj_yearly
+
 
     data = read_data(config)
     model = setup_model(config, data)
@@ -27,7 +29,10 @@
     end
 
     @testset "Test misc. results computations" begin
-        
+        dam_co2 = data[:dam_co2]::Container
+        @test compute_result(data, :gen, :climate_damages_co2e_total) ≈
+            sum(compute_result(data, :gen, :emis_co2e_total, :, yr_idx) * dam_co2[yr_idx,:] for yr_idx in 1:get_num_years(data))
+
     end
     
     @testset "Test DC lines" begin
