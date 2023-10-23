@@ -81,9 +81,6 @@ function setup_dcopf!(config, data, model)
     # Generated power of a given bus
     @expression(model, pgen_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pgen_bus(data, model, bus_idx, year_idx, hour_idx))
 
-    # Generated energy at a given generator
-    @expression(model, egen_gen[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour], get_egen_gen(data, model, gen_idx, year_idx, hour_idx))
-
     ## Constraints
     @info "Creating Constraints"
     
@@ -315,14 +312,15 @@ function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper)
     Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
 
     #write expression for the term
+    pgen_gen = model[:pgen_gen]::Array{VariableRef, 3}
     gen = get_table(data, :gen)
-    egen_gen = model[:egen_gen]
     col = gen[!,s]
     nhr = get_num_hours(data)
     nyr = get_num_years(data)
+    hour_weights = get_hour_weights(data)
     model[s] = @expression(model, 
         [gen_idx in axes(gen,1), yr_idx in 1:nyr],
-        sum(col[gen_idx][yr_idx,hr_idx] * egen_gen[gen_idx, yr_idx, hr_idx] for hr_idx in 1:nhr)
+        sum(col[gen_idx][yr_idx,hr_idx] * pgen_gen[gen_idx, yr_idx, hr_idx] * hour_weights[hr_idx] for hr_idx in 1:nhr)
     )
 
     # add or subtract the expression from the objective function
@@ -335,14 +333,15 @@ function add_obj_term!(data, model, ::PerMMBtu, s::Symbol; oper)
     
     #write expression for the term
     gen = get_table(data, :gen)
-    egen_gen = model[:egen_gen]
+    pgen_gen = model[:pgen_gen]::Array{VariableRef, 3}
     col = gen[!,s]
     hr = gen[!,:heat_rate]
     nhr = get_num_hours(data)
     nyr = get_num_years(data)
+    hour_weights = get_hour_weights(data)
     model[s] = @expression(model, 
         [gen_idx in axes(gen,1), yr_idx in 1:nyr],
-        sum(col[gen_idx][yr_idx,hr_idx] * hr[gen_idx][yr_idx, hr_idx] * egen_gen[gen_idx, yr_idx, hr_idx] for hr_idx in 1:nhr)
+        sum(col[gen_idx][yr_idx,hr_idx] * hr[gen_idx][yr_idx, hr_idx] * pgen_gen[gen_idx, yr_idx, hr_idx] * hour_weights[hr_idx] for hr_idx in 1:nhr)
     )
 
     # add or subtract the expression from the objective function

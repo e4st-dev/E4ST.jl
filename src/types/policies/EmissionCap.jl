@@ -56,7 +56,7 @@ function E4ST.modify_results!(pol::EmissionCap, config, data)
 
     # policy cost, shadow price (per MWh generated) * generation
     cost_name = Symbol("$(pol.name)_cost")
-    add_results_formula!(data, :gen, cost_name, "SumHourly($(pol.name)_prc, egen)", Dollars, "The cost of $(pol.name) based on the shadow price of the generation constraint")
+    add_results_formula!(data, :gen, cost_name, "SumHourlyWeighted($(pol.name)_prc, pgen)", Dollars, "The cost of $(pol.name) based on the shadow price of the generation constraint")
     add_to_results_formula!(data, :gen, :emission_cap_cost, cost_name)
 end
 

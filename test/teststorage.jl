@@ -17,7 +17,6 @@
     echarge = compute_result(data, :storage, :echarge_total)
     edischarge = compute_result(data, :storage, :edischarge_total)
     obj = get_raw_result(data, :obj)
-    cons_stor_charge_bal = get_raw_result(data, :cons_stor_charge_bal)
     e0_stor = get_raw_result(data, :e0_stor)
     pcharge_stor = get_raw_result(data, :pcharge_stor)
     pdischarge_stor = get_raw_result(data, :pdischarge_stor)
