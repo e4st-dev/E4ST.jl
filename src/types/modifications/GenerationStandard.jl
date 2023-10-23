@@ -179,7 +179,7 @@ function modify_results!(pol::GenerationStandard, config, data)
 
 
     # policy cost, price * credit * generation
-    add_results_formula!(data, :gen, cost_name, "SumHourly($(prc_name), egen)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
+    add_results_formula!(data, :gen, cost_name, "SumHourlyWeighted($(prc_name), pgen)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
     add_to_results_formula!(data, :gen, :gs_rebate, cost_name)
 end
 export modify_results!

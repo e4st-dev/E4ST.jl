@@ -275,7 +275,8 @@ function modify_model!(mod::CCUS, config, data, model)
     nhour = get_num_hours(data)
     nstor = nrow(ccus_storers)
     nsend = nrow(ccus_producers)
-    egen = model[:egen_gen]::Array{AffExpr, 3}
+    pgen = model[:pgen_gen]::Array{VariableRef, 3}
+    hour_weights = get_hour_weights(data)
 
     # Add capacity matching constraints for the sets of ccus_paths generators
     match_capacity!(data, model, :gen, :pcap_gen, :ccus, ccus_gen_sets)
@@ -331,7 +332,7 @@ function modify_model!(mod::CCUS, config, data, model)
     for send_idx in 1:nsend, yr_idx in 1:nyear
         e = co2_prod[send_idx, yr_idx]::AffExpr
         for gen_idx in ccus_producers.gen_idxs[send_idx], hr_idx in 1:nhour
-            add_to_expression!(e, egen[gen_idx, yr_idx, hr_idx], get_table_num(data, :gen, :capt_co2, gen_idx, yr_idx, hr_idx))
+            add_to_expression!(e, pgen[gen_idx, yr_idx, hr_idx], hour_weights[hr_idx]*get_table_num(data, :gen, :capt_co2, gen_idx, yr_idx, hr_idx))
         end
     end
 
@@ -413,13 +414,13 @@ function modify_results!(mod::CCUS, config, data)
     add_table_col!(data, :gen, :price_capt_co2_trans, fill(zeros(nyear), nrow(gen)), DollarsPerShortTonCO2Captured, "Region-wide average price for the generator to pay for the transport of a short ton of captured CO2")
     
     # Add results formulas
-    add_results_formula!(data, :gen, :cost_capt_co2, "SumHourly(egen,capt_co2,price_capt_co2)", Dollars, "Total cost paid by generators to transport and store a short ton of captured CO2, computed with the clearing price")
+    add_results_formula!(data, :gen, :cost_capt_co2, "SumHourlyWeighted(pgen,capt_co2,price_capt_co2)", Dollars, "Total cost paid by generators to transport and store a short ton of captured CO2, computed with the clearing price")
     add_results_formula!(data, :gen, :price_capt_co2_per_short_ton, "cost_capt_co2 / capt_co2_total", DollarsPerShortTonCO2Captured, "Average price paid by generators to transport and store a short ton of captured CO2, computed with the clearing price")
 
-    add_results_formula!(data, :gen, :cost_capt_co2_transport, "SumHourly(egen,capt_co2,price_capt_co2_trans)", Dollars, "Total cost paid by generators to transport a short ton of captured CO2, computed with the clearing price")
+    add_results_formula!(data, :gen, :cost_capt_co2_transport, "SumHourlyWeighted(pgen,capt_co2,price_capt_co2_trans)", Dollars, "Total cost paid by generators to transport a short ton of captured CO2, computed with the clearing price")
     add_results_formula!(data, :gen, :price_capt_co2_transport_per_short_ton, "cost_capt_co2_transport / capt_co2_total", DollarsPerShortTonCO2Captured, "Average price paid by generators to transport a short ton of captured CO2, computed with the clearing price")
 
-    add_results_formula!(data, :gen, :cost_capt_co2_store, "SumHourly(egen,capt_co2,price_capt_co2_store)", Dollars, "Total cost paid by generators to store a short ton of captured CO2, computed with the clearing price")
+    add_results_formula!(data, :gen, :cost_capt_co2_store, "SumHourlyWeighted(pgen,capt_co2,price_capt_co2_store)", Dollars, "Total cost paid by generators to store a short ton of captured CO2, computed with the clearing price")
     add_results_formula!(data, :gen, :price_capt_co2_store_per_short_ton, "cost_capt_co2_store / capt_co2_total", DollarsPerShortTonCO2Captured, "Average price paid by generators to store a short ton of captured CO2, computed with the clearing price")
     
     

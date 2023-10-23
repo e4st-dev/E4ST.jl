@@ -86,8 +86,8 @@ end
     modify_results!(mod::CO2eCalc, config, data)  -> 
 """
 function modify_results!(mod::CO2eCalc, config, data)    
-    add_results_formula!(data, :gen, :emis_co2e_total, "SumHourly(emis_co2e,egen)", ShortTons, "Total CO2e emissions")
+    add_results_formula!(data, :gen, :emis_co2e_total, "SumHourlyWeighted(emis_co2e,pgen)", ShortTons, "Total CO2e emissions")
     add_results_formula!(data, :gen, :emis_co2e_rate, "emis_co2e_total/egen_total", ShortTonsPerMWhGenerated, "Average rate of CO2e emissions")
-    add_results_formula!(data, :gen, :emis_upstream_ch4_total, "SumHourly(emis_upstream_ch4,egen)", ShortTons, "Total upstream methane emissions")
+    add_results_formula!(data, :gen, :emis_upstream_ch4_total, "SumHourlyWeighted(emis_upstream_ch4,pgen)", ShortTons, "Total upstream methane emissions")
     add_results_formula!(data, :gen, :emis_upstream_ch4_rate, "emis_upstream_ch4_total/egen_total", ShortTonsPerMWhGenerated, "Average rate of upstream methane emissions")
 end

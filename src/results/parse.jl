@@ -159,20 +159,12 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | table_name | col_name | unit | description |
 | :-- | :-- | :-- | :-- |
 | :bus | :pgen | MWGenerated | Average Power Generated at this bus |
-| :bus | :egen | MWhGenerated | Electricity Generated at this bus for the weighted representative hour |
 | :bus | :pflow | MWFlow | Average power flowing out of this bus |
-| :bus | :eflow | MWhFlow | Electricity flowing out of this bus |
 | :bus | :pflow_in | MWFlow | Average power flowing into this bus |
-| :bus | :eflow_in | MWhFlow | Electricity flowing out of this bus |
 | :bus | :pflow_out | MWFlow | Average power flowing into this bus |
-| :bus | :eflow_out | MWhFlow | Electricity flowing out of this bus |
 | :bus | :plserv | MWServed | Average power served at this bus |
-| :bus | :elserv | MWhServed | Electricity served at this bus for the weighted representative hour |
 | :bus | :plcurt | MWCurtailed | Average power curtailed at this bus |
-| :bus | :elcurt | MWhCurtailed | Electricity curtailed at this bus for the weighted representative hour |
-| :bus | :elnom  | MWhLoad | Electricity load at this bus for the weighted representative hour |
 | :gen | :pgen | MWGenerated | Average power generated at this generator |
-| :gen | :egen | MWhGenerated | Electricity generated at this generator for the weighted representative hour |
 | :gen | :pcap | MWCapacity | Power generation capacity of this generator generated at this generator for the weighted representative hour |
 | :gen | :ecap | MWhCapacity | Total energy generation capacity of this generator generated at this generator for the weighted representative hour |
 | :gen | :pcap_retired | MWCapacity | Power generation capacity that was retired in each year |
@@ -192,7 +184,6 @@ function parse_power_results!(config, data)
 
 
     pgen_gen = res_raw[:pgen_gen]::Array{Float64, 3}
-    egen_gen = res_raw[:egen_gen]::Array{Float64, 3}
     pcap_gen = res_raw[:pcap_gen]::Array{Float64, 2}
 
     pcap_gen_inv_sim = res_raw[:pcap_gen_inv_sim]
@@ -208,16 +199,9 @@ function parse_power_results!(config, data)
     # Weight things by hour as needed
     egen_bus = weight_hourly(data, pgen_bus)
     ecap_gen = weight_hourly(data, pcap_gen)
-    elserv_bus = weight_hourly(data, plserv_bus)
-    elcurt_bus = weight_hourly(data, plcurt_bus)
-    elnom_bus = weight_hourly(data, get_table_col(data, :bus, :plnom))
-    eflow_bus = weight_hourly(data, pflow_bus)
-    eflow_branch = weight_hourly(data, pflow_branch)
 
     pflow_out_bus = map(x-> max(x,0), pflow_bus)
     pflow_in_bus = map(x-> max(-x,0), pflow_bus)
-    eflow_out_bus = map(x-> max(x,0), eflow_bus)
-    eflow_in_bus = map(x-> max(-x,0), eflow_bus)
 
     obj_pcap_cost_raw = res_raw[:obj_coef][:pcap_gen]::Array{Float64, 2}
     obj_pcap_cost = obj_pcap_cost_raw ./ hours_per_year
@@ -247,20 +231,13 @@ function parse_power_results!(config, data)
     add_table_col!(data, :bus, :pgen,  pgen_bus,  MWGenerated,"Average Power Generated at this bus")
     add_table_col!(data, :bus, :egen,  egen_bus,  MWhGenerated,"Electricity Generated at this bus for the weighted representative hour")   
     add_table_col!(data, :bus, :pflow, pflow_bus, MWFlow,"Average power flowing out of this bus, positive or negative")
-    add_table_col!(data, :bus, :eflow, eflow_bus, MWhFlow,"Electricity flowing out of this bus, positive or negative")
     add_table_col!(data, :bus, :pflow_out, pflow_out_bus, MWFlow,"Average power flowing out of this bus, positive")
     add_table_col!(data, :bus, :pflow_in, pflow_in_bus, MWFlow,"Average power flowing into this bus, positive")
-    add_table_col!(data, :bus, :eflow_out, eflow_out_bus, MWhFlow,"Electricity flowing out of this bus, positive")
-    add_table_col!(data, :bus, :eflow_in, eflow_in_bus, MWhFlow,"Electricity flowing into this bus, positive")
     add_table_col!(data, :bus, :plserv, plserv_bus, MWServed,"Average power served at this bus")
-    add_table_col!(data, :bus, :elserv, elserv_bus, MWhServed,"Electricity served at this bus for the weighted representative hour")      
     add_table_col!(data, :bus, :plcurt, plcurt_bus, MWCurtailed,"Average power curtailed at this bus")
-    add_table_col!(data, :bus, :elcurt, elcurt_bus, MWhCurtailed,"Electricity curtailed at this bus for the weighted representative hour")   
-    add_table_col!(data, :bus, :elnom,  elnom_bus,  MWhLoad,"Electricity load at this bus for the weighted representative hour")   
-
+    
     # Add things to the gen table
     add_table_col!(data, :gen, :pgen,  pgen_gen,  MWGenerated,"Average power generated at this generator")
-    add_table_col!(data, :gen, :egen,  egen_gen,  MWhGenerated,"Electricity generated at this generator for the weighted representative hour")
     add_table_col!(data, :gen, :pcap,  pcap_gen,  MWCapacity,"Power capacity of this generator generated at this generator for the weighted representative hour")
     add_table_col!(data, :gen, :ecap,  ecap_gen,  MWhCapacity,"Electricity generation capacity of this generator generated at this generator for the weighted representative hour")
     add_table_col!(data, :gen, :pcap_retired, pcap_retired, MWCapacity, "Power generation capacity that was retired in each year")
@@ -274,8 +251,6 @@ function parse_power_results!(config, data)
 
     # Add things to the branch table
     add_table_col!(data, :branch, :pflow, pflow_branch, MWFlow,"Average Power flowing through branch")    
-    add_table_col!(data, :branch, :eflow, eflow_branch, MWhFlow,"Electricity flowing through branch")    
-
 
     # Update pcap_inv
     gen.pcap_inv = max.(gen.pcap_inv, gen.pcap_inv_sim)

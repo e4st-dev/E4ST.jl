@@ -115,7 +115,8 @@ function modify_model!(mod::FuelPrice, config, data, model)
 
     # Pull out other necessary data
     data[:fuel_markets] = fuel_markets
-    egen = model[:egen_gen]
+    pgen = model[:pgen_gen]::Array{VariableRef, 3}
+    hour_weights = get_hour_weights(data)
     fp_scalar = mod.fp_scalar
 
     # Create variable fuel_sold for fuel sold in each row of the fuel table
@@ -149,7 +150,7 @@ function modify_model!(mod::FuelPrice, config, data, model)
             yr_idx in 1:nyr
         ],
         sum(
-            (egen[gen_idx, yr_idx, hr_idx] * heat_rate[gen_idx][yr_idx, hr_idx])
+            (pgen[gen_idx, yr_idx, hr_idx] * hour_weights[hr_idx] * heat_rate[gen_idx][yr_idx, hr_idx])
             for gen_idx in fuel_markets.gen_idxs[fm_idx], hr_idx in 1:nhr
         ) / fp_scalar
     )
