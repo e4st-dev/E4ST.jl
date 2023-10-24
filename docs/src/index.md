@@ -56,20 +56,13 @@ This will clone E4ST into `<path to julia depot (usually ~/.julia)>/dev/E4ST`
 using E4ST
 ```
 
-## Install via Git Bash
+# Installation
 
-If the REPL installation doesn't work (due to git credentials or something) you can always install via Git Bash.
+In the Julia REPL, run the following command:
 
-First navigate to the .julia/dev folder (make the dev folder if it's not already there).  Then run:
-
-```
-git clone git@github.com:e4st-dev/E4ST.jl.git E4ST
-```
-
-Then, in a Julia REPL run (note that the bracket opens the package manager):
-```
-]
-dev E4ST
+```julia
+using Pkg
+Pkg.add("E4ST") # Or Pkg.develop("E4ST")
 ```
 
 ## Connection Refused Error
@@ -80,7 +73,3 @@ Host github.com
   Hostname ssh.github.com
   Port 443
 ```
-
-## Helpful Tips
-
-- If you are using VSCode, it is helpful to install a YAML extension to flag any errors when setting up a config file. One option is the YAML extension from Red Hat.
