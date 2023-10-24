@@ -20,7 +20,22 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
 [compat]
-julia = "1.0"
+julia = "1.6"
+BasicInterpolators = "0.7"
+CSV = "0.10"
+DataFrames = "1"
+Dates = "1"
+E4STUtil = "1"
+InteractiveUtils = "1"
+JuMP = "1.15, 1.16"
+Logging = "1"
+MiniLoggers = "0.5"
+OrderedCollections = "1"
+Pkg = "1"
+Serialization = "1"
+Statistics = "1"
+YAML = "0.4.9"
+
 
 [extras]
 BasicInterpolators = "26cce99e-4866-4b6d-ab74-862489e035e0"
