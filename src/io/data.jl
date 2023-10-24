@@ -91,7 +91,7 @@ export read_data_files!
 
 Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_raw_data!(mod, config, data)`](@ref)
 """
-function modify_raw_data!(config, data)    
+function modify_raw_data!(config, data)
     for (sym, mod) in get_mods(config)
         modify_raw_data!(mod, config, data)
     end

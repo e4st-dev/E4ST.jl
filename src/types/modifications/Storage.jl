@@ -24,7 +24,7 @@ Storage is represented over sets of time-weighted sequential representative hour
 * `cons_stor_charge_max[stor_idx, yr_idx, int_idx, _hr_idx]` - constrain the stored energy in each hour of each interval to be less than the maximum (function of `pcap_stor` and the discharge duration column of the storage table).  Note `_hr_idx` is the index within the interval, not the normal `hr_idx`
 * `cons_stor_charge_min[stor_idx, yr_idx, int_idx, _hr_idx]` - constrain the stored energy in each hour of each interval to be greater than zero.  Note `_hr_idx` is the index within the interval, not the normal `hr_idx`
 * `cons_pcap_stor_noadd[stor_idx, yr_idx; years[yr_idx] >= storage.year_on[stor_idx]]` - constrain the capacity to be non-increasing after being built. (only in multi-year simulations)
-* `cons_pcap_stor_prebuild[stor_idx, yr_idx; years[yr_idx] < storage.year_on[stor_idx]]` - constrain the capacity to be zero before being built. (should only happen in multi-year simulations)
+* `cons_pcap_stor_prebuild[stor_idx, yr_idx; years[yr_idx] < storage.year_on[stor_idx]]` - fix the capacity to zero before being built. (should only happen in multi-year simulations)
 * `cons_pcap_stor_exog[stor_idx, yr_idx]` - constrain the exogenous, unbuilt capacity to equal pcap0 for the first year >= its build year.
 
 # Objective Terms
@@ -51,7 +51,7 @@ function Storage(;name, file, build_file="")
 end
 export Storage
 
-mod_rank(::Type{<:Storage}) = -3.0
+mod_rank(::Type{<:Storage}) = -4.0
 
 @doc """
     summarize_table(::Val{:storage})
@@ -664,7 +664,14 @@ function modify_results!(mod::Storage, config, data)
     add_welfare_term!(data, :user, :storage, :cost_of_service_rebate, +)
 
     # Government revenue
-    add_welfare_term!(data, :govermnent, :storage, :net_government_revenue, +)
+    add_welfare_term!(data, :government, :storage, :net_government_revenue, +)
+
+    # Add to system cost welfare check 
+    add_welfare_term!(data, :system_cost_check, :storage, :production_cost, +)
+
+    # Add the costs to the electricity_payments
+    add_welfare_term!(data, :electricity_payments, :storage, :electricity_cost, +)
+    add_welfare_term!(data, :electricity_payments, :storage, :electricity_revenue, -)
 
     # Update and save the storage table
     update_build_status!(config, data, :storage)

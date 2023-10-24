@@ -76,16 +76,10 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
 
     # Constrain Capacity to 0 before the start/build year 
     if any(>(first(years)), table.year_on)
-        name = Symbol("cons_$(pcap_name)_prebuild")
-        model[name] = @constraint(model, 
-            [
-                row_idx in axes(table, 1),
-                yr_idx in 1:nyr;
-                # Only for years before the device came online
-                yr_idx < year_built_idx[row_idx]
-            ],
-            pcap[row_idx, yr_idx] == 0
-        )
+        for row_idx in axes(table, 1), yr_idx in 1:nyr
+            yr_idx >= year_built_idx[row_idx] && continue
+            fix(pcap[row_idx, yr_idx], 0.0; force=true);
+        end
     end
 
     # Constrain existing capacity to only decrease (only retire, not add capacity)

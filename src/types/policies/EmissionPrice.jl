@@ -102,7 +102,7 @@ end
 function E4ST.modify_results!(pol::EmissionPrice, config, data)
     # policy cost, price per mwh * generation
     cost_name = Symbol("$(pol.name)_cost")
-    add_results_formula!(data, :gen, cost_name, "SumHourly($(pol.name), egen)", Dollars, "The cost of $(pol.name)")
+    add_results_formula!(data, :gen, cost_name, "SumHourlyWeighted($(pol.name), pgen)", Dollars, "The cost of $(pol.name)")
     add_to_results_formula!(data, :gen, :emission_cost, cost_name)
 
     should_adjust_invest_cost(pol) && add_results_formula!(data, :gen, Symbol("$(pol.name)_capex_adj_total"), "SumYearly(ecap_inv_sim, $(pol.name)_capex_adj)", Dollars, "The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.")

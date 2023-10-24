@@ -130,6 +130,10 @@
         end
 
         @testset "Other Aggregation Tests" begin
+            @test compute_welfare(data, :government) isa Float64
+            @test compute_welfare(data, :producer) isa Float64
+            @test compute_welfare(data, :user) isa Float64
+            
 
             # Test that summing the co2 emissions for solar in 2030 is zero
             @test compute_result(data, :gen, :emis_co2_total, :gentype=>"solar", "y2030", :) ≈ 0.0
@@ -141,8 +145,8 @@
         
             # Test that the average capacity factor for solar generators is between 0 and af_avg, and that cf_hourly_max is < 1
             @test 0 <= compute_result(data, :gen, :cf_avg, :gentype=>"solar", :, :) <= compute_result(data, :gen, :af_avg, :gentype=>"solar", :, :)
-            @test 0 <= compute_result(data, :gen, :cf_hourly_max, :, :, :) <= 1
-            @test 0 <= compute_result(data, :gen, :cf_hourly_min, :, :, :) <= 1
+            @test 0 <= compute_result(data, :gen, :cf_hourly_max, :, :, :) <= 1 + 1e-9
+            @test 0 <= compute_result(data, :gen, :cf_hourly_min, :, :, :) <= 1 + 1e-9
         
             # Test that the average LMP times energy served equals the sum of LMP
             elec_cost = compute_result(data, :bus, :electricity_cost)

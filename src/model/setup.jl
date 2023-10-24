@@ -44,7 +44,8 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 
 | Name | Constraint | Symbol |  Unit | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| $C_{PB_{b,y,h}}$ | $P_{G_{b,y,h}} - P_{S_{b,y,h}} = P_{F_{b,y,h}}$ | `:cons_pbal` | MW | Constrain the power flow at each bus |
+| $C_{PB_{b,y,h}}$ | $P_{G_{b,y,h}} - P_{S_{b,y,h}} \geq P_{F_{b,y,h}}$ | `:cons_pbal_geq` | MW | Constrain the power flow at each bus |
+| $C_{PB_{b,y,h}}$ | $P_{G_{b,y,h}} - P_{S_{b,y,h}} \leq P_{F_{b,y,h}}$ | `:cons_pbal_leq` | MW | Constrain the power flow at each bus |
 | $C_{PG_{g,y,h}}^{\text{min}}$ | $P_{G_{g,y,h}} \geq P_{C_{b,y}}^{\text{min}}$ | `:cons_pgen_min` | MW | Constrain the generated power to be above minimum capacity factor, if given. |
 | $C_{PG_{g,y,h}}^{\text{max}}$ | $P_{G_{g,y,h}} \leq P_{C_{b,y}}^{\text{max}}$ | `:cons_pgen_max` | MW | Constrain the generated power to be below min(availability factor, max capacity factor) |
 | $C_{PS_{g,y,h}}^{\text{min}}$ | $P_{S_{b,y,h}} \geq 0$ | `:cons_plserv_min` | MW | Constrain the served power to be greater than zero |
@@ -53,7 +54,7 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 | $C_{PC_{g}}^{\text{max}}$ | $P_{C_{g,y}} \leq P_{C_{g,y}}^{\text{max}}\quad \forall y = y_{S_g}$ | `:cons_pcap_max` | MW | Constrain the power generation capacity to be less than or equal to its minimum for its starting year. |
 | $C_{PL_{l,y,h}}^{+}$ | $P_{F_{l,y,h}} \leq P_{L_{l,y,h}}^{\text{max}}$ | `:cons_branch_pflow_pos` | MW | Constrain the branch power flow to be less than or equal to its maximum. |
 | $C_{PL_{l,y,h}}^{-}$ | $-P_{F_{l,y,h}} \leq P_{L_{l,y,h}}^{\text{max}}$ | `:cons_branch_pflow_neg` | MW | Constrain the negative branch power flow to be less than or equal to its maximum. |
-| $C_{PCGPB_{g,y}}$ | $P_{C_{g,y}} = 0 \quad \forall \left\{ y<y_{S_g} \right\}$ | `:cons_pcap_gen_prebuild` | MW | Constrain the power generation capacity to be zero before the start year. |
+| $C_{PCGPB_{g,y}}$ | $P_{C_{g,y}} = 0 \quad \forall \left\{ y<y_{S_g} \right\}$ | `N/A` | MW | Constrain the power generation capacity to be zero before the start year. Implemented by fixing the variable.  |
 | $C_{PCGNA_{g,y}}$ | $P_{C_{g,y+1}} <= P_{C_{g,y}} \quad \forall \left\{ y >= y_{S_g} \right\}$ | `:cons_pcap_gen_noadd` | MW | Constrain the power generation capacity to be non-increasing after the start year. Generation capacity is only added when building new generators in their start year.|
 | $C_{PCGE_{g,y}}$ | $P_{C_{g,y}} == P_{C_{0_{g}}} \quad \forall \left\{ first y >= y_{S_g} \right\}$ | `:cons_pcap_gen_exog` | MW | Constrain unbuilt exogenous generators to be built to `pcap0` in the first year after `year_on`. |
 
@@ -68,6 +69,12 @@ function setup_model(config, data)
     @info summarize(data)
 
     log_header("SETTING UP MODEL")
+
+    # Create set of model keys not to parse
+    data[:do_not_parse_model_keys] = Set{Symbol}()
+    do_not_parse!(data, :cons_pgen_max)
+    do_not_parse!(data, :cons_pgen_min)
+    do_not_parse!(data, :cons_pcap_gen_noadd)
 
     if haskey(config, :model_presolve_file)
         @info "Loading model from:\n$(config[:model_presolve_file])"
@@ -140,18 +147,29 @@ function constrain_pbal!(config, data, model)
         plserv_bus = model[:plserv_bus]
 
         # Constrain power flowing out of the bus.
-        @constraint(model, cons_pflow_in_out[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
-            pflow_out_bus[bus_idx, year_idx, hour_idx] - pflow_in_bus[bus_idx, year_idx, hour_idx] == pflow_bus[bus_idx, year_idx, hour_idx]
+        @constraint(model, cons_pflow_in_out_geq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
+            pflow_out_bus[bus_idx, year_idx, hour_idx] - pflow_in_bus[bus_idx, year_idx, hour_idx] >= pflow_bus[bus_idx, year_idx, hour_idx]
+        )
+        @constraint(model, cons_pflow_in_out_leq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
+            pflow_out_bus[bus_idx, year_idx, hour_idx] - pflow_in_bus[bus_idx, year_idx, hour_idx] <= pflow_bus[bus_idx, year_idx, hour_idx]
         )
         @constraint(model, 
-            cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            pgen_bus[bus_idx, year_idx, hour_idx] - plserv_bus[bus_idx, year_idx, hour_idx] - pflow_out_bus[bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * pflow_in_bus[bus_idx, year_idx, hour_idx] == 0.0
+            cons_pbal_geq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+            pgen_bus[bus_idx, year_idx, hour_idx] - plserv_bus[bus_idx, year_idx, hour_idx] - pflow_out_bus[bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * pflow_in_bus[bus_idx, year_idx, hour_idx] >= 0.0
+        )
+        @constraint(model, 
+            cons_pbal_leq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+            pgen_bus[bus_idx, year_idx, hour_idx] - plserv_bus[bus_idx, year_idx, hour_idx] - pflow_out_bus[bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * pflow_in_bus[bus_idx, year_idx, hour_idx] <= 0.0
         )
     elseif line_loss_type == "plserv"
         plserv_scalar = 1/(1-line_loss_rate)
         @constraint(model, 
-            cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] * plserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] == 0.0
+            cons_pbal_geq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] * plserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] >= 0.0
+        )
+        @constraint(model, 
+            cons_pbal_leq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] * plserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] <= 0.0
         )
     else
         error("config[:line_loss_type] must be `plserv` or `pflow`, but $line_loss_type was given")
@@ -159,6 +177,17 @@ function constrain_pbal!(config, data, model)
     return nothing
 end
 export constrain_pbal!
+
+"""
+    do_not_parse!(data, s)
+
+Signifies to E4ST not to parse the symbol `s` when pulling in values and shadow prices into the raw results.
+"""
+function do_not_parse!(data, s)
+    d = data[:do_not_parse_model_keys]::Set{Symbol}
+    push!(d, Symbol(s))
+    return nothing    
+end
 
 function add_optimizer!(config, data, model)
     optimizer_factory = getoptimizer(config)

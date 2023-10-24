@@ -22,6 +22,15 @@ function setup_welfare!(config, data)
     # Government welfare
     add_welfare_term!(data, :government, :gen, :net_government_revenue, +)
     # Make sure that emissions caps and prices get added to govt. revenue and production cost.
+
+    # Create welfare check by calculating system cost, change in system cost should equal the change in net non-enviro (this welfare) benefits
+    add_welfare_term!(data, :system_cost_check, :gen, :production_cost, +)
+    add_welfare_term!(data, :system_cost_check, :bus, :distribution_cost_total, +)
+
+    # Create welfare check for the electricity payments.  Should sum to zero
+    add_welfare_term!(data, :electricity_payments, :bus, :electricity_cost, +)
+    add_welfare_term!(data, :electricity_payments, :bus, :merchandising_surplus_total, -)
+    add_welfare_term!(data, :electricity_payments, :gen, :electricity_revenue, -)
 end
 export setup_welfare!
 
@@ -49,3 +58,18 @@ function add_welfare_term!(data, welfare_type::Symbol, table_name::Symbol, resul
     subsubwelfare[result_name] = oper
 end
 export add_welfare_term!
+
+function compute_welfare(data, welfare_type::Symbol, idxs...)
+    value = 0.0
+    welfare = get_welfare(data)
+    table_names = welfare[welfare_type]
+    for (table_name, result_names) in table_names
+        for (result_name, result_sign) in result_names
+            res = compute_result(data, table_name, result_name, idxs...) |> result_sign
+            value += res
+        end
+    end
+    return value
+end
+
+export compute_welfare

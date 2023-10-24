@@ -1,3 +1,12 @@
+"""
+    struct WelfareTable <: Modification
+
+Outputs a table with a breakdown of each of the terms going into welfare, for each year.
+
+Arguments/keyword arguments:
+* name::Symbol
+* groupby - empty by default to not group by anything.  Could choose to group by state, county, etc.
+"""
 struct WelfareTable{G,H} <: Modification
     name::Symbol
     groupby::G
@@ -5,7 +14,7 @@ struct WelfareTable{G,H} <: Modification
 end
 export WelfareTable
 function WelfareTable(;name, groupby = Symbol[], group_hours_by = Symbol[])
-    if groupby == ":"
+    if groupby == ":" || groupby == "Colon()"
         groupby = (:)
     end
     return WelfareTable(Symbol(name), groupby, group_hours_by)
@@ -78,6 +87,21 @@ function modify_results!(mod::WelfareTable, config, data)
         end
     end
 
+    add_result!(data, mod.name, df)
+
     CSV.write(out_file, df)
 end
 export modify_results!
+
+function extract_results(m::WelfareTable, config, data)
+    results = get_results(data)
+    haskey(results, m.name) || modify_results!(m, config, data)
+    return get_result(data, m.name)
+end
+
+function combine_results(m::WelfareTable, post_config, post_data)
+    
+    res = join_sim_tables(post_data, :value)
+
+    CSV.write(get_out_path(post_config, "$(m.name)_combined.csv"), res)
+end

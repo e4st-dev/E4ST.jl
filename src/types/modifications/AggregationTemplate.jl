@@ -40,7 +40,7 @@ mod_rank(::Type{<:AggregationTemplate}) = 5.0
 
 fieldnames_for_yaml(::Type{AggregationTemplate}) = (:file,)
 function modify_results!(mod::AggregationTemplate, config, data)
-    table = mod.table
+    table = copy(mod.table)
 
     filter_cols = setdiff(propertynames(table), [:table_name, :result_name])
 
