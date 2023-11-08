@@ -1,5 +1,5 @@
 table_name,result_name,formula,unit,description
-gen,egen_total,SumHourly(egen),MWhGenerated,"Total energy generated, in MWh"
+gen,egen_total,SumHourlyWeighted(pgen),MWhGenerated,"Total energy generated, in MWh"
 gen,pgen_avg,AverageHourly(pgen),MWGenerated,Average power generation
 gen,pgen_min,MinHourly(pgen),MWGenerated,Minimum power generation in an hour
 gen,pgen_max,MaxHourly(pgen),MWGenerated,Maximum power generation in an hour
@@ -12,23 +12,23 @@ gen,pcap_retired_total,SumYearly(pcap_retired),MWCapacity,Total power capacity r
 gen,pcap_retired_percent,pcap_retired_total / pcap_start_total,MWCapacity,Percent of existing power capacity that was retired.  Could be misleading if multiple years and generators were built and retired.
 gen,ecap_inv_total,SumHourlyWeighted(pcap_inv),MWhCapacity,Total invested energy capacity over the time given
 gen,cf_avg,egen_total/ecap_total,MWhGeneratedPerMWhCapacity,Average Capacity Factor
-gen,cf_hourly_min,MinHourly(cf),MWhGeneratedPerMWhCapacity,Minimum observed capacity factor
-gen,cf_hourly_max,MaxHourly(cf),MWhGeneratedPerMWhCapacity,Maximum observed capacity factor
+gen,cf_hourly_min,MinValue(cf),MWhGeneratedPerMWhCapacity,Minimum observed capacity factor
+gen,cf_hourly_max,MaxValue(cf),MWhGeneratedPerMWhCapacity,Maximum observed capacity factor
 gen,heat_rate_avg,fuel_burned / egen_total,MMBtuPerMWhGenerated,Average heat rate (fuel burned in MMBtu per MWh)
-gen,emis_co2_total,"SumHourly(emis_co2,egen)",ShortTons,Total CO2 emissions
-gen,emis_nox_total,"SumHourly(emis_nox,egen)",Pounds,Total NOx emissions
-gen,emis_so2_total,"SumHourly(emis_so2,egen)",Pounds,Total SO2 emissions
-gen,emis_pm25_total,"SumHourly(emis_pm25,egen)",Pounds,Total PM2.5 emissions
+gen,emis_co2_total,"SumHourlyWeighted(emis_co2,pgen)",ShortTons,Total CO2 emissions
+gen,emis_nox_total,"SumHourlyWeighted(emis_nox,pgen)",Pounds,Total NOx emissions
+gen,emis_so2_total,"SumHourlyWeighted(emis_so2,pgen)",Pounds,Total SO2 emissions
+gen,emis_pm25_total,"SumHourlyWeighted(emis_pm25,pgen)",Pounds,Total PM2.5 emissions
 gen,emis_co2_rate,emis_co2_total/egen_total,ShortTonsPerMWhGenerated,Average rate of CO2 emissions
 gen,emis_nox_rate,emis_nox_total/egen_total,PoundsPerMWhGenerated,Average rate of NOx emissions
 gen,emis_so2_rate,emis_so2_total/egen_total,PoundsPerMWhGenerated,Average rate of SO2 emissions
 gen,emis_pm25_rate,emis_pm25_total/egen_total,PoundsPerMWhGenerated,Average rate of PM2.5 emissions
-gen,capt_co2_total,"SumHourly(capt_co2,egen)",ShortTons,Total CO2 captured
+gen,capt_co2_total,"SumHourlyWeighted(capt_co2,pgen)",ShortTons,Total CO2 captured
 gen,capt_co2_rate,capt_co2_total/egen_total,ShortTonsPerMWhGenerated,Average rate of CO2 capture
 gen,af_avg,ecap_available_total / ecap_total,MWhGeneratedPerMWhCapacity,Average availability factor (i.e. energy capacity available / energy capacity)
-gen,electricity_revenue,"SumHourly(lmp_egen, egen)",Dollars,Revenue earned by generators for the energy they served to the grid
+gen,electricity_revenue,"SumHourlyWeighted(lmp_egen, pgen)",Dollars,Revenue earned by generators for the energy they served to the grid
 gen,electricity_price,electricity_revenue / egen_total,Dollars,Average price earned by generators for the energy they served to the grid
-gen,vom_cost,"SumHourly(vom,egen)",Dollars,"Variable Operation and Maintenance cost incurred, in dollars"
+gen,vom_cost,"SumHourlyWeighted(vom,pgen)",Dollars,"Variable Operation and Maintenance cost incurred, in dollars"
 gen,vom_per_mwh,vom_cost/egen_total,DollarsPerMWhGenerated,Generation-weighted average of variable operation and maintenance costs
 gen,fom_cost,"SumHourlyWeighted(fom,pcap)",Dollars,"Fixed Operation and Maintenance cost incurred, in dollars"
 gen,fom_per_mwh,fom_cost/egen_total,DollarsPerMWhGenerated,Fixed Operation and Maintenance paid per MWh of energy generated
@@ -40,9 +40,9 @@ gen,transmission_capex_cost,"SumYearly(transmission_capex_obj, ecap_inv_sim)",Do
 gen,transmission_capex_per_mwh,transmission_capex_cost/egen_total,DollarsPerMWhGenerated,Levelized capital expenditures for transmission per MWh of energy generated
 gen,past_invest_cost_total,"SumHourlyWeighted(past_invest_cost, pcap_inv)",Dollars,"Investment costs from past investments.  This only applies to generators built prior to the simulation.  This includes the full annualized investment cost (""invest_cost""), times the percentage likelihood that the generator would still be within its the economic lifetime for the year calculated, given that endogenously built generators can be built in a range of years"
 gen,past_invest_subsidy_total,"SumHourlyWeighted(past_invest_subsidy, pcap_inv)",Dollars,"Investment subsidies from past investments.  This only applies to generators built prior to the simulation.  This includes the full annualized investment subsidy (""invest_subsidy""), times the percentage likelihood that the generator would still be within its the economic lifetime for the year calculated, given that endogenously built generators can be built in a range of years"
-gen,fuel_cost,"SumHourly(fuel_price,heat_rate,egen)",Dollars,Total cost of fuel
+gen,fuel_cost,"SumHourlyWeighted(fuel_price,heat_rate,pgen)",Dollars,Total cost of fuel
 gen,fuel_price_per_mwh,fuel_cost/egen_total,DollarsPerMWhGenerated,Fuel price per MWh generated
-gen,fuel_burned,"SumHourly(heat_rate,egen)",MMBtu,Amount of fuel burned
+gen,fuel_burned,"SumHourlyWeighted(heat_rate,pgen)",MMBtu,Amount of fuel burned
 gen,fuel_price_per_mmbtu,fuel_cost/fuel_burned,DollarsPerMMBtu,Average price of fuel burned
 gen,variable_cost,fuel_cost+vom_cost,Dollars,"Variable costs for operation, including fuel and vom."
 gen,variable_cost_per_mwh,variable_cost/egen_total,DollarsPerMWhGenerated,"Variable costs for operation, per MWh of generation.  Includes fuel and vom"
@@ -82,22 +82,22 @@ gen,net_total_revenue,net_total_revenue_prelim - cost_of_service_rebate,Dollars,
 gen,net_variable_revenue,electricity_revenue - net_variable_cost - cost_of_service_rebate,Dollars,Net variable revenue including electiricy revenue minus net variable costs
 gen,net_going_forward_revenue,electricity_revenue - going_forward_cost - cost_of_service_rebate,Dollars,"Net going forward revenue, including electricity revenue minus going forward cost"
 gen,obj_pcap_cost_total,"SumHourlyWeighted(pcap, obj_pcap_cost)",Dollars,"Cost for pcap in the objective, including investment"
-gen,obj_pgen_cost_total,"SumHourly(egen, obj_pgen_cost)",Dollars,Cost for pgen in the objective
-bus,elnom_total,SumHourly(elnom),MWhLoad,Nominal load energy
-bus,elserv_total,SumHourly(elserv),MWhServed,Total load energy served
-bus,eflow_in_total,SumHourly(eflow_in),MWhFlow,Total energy flowing into all the buses in this region (not necessarily net flow into the region)
-bus,eflow_out_total,SumHourly(eflow_out),MWhFlow,Total energy flowing out of all the buses in this region (not necessarily net flow out of the region)
-bus,elcurt_total,SumHourly(elcurt),MWhCurtailed,Total energy curtailed in this region
+gen,obj_pgen_cost_total,"SumHourlyWeighted(pgen, obj_pgen_cost)",Dollars,Cost for pgen in the objective
+bus,elnom_total,SumHourlyWeighted(plnom),MWhLoad,Nominal load energy
+bus,elserv_total,SumHourlyWeighted(plserv),MWhServed,Total load energy served
+bus,eflow_in_total,SumHourlyWeighted(pflow_in),MWhFlow,Total energy flowing into all the buses in this region (not necessarily net flow into the region)
+bus,eflow_out_total,SumHourlyWeighted(pflow_out),MWhFlow,Total energy flowing out of all the buses in this region (not necessarily net flow out of the region)
+bus,elcurt_total,SumHourlyWeighted(plcurt),MWhCurtailed,Total energy curtailed in this region
 bus,plserv_max,MaxHourly(plserv),MWServed,Maximum hourly load power served in the region
 bus,plserv_min,MinHourly(plserv),MWServed,Minimum hourly load power served in the region
 bus,plnom_max,MaxHourly(plnom),MWLoad,Maximum nominal hourly load power in the region
 bus,plnom_min,MinHourly(plnom),MWLoad,Minimum nominal hourly load power in the region
 bus,plcurt_max,MaxHourly(plcurt),MWCurtailed,Maximum hourly load power curtailed in the region
 bus,plcurt_min,MinHourly(plcurt),MWCurtailed,Minimum hourly load power curtailed in the region
-bus,electricity_cost,"SumHourly(elserv,lmp_elserv)",Dollars,Total cost of electricity served
+bus,electricity_cost,"SumHourlyWeighted(plserv,lmp_elserv)",Dollars,Total cost of electricity served
 bus,electricity_price,electricity_cost / elserv_total,DollarsPerMWhServed,Average cost of electricity served
 bus,merchandising_surplus_total,SumHourly(merchandising_surplus),Dollars,Total merchandising surplus from selling electricity for a higher price at one end of a line than another.  Lines that are split across the region add half of their merchandising surplus to each region.
-bus,distribution_cost_total,"SumHourly(elserv, distribution_cost)",Dollars,Total cost to consumers per MWh of served power for the transmission and distribution of the power.
-branch,eflow_total,SumHourly(eflow),MWhFlow,Total energy flowing in this branch
+bus,distribution_cost_total,"SumHourlyWeighted(plserv, distribution_cost)",Dollars,Total cost to consumers per MWh of served power for the transmission and distribution of the power.
+branch,eflow_total,SumHourlyWeighted(pflow),MWhFlow,Total energy flowing in this branch
 branch,pflow_hourly_min,MinHourly(pflow),MWFlow,Minimum sum of power flowing in these branches
 branch,pflow_hourly_max,MaxHourly(pflow),MWFlow,Maximum sum of power flowing in these branches

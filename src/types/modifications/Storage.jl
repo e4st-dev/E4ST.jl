@@ -17,14 +17,14 @@ Storage is represented over sets of time-weighted sequential representative hour
 * `pcap_stor[stor_idx, yr_idx]` - The discharge power capacity, in MW, of the storage device.
 * `pcharge_stor[stor_idx, yr_idx, hr_idx]` - The charge power, in MW, for a given hour.
 * `pdischarge_stor[stor_idx, yr_idx, hr_idx]` - The discharged power, in MW, for a given hour.
-* `e0_stor[stor_idx]` - The starting charge energy (in MWh) for each interval.
+* `e0_stor[stor_idx, yr_idx, int_idx]` - The starting charge energy (in MWh) for each interval.
 
 # Constraints Introduced
 * `cons_stor_charge_bal[stor_idx, yr_idx, int_idx]` - the charge balancing equation - net charge in each interval is 0
 * `cons_stor_charge_max[stor_idx, yr_idx, int_idx, _hr_idx]` - constrain the stored energy in each hour of each interval to be less than the maximum (function of `pcap_stor` and the discharge duration column of the storage table).  Note `_hr_idx` is the index within the interval, not the normal `hr_idx`
 * `cons_stor_charge_min[stor_idx, yr_idx, int_idx, _hr_idx]` - constrain the stored energy in each hour of each interval to be greater than zero.  Note `_hr_idx` is the index within the interval, not the normal `hr_idx`
 * `cons_pcap_stor_noadd[stor_idx, yr_idx; years[yr_idx] >= storage.year_on[stor_idx]]` - constrain the capacity to be non-increasing after being built. (only in multi-year simulations)
-* `cons_pcap_stor_prebuild[stor_idx, yr_idx; years[yr_idx] < storage.year_on[stor_idx]]` - constrain the capacity to be zero before being built. (should only happen in multi-year simulations)
+* `cons_pcap_stor_prebuild[stor_idx, yr_idx; years[yr_idx] < storage.year_on[stor_idx]]` - fix the capacity to zero before being built. (should only happen in multi-year simulations)
 * `cons_pcap_stor_exog[stor_idx, yr_idx]` - constrain the exogenous, unbuilt capacity to equal pcap0 for the first year >= its build year.
 
 # Objective Terms
@@ -51,7 +51,7 @@ function Storage(;name, file, build_file="")
 end
 export Storage
 
-mod_rank(::Type{<:Storage}) = -3.0
+mod_rank(::Type{<:Storage}) = -4.0
 
 @doc """
     summarize_table(::Val{:storage})
@@ -182,17 +182,7 @@ function modify_setup_data!(mod::Storage, config, data)
         storage.duration_charge = copy(storage.duration_discharge)
     end
 
-    ### Create capex_obj (the capex used in the optimization/objective function)
-    # set to capex for unbuilt storage units in the year_on
-    # set to 0 for already built capacity because capacity expansion isn't considered for existing storage units
-    add_table_col!(data, :storage, :capex_obj, Container[ByNothing(0.0) for i in 1:nrow(storage)], DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
-    add_table_col!(data, :storage, :transmission_capex_obj, Container[ByNothing(0.0) for i in 1:nrow(storage)], DollarsPerMWBuiltCapacityPerHour, "Hourly transmission capital expenditures that is passed into the objective function. 0 for already built capacity")
-
-    for row in eachrow(storage)
-        row.build_status == "unbuilt" || continue
-        row.capex_obj = ByYear([row.capex * (year >= row.year_on && year < add_to_year(row.year_on, row.econ_life)) for year in years])
-        row.transmission_capex_obj = ByYear([row.transmission_capex * (year >= row.year_on && year < add_to_year(row.year_on, row.econ_life)) for year in years])
-    end
+    
 
     storage.num_intervals = fill(0, nrow(storage))
     storage.intervals = fill(Vector{Int64}[], nrow(storage))
@@ -332,6 +322,21 @@ function modify_model!(mod::Storage, config, data, model)
     nyr = get_num_years(data)
     years = get_years(data)
     hour_weights = get_hour_weights(data)
+    hours_per_year = sum(hour_weights)
+
+    ### Create capex_obj (the capex used in the optimization/objective function)
+    # set to capex for unbuilt storage units in and after the year_on
+    # set to 0 for already built capacity because capacity expansion isn't considered for existing storage units
+    add_table_col!(data, :storage, :capex_obj, Container[ByNothing(0.0) for i in 1:nrow(storage)], DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
+    add_table_col!(data, :storage, :transmission_capex_obj, Container[ByNothing(0.0) for i in 1:nrow(storage)], DollarsPerMWBuiltCapacityPerHour, "Hourly transmission capital expenditures that is passed into the objective function. 0 for already built capacity")
+
+    for row in eachrow(storage)
+        row.build_status == "unbuilt" || continue
+        capex_filter = ByYear(map(year -> year >= row.year_on && year < add_to_year(row.year_on, row.econ_life), years))
+        row.capex_obj = row.capex .* capex_filter
+        row.transmission_capex_obj = row.transmission_capex .* capex_filter
+    end
+
 
     ### Create Variables
     # Power discharge capacity
@@ -352,18 +357,46 @@ function modify_model!(mod::Storage, config, data, model)
     @variable(model,
         pcharge_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
         lower_bound = 0,
-        upper_bound = storage.pcap_max[stor_idx]  * storage.duration_charge[stor_idx] / (storage.duration_discharge[stor_idx] * storage.storage_efficiency[stor_idx])
+        upper_bound = storage.pcap_max[stor_idx]  * storage.duration_discharge[stor_idx] / (storage.duration_charge[stor_idx] * storage.storage_efficiency[stor_idx])
     )
 
     # initial energy stored in the device
     @variable(model,
-        e0_stor[stor_idx in axes(storage, 1)],
+        e0_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr, int_idx in 1:storage.num_intervals[stor_idx]],
         lower_bound = 0,
         upper_bound = storage.pcap_max[stor_idx] * storage.duration_discharge[stor_idx]
     )
 
     ### Create Constraints
-    # Constrain start and end of each device's intervals to be the same
+    # Constrain the power charging and discharging maximum rates
+    @constraint(model,
+        cons_pcharge_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
+        pcharge_stor[stor_idx, yr_idx, hr_idx] <= 
+            min(1, storage.duration_charge[stor_idx] / storage.interval_hour_duration[stor_idx][hr_idx]) * # This term represents the max rate or charge vs max charge, whichever is more binding.  I.e. if the interval is too short to fully charge, the charge rate is binding.  If interval is too long, the charge capacity is binding.
+            pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx] / (storage.duration_charge[stor_idx] * storage.storage_efficiency[stor_idx]) # This term represents the max rate
+    )
+    @constraint(model,
+        cons_pdischarge_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
+        pdischarge_stor[stor_idx, yr_idx, hr_idx] <= 
+            min(1, storage.duration_discharge[stor_idx] / storage.interval_hour_duration[stor_idx][hr_idx]) * # This term represents the max rate of discharge vs max discharge, whichever is more binding.  I.e. if the interval is too short to fully discharge, the discharge rate is binding.  If interval is too long, the charge capacity is binding.
+            pcap_stor[stor_idx, yr_idx]
+    )
+    @constraint(model,
+        cons_e0_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr, int_idx in 1:storage.num_intervals[stor_idx]],
+        e0_stor[stor_idx, yr_idx, int_idx] <= pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
+    )
+
+    # Constrain that the power charging + discharging must be <= the max of the two maxes.  Discourages simultaneous charge and discharge
+    @constraint(model,
+        cons_pcharge_pdischarge_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
+        pcharge_stor[stor_idx, yr_idx, hr_idx] + pdischarge_stor[stor_idx, yr_idx, hr_idx] <=
+            pcap_stor[stor_idx, yr_idx] * max(
+                1,
+                storage.duration_discharge[stor_idx] / (storage.duration_charge[stor_idx] * storage.storage_efficiency[stor_idx])
+            )
+    )
+
+    # Constrain start and end charge of each device's intervals to be the same
     @constraint(model,
         cons_stor_charge_bal[stor_idx in axes(storage,1), yr_idx in 1:nyr, int_idx in 1:storage.num_intervals[stor_idx]],
         sum(
@@ -387,13 +420,13 @@ function modify_model!(mod::Storage, config, data, model)
         ],
         sum(
             (
-                pdischarge_stor[stor_idx, yr_idx, hr_idx] -
-                pcharge_stor[stor_idx, yr_idx, hr_idx] * storage.storage_efficiency[stor_idx]
+                pcharge_stor[stor_idx, yr_idx, hr_idx] * storage.storage_efficiency[stor_idx] -
+                pdischarge_stor[stor_idx, yr_idx, hr_idx]
+                
             ) *
             storage.interval_hour_duration[stor_idx][hr_idx]
             for hr_idx in storage.intervals[stor_idx][int_idx][1:_hr_idx]
-        # ) <= pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
-        )  + e0_stor[stor_idx] <= pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
+        )  + e0_stor[stor_idx, yr_idx, int_idx] <= pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
     )
     
     # Constrain lower limit on charge
@@ -406,13 +439,13 @@ function modify_model!(mod::Storage, config, data, model)
         ],
         sum(
             (
-                pdischarge_stor[stor_idx, yr_idx, hr_idx] - 
-                pcharge_stor[stor_idx, yr_idx, hr_idx] * storage.storage_efficiency[stor_idx]
+                pcharge_stor[stor_idx, yr_idx, hr_idx] * storage.storage_efficiency[stor_idx] -
+                pdischarge_stor[stor_idx, yr_idx, hr_idx]
             ) * 
             storage.interval_hour_duration[stor_idx][hr_idx] 
             for hr_idx in storage.intervals[stor_idx][int_idx][1:_hr_idx]
         # ) >= 0 # -pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
-        ) + e0_stor[stor_idx] >= 0 # -pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
+        ) + e0_stor[stor_idx, yr_idx, int_idx] >= 0 # -pcap_stor[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
     )
 
     ### Add build constraints for endogenous batteries
@@ -448,7 +481,7 @@ function modify_model!(mod::Storage, config, data, model)
     @expression(model,
         fom_stor[yr_idx in 1:nyr],
         sum(
-            pcap_stor[stor_idx, yr_idx] * get_table_num(data, :storage, :fom, stor_idx, yr_idx, :)
+            hours_per_year * pcap_stor[stor_idx, yr_idx] * get_table_num(data, :storage, :fom, stor_idx, yr_idx, :)
             for stor_idx in axes(storage,1)
         )
     )
@@ -456,40 +489,42 @@ function modify_model!(mod::Storage, config, data, model)
     @expression(model,
         routine_capex_stor[yr_idx in 1:nyr],
         sum(
-            pcap_stor[stor_idx, yr_idx] * get_table_num(data, :storage, :routine_capex, stor_idx, yr_idx, :)
+            hours_per_year * pcap_stor[stor_idx, yr_idx] * get_table_num(data, :storage, :routine_capex, stor_idx, yr_idx, :)
             for stor_idx in axes(storage,1)
         )
     )
 
-    
-
     @expression(model,
         pcap_stor_inv_sim[stor_idx in axes(storage,1)],
-        begin
-            storage.build_status[stor_idx] == "unbuilt" || return 0.0
-            year_on = storage.year_on[stor_idx]
-            year_on > last(years) && return 0.0
-            yr_idx_on = findfirst(>=(year_on), years)
-            return pcap_stor[stor_idx, yr_idx_on]
-        end
+        AffExpr(0.0)
     )
+
+    for stor_idx in axes(storage, 1)
+        storage.build_status[stor_idx] == "unbuilt" || continue
+        year_on = storage.year_on[stor_idx]
+        year_on > last(years) && continue
+        yr_idx_on = findfirst(>=(year_on), years)
+        add_to_expression!(pcap_stor_inv_sim[stor_idx], pcap_stor[stor_idx, yr_idx_on])
+    end
+    
 
     @expression(model,
         capex_obj_stor[yr_idx in 1:nyr],
         sum(
-            pcap_stor_inv_sim[stor_idx] * get_table_num(data, :storage, :capex_obj, stor_idx, yr_idx, :)
+            hours_per_year * pcap_stor_inv_sim[stor_idx] * get_table_num(data, :storage, :capex_obj, stor_idx, yr_idx, :)
             for stor_idx in axes(storage,1)
         )
     )
+
     @expression(model,
         transmission_capex_obj_stor[yr_idx in 1:nyr],
         sum(
-            pcap_stor_inv_sim[stor_idx] * get_table_num(data, :storage, :transmission_capex_obj, stor_idx, yr_idx, :)
+            hours_per_year * pcap_stor_inv_sim[stor_idx] * get_table_num(data, :storage, :transmission_capex_obj, stor_idx, yr_idx, :)
             for stor_idx in axes(storage,1)
         )
     )
-    
 
+    # Add cost expressions to the objective
     add_obj_exp!(data, model, PerMWhGen(), :vom_stor, oper = +)
     add_obj_exp!(data, model, PerMWCap(), :fom_stor, oper = +)
     add_obj_exp!(data, model, PerMWCap(), :routine_capex_stor, oper = +)
@@ -543,7 +578,7 @@ function modify_results!(mod::Storage, config, data)
 
     add_table_col!(data, :storage, :pcap, pcap_stor, MWCapacity, "Power Discharge capacity of the storage device")
     add_table_col!(data, :storage, :pcharge, pcharge_stor, MWCharged, "Rate of charging, in MW")
-    add_table_col!(data, :storage, :pdischarge, pcharge_stor, MWDischarged, "Rate of discharging, in MW")
+    add_table_col!(data, :storage, :pdischarge, pdischarge_stor, MWDischarged, "Rate of discharging, in MW")
     add_table_col!(data, :storage, :echarge, echarge_stor, MWhCharged, "Energy that went into charging the storage device (includes any round-trip storage losses)")
     add_table_col!(data, :storage, :edischarge, edischarge_stor, MWhDischarged, "Energy that was discharged by the storage device")
     add_table_col!(data, :storage, :pcap_inv_sim, pcap_inv_sim, MWCapacity, "Total power discharge capacity that was invested for the storage unit during the sim.  (single value).  Still the same even after retirement")
@@ -578,7 +613,7 @@ function modify_results!(mod::Storage, config, data)
     add_results_formula!(data, :storage, :fom_cost, "SumHourlyWeighted(fom, pcap)", Dollars, "Total fixed operation and maintenance cost paid, in dollars")
     add_results_formula!(data, :storage, :fom_per_mwh, "fom_cost / edischarge_total", DollarsPerMWhDischarged, "Average fixed operation and maintenance cost for discharging 1 MWh of energy")
     add_results_formula!(data, :storage, :routine_capex_cost, "SumHourlyWeighted(routine_capex, pcap)", Dollars, "Total routine capex cost paid, in dollars")
-    add_results_formula!(data, :storage, :routine_capex_per_mwh, "fom_cost / edischarge_total", DollarsPerMWhDischarged, "Average routine capex cost for discharging 1 MWh of energy")
+    add_results_formula!(data, :storage, :routine_capex_per_mwh, "routine_capex_cost / edischarge_total", DollarsPerMWhDischarged, "Average routine capex cost for discharging 1 MWh of energy")
     add_results_formula!(data, :storage, :capex_cost, "SumYearly(capex_obj, ecap_inv_sim)", Dollars, "Total annualized capital expenditures paid, in dollars, as seen by objective function, including endogenous and exogenous investments that were incurred in the simulation year.")
     add_results_formula!(data, :storage, :capex_per_mwh, "capex_cost / edischarge_total", DollarsPerMWhDischarged, "Average capital cost for discharging 1 MWh of energy")
     add_results_formula!(data, :storage, :transmission_capex_cost, "SumYearly(transmission_capex_obj, ecap_inv_sim)", Dollars, "Total annualized transmission capital expenditures paid, in dollars.  This is only for transmission costs related to building the storage unit, beyond that included in the capex cost of the generator.")
@@ -629,7 +664,14 @@ function modify_results!(mod::Storage, config, data)
     add_welfare_term!(data, :user, :storage, :cost_of_service_rebate, +)
 
     # Government revenue
-    add_welfare_term!(data, :govermnent, :storage, :net_government_revenue, +)
+    add_welfare_term!(data, :government, :storage, :net_government_revenue, +)
+
+    # Add to system cost welfare check 
+    add_welfare_term!(data, :system_cost_check, :storage, :production_cost, +)
+
+    # Add the costs to the electricity_payments
+    add_welfare_term!(data, :electricity_payments, :storage, :electricity_cost, +)
+    add_welfare_term!(data, :electricity_payments, :storage, :electricity_revenue, -)
 
     # Update and save the storage table
     update_build_status!(config, data, :storage)

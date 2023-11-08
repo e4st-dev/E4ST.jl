@@ -20,7 +20,7 @@ struct YearlyTable{G,H} <: Modification
 end
 export YearlyTable
 function YearlyTable(;name, table_name, groupby = Symbol[], group_hours_by = Symbol[])
-    if groupby == ":"
+    if groupby == ":" || groupby == "Colon()"
         groupby = (:)
     end
     return YearlyTable(Symbol(name), Symbol(table_name), groupby, group_hours_by)

@@ -91,7 +91,7 @@ export read_data_files!
 
 Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_raw_data!(mod, config, data)`](@ref)
 """
-function modify_raw_data!(config, data)    
+function modify_raw_data!(config, data)
     for (sym, mod) in get_mods(config)
         modify_raw_data!(mod, config, data)
     end
@@ -127,9 +127,6 @@ function setup_data!(config, data)
     setup_table!(config, data, :nominal_load)
     setup_table!(config, data, :gen) # needs to come after build_gen setup for newgens
     setup_table!(config, data, :af_table)
-    setup_table!(config, data, :adjust_yearly)
-    setup_table!(config, data, :adjust_hourly)
-    setup_table!(config, data, :adjust_by_age)
 end
 export setup_data!
 
@@ -334,7 +331,7 @@ export read_voll!
 """
     read_num_params!(config, data) -> 
 
-Any parameter specified as a numeric in the config will be added to `data`. This is so that parameters with a single value (i.e. VOLL, ng_ch4_fuel_content) can be tracked and accessed easily in data. 
+Any parameter specified as a numeric in the config will be added to `data`. This is so that parameters with a single value (i.e. VOLL, ng_upstream_ch4_leakage) can be tracked and accessed easily in data. 
 """
 function read_num_params!(config, data)
     for (k,v) in config
@@ -411,7 +408,6 @@ end
 Sets up the generator table.
 Creates potential new generators and exogenously built generators. 
 Calls [`setup_new_gens!`](@ref)
-Creates capex_obj column which is the capex cost seen in the objective function. It is a ByYear column that is only non zero for year_on.
 Creates age column which is a ByYear column. Unbuilt generators have a negative age before year_on.
 """
 function setup_table!(config, data, ::Val{:gen})
@@ -461,30 +457,7 @@ function setup_table!(config, data, ::Val{:gen})
     ### Create new gens and add to the gen table
     if haskey(config, :build_gen_file) 
         setup_new_gens!(config, data)  
-    end  
-
-    ### Create capex_obj (the capex used in the optimization/objective function)
-    # set to capex for unbuilt generators in and after the year_on
-    # set to 0 for already built capacity because capacity expansion isn't considered for existing generators
-    
-    capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
-    transmission_capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
-    for (idx_g, g) in enumerate(eachrow(gen))
-        g.build_status == "unbuilt" || continue
-        capex_obj[idx_g] = ByYear([g.capex * (year >= g.year_on && year < add_to_year(g.year_on, g.econ_life)) for year in get_years(data)])
-        transmission_capex_obj[idx_g] = ByYear([g.transmission_capex * (year >= g.year_on && year < add_to_year(g.year_on, g.econ_life)) for year in get_years(data)])
     end
-    add_table_col!(data, :gen, :capex_obj, capex_obj, DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
-    add_table_col!(data, :gen, :transmission_capex_obj, transmission_capex_obj, DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures for transmission that is passed into the objective function. 0 for already built capacity")
-
-    # capex_econ = Container[ByNothing(0.0) for i in 1:nrow(gen)]
-    # for idx_g in 1:nrow(gen)
-    #     g = gen[idx_g,:]
-    #     g_capex = [g.capex * (year >= g.year_on && year < g.year_off) for year in get_years(data)] # Possibly change this to be based on economic lifetime
-    #     capex_econ[idx_g] = ByYear(g_capex)
-    # end
-    # add_table_col!(data, :gen, :capex_econ, capex_econ, DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures to be paid between year_on and year_off")
-
     
     ### Add age column as by ByYear based on year_on
     years = year2float.(get_years(data))
@@ -693,7 +666,7 @@ function summarize_table(::Val{:gen})
     push!(df, 
         (:bus_idx, Int64, NA, true, "The index of the `bus` table that the generator corresponds to"),
         (:status, Bool, NA, false, "Whether or not the generator is in service"),
-        (:build_status, String15, NA, true, "Whether the generator is `built`, '`new`, or `unbuilt`. All generators marked `new` when the gen file is read in will be changed to `built`.  Can also be changed to `retired_exog` or `retired_endog` after the simulation is run.  See [`update_build_status!`](@ref)"),
+        (:build_status, String15, NA, true, "Whether the generator is `built`, `new`, `unbuilt`, or `unretrofitted`. All generators marked `new` when the gen file is read in will be changed to `built`.  Can also be changed to `retired_exog` or `retired_endog` after the simulation is run. See [`update_build_status!`](@ref).  Note that `unretrofitted` means it is a [`Retrofit`](@ref) option based on a `built` generator."),
         (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
         (:build_id, AbstractString, NA, true, "Identifier of the build row.  For pre-existing generators not specified in the build file, this is usually left empty"),
         (:year_on, YearString, Year, true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
@@ -804,7 +777,7 @@ function summarize_table(::Val{:build_gen})
     push!(df, 
         (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
-        (:build_status, String15, NA, true, "Whether the generator is `built`, '`new`, or `unbuilt`. All generators marked `new` when the gen file is read in will be changed to `built`.  Can also be changed to `retired_exog` or `retired_endog` after the simulation is run.  See [`update_build_status!`](@ref)"),
+        (:build_status, String15, NA, true, "Whether the generator is `built`, `new`, `unbuilt`, or `unretrofitted`. All generators marked `new` when the gen file is read in will be changed to `built`.  Can also be changed to `retired_exog` or `retired_endog` after the simulation is run. See [`update_build_status!`](@ref).  Note that `unretrofitted` means it is a [`Retrofit`](@ref) option based on a `built` generator."),
         (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built). Should either be exog or endog for buil_gen."),
         (:build_id, AbstractString, NA, true, "Identifier of the build row.  Each generator made using this build spec will inherit this `build_id`"),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),

@@ -44,7 +44,8 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 
 | Name | Constraint | Symbol |  Unit | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| $C_{PB_{b,y,h}}$ | $P_{G_{b,y,h}} - P_{S_{b,y,h}} = P_{F_{b,y,h}}$ | `:cons_pbal` | MW | Constrain the power flow at each bus |
+| $C_{PB_{b,y,h}}$ | $P_{G_{b,y,h}} - P_{S_{b,y,h}} \geq P_{F_{b,y,h}}$ | `:cons_pbal_geq` | MW | Constrain the power flow at each bus |
+| $C_{PB_{b,y,h}}$ | $P_{G_{b,y,h}} - P_{S_{b,y,h}} \leq P_{F_{b,y,h}}$ | `:cons_pbal_leq` | MW | Constrain the power flow at each bus |
 | $C_{PG_{g,y,h}}^{\text{min}}$ | $P_{G_{g,y,h}} \geq P_{C_{b,y}}^{\text{min}}$ | `:cons_pgen_min` | MW | Constrain the generated power to be above minimum capacity factor, if given. |
 | $C_{PG_{g,y,h}}^{\text{max}}$ | $P_{G_{g,y,h}} \leq P_{C_{b,y}}^{\text{max}}$ | `:cons_pgen_max` | MW | Constrain the generated power to be below min(availability factor, max capacity factor) |
 | $C_{PS_{g,y,h}}^{\text{min}}$ | $P_{S_{b,y,h}} \geq 0$ | `:cons_plserv_min` | MW | Constrain the served power to be greater than zero |
@@ -53,7 +54,7 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 | $C_{PC_{g}}^{\text{max}}$ | $P_{C_{g,y}} \leq P_{C_{g,y}}^{\text{max}}\quad \forall y = y_{S_g}$ | `:cons_pcap_max` | MW | Constrain the power generation capacity to be less than or equal to its minimum for its starting year. |
 | $C_{PL_{l,y,h}}^{+}$ | $P_{F_{l,y,h}} \leq P_{L_{l,y,h}}^{\text{max}}$ | `:cons_branch_pflow_pos` | MW | Constrain the branch power flow to be less than or equal to its maximum. |
 | $C_{PL_{l,y,h}}^{-}$ | $-P_{F_{l,y,h}} \leq P_{L_{l,y,h}}^{\text{max}}$ | `:cons_branch_pflow_neg` | MW | Constrain the negative branch power flow to be less than or equal to its maximum. |
-| $C_{PCGPB_{g,y}}$ | $P_{C_{g,y}} = 0 \quad \forall \left\{ y<y_{S_g} \right\}$ | `:cons_pcap_gen_prebuild` | MW | Constrain the power generation capacity to be zero before the start year. |
+| $C_{PCGPB_{g,y}}$ | $P_{C_{g,y}} = 0 \quad \forall \left\{ y<y_{S_g} \right\}$ | `N/A` | MW | Constrain the power generation capacity to be zero before the start year. Implemented by fixing the variable.  |
 | $C_{PCGNA_{g,y}}$ | $P_{C_{g,y+1}} <= P_{C_{g,y}} \quad \forall \left\{ y >= y_{S_g} \right\}$ | `:cons_pcap_gen_noadd` | MW | Constrain the power generation capacity to be non-increasing after the start year. Generation capacity is only added when building new generators in their start year.|
 | $C_{PCGE_{g,y}}$ | $P_{C_{g,y}} == P_{C_{0_{g}}} \quad \forall \left\{ first y >= y_{S_g} \right\}$ | `:cons_pcap_gen_exog` | MW | Constrain unbuilt exogenous generators to be built to `pcap0` in the first year after `year_on`. |
 
@@ -69,10 +70,20 @@ function setup_model(config, data)
 
     log_header("SETTING UP MODEL")
 
+    # Create set of model keys not to parse
+    data[:do_not_parse_model_keys] = Set{Symbol}()
+    do_not_parse!(data, :cons_pgen_max)
+    do_not_parse!(data, :cons_pgen_min)
+    do_not_parse!(data, :cons_pcap_gen_noadd)
+
     if haskey(config, :model_presolve_file)
         @info "Loading model from:\n$(config[:model_presolve_file])"
         model = deserialize(config[:model_presolve_file])
     else
+
+        #create capex_obj and tranmission_capex_obj
+        create_capex_obj!(config, data)
+
         model = JuMP.Model()
 
         # Comment this out for debugging so you can see variable names.  Saves quite a bit of RAM to leave out
@@ -136,18 +147,29 @@ function constrain_pbal!(config, data, model)
         plserv_bus = model[:plserv_bus]
 
         # Constrain power flowing out of the bus.
-        @constraint(model, cons_pflow_in_out[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
-            pflow_out_bus[bus_idx, year_idx, hour_idx] - pflow_in_bus[bus_idx, year_idx, hour_idx] == pflow_bus[bus_idx, year_idx, hour_idx]
+        @constraint(model, cons_pflow_in_out_geq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
+            pflow_out_bus[bus_idx, year_idx, hour_idx] - pflow_in_bus[bus_idx, year_idx, hour_idx] >= pflow_bus[bus_idx, year_idx, hour_idx]
+        )
+        @constraint(model, cons_pflow_in_out_leq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
+            pflow_out_bus[bus_idx, year_idx, hour_idx] - pflow_in_bus[bus_idx, year_idx, hour_idx] <= pflow_bus[bus_idx, year_idx, hour_idx]
         )
         @constraint(model, 
-            cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            pgen_bus[bus_idx, year_idx, hour_idx] - plserv_bus[bus_idx, year_idx, hour_idx] - pflow_out_bus[bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * pflow_in_bus[bus_idx, year_idx, hour_idx] == 0.0
+            cons_pbal_geq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+            pgen_bus[bus_idx, year_idx, hour_idx] - plserv_bus[bus_idx, year_idx, hour_idx] - pflow_out_bus[bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * pflow_in_bus[bus_idx, year_idx, hour_idx] >= 0.0
+        )
+        @constraint(model, 
+            cons_pbal_leq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+            pgen_bus[bus_idx, year_idx, hour_idx] - plserv_bus[bus_idx, year_idx, hour_idx] - pflow_out_bus[bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * pflow_in_bus[bus_idx, year_idx, hour_idx] <= 0.0
         )
     elseif line_loss_type == "plserv"
         plserv_scalar = 1/(1-line_loss_rate)
         @constraint(model, 
-            cons_pbal[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] * plserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] == 0.0
+            cons_pbal_geq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] * plserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] >= 0.0
+        )
+        @constraint(model, 
+            cons_pbal_leq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] * plserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] <= 0.0
         )
     else
         error("config[:line_loss_type] must be `plserv` or `pflow`, but $line_loss_type was given")
@@ -156,10 +178,57 @@ function constrain_pbal!(config, data, model)
 end
 export constrain_pbal!
 
+"""
+    do_not_parse!(data, s)
+
+Signifies to E4ST not to parse the symbol `s` when pulling in values and shadow prices into the raw results.
+"""
+function do_not_parse!(data, s)
+    d = data[:do_not_parse_model_keys]::Set{Symbol}
+    push!(d, Symbol(s))
+    return nothing    
+end
+
 function add_optimizer!(config, data, model)
     optimizer_factory = getoptimizer(config)
     set_optimizer(model, optimizer_factory; add_bridges=false)
 end
+
+"""
+    create_capex_obj!(config, data) -> 
+
+Creates capex_obj and transmission_capex_obj columns which are the capex cost seen in the objective function. It is a ByYear column that is only non zero for year_on.
+Set to capex for unbuilt generators in and after the year_on
+Set to 0 for already built capacity because capacity expansion isn't considered for existing generators  
+"""
+function create_capex_obj!(config, data)
+    gen = get_table(data, :gen)
+    years = get_years(data)
+
+    #warn if capex_obj already exists
+    :capex_obj in propertynames(data[:gen]) && @warn "capex_obj hasn't been calculated yet but appears in the gen table. It will be overwritten."
+
+    capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
+    transmission_capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
+    add_table_col!(data, :gen, :capex_obj, capex_obj, DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
+    add_table_col!(data, :gen, :transmission_capex_obj, transmission_capex_obj, DollarsPerMWBuiltCapacityPerHour, "Hourly capital expenditures for transmission that is passed into the objective function. 0 for already built capacity")
+
+
+    for g in eachrow(gen)
+        # Do not change the capex_obj for anything that has been built, unless it is a retrofit
+        g.build_status in ("unbuilt", "unretrofitted") || continue
+        
+        # Retrieve the investment year (either the retrofit year or the build year)
+        year_retrofit = get(g, :year_retrofit, "")
+        year_invest = isempty(year_retrofit) ? g.year_on : year_retrofit
+
+        # Create a mask that is 1 for years during the econ life of the investment, and 0 before
+        capex_filter = ByYear(map(year -> year >= year_invest && year < add_to_year(year_invest, g.econ_life), years))
+        g.capex_obj = g.capex .* capex_filter
+        g.transmission_capex_obj = g.transmission_capex .* capex_filter
+    end
+end
+export create_capex_obj!
 
 """
     summarize(data) -> summary::String
@@ -179,46 +248,50 @@ function summarize(data)
     return summary
 end
 
+# These utilities are for summarizing the model, which can be used for debugging numerical issues.
+_get_jump_type(ar::AbstractArray) = Base.typename(eltype(ar)).name
+_get_jump_type(x) = Base.typename(typeof(x)).name
+_get_jump_length(x) = 1
+_get_jump_length(x::AbstractArray) = length(x)::Int64
+_get_jump_size(x::AbstractArray) = string(size(x))
+_get_jump_size(x) = "irregular"
+_get_jump_size(x::JuMP.Containers.SparseAxisArray) = "irregular"
+
 """
     summarize(model::Model) -> summary::String
 """
 function summarize(model::Model)
     buf = IOBuffer()
-    df = DataFrame(:variable=>Symbol[], :type=>Symbol[], :dimensions=>[], :length=>[], :rhs_range=>[], :matrix_range=>[], :bounds_range=>[])
+    df = DataFrame(:variable=>Symbol[], :type=>Symbol[], :dimensions=>[], :length=>Int64[], 
+        :rhs_min=>Float64[], 
+        :rhs_max=>Float64[],
+        :matrix_min=>Float64[],
+        :matrix_max=>Float64[],
+        :bounds_min=>Float64[],
+        :bounds_max=>Float64[]
+    )
     d = object_dictionary(model)
     for (key, obj) in d
-        if obj isa AbstractArray
-            t = Base.typename(eltype(obj)).name
-        else
-            t = Base.typename(typeof(obj)).name
-        end
-        len = try
-            length(obj)
-        catch
-            1
-        end
-        if obj isa AbstractArray
-            s = try
-                size(obj)
-            catch
-                "irregular"
-            end
-        else
-            s = (1,)
-        end
-        rhs_range = get_rhs_range(obj)
-        matrix_range = get_matrix_range(obj)
-        bounds_range = get_bounds_range(obj)
+        t = _get_jump_type(obj)
+        s = _get_jump_size(obj)
+        len = _get_jump_length(obj)
 
-        push!(df, (key, t, s, len, rhs_range, matrix_range, bounds_range))
+        len == 0 && continue
+
+        rhs_min, rhs_max = get_rhs_range(obj)
+        matrix_min, matrix_max = get_matrix_range(obj)
+        bounds_min, bounds_max = get_bounds_range(obj)
+
+        push!(df, (key, t, s, len, rhs_min, rhs_max, matrix_min, matrix_max, bounds_min, bounds_max))
     end
     println(buf, "Model Summary:")
 
-    filter!(:type=>!=(:GenericAffExpr), df)
     sort!(df, [:type, :variable])
 
     println(buf, df)
     summary = String(take!(buf))
+    close(buf)
+    return summary
 end
 export summarize
 
@@ -227,24 +300,36 @@ export summarize
 
 Returns min and max of non-zero absolute value of matrix range
 """
-get_matrix_range(c::AbstractArray{<:ConstraintRef}) = (get_limit(minimum, c), get_limit(maximum, c))
-get_matrix_range(c) = nothing
+get_matrix_range(c::AbstractArray{<:ConstraintRef}) = (get_limit(minimum, c)::Float64, get_limit(maximum, c)::Float64)
+get_matrix_range(c) = (NaN, NaN)
 
 """
     get_bounds_range(v) -> (min, max)
 
 Returns min and max of non-zero absolute value of variable bounds range
 """
-get_bounds_range(v::AbstractArray{<:VariableRef}) = (get_limit(minimum, v), get_limit(maximum, v))
-get_bounds_range(v) = nothing
+get_bounds_range(v::AbstractArray{<:VariableRef}) = (get_limit(minimum, v)::Float64, get_limit(maximum, v)::Float64)
+get_bounds_range(v) = (NaN, NaN)
 
 """
     get_rhs_range(v) -> (min, max)
 
 Returns min and max of non-zero absolute value of constraint right hand side range range
 """
-get_rhs_range(c::AbstractArray{<:ConstraintRef}) = (get_rhs_limit(minimum, c), get_rhs_limit(maximum, c))
-get_rhs_range(c) = nothing
+get_rhs_range(c::AbstractArray{<:ConstraintRef}) = begin
+    ll = Inf
+    ul = 0.0
+    for cons in c
+        rhs = get_rhs(cons)
+        rhs == 0.0 && continue
+        a = abs(rhs)
+        a > ul && (ul = a)
+        a < ll && (ll = a)
+    end
+    ll == Inf && (ll = 0.0)
+    (ll, ul)
+end
+get_rhs_range(c) = (NaN, NaN)
 
 get_limit(f, obj::AbstractArray{<:VariableRef}) = try; f(abs(x) for x in get_limit.(f, obj) if x != 0); catch; 0.0; end;
 
@@ -267,7 +352,6 @@ function get_terms(c::ConstraintRef)
 end
 export get_terms
 
-get_rhs_limit(f, obj::AbstractArray{<:ConstraintRef}) = try; f(abs(x) for x in get_rhs.(obj) if x != 0); catch; 0.0; end;
 function get_rhs(c::ConstraintRef)
     co = constraint_object(c)
     rhs = _get_value(co.set)

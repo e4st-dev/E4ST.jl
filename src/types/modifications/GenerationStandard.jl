@@ -152,7 +152,8 @@ function modify_results!(pol::GenerationStandard, config, data)
     bus = get_table(data, :bus)
     gen = get_table(data, :gen)
 
-    # TODO: do any other results processing here
+    prc_name = Symbol("$(pol.name)_prc")
+    cost_name = Symbol("$(pol.name)_cost")
 
     # Add pl_gs and el_gs to the bus if they haven't already been added
     if !hasproperty(bus, :pl_gs) 
@@ -169,18 +170,16 @@ function modify_results!(pol::GenerationStandard, config, data)
     shadow_prc = get_shadow_price_as_ByYear(data, Symbol("cons_$(pol.name)")) #($/MWhGenerated) by year
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
 
-    add_table_col!(data, :gen, Symbol("$(pol.name)_prc"),  Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated, "Policy price based on shadow price of $(pol.name) (converted to DollarsPerMWhGenerated) multiplied by the credit.")
+    add_table_col!(data, :gen, prc_name,  Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated, "Policy price based on shadow price of $(pol.name) (converted to DollarsPerMWhGenerated) multiplied by the credit.")
 
     # set to shadow_prc * crediting
     for i in gen_idxs
-        gen[i, Symbol("$(pol.name)_prc")] = -(shadow_prc) .* gen[i, pol.name]
+        gen[i, prc_name] = -(shadow_prc) .* gen[i, pol.name]
     end
 
 
     # policy cost, price * credit * generation
-    prc_name = Symbol("$(pol.name)_prc")
-    cost_name = Symbol("$(pol.name)_cost")
-    add_results_formula!(data, :gen, cost_name, "SumHourly($(prc_name), egen)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
+    add_results_formula!(data, :gen, cost_name, "SumHourlyWeighted($(prc_name), pgen)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
     add_to_results_formula!(data, :gen, :gs_rebate, cost_name)
 end
 export modify_results!
@@ -219,7 +218,7 @@ function add_pl_gs_bus!(config, data, model)
     line_loss_type = config[:line_loss_type]
     line_loss_rate = config[:line_loss_rate]
     if line_loss_type == "plserv"
-        loss_scalar = 1/(1-line_loss_rate) - 1
+        loss_scalar = 1/(1-line_loss_rate) - 1 # -1 because we are adding it
         for bus_idx in axes(bus, 1), yr_idx in 1:nyear, hr_idx in 1:nhour
             add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pl_gs_bus[bus_idx, yr_idx, hr_idx], loss_scalar)
         end

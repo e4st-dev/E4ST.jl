@@ -65,8 +65,8 @@ function summarize_config()
         (:line_loss_type, false, "plserv", "The term in the power balancing equation that gets penalized with line losses.  Can be \"pflow\" or \"plserv\". Using \"pflow\" is more accurate in that it accounts for only losses on power coming from somewhere else, at the expense of a larger problem size and greater solve time.  Default is `plserv` due to increased runtime with `pflow`"),
         (:distribution_cost, false, 60, "The assumed cost per MWh of served power, for the transmission and distribution of the power."),
         (:bio_pctco2e, false, 0.273783186, "The fraction of biomass co2 emissions that are considered new to the atmostphere. 0.225 metric tons/MWh * (2204 short tons/2000 metric tons) / 0.904 short tons/MWh"),
-        (:ng_ch4_fuel_content, false, 0.000434, "Natural gas methane fuel content. (Short ton/MMBtu)"),
-        (:coal_ch4_fuel_content, false, 0.000175, "Coal methane fuel content. (Short ton/MMBtu)"),
+        (:ng_upstream_ch4_leakage, false, 0.000434, "Natural gas methane fuel content. (Short ton/MMBtu)"),
+        (:coal_upstream_ch4_leakage, false, 0.000175, "Coal methane fuel content. (Short ton/MMBtu)"),
         (:wacc, false, 0.0544, "Assumed Weighted Average Cost of Capital (used as discount rate), currently only used for calculating ptc capex adjustment but should be the same as the wacc/discount rate used to calculate annualized generator costs. Current value (0.0544) was using in annulaizing ATB 2022 costs.")
         )
     return df
@@ -74,13 +74,13 @@ end
 export summarize_config
 
 @doc """
-    read_config(filename; kwargs...) -> config::OrderedDict{Symbol,Any}
+    read_config(filename; create_out_path = true, kwargs...) -> config::OrderedDict{Symbol,Any}
 
-    read_config(filenames; kwargs...) -> config::OrderedDict{Symbol,Any}
+    read_config(filenames; create_out_path = true, kwargs...) -> config::OrderedDict{Symbol,Any}
 
-    read_config(path; kwargs...) -> config::OrderedDict{Symbol, Any}
+    read_config(path; create_out_path = true, kwargs...) -> config::OrderedDict{Symbol, Any}
 
-Load the config file from `filename`, inferring any necessary settings as needed.  If `path` given, checks for `joinpath(path, "config.yml")`.  This can be used with the `out_path` returned by [`run_e4st`](@ref)  See [`read_data`](@ref) to see how the `config` is used.  If multiple filenames given, (in a vector, or separated by commas) merges them, preserving the settings found in the last file, when there are conflicts, appending the list of [`Modification`](@ref)s.  Uses [`summarize_config`](@ref) to infer defaults, when applicable.  Any specified `kwargs` are added to the config, over-writing anything except the list of [`Modification`](@ref)s.  Note
+Load the config file from `filename`, inferring any necessary settings as needed.  If `path` given, checks for `joinpath(path, "config.yml")`.  This can be used with the `out_path` returned by [`run_e4st`](@ref)  See [`read_data`](@ref) to see how the `config` is used.  If multiple filenames given, (in a vector, or separated by commas) merges them, preserving the settings found in the last file, when there are conflicts, appending the list of [`Modification`](@ref)s.  Uses [`summarize_config`](@ref) to infer defaults, when applicable.  Any specified `kwargs` are added to the config, over-writing anything except the list of [`Modification`](@ref)s.
 
 The Config File is a file that fully specifies all the necessary information.  Note that when filenames are given as a relative path, they are assumed to be relative to the location of the config file.
 
@@ -91,11 +91,11 @@ $(table2markdown(summarize_config()))
 $(read_sample_config_file())
 ```
 """
-function read_config(filenames...; kwargs...)
+function read_config(filenames...; create_out_path = true, kwargs...)
     config = _read_config(filenames; kwargs...)
     check_config!(config)
     check_years!(config)
-    make_out_path!(config)
+    create_out_path && make_out_path!(config)
     convert_mods!(config)
     sort_mods_by_rank!(config)
     convert_iter!(config)
@@ -252,6 +252,8 @@ function log_start(config)
         version_info_string(),
         "\nE4ST Info:\n",
         package_status_string(),
+        "\nModifications:\n",
+        mods_string(config),
     )
 end
 export log_start
@@ -275,6 +277,28 @@ function header_string(header)
     string("#"^80, "\n",header,"\n","#"^80)
 end
 export header_string
+
+"""
+    mods_string(config) -> s
+
+Returns a string of the ordered list of mods, giving the 
+"""
+function mods_string(config)
+    # Compute the maximum length of any of the mod names
+    max_len = maximum(s->length(string(s)), keys(config[:mods]))
+    
+    # Print to an IOBuffer
+    io = IOBuffer()
+    for p in config[:mods]
+        print(io, "    ")
+        print(io, rpad("$(p[1]):", max_len+2))
+        print(io, typeof(p[2]))
+        print(io, '\n')
+    end
+    s = String(take!(io))
+    close(io)
+    return s
+end
 
 """
     time_string() -> s
@@ -385,6 +409,12 @@ Ensures that `config` has required fields listed in [`summarize_config`](@ref)
 """
 function check_config!(config)
     summary = summarize_config()
+    _check_config!(config, summary)
+    return nothing
+end
+export check_config!
+
+function _check_config!(config, summary) 
     for row in eachrow(summary)
         name = row.name
         default = row.default
@@ -397,7 +427,6 @@ function check_config!(config)
     end
     return nothing
 end
-export check_config!
 
 """
     make_paths_absolute!(config, filename)
@@ -461,19 +490,25 @@ export latest_out_path
 If `config[:out_path]` provided, does nothing.  Otherwise, makes sure `config[:base_out_path]` exists, making it as needed.  Creates a new time-stamped folder via [`time_string`](@ref), stores it into `config[:out_path]`.  See [`get_out_path`](@ref) to create paths for output files. 
 """
 function make_out_path!(config)
-    haskey(config, :out_path) && return nothing
-    base_out_path = config[:base_out_path]
+    if haskey(config, :out_path) 
+        out_path = config[:out_path]
+        isdir(out_path) && return nothing
+    else
 
-    # Make out_path as necessary
-    ~isdir(base_out_path) && mkpath(base_out_path)  
-    
-    out_path = joinpath(base_out_path, time_string())
-    while isdir(out_path)
+        base_out_path = config[:base_out_path]
+
+        # Make out_path as necessary
+        ~isdir(base_out_path) && mkpath(base_out_path)  
+        
         out_path = joinpath(base_out_path, time_string())
+        while isdir(out_path)
+            out_path = joinpath(base_out_path, time_string())
+        end
+
+        config[:out_path] = out_path
     end
-    
     mkpath(out_path)
-    config[:out_path] = out_path
+    
 
     return nothing
 end

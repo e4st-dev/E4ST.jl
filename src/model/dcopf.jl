@@ -37,7 +37,7 @@ function setup_dcopf!(config, data, model)
     # Capacity
     @variable(model, 
         pcap_gen[gen_idx in 1:ngen, year_idx in 1:nyear], 
-        start=0.0, #get_table_num(data, :gen, :pcap0, gen_idx, year_idx, :), # Setting to 0.0 for feasibility
+        start = get_table_num(data, :gen, :pcap0, gen_idx, year_idx, :),
         lower_bound = get_pcap_min(data, gen_idx, year_idx),
         upper_bound = get_pcap_max(data, gen_idx, year_idx),
     )
@@ -45,9 +45,9 @@ function setup_dcopf!(config, data, model)
     # Power Generation
     @variable(model, 
         pgen_gen[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour], 
-        start=0.0,
+        start = get_table_num(data, :gen, :pcap0, gen_idx, year_idx, :) * get_cf_max(config, data, gen_idx, year_idx, hour_idx),
         lower_bound = 0.0,
-        upper_bound = get_pcap_max(data, gen_idx, year_idx)+1, # +1 here to allow cons_pgen_max to always be binding
+        upper_bound = get_pcap_max(data, gen_idx, year_idx) * 1.1, # 10% buffer here to allow cons_pgen_max to always be binding
     )
 
     # Power Curtailed
@@ -80,9 +80,6 @@ function setup_dcopf!(config, data, model)
 
     # Generated power of a given bus
     @expression(model, pgen_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pgen_bus(data, model, bus_idx, year_idx, hour_idx))
-
-    # Generated energy at a given generator
-    @expression(model, egen_gen[gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour], get_egen_gen(data, model, gen_idx, year_idx, hour_idx))
 
     ## Constraints
     @info "Creating Constraints"
@@ -160,11 +157,15 @@ function setup_dcopf!(config, data, model)
         AffExpr(0.0)
     )
 
-    for gen_idx in 1:nrow(gen)
-        gen.build_status[gen_idx] == "unbuilt" || continue
-        year_on = gen.year_on[gen_idx]
-        year_on > last(years) && continue
-        yr_idx_on = findfirst(>=(year_on), years)
+    for (gen_idx,g) in enumerate(eachrow(gen))
+        g.build_status in ("unbuilt", "unretrofitted") || continue
+
+        # Retrieve the investment year (either the retrofit year or the build year)
+        year_retrofit = get(g, :year_retrofit, "")
+        year_invest = isempty(year_retrofit) ? g.year_on : year_retrofit
+
+        year_invest > last(years) && continue
+        yr_idx_on = findfirst(>=(year_invest), years)
         add_to_expression!(pcap_gen_inv_sim[gen_idx], pcap_gen[gen_idx, yr_idx_on])
     end
 
@@ -311,14 +312,15 @@ function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper)
     Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
 
     #write expression for the term
+    pgen_gen = model[:pgen_gen]::Array{VariableRef, 3}
     gen = get_table(data, :gen)
-    egen_gen = model[:egen_gen]
     col = gen[!,s]
     nhr = get_num_hours(data)
     nyr = get_num_years(data)
+    hour_weights = get_hour_weights(data)
     model[s] = @expression(model, 
         [gen_idx in axes(gen,1), yr_idx in 1:nyr],
-        sum(col[gen_idx][yr_idx,hr_idx] * egen_gen[gen_idx, yr_idx, hr_idx] for hr_idx in 1:nhr)
+        sum(col[gen_idx][yr_idx,hr_idx] * pgen_gen[gen_idx, yr_idx, hr_idx] * hour_weights[hr_idx] for hr_idx in 1:nhr)
     )
 
     # add or subtract the expression from the objective function
@@ -331,14 +333,15 @@ function add_obj_term!(data, model, ::PerMMBtu, s::Symbol; oper)
     
     #write expression for the term
     gen = get_table(data, :gen)
-    egen_gen = model[:egen_gen]
+    pgen_gen = model[:pgen_gen]::Array{VariableRef, 3}
     col = gen[!,s]
     hr = gen[!,:heat_rate]
     nhr = get_num_hours(data)
     nyr = get_num_years(data)
+    hour_weights = get_hour_weights(data)
     model[s] = @expression(model, 
         [gen_idx in axes(gen,1), yr_idx in 1:nyr],
-        sum(col[gen_idx][yr_idx,hr_idx] * hr[gen_idx][yr_idx, hr_idx] * egen_gen[gen_idx, yr_idx, hr_idx] for hr_idx in 1:nhr)
+        sum(col[gen_idx][yr_idx,hr_idx] * hr[gen_idx][yr_idx, hr_idx] * pgen_gen[gen_idx, yr_idx, hr_idx] * hour_weights[hr_idx] for hr_idx in 1:nhr)
     )
 
     # add or subtract the expression from the objective function

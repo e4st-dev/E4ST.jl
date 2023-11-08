@@ -25,7 +25,13 @@ export can_retrofit
 """
     retrofit!(ret::Retrofit, newgen) -> ::AbstractDict
 
-Retrofits `newgen`, a `Dict` containing all the properties of the original generator, but with the `year_retrofit` already updated.  Note that the `capex` should be included in the retrofitted generator WITHOUT the existing generator's capex.  I.e. capex for the retrofit should be only the capital costs for the retrofit, not including the initial capital costs for building the generator.
+This function should change `newgen` to have the properties of the retrofit.  `newgen` is a `Dict` containing all the properties of the original generator, but with the the following fields already changed:
+* `year_retrofit` - set to the year to be retrofitted
+* `retrofit_original_gen_idx` - set to the index of the gen table for the original generator
+* `capex` - set to 0 to avoid double-paying capex for the already-built generator.  Capex added to `newgen` should only be the capital costs for the retrofit itself.  E4ST should already be accounting capex in `past_capex` for the original generator.
+* `pcap0` - set to 0
+* `transmission_capex` - set to 0
+* `build_status` - set to `unretrofitted`
 """
 function retrofit! end
 export retrofit!
@@ -54,11 +60,11 @@ function modify_setup_data!(ret::Retrofit, config, data)
     # Add year_retrofit column to the gen table
     gen = get_table(data, :gen)
     hasproperty(gen, :year_retrofit) || add_table_col!(data, :gen, :year_retrofit, fill("", nrow(gen)), Year, "Year in which the unit was retrofit, or blank if not a retrofit.")
+    hasproperty(gen, :retrofit_original_gen_idx)  || add_table_col!(data, :gen, :retrofit_original_gen_idx, fill(-1, nrow(gen)), NA, "Index of the original generator of a retrofit. `-1` if not a retrofit.")
 
     # Initialize with the Retrofit type
     init!(ret, config, data)
     years = get_years(data)
-    retrofits = get!(data, :retrofits, OrderedDict{Int64, Vector{Int64}}())::OrderedDict{Int64, Vector{Int64}}
     ngen = nrow(gen)
     nyr = get_num_years(data)
 
@@ -74,23 +80,19 @@ function modify_setup_data!(ret::Retrofit, config, data)
             # Set year_retrofit
             year = years[yr_idx]
             newgen[:year_retrofit] = year
+            newgen[:retrofit_original_gen_idx] = gen_idx
 
             #set capex = 0 because original capex of the plant will continue to be paid based on pcap_inv of the pre retrofit generator
             # capex for the retrofit will be added in retrofit!()
             newgen[:capex] = 0
             newgen[:pcap0] = 0
+            newgen[:transmission_capex] = 0
+            newgen[:build_status] = "unretrofitted"
 
             retrofit!(ret, newgen)
             
-            # Set capex_obj
-            v = zeros(nyr)
-            v[yr_idx:end] .= newgen[:capex]
-            newgen[:capex_obj] = ByYear(v)
-
             # Add newgen to the gen table, add it to retrofits.
             push!(gen, newgen)
-            current_gen_retrofit_idxs = get!(retrofits, gen_idx, Int64[])
-            push!(current_gen_retrofit_idxs, nrow(gen))
         end
     end
 
@@ -114,10 +116,19 @@ function modify_model!(ret::Retrofit, config, data, model)
     nyr = get_num_years(data)
     gen = get_table(data, :gen)
     years = get_years(data)
-    retrofits = data[:retrofits]::OrderedDict{Int64, Vector{Int64}}
     pcap_gen = model[:pcap_gen]::Array{VariableRef, 2}
     pcap_max = gen.pcap_max
     pcap_min = gen.pcap_min
+
+    # Make a Dict of retrofits to be generated, mapping original generator to retrofit(s)
+    retrofits = get!(data, :retrofits, OrderedDict{Int64, Vector{Int64}}())::OrderedDict{Int64, Vector{Int64}}
+    original_idxs = gen.retrofit_original_gen_idx::Vector{Int64}
+    for (gen_idx, original_idx) in enumerate(original_idxs)
+        if original_idx > 0
+            current_gen_retrofit_idxs = get!(retrofits, original_idx, Int64[])
+            push!(current_gen_retrofit_idxs, gen_idx)
+        end
+    end
 
     # Make constraint on the sum of the retrofit capacities
     @constraint(model, 
@@ -149,49 +160,11 @@ function modify_model!(ret::Retrofit, config, data, model)
     )
 
     # Constrain their capacities to be zero before year_retrofit
-    @constraint(model,
-        cons_pcap_gen_preretro[
-            gen_idx = axes(gen, 1),
-            yr_idx = 1:nyr;
-            (!isempty(gen.year_retrofit[gen_idx]) && years[yr_idx] < gen.year_retrofit[gen_idx])
-        ],
-        pcap_gen[gen_idx, yr_idx] == 0.0
-    )
-
-    # Remove noadd constraints before retrofit
-    if haskey(model, :cons_pcap_gen_noadd)
-        cons = model[:cons_pcap_gen_noadd]
-        for gen_idx in 1:nrow(gen)
-            row = gen[gen_idx, :]
-
-            # Check to see if this is a retrofit generator
-            isempty(row.year_retrofit) && continue
-            retro_yr_idx = findfirst(>=(row.year_retrofit), years)
-            retro_yr_idx === nothing && continue # Must be a previously retrofit generator, no need to remove constraints
-
-            for yr_idx in 1:(retro_yr_idx-1)
-                delete(model, cons[gen_idx, yr_idx])
-            end
-        end
+    for gen_idx = axes(gen,1), yr_idx = 1:nyr
+        (!isempty(gen.year_retrofit[gen_idx]) && years[yr_idx] < gen.year_retrofit[gen_idx]) || continue
+        fix(pcap_gen[gen_idx, yr_idx], 0.0, force=true)
     end
-
-    # Add the retrofit capacity to the pcap_gen_inv_sim expression
-    expr = model[:pcap_gen_inv_sim]::Vector{AffExpr}
-    for gen_idx in 1:nrow(gen)
-        row = gen[gen_idx, :]
-
-        # Check to see if this is a retrofit generator
-        isempty(row.year_retrofit) && continue
-        retro_yr_idx = findfirst(>=(row.year_retrofit), years)
-        retro_yr_idx === nothing && continue 
-
-        # Zero out the expression
-        add_to_expression!(expr[gen_idx], expr[gen_idx], -1)
-
-        # Add the correct pcap_gen to the expression
-        add_to_expression!(expr[gen_idx], pcap_gen[gen_idx, retro_yr_idx])        
-    end
-    
+        
     return nothing
 end
 

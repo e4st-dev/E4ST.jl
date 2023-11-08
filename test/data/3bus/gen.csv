@@ -1,6 +1,7 @@
-bus_idx,status,reg_factor,build_status,build_type,build_id,genfuel,gentype,econ_life,pcap_inv,pcap0,pcap_min,pcap_max,cf_min,cf_hist,vom,fuel_price,fom,capex,transmission_capex,routine_capex,year_on,year_off,year_shutdown,emis_co2,capt_co2_percent,heat_rate,chp_co2_multi
-3,1,0.75,built,exog,,coal,coal,30,2.0,2.0,0,2,0.6,0.68,2,0.5555555555555556,20,7,0.1,0.2,y2020,y9999,y2045,1,0,9,1.0
-1,1,0,built,exog,,solar,solar,30,0.5,0.5,0,0.5,0,0.25,2,0,5,5,0.5,0.1,y2027,y9999,y2050,0,0,0,1.0
-3,1,0.75,built,exog,,ng,ngccccs,30,0.5,0.5,0,0.5,0.5,0.55,1.5,0.14285714285714285,6,6,0.1,0.2,y2025,y9999,y2055,0.6,0.9,7,1.0
-1,1,0,built,exog,,wind,wind,30,0.05,0.05,0,0.05,0,0.4,0.1,0,2,3,0.5,0.3,y2015,y9999,y2035,0,0,0,1.0
-1,1,0.1,built,exog,,ng,ngt_chp,30,0.01,0.01,0,0.01,0.6,0.23,2,0.25,7,7,0.1,0.1,y2030,y9999,y2050,0.6,0,8,0.67
+bus_idx,status,reg_factor,build_status,build_type,build_id,genfuel,gentype,econ_life,pcap_inv,pcap0,pcap_min,pcap_max,cf_min,cf_hist,vom,fuel_price,fom,capex,transmission_capex,routine_capex,year_on,year_off,year_shutdown,emis_co2,capt_co2_percent,heat_rate,chp_co2_multi,chp,pcap_plant_avg
+3,1,0.75,built,exog,,coal,coal,30,2.0,2.0,0,2,0.6,0.68,2,0.5555555555555556,20,7,0.1,0.2,y2020,y9999,y2045,1,0,9,1.0,0,2
+1,1,0,built,exog,,solar,solar,30,0.5,0.5,0,0.5,0,0.25,2,0,5,5,0.5,0.1,y2027,y9999,y2050,0,0,0,1.0,0,0.5
+3,1,0.75,built,exog,,ng,ngccccs,30,0.5,0.5,0,0.5,0.5,0.55,1.5,0.14285714285714285,6,6,0.1,0.2,y2025,y9999,y2055,0.6,0.9,7,1.0,0,0.5
+1,1,0,built,exog,,wind,wind,30,0.05,0.05,0,0.05,0,0.4,0.1,0,2,3,0.5,0.3,y2015,y9999,y2035,0,0,0,1.0,0,0.05
+1,1,0.1,built,exog,,ng,ngt,30,0.01,0.01,0,0.01,0.6,0.23,2,0.25,7,7,0.1,0.1,y2030,y9999,y2050,0.6,0,8,0.67,1,0.01
+2,1,0.1,built,exog,,ng,ngt,30,2.0,2.0,0,2,0,0.23,100,0.25,5,7,0.1,0.0,y2020,y9999,y2050,0.6,0,8,0.67,1,0.01

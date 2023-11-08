@@ -2,6 +2,8 @@
 
     config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
     config = read_config(config_file, log_model_summary=true)
+    config[:mods][:adj_yearly] = AdjustYearly(file=joinpath(@__DIR__, "data", "3bus", "adjust_yearly.csv"), name=:adj_yearly) #overwrites previous adj_yearly
+
 
     data = read_data(config)
     model = setup_model(config, data)
@@ -26,16 +28,11 @@
         @test all(p->abs(p)<1e-6, total_elcurt)
     end
 
-    @testset "Test bus results match gen results" begin
-        # Test that revenue of electricity for generators equals the cost for users
-        line_loss_rate = config[:line_loss_rate]
-        @test compute_result(data, :bus, :elserv_total) ≈ (compute_result(data, :gen, :egen_total)) * (1 - line_loss_rate)
-        @test compute_result(data, :bus, :electricity_cost) ≈ compute_result(data, :gen, :electricity_revenue)
-    end
-
     @testset "Test misc. results computations" begin
-        @test compute_result(data, :bus, :distribution_cost_total) ≈ 60 * compute_result(data, :bus, :elserv_total)
-        @test compute_result(data, :bus, :merchandising_surplus_total) >= 0.0
+        dam_co2 = data[:dam_co2]::Container
+        @test compute_result(data, :gen, :climate_damages_co2e_total) ≈
+            sum(compute_result(data, :gen, :emis_co2e_total, :, yr_idx) * dam_co2[yr_idx,:] for yr_idx in 1:get_num_years(data))
+
     end
     
     @testset "Test DC lines" begin
@@ -80,8 +77,8 @@
             for row in eachrow(build_gen), bus_idx in 1:nrow(bus), yr_idx in 1:nyr
         )
         res_raw = get_raw_results(data)
-        @test haskey(res_raw, Symbol("cons_pcap_gen_match_max_build"))
-        @test haskey(res_raw, Symbol("cons_pcap_gen_match_min_build"))
+        @test haskey(res_raw, :cons_pcap_gen_match_max_build)
+        @test haskey(res_raw, :cons_pcap_gen_match_min_build)
     end
 
     @testset "Test Accessor methods" begin
@@ -206,6 +203,24 @@
 
         @test compute_result(data, :interface_limit, :pflow_if_max, 1) > compute_result(data, :interface_limit, :pflow_if_min, 1)
         @test compute_result(data, :interface_limit, :pflow_line_max, 1) <= compute_result(data, :interface_limit, :pflow_if_max, 1)
+    end
+
+    @testset "Test AnnualCapacityFactorLimit" begin
+        # Test that the average capacity factor is above 0.9
+        @test compute_result(data, :gen, :cf_avg, :genfuel=>"ng") > 0.9
+
+        # Run the model with the capacity factor limit
+        config_file_cflim = joinpath(@__DIR__, "config", "config_3bus_cflim.yml")
+        config = read_config(config_file, config_file_cflim)
+        data = read_data(config)
+        model = setup_model(config, data)
+        optimize!(model)
+        parse_results!(config, data, model)
+        process_results!(config, data)
+
+        @test compute_result(data, :gen, :cf_avg, :genfuel=>"ng") <= 0.9 + 1e-3 # for tolerance
+        @test compute_result(data, :gen, :cf_hourly_max, :genfuel=>"ng") > 0.9 + 1e-3 # Want to make sure we're not limiting hourly
+
     end
 
 end

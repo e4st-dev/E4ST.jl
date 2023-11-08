@@ -15,6 +15,7 @@
         for table_name in table_names
             @test has_table(data, table_name)
             table_name == :summary_table && continue
+            startswith(string(table_name), "adj") && continue
             @test summarize_table(table_name) isa DataFrame
             table = get_table(data, table_name)
             for col_name in names(table)
@@ -45,10 +46,6 @@
         #TODO: Create test Mod that applied in modify_raw_data!
 
     end
-
-    #Test yearly and hourly adjustment to data
-    include("testadjust.jl")
-
 
     @testset "Test load with shaping" begin
         config = read_config(config_file)
@@ -138,7 +135,6 @@
         data = read_data(config)
         gen = get_table(data, :gen)
 
-        @test hasproperty(gen, :capex_obj)
         @test hasproperty(gen, :age)
         @test typeof(gen.age) == Vector{Container}
         @test all(age->age isa E4ST.ByYear, gen.age)
@@ -155,19 +151,23 @@
         @test hasproperty(gen, :emis_co2e)
         
         # test that co2e isn't lower than co2 for ng, coal, (and eventually dac) 
-        ng_gen = get_subtable(gen, :genfuel => "ng") # this might error for chp if chp reduction is lower than methane addition 
+        ng_gen = get_subtable(gen, [:genfuel => "ng", :chp => 0]) # this might error for chp if chp reduction is lower than methane addition 
+        @test nrow(ng_gen) > 0
         @test all(g -> all(==(1), g[:emis_co2e] .>= g[:emis_co2]), eachrow(ng_gen))
 
         coal_gen = get_subtable(gen, :genfuel => "coal")
+        @test nrow(coal_gen) > 0
         @test all(g -> all(==(1), g[:emis_co2e] .>= g[:emis_co2]), eachrow(coal_gen))
 
 
         # test that biomass co2e isn't higher than co2
         bio_gen = get_subtable(gen, :genfuel => "biomass")
-        @test all(g -> all(==(1), g[:emis_co2e] .<= g[:emis_co2]), eachrow(bio_gen))
+        @test nrow(bio_gen) > 0
+        @test all(g -> all(==(1), g[:emis_co2] .>= g[:emis_co2e]), eachrow(bio_gen))
 
         # test that chp co2e isn't higher than co2
-        chp_gen = get_subtable(gen, :gentype => "chp")
+        chp_gen = get_subtable(gen, :chp => 1)
+        @test nrow(chp_gen) > 0
         @test all(g -> all(==(1), g[:emis_co2e] .<= g[:emis_co2]), eachrow(chp_gen))
 
     end

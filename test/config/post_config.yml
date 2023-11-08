@@ -1,0 +1,4 @@
+mods:
+  agg_res:
+    type: AggregationTemplate
+    file: ../data/3bus/aggregate_template.csv

@@ -43,7 +43,7 @@ export get_year_idxs
 
     YearString(s) -> s
 
-    YearString(n::Number) -> year2string(n)
+    YearString(n::Number) -> year2str(n)
 
 This is a type that acts as a converter to ensure year columns are parsed correctly as strings.  If blank given, left blank.
 """
@@ -232,6 +232,22 @@ function get_row_idxs(table, pair::Pair)
 end
 export get_row_idxs
 
+"""
+    row_comparison(row::DataFrameRow, pairs)
+
+Compares a single DataFrameRow to the pairs given and returns the true/false result of the comparison. 
+"""
+function row_comparison(row::DataFrameRow, pairs)
+    for pair in pairs
+        key, val = pair
+        v = row[key]
+        comp = comparison(val, v)
+        comp(v) == false && return false
+    end
+    return true
+end
+export row_comparison
+
 
 """
     comparison(value, v) -> comp::Function
@@ -248,6 +264,10 @@ function comparison(value, v::AbstractVector)
     comparison(value, eltype(v))
 end
 export comparison
+
+function comparison(value, v::Any)
+    comparison(value, eltype(v))
+end
 
 function comparison(value::Function, ::Type)
     return value
@@ -285,9 +305,9 @@ function comparison(value, ::Type)
 end
 
 """
-    parse_comparison(table, s) -> comp
+    parse_comparison(s) -> comp
 
-Parses the string, `s` for a comparison with which to filter `table`.
+Parses the string, `s` for a comparison with which to filter a table.
 
 Possible examples of strings `s` to parse:
 * `"nation=>narnia"` - All rows for which row.nation=="narnia"
@@ -297,8 +317,12 @@ Possible examples of strings `s` to parse:
 * `"emis_co2=> >(0)"` - All rows for which `row.emis_co2` is greater than 0 (Works for integers and negatives too)
 * `"year_on=> >(y2002)` - All rows for which `row.year_on` is greater than "y2002" (works for fractional years too, such as "y2002.4")
 * `"genfuel=>[ng, wind, solar]"` - All rows for which `row.genfuel` is "ng", "wind", or "solar".  Works for Ints and Floats too.
+* `"genfuel=>![ng, coal, biomass]"` - All rows for which `row.genfuel` is not "ng", "coal", or "biomass".  Works for Ints and Floats too.
 """
-function parse_comparison(s::AbstractString)
+function parse_comparison(_s::AbstractString)
+    # Remove any quote characters from _s
+    s = replace(_s, "\""=>"")
+
     # In the form "emis_rate=>(0.0001,4.9999)" (should work for Ints, negatives, and Inf too)
     if (m=match(r"([\w\s]+)=>\s*\((\s*-?\s*(?:Inf)?[\d.]*)\s*,\s*-?\s*(?:Inf)?([\d.]*)\s*\)", s)) !== nothing
         r1 = parse(Float64, replace(m.captures[2], ' '=>""))
@@ -312,29 +336,36 @@ function parse_comparison(s::AbstractString)
     end
 
     # In the form "emis_rate=>>(0)" (should work for Ints, negatives, and Inf too)
-    if (m=match(r"([\w\s]+)=>\s*([><]{1}=?)\s*\(?\s*(-?\s*[\d.]+)\s*\)?", s)) !== nothing
+    if (m=match(r"([\w\s]+)=>\s*([><!]{1}=?)\s*\(?\s*(-?\s*[\d.]+)\s*\)?", s)) !== nothing
         r1 = parse(Float64, replace(m.captures[3],' '=>""))
         m.captures[2]==">" && (comp = >(r1))
         m.captures[2]=="<" && (comp = <(r1))
         m.captures[2]==">=" && (comp = >=(r1))
         m.captures[2]=="<=" && (comp = <=(r1))
+        m.captures[2] ∈ ("!", "!=") && (comp = !=(r1))
         return strip(m.captures[1])=>comp
     end
 
     # In the form "year_on=> >(y2020)" (should work decimals)
-    if (m=match(r"([\w\s]+)=>\s*([><]{1}=?)\s*\(?\s*(y[\d.]+)\s*\)?", s)) !== nothing
+    if (m=match(r"([\w\s]+)=>\s*([><!]{1}=?)\s*\(?\s*([\w\d.]+)\s*\)?", s)) !== nothing
         r1 = String(m.captures[3])
         m.captures[2]==">" && (comp = >(r1))
         m.captures[2]=="<" && (comp = <(r1))
         m.captures[2]==">=" && (comp = >=(r1))
         m.captures[2]=="<=" && (comp = <=(r1))
+        m.captures[2] ∈ ("!", "!=") && (comp = !=(r1))
         return strip(m.captures[1])=>comp
     end
 
     # In the form "genfuel=>[ng,solar,wind]"
-    if (m=match(r"([\w\s]+)=>\s*\[([\w,.\s]*)\]", s)) !== nothing
+    if (m=match(r"([\w\s]+)=>\s*!?\[([\w,.\s]*)\]", s)) !== nothing
         ar = str2array(m.captures[2])
-        return strip(m.captures[1])=>ar
+        name = strip(m.captures[1])
+        if contains(s, "![")
+            return name => !in(ar)
+        else
+            return name => in(ar)
+        end
     end
 
     # In the form "nation=>narnia" or "bus_idx=>5"
@@ -348,13 +379,14 @@ export parse_comparison
     parse_comparisons(row::DataFrameRow) -> pairs
 
 Returns a set of pairs to be used in filtering rows of another table.  Looks for the following properties in the row:
+* `area, subarea` - if the row has a non-empty area and subarea, it will parse the comparison `row.area=>row.subarea`
 * `filter_` - if the row has any non-empty `filter_` (i.e. `filter1`, `filter2`) values, it will parse the comparison via [`parse_comparison`](@ref)
 * `genfuel` - if the row has a non-empty `genfuel`, it will add an comparion that checks that each row's `genfuel` equals this value
 * `gentype` - if the row has a non-empty `gentype`, it will add an comparion that checks that each row's `gentype` equals this value
 * `load_type` - if the row has a non-empty `load_type`, it will add an comparion that checks that each row's `load_type` equals this value
 """
 function parse_comparisons(row::DataFrameRow)
-    pairs = []
+    pairs = []::Vector{Any}
     for i in 1:10000
         name = "filter$i"
         hasproperty(row, name) || break
@@ -386,6 +418,8 @@ Returns a set of pairs to be used in filtering rows of another table, where each
 """
 function parse_comparisons(d::AbstractDict)
     pairs = collect(parse_comparison("$k=>$v") for (k,v) in d if ~isempty(v))
+    pairs = convert(Vector{Any}, pairs)
+    return pairs
 end
 
 
@@ -431,15 +465,16 @@ Parse a year comparison.  Could take the following forms:
 function parse_hour_idxs(s::AbstractString)
     isempty(s) && return (:)
     
-    # "1"
-    if (m=match(r"\d+", s)) !== nothing
-        return parse(Int64, m.match)
-    end
-    
     # "season=>winter"
     if (m = match(r"([\w\s]+)=>([\w\s]+)", s)) !== nothing
         return strip(m.captures[1])=>strip(m.captures[2])
     end
+
+    # "1"
+    if (m=match(r"\d+", s)) !== nothing
+        return parse(Int64, m.match)
+    end
+
 
     error("No match found for $s")
 end
@@ -582,6 +617,11 @@ function replace_zeros!(v, x)
     return v
 end
 export replace_zeros!
+
+function zeroifnan(x::T) where {T <: Number}
+    isnan(x) ? zero(T) : x
+end
+zeroifnan(v::Vector{T}) where {T<:Number} = replace_nans!(v, zero(T))
 
 
 function table2markdown(df::DataFrame)

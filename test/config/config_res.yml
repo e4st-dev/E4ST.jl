@@ -21,3 +21,4 @@ mods:
     groupby: ":"
   welfare:
     type: WelfareTable
+

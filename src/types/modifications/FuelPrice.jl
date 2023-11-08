@@ -20,7 +20,7 @@ Base.@kwdef struct FuelPrice <: Modification
 end
 export FuelPrice
 
-mod_rank(m::FuelPrice) = 0.0
+mod_rank(::Type{<:FuelPrice}) = 0.0
 
 @doc """
     summarize_table(::Val{:fuel_price})
@@ -115,7 +115,8 @@ function modify_model!(mod::FuelPrice, config, data, model)
 
     # Pull out other necessary data
     data[:fuel_markets] = fuel_markets
-    egen = model[:egen_gen]
+    pgen = model[:pgen_gen]::Array{VariableRef, 3}
+    hour_weights = get_hour_weights(data)
     fp_scalar = mod.fp_scalar
 
     # Create variable fuel_sold for fuel sold in each row of the fuel table
@@ -149,7 +150,7 @@ function modify_model!(mod::FuelPrice, config, data, model)
             yr_idx in 1:nyr
         ],
         sum(
-            (egen[gen_idx, yr_idx, hr_idx] * heat_rate[gen_idx][yr_idx, hr_idx])
+            (pgen[gen_idx, yr_idx, hr_idx] * hour_weights[hr_idx] * heat_rate[gen_idx][yr_idx, hr_idx])
             for gen_idx in fuel_markets.gen_idxs[fm_idx], hr_idx in 1:nhr
         ) / fp_scalar
     )
@@ -186,6 +187,7 @@ function modify_model!(mod::FuelPrice, config, data, model)
             fuel_markets.fuel_price_idxs[fm_idx]
         ) == fuel_used[fm_idx, yr_idx] #both fuel_sold and fuel_used should be divide by the scalar so this is all set
     )
+    do_not_parse!(data, :cons_fuel_bal)
 end
 
 """
@@ -211,10 +213,11 @@ function modify_results!(mod::FuelPrice, config, data)
         cons_fuel_sold[i] /= fp_scalar
     end
 
-    cons_fuel_bal = get_raw_result(data, :cons_fuel_bal)
-    for i in eachindex(cons_fuel_bal)
-        cons_fuel_bal[i] /= fp_scalar
-    end
+    # Do not need cons_fuel_bal
+    # cons_fuel_bal = get_raw_result(data, :cons_fuel_bal)
+    # for i in eachindex(cons_fuel_bal)
+    #     cons_fuel_bal[i] /= fp_scalar
+    # end
     
     # get easy access data
     fuel_sold = get_raw_result(data, :fuel_sold)
@@ -264,12 +267,7 @@ function modify_results!(mod::FuelPrice, config, data)
         #     push!(fp_idxs, fp_idx)
         # end
 
-        for gen_idx in row.gen_idxs
-            #@assert all(==(0), gen.fuel_price[gen_idx]) "Found non-zero fuel_price in gen table with FuelPrice Modification.  That could mean double-counting of fuel cost in the objective function!"
-            all(==(0), gen.fuel_price[gen_idx]) && @warn "Found non-zero fuel_price in gen table with FuelPrice Modification.  That could mean double-counting of fuel cost in the objective function!"
-        end
-    
-        
+        all(gen_idx->all(==(0), gen.fuel_price[gen_idx]), row.gen_idxs) || @warn "Found non-zero fuel_price in gen table with FuelPrice Modification.  That could mean double-counting of fuel cost in the objective function!"    
 
         
         # Find the shadow price of the fuel sold constraint.  I.e. the change in objective value, in dollars per MMBtu, by relaxing the `cons_fuel_sold` constraint.  

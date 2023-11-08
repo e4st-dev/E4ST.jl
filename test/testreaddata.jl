@@ -37,7 +37,7 @@
 
     @testset "Test duplicate lines combination" begin
         config = read_config(config_file)
-        config[:branch] = joinpath(@__DIR__, "data/3bus/branch_dup.csv")
+        config[:branch_file] = joinpath(@__DIR__, "data/3bus/branch_dup.csv")
         data = read_data(config)
         branch = get_table(data, :branch)
         @test nrow(branch) == 2

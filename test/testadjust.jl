@@ -9,21 +9,28 @@
         mods[:adj_hourly] = AdjustHourly(file=joinpath(@__DIR__, "data", "3bus", "adjust_hourly.csv"), name=:adj_hourly)
         mods[:adj_by_age] = AdjustByAge(file=joinpath(@__DIR__, "data", "3bus", "adjust_by_age.csv"), name=:adj_by_age)
         data = read_data(config)
+        nyr = get_num_years(data)
         @test data isa AbstractDict
 
         @testset "Test Yearly Adjustments" begin
 
             # Test that FOM is reduced in narnia for solar generators
-            gen_idxs = get_table_row_idxs(data, :gen, "nation"=>"narnia", "genfuel"=>"solar")
-            @test all(gen_idx->(get_table_num(data, :gen, :fom, gen_idx, 3, 1) ≈ get_table_num(data0, :gen, :fom, gen_idx, 3, 1) - 0.4), gen_idxs)
+            gen_idxs = get_table_row_idxs(data, :gen, ("nation"=>"narnia", "genfuel"=>"solar", "year_on"=>"y2030"))
+            @test all(get_table_num(data, :gen, :fom, gen_idx, yr_idx, 1) ≈ get_table_num(data0, :gen, :fom, gen_idx, yr_idx, 1) - 0.2 for yr_idx in 1:nyr, gen_idx in gen_idxs)
+
+            gen_idxs = get_table_row_idxs(data, :gen, ("nation"=>"narnia", "genfuel"=>"solar", "year_on"=>"y2035"))
+            @test all(get_table_num(data, :gen, :fom, gen_idx, yr_idx, 1) ≈ get_table_num(data0, :gen, :fom, gen_idx, yr_idx, 1) - 0.3 for yr_idx in 1:nyr, gen_idx in gen_idxs)
+
+            gen_idxs = get_table_row_idxs(data, :gen, ("nation"=>"narnia", "genfuel"=>"solar", "year_on"=>"y2040"))
+            @test all(get_table_num(data, :gen, :fom, gen_idx, yr_idx, 1) ≈ get_table_num(data0, :gen, :fom, gen_idx, yr_idx, 1) - 0.4 for yr_idx in 1:nyr, gen_idx in gen_idxs)
 
             # Test that max branch power flow is greater in later years
             branch_idxs = get_table_row_idxs(data, :branch)
             @test all(branch_idx->(get_table_num(data, :branch, :pflow_max, branch_idx, 3, 1) ≈ get_table_num(data0, :branch, :pflow_max, branch_idx, 3, 1) * 2.653), branch_idxs)
 
             # Test that yearly value of damage rate of CO2 has been set.
-            @test_throws Exception get_num(data0, :rdam_co2, 1, 1)
-            @test get_num(data, :r_dam_co2, 1, 1) ≈ 183.56
+            @test_throws Exception get_num(data0, :dam_co2, 1, 1)
+            @test get_num(data, :dam_co2, 1, 1) ≈ 183.56
         end
         @testset "Test Hourly Adjustments" begin
 
@@ -60,18 +67,21 @@
 
         @testset "Test adjusting by age" begin
             @testset "Test age triggers" begin
+                model = setup_model(config, data) # so that capex_obj is added to gen
+                gen = get_table(data, :gen)
+
                 # Test age triggers
                 coal_idxs = get_table_row_idxs(data, :gen, :genfuel=>"coal")
                 coal_idx = first(coal_idxs)
-                @test get_table_num(data, :gen, :capex_obj, coal_idx, "y2030", :) == 0
-                @test get_table_num(data, :gen, :capex_obj, coal_idx, "y2035", :) == 0
-                @test get_table_num(data, :gen, :capex_obj, coal_idx, "y2040", :) > 0
+                @test get_table_num(data, :gen, :routine_capex, coal_idx, "y2030", :) == 0.2
+                @test get_table_num(data, :gen, :routine_capex, coal_idx, "y2035", :) == 0.2
+                @test get_table_num(data, :gen, :routine_capex, coal_idx, "y2040", :) > 0.2
 
                 wind_idxs = get_table_row_idxs(data, :gen, [:genfuel=>"wind", :build_status=>"built"])
                 wind_idx = first(wind_idxs)
-                @test get_table_num(data, :gen, :capex_obj, wind_idx, "y2030", :) > 0
-                @test get_table_num(data, :gen, :capex_obj, wind_idx, "y2035", :) == 0
-                @test get_table_num(data, :gen, :capex_obj, wind_idx, "y2040", :) == 0
+                @test get_table_num(data, :gen, :routine_capex, wind_idx, "y2030", :) == 0.8
+                @test get_table_num(data, :gen, :routine_capex, wind_idx, "y2035", :) == 0.3
+                @test get_table_num(data, :gen, :routine_capex, wind_idx, "y2040", :) == 0.3
             end
 
             @testset "Test exact age and after age" begin

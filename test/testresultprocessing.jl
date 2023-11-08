@@ -72,6 +72,9 @@
             for (table_name, result_name) in keys(results_formulas)
                 @test compute_result(data, table_name, result_name) isa Float64
             end
+
+            # Test that NaN values turn to zero
+            @test compute_result(data, :gen, :vom_per_mwh, :genfuel=>"not a real genfuel so that generation is zero") == 0.0
         end
         
         @testset "Test gen_idx filters" begin
@@ -127,6 +130,10 @@
         end
 
         @testset "Other Aggregation Tests" begin
+            @test compute_welfare(data, :government) isa Float64
+            @test compute_welfare(data, :producer) isa Float64
+            @test compute_welfare(data, :user) isa Float64
+            
 
             # Test that summing the co2 emissions for solar in 2030 is zero
             @test compute_result(data, :gen, :emis_co2_total, :gentype=>"solar", "y2030", :) ≈ 0.0
@@ -136,8 +143,10 @@
             emis_co2_min, emis_co2_max = extrema(all_emis_co2)
             @test emis_co2_min <= compute_result(data, :gen, :emis_co2_rate, :, "y2030", :) <= emis_co2_max
         
-            # Test that the average capacity factor for solar generators is between 0 and 1
+            # Test that the average capacity factor for solar generators is between 0 and af_avg, and that cf_hourly_max is < 1
             @test 0 <= compute_result(data, :gen, :cf_avg, :gentype=>"solar", :, :) <= compute_result(data, :gen, :af_avg, :gentype=>"solar", :, :)
+            @test 0 <= compute_result(data, :gen, :cf_hourly_max, :, :, :) <= 1 + 1e-9
+            @test 0 <= compute_result(data, :gen, :cf_hourly_min, :, :, :) <= 1 + 1e-9
         
             # Test that the average LMP times energy served equals the sum of LMP
             elec_cost = compute_result(data, :bus, :electricity_cost)
@@ -162,6 +171,24 @@
             end
             egen_total = compute_result(data, :gen, :egen_total)
             @test sum(egen_by_genfuel) ≈ egen_total
+
+            #test that CO2e formulas are working and are higher than CO2
+            process_results!(config, data) #need to process so that mod is applied
+
+            co2e_total = compute_result(data, :gen, :emis_co2e_total)
+            co2_total = compute_result(data, :gen, :emis_co2_total)
+            @test co2e_total > co2_total
+
+            co2e_rate = compute_result(data, :gen, :emis_co2e_rate)
+            co2_rate = compute_result(data, :gen, :emis_co2_rate)
+            @test co2e_rate > co2_rate
+
+            ch4_total = compute_result(data, :gen, :emis_upstream_ch4_total)
+            @test ch4_total > 0
+            ch4_rate = compute_result(data, :gen, :emis_upstream_ch4_rate)
+            @test ch4_rate > 0
+
+
         end
 
     end
@@ -188,6 +215,8 @@
             @test isfile(get_out_path(config, "$name.csv"))
             results = get_results(data)
             @test haskey(results, name)
+            table = get_result(data, name)
+            @test table[end, :filter1] |> contains("=>")
         end
 
         @testset "Test YearlyTable" begin
@@ -257,7 +286,7 @@
 
     @testset "Test results processing from already-saved results" begin
         ### Run E4ST
-        out_path, _ = run_e4st(config_file, log_model_summary=true)
+        out_path = run_e4st(config_file, log_model_summary=true)
 
         # Now read the config from the out_path, with some results processing mods too.  Could also add the mods manually here.
         mod_file= joinpath(@__DIR__, "config/config_res.yml")

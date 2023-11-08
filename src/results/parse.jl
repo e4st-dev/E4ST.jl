@@ -11,12 +11,21 @@ function parse_results!(config, data, model)
 
     obj_scalar = config[:objective_scalar]
 
-    od = object_dictionary(model)
+    model_keys_not_parsed = data[:do_not_parse_model_keys]::Set{Symbol}
+    should_parse = !in(model_keys_not_parsed)
 
     # Pull out all the shadow prices or values for each of the variables/constraints
-    results_raw = Dict(k => (@info "Parsing Result $k"; value_or_shadow_price(v, obj_scalar)) for (k,v) in od)
-    pgen_scalar = config[:pgen_scalar] |> Float64
-    results_raw[:cons_pgen_max] ./= pgen_scalar
+    results_raw = Dict{Symbol, Any}()
+    od = object_dictionary(model)
+    for (k,v) in od
+        should_parse(k) && store_value_or_shadow_price!(results_raw, k, v, obj_scalar)
+    end
+
+    # Scale cons_pgen_max if it has been parsed
+    if haskey(results_raw, :cons_pgen_max)
+        pgen_scalar = config[:pgen_scalar] |> Float64
+        results_raw[:cons_pgen_max] ./= pgen_scalar
+    end
     
     # Gather each of the objective function coefficients
     obj = model[:obj]::AffExpr
@@ -52,6 +61,30 @@ function parse_results!(config, data, model)
     return nothing
 end
 
+
+"""
+    store_value_or_shadow_price!(results_raw, k, v, obj_scalar)
+
+Stores the value or shadow price if it is reasonable to do so.  Will not store shadow price for equality constraints
+"""
+function store_value_or_shadow_price!(results_raw, k, v, obj_scalar)
+    if is_equality_constraint(v)
+        @warn "Cannot compute shadow price for equality constraint $k, because its value is ambiguous.  Consider seperating into two inequality constraints"
+        return
+    end
+
+    @info "Parsing results for $k"
+    results_raw[k] = value_or_shadow_price(v, obj_scalar)
+    return
+end
+export store_value_or_shadow_price!
+
+is_equality_constraint(cons::ConstraintRef{M, CI}) where {F, M <: AbstractModel, CI<:MOI.ConstraintIndex{F, MOI.EqualTo{Float64}}} = true
+is_equality_constraint(cons::ConstraintRef) = false
+is_equality_constraint(cons::AbstractJuMPScalar) = false
+is_equality_constraint(cons::Number) = false
+is_equality_constraint(cons::AbstractArray) = isempty(cons) ? false : is_equality_constraint(first(cons))
+
 """
     value_or_shadow_price(constraints, obj_scalar) -> shadow_prices*obj_scalar
 
@@ -66,6 +99,10 @@ function value_or_shadow_price(ar::AbstractArray{<:ConstraintRef}, obj_scalar)
 end
 function value_or_shadow_price(ar::AbstractArray{<:AbstractJuMPScalar}, obj_scalar)
     value.(ar)
+end
+function value_or_shadow_price(cons::ConstraintRef{M, CI}, obj_scalar) where {F, M <: AbstractModel, CI<:MOI.ConstraintIndex{F, MOI.EqualTo{Float64}}}
+    @warn "Shadow price is misleading for equality constraints!"
+    shadow_price(cons) * obj_scalar
 end
 function value_or_shadow_price(cons::ConstraintRef, obj_scalar)
     shadow_price(cons) * obj_scalar
@@ -122,20 +159,12 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | table_name | col_name | unit | description |
 | :-- | :-- | :-- | :-- |
 | :bus | :pgen | MWGenerated | Average Power Generated at this bus |
-| :bus | :egen | MWhGenerated | Electricity Generated at this bus for the weighted representative hour |
 | :bus | :pflow | MWFlow | Average power flowing out of this bus |
-| :bus | :eflow | MWhFlow | Electricity flowing out of this bus |
 | :bus | :pflow_in | MWFlow | Average power flowing into this bus |
-| :bus | :eflow_in | MWhFlow | Electricity flowing out of this bus |
 | :bus | :pflow_out | MWFlow | Average power flowing into this bus |
-| :bus | :eflow_out | MWhFlow | Electricity flowing out of this bus |
 | :bus | :plserv | MWServed | Average power served at this bus |
-| :bus | :elserv | MWhServed | Electricity served at this bus for the weighted representative hour |
 | :bus | :plcurt | MWCurtailed | Average power curtailed at this bus |
-| :bus | :elcurt | MWhCurtailed | Electricity curtailed at this bus for the weighted representative hour |
-| :bus | :elnom  | MWhLoad | Electricity load at this bus for the weighted representative hour |
 | :gen | :pgen | MWGenerated | Average power generated at this generator |
-| :gen | :egen | MWhGenerated | Electricity generated at this generator for the weighted representative hour |
 | :gen | :pcap | MWCapacity | Power generation capacity of this generator generated at this generator for the weighted representative hour |
 | :gen | :ecap | MWhCapacity | Total energy generation capacity of this generator generated at this generator for the weighted representative hour |
 | :gen | :pcap_retired | MWCapacity | Power generation capacity that was retired in each year |
@@ -155,7 +184,6 @@ function parse_power_results!(config, data)
 
 
     pgen_gen = res_raw[:pgen_gen]::Array{Float64, 3}
-    egen_gen = res_raw[:egen_gen]::Array{Float64, 3}
     pcap_gen = res_raw[:pcap_gen]::Array{Float64, 2}
 
     pcap_gen_inv_sim = res_raw[:pcap_gen_inv_sim]
@@ -171,16 +199,9 @@ function parse_power_results!(config, data)
     # Weight things by hour as needed
     egen_bus = weight_hourly(data, pgen_bus)
     ecap_gen = weight_hourly(data, pcap_gen)
-    elserv_bus = weight_hourly(data, plserv_bus)
-    elcurt_bus = weight_hourly(data, plcurt_bus)
-    elnom_bus = weight_hourly(data, get_table_col(data, :bus, :plnom))
-    eflow_bus = weight_hourly(data, pflow_bus)
-    eflow_branch = weight_hourly(data, pflow_branch)
 
     pflow_out_bus = map(x-> max(x,0), pflow_bus)
     pflow_in_bus = map(x-> max(-x,0), pflow_bus)
-    eflow_out_bus = map(x-> max(x,0), eflow_bus)
-    eflow_in_bus = map(x-> max(-x,0), eflow_bus)
 
     obj_pcap_cost_raw = res_raw[:obj_coef][:pcap_gen]::Array{Float64, 2}
     obj_pcap_cost = obj_pcap_cost_raw ./ hours_per_year
@@ -210,20 +231,13 @@ function parse_power_results!(config, data)
     add_table_col!(data, :bus, :pgen,  pgen_bus,  MWGenerated,"Average Power Generated at this bus")
     add_table_col!(data, :bus, :egen,  egen_bus,  MWhGenerated,"Electricity Generated at this bus for the weighted representative hour")   
     add_table_col!(data, :bus, :pflow, pflow_bus, MWFlow,"Average power flowing out of this bus, positive or negative")
-    add_table_col!(data, :bus, :eflow, eflow_bus, MWhFlow,"Electricity flowing out of this bus, positive or negative")
     add_table_col!(data, :bus, :pflow_out, pflow_out_bus, MWFlow,"Average power flowing out of this bus, positive")
     add_table_col!(data, :bus, :pflow_in, pflow_in_bus, MWFlow,"Average power flowing into this bus, positive")
-    add_table_col!(data, :bus, :eflow_out, eflow_out_bus, MWhFlow,"Electricity flowing out of this bus, positive")
-    add_table_col!(data, :bus, :eflow_in, eflow_in_bus, MWhFlow,"Electricity flowing into this bus, positive")
     add_table_col!(data, :bus, :plserv, plserv_bus, MWServed,"Average power served at this bus")
-    add_table_col!(data, :bus, :elserv, elserv_bus, MWhServed,"Electricity served at this bus for the weighted representative hour")      
     add_table_col!(data, :bus, :plcurt, plcurt_bus, MWCurtailed,"Average power curtailed at this bus")
-    add_table_col!(data, :bus, :elcurt, elcurt_bus, MWhCurtailed,"Electricity curtailed at this bus for the weighted representative hour")   
-    add_table_col!(data, :bus, :elnom,  elnom_bus,  MWhLoad,"Electricity load at this bus for the weighted representative hour")   
-
+    
     # Add things to the gen table
     add_table_col!(data, :gen, :pgen,  pgen_gen,  MWGenerated,"Average power generated at this generator")
-    add_table_col!(data, :gen, :egen,  egen_gen,  MWhGenerated,"Electricity generated at this generator for the weighted representative hour")
     add_table_col!(data, :gen, :pcap,  pcap_gen,  MWCapacity,"Power capacity of this generator generated at this generator for the weighted representative hour")
     add_table_col!(data, :gen, :ecap,  ecap_gen,  MWhCapacity,"Electricity generation capacity of this generator generated at this generator for the weighted representative hour")
     add_table_col!(data, :gen, :pcap_retired, pcap_retired, MWCapacity, "Power generation capacity that was retired in each year")
@@ -237,8 +251,6 @@ function parse_power_results!(config, data)
 
     # Add things to the branch table
     add_table_col!(data, :branch, :pflow, pflow_branch, MWFlow,"Average Power flowing through branch")    
-    add_table_col!(data, :branch, :eflow, eflow_branch, MWhFlow,"Electricity flowing through branch")    
-
 
     # Update pcap_inv
     gen.pcap_inv = max.(gen.pcap_inv, gen.pcap_inv_sim)
@@ -263,7 +275,12 @@ function parse_lmp_results!(config, data)
     res_raw = get_raw_results(data)
     
     # Get the shadow price of the average power flow constraint ($/MW flowing)
-    cons_pbal = res_raw[:cons_pbal]::Array{Float64,3}
+    cons_pbal_geq = res_raw[:cons_pbal_geq]::Array{Float64, 3}
+    cons_pbal_leq = res_raw[:cons_pbal_leq]::Array{Float64, 3}
+    cons_pbal = cons_pbal_geq .- cons_pbal_leq
+    res_raw[:cons_pbal] = cons_pbal
+    delete!(res_raw, :cons_pbal_geq)
+    delete!(res_raw, :cons_pbal_leq)
 
     # Divide by number of hours because we want $/MWh, not $/MW
     lmp_elserv = unweight_hourly(data, cons_pbal, -)
@@ -277,8 +294,8 @@ function parse_lmp_results!(config, data)
 
         # lmp_elserv is dollars per MWh before losses, so we need to inflate the cost to compensate
         plserv_scalar = 1/(1-line_loss_rate)
-        add_table_col!(data, :bus, :lmp_elserv, lmp_elserv .* plserv_scalar, DollarsPerMWhServed,"Locational Marginal Price of Energy Served (scaled up from lmp_elserv_preloss)")
-        add_table_col!(data, :bus, :lmp_elserv_preloss, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
+        add_table_col!(data, :bus, :lmp_elserv_preloss, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served, before including T&D losses")
+        add_table_col!(data, :bus, :lmp_elserv, lmp_elserv .* plserv_scalar, DollarsPerMWhServed,"Locational Marginal Price of Energy Served (scaled up from lmp_elserv_preloss to include T&D losses)")
     else
         add_table_col!(data, :bus, :lmp_elserv, lmp_elserv, DollarsPerMWhServed,"Locational Marginal Price of Energy Served")
     end
@@ -308,7 +325,7 @@ function parse_lmp_results!(config, data)
         f_bus_lmp = view(lmp_elserv, f_bus_idx, :, :) # nyr x nhr
         t_bus_lmp = view(lmp_elserv, t_bus_idx, :, :) # nyr x nhr
         pflow = view(pflow_branch, branch_idx, :, :) # nyr x nhr
-        ms_per_bus = abs.((f_bus_lmp .- t_bus_lmp) .* pflow) .* hour_weights_mat .* 0.5
+        ms_per_bus = ((t_bus_lmp .- f_bus_lmp) .* pflow) .* hour_weights_mat .* 0.5
         ms[f_bus_idx, :, :] .+= ms_per_bus
         ms[t_bus_idx, :, :] .+= ms_per_bus
     end
@@ -350,6 +367,14 @@ function save_updated_gen_table(config, data)
     gen_tmp.pcap_inv = map(eachrow(gen)) do row
         row.build_status == "new" || return row.pcap_inv
         return row.pcap_inv_sim
+    end
+
+    #update pcap_plant_avg, pcap_hist and pgen to -1 instead of -Inf to be excel compatible 
+    for row in eachrow(gen_tmp)
+        row.build_type == "endog" || continue
+        haskey(row, :pcap_plant_avg) && row.pcap_plant_avg == -Inf && (row.pcap_plant_avg = -1.)
+        haskey(row, :pcap_hist) && row.pcap_hist == -Inf && (row.pcap_hist = -1.)
+        haskey(row, :pgen_hist) && row.pgen_hist == -Inf && (row.pgen_hist = -1.)
     end
 
     # Gather the past investment costs and subsidies
@@ -412,7 +437,7 @@ function update_build_status!(config, data, table_name)
 
     for row in eachrow(gen)
         bs = row.build_status
-        if bs == "unbuilt"
+        if bs in ("unbuilt", "unretrofitted")
             last(row.pcap) >= thresh || continue
             row.build_status = "new"
         elseif bs == "built"
