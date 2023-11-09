@@ -363,14 +363,17 @@ function modify_results!(mod::ReserveRequirement, config, data)
     end
 
     add_table_col!(data, :gen, pres_name, pres_gen, MWCapacity, "The power reserve capacity used to fill $(mod.name)")
-    add_table_col!(data, :gen, rebate_col_name, price_per_mw_per_hr_gen, DollarsPerMWCapacityPerHour, "This is the rebate recieved by EGU's for each qualifying MW of reserves for each hour from the $(mod.name) reserve requirement.")
+    add_table_col!(data, :gen, rebate_col_name, price_per_mw_per_hr_gen, DollarsPerMWCapacityPerHour, "This is the rebate recieved by EGU's for each MW of capacity for each hour from the $(mod.name) reserve requirement.")
     add_table_col!(data, :bus, cost_col_name, price_per_mw_per_hr_bus, DollarsPerMWCapacityPerHour, "This is the rebate payed by users to EGU's for each MW of demand for each hour from the $(mod.name) reserve requirement.")
 
-    # Make a results formula
-    add_results_formula!(data, :gen, rebate_result_name, "SumHourlyWeighted(pcap, $rebate_col_name)", Dollars, "This is the total rebate recieved by EGU's from the $(mod.name) reserve requirement.")
+    # Make results formulas for bus table
     add_results_formula!(data, :bus, cost_result_name, "SumHourlyWeighted($pres_req_name, $cost_col_name)", Dollars, "This is the total rebate paid by users to EGU's from the $(mod.name) reserve requirement, not including merchandising surplus.")
-    add_results_formula!(data, :gen, rebate_price_result_name, "$(rebate_result_name)/pcap_total",DollarsPerMWCapacity, "The per MW price of the rebate receive by EGU's from the $(mod.name) reserve requirement.")
 
+    # Make results formulas for the gen table
+    add_results_formula!(data, :gen, rebate_result_name, "SumHourlyWeighted(pcap, $rebate_col_name)", Dollars, "This is the total rebate recieved by EGU's from the $(mod.name) reserve requirement.")
+    add_results_formula!(data, :gen, "pcap_qual_$(mod.name)", "AverageHourlyWeighted(pcap, $(mod.name))", MWCapacity, "Hourly-weighted average capacity that qualifies for the $(mod.name)")
+    add_results_formula!(data, :gen, rebate_price_result_name, "$(rebate_result_name)/pcap_qual_$(mod.name)",DollarsPerMWCapacity, "The per MW of qualifying capacity price of the rebate receive by EGU's from the $(mod.name) reserve requirement.")
+    
     # Add it to net_total_revenue_prelim
     add_to_results_formula!(data, :gen, :net_total_revenue_prelim, "+ $rebate_result_name")
 
@@ -404,7 +407,8 @@ function modify_results!(mod::ReserveRequirement, config, data)
 
         # Make a results formula
         add_results_formula!(data, :storage, rebate_result_name, "SumHourlyWeighted(pcap, $rebate_col_name)", Dollars, "This is the total rebate recieved by storage facilities from the $(mod.name) reserve requirement.")
-        add_results_formula!(data, :storage, rebate_price_result_name, "$(rebate_result_name)/pcap_total",DollarsPerMWCapacity, "The per MW price of the rebate receive by EGU's from the $(mod.name) reserve requirement.")
+        add_results_formula!(data, :storage, "pcap_qual_$(mod.name)", "AverageHourlyWeighted(pcap, $(mod.name))", MWCapacity, "Hourly-weighted average capacity that qualifies for the $(mod.name)")
+        add_results_formula!(data, :storage, rebate_price_result_name, "$(rebate_result_name)/pcap_qual_$(mod.name)",DollarsPerMWCapacity, "The per MW price of the rebate receive by EGU's from the $(mod.name) reserve requirement.")
 
         # Add it to net_total_revenue_prelim
         add_to_results_formula!(data, :storage, :net_total_revenue_prelim, "+ $rebate_result_name")

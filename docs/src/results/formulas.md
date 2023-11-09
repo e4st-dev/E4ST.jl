@@ -23,6 +23,7 @@ MaxYearly
 SumHourly
 SumHourlyWeighted
 AverageHourly
+AverageHourlyWeighted
 MinHourly
 MaxHourly
 CostOfServiceRebate

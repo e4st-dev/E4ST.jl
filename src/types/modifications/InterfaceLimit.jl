@@ -194,7 +194,7 @@ function modify_results!(mod::InterfaceLimit, config, data)
     add_table_col!(data, :interface_limit, :eflow, eflow_if, MWhFlow, "MWh of power flowing from `f` to `t` in each weighted representative hour.")
     add_results_formula!(data, :interface_limit, :pflow_if_max, "MaxHourly(pflow)", MWFlow, "Maximum net hourly directional flow")
     add_results_formula!(data, :interface_limit, :pflow_if_min, "MinHourly(pflow)", MWFlow, "Minimum net hourly directional flow")
-    add_results_formula!(data, :interface_limit, :pflow_if_avg, "AverageHourly(pflow)", MWFlow, "Average net hourly directional flow")
+    add_results_formula!(data, :interface_limit, :pflow_if_avg, "AverageHourlyWeighted(pflow)", MWFlow, "Average net hourly directional flow")
     add_results_formula!(data, :interface_limit, :eflow_if_total, "SumHourlyWeighted(pflow)", MWhFlow, "Total net MWh of energy flow across the interface")
     add_results_formula!(data, :interface_limit, :pflow_line_max, "MaxSingleLineHourly()", MWFlow, "Maximum net hourly directional flow for a single line")
 

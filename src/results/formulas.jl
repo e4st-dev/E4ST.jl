@@ -95,6 +95,9 @@ function add_results_formula!(data, table_name::Symbol, result_name::Symbol, for
     # push!(results_formulas_table, (;table_name, result_name, formula, unit, description, dependent_columns, fn))
     results_formulas[table_name, result_name] = rf
 end
+function add_results_formula!(data, table_name, result_name, formula::String, unit::Type{<:Unit}, description::String)
+    return add_results_formula!(data, table_name |> Symbol, result_name |> Symbol, formula, unit, description)
+end
 export add_results_formula!
 
 """
@@ -636,6 +639,45 @@ function (f::AverageHourly{3})(data, table, idxs, yr_idxs, hr_idxs)
     hour_weights = get_hour_weights(data)
     _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
 end
+
+
+
+@doc raw"""
+    AverageHourlyWeighted(cols...) <: Function
+
+Function used in results formulas.  Computes the sum of the products of the columns for each index in idxs for each year and hour weighted by the number of hours, divided by the total number of hours.
+
+```math
+\frac{\sum_{i \in \text{idxs}} \sum_{y \in \text{yr\_idxs}} \sum_{h \in \text{hr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y]}{\sum_{y \in \text{yr\_idxs}}\sum{h \in \text{hr\_idxs}} w_{h}}
+```
+"""
+struct AverageHourlyWeighted{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+AverageHourlyWeighted(cols::Symbol...) = AverageHourlyWeighted(cols)
+export AverageHourlyWeighted
+
+function (f::AverageHourlyWeighted{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    hour_weights = get_hour_weights(data)
+    hc = data[:hours_container]::HoursContainer
+    _sum_hourly(col_or_container(data, table, col1), hc, idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
+end
+
+function (f::AverageHourlyWeighted{2})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2 = f.cols
+    hour_weights = get_hour_weights(data)
+    hc = data[:hours_container]::HoursContainer
+    _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), hc, idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
+end
+
+function (f::AverageHourlyWeighted{3})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2,col3 = f.cols
+    hour_weights = get_hour_weights(data)
+    hc = data[:hours_container]::HoursContainer
+    _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), hc, idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
+end
+
 
 
 """
