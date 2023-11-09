@@ -13,6 +13,7 @@ end
 
 struct ShortTons <: Unit end; export ShortTons
 struct ShortTonsPerMWhGenerated <: Unit end; export ShortTonsPerMWhGenerated
+struct ShortTonsPerMMBtu <: Unit end; export ShortTonsPerMMBtu
 struct ShortTonsPerYear <: Unit end; export ShortTonsPerYear
 struct Pounds <: Unit end; export Pounds
 struct PoundsPerMWhGenerated <: Unit end; export PoundsPerMWhGenerated
