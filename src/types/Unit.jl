@@ -18,7 +18,8 @@ struct Pounds <: Unit end; export Pounds
 struct PoundsPerMWhGenerated <: Unit end; export PoundsPerMWhGenerated
 
 struct DollarsPerMWhServed <: Unit end; export DollarsPerMWhServed
-struct Dollars <: Unit end; export Dollars        
+struct Dollars <: Unit end; export Dollars
+struct DollarsPerMWCapacity <: Unit end; export DollarsPerMWCapacity         
 struct DollarsPerMWCapacityPerHour <: Unit end; export DollarsPerMWCapacityPerHour
 struct DollarsPerMWBuiltCapacityPerHour <: Unit end; export DollarsPerMWBuiltCapacityPerHour
 struct DollarsPerMWhGenerated <: Unit end; export DollarsPerMWhGenerated

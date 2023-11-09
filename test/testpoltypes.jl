@@ -506,10 +506,13 @@
         # Test for narnia
         @test compute_result(data, :gen, :state_reserve_rebate, :, "y2030") == 0.0
         @test compute_result(data, :gen, :state_reserve_rebate) > 0.0
+        @test compute_result(data, :gen, :state_reserve_rebate_per_mw_price) > 0.0
+
     
         if compute_result(data, :storage, :edischarge_total, :nation=>"narnia") > 0
             @test compute_result(data, :storage, :state_reserve_rebate, :, "y2030") == 0.0
             @test compute_result(data, :storage, :state_reserve_rebate) > 0.0
+            @test compute_result(data, :storage, :state_reserve_rebate_per_mw_price) > 0.0
         end
 
         @test haskey(data[:results][:raw], :pres_flow_subarea_state_reserve)

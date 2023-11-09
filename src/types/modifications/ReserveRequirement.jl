@@ -322,6 +322,7 @@ function modify_results!(mod::ReserveRequirement, config, data)
     credit_per_mw_gen = gen[!, mod.name]::Vector{Container}
     rebate_col_name = Symbol("$(mod.name)_rebate_per_mw")
     rebate_result_name = Symbol("$(mod.name)_rebate")
+    rebate_price_result_name = Symbol("$(mod.name)_rebate_per_mw_price")
     cost_col_name = Symbol("$(mod.name)_cost_per_mw")
     cost_result_name = Symbol("$(mod.name)_cost")
     pres_name = Symbol("$(mod.name)_pres")
@@ -368,6 +369,7 @@ function modify_results!(mod::ReserveRequirement, config, data)
     # Make a results formula
     add_results_formula!(data, :gen, rebate_result_name, "SumHourlyWeighted(pcap, $rebate_col_name)", Dollars, "This is the total rebate recieved by EGU's from the $(mod.name) reserve requirement.")
     add_results_formula!(data, :bus, cost_result_name, "SumHourlyWeighted($pres_req_name, $cost_col_name)", Dollars, "This is the total rebate paid by users to EGU's from the $(mod.name) reserve requirement, not including merchandising surplus.")
+    add_results_formula!(data, :gen, rebate_price_result_name, "$(rebate_result_name)/pcap_total",DollarsPerMWCapacity, "The per MW price of the rebate receive by EGU's from the $(mod.name) reserve requirement.")
 
     # Add it to net_total_revenue_prelim
     add_to_results_formula!(data, :gen, :net_total_revenue_prelim, "+ $rebate_result_name")
@@ -402,6 +404,7 @@ function modify_results!(mod::ReserveRequirement, config, data)
 
         # Make a results formula
         add_results_formula!(data, :storage, rebate_result_name, "SumHourlyWeighted(pcap, $rebate_col_name)", Dollars, "This is the total rebate recieved by storage facilities from the $(mod.name) reserve requirement.")
+        add_results_formula!(data, :storage, rebate_price_result_name, "$(rebate_result_name)/pcap_total",DollarsPerMWCapacity, "The per MW price of the rebate receive by EGU's from the $(mod.name) reserve requirement.")
 
         # Add it to net_total_revenue_prelim
         add_to_results_formula!(data, :storage, :net_total_revenue_prelim, "+ $rebate_result_name")
