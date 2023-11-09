@@ -34,6 +34,13 @@
             sum(compute_result(data, :gen, :emis_co2e_total, :, yr_idx) * dam_co2[yr_idx,:] for yr_idx in 1:get_num_years(data))
 
     end
+
+    @testset "Test pgen calculations" begin
+        pgen_min = compute_result(data, :gen, :pgen_min)
+        pgen_max = compute_result(data, :gen, :pgen_max)
+        pgen_avg = compute_result(data, :gen, :pgen_avg)
+        @test pgen_min < pgen_avg < pgen_max
+    end
     
     @testset "Test DC lines" begin
         res_raw = get_raw_results(data)
