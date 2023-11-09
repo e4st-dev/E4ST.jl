@@ -23,6 +23,13 @@
         @test data1 == data2 || data1 === data2
     end
 
+    @testset "Test pgen calculations" begin
+        pgen_min = compute_result(data, :gen, :pgen_min)
+        pgen_max = compute_result(data, :gen, :pgen_max)
+        pgen_avg = compute_result(data, :gen, :pgen_avg)
+        @test pgen_min < pgen_avg < pgen_max
+    end
+
     @testset "Test welfare calculations" begin
         config = read_config(config_file)
         data = read_data(config)

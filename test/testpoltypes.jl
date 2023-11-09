@@ -507,6 +507,7 @@
         @test compute_result(data, :gen, :state_reserve_rebate, :, "y2030") == 0.0
         @test compute_result(data, :gen, :state_reserve_rebate) > 0.0
         @test compute_result(data, :gen, :state_reserve_rebate_per_mw_price) > 0.0
+        @test compute_result(data, :gen, :pcap_qual_state_reserve) < compute_result(data, :gen, :pcap_total)
 
     
         if compute_result(data, :storage, :edischarge_total, :nation=>"narnia") > 0
