@@ -26,5 +26,7 @@ AverageHourly
 AverageHourlyWeighted
 MinHourly
 MaxHourly
+SumMinHourly
+SumMaxHourly
 CostOfServiceRebate
 ```

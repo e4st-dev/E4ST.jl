@@ -235,7 +235,7 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
 
         credits_stor = Container[ByNothing(0.0) for i in 1:nrow(stor)]
         add_table_col!(data, :storage, mod.name, credits_stor, CreditsPerMWCapacity,
-        "Credit level for reserve requirement $(mod.name).  This gets multiplied by the power capacity in the reserve requirement constraint.")
+            "Credit level for reserve requirement $(mod.name).  This gets multiplied by the power capacity in the reserve requirement constraint.")
 
         for stor_idx in axes(stor, 1)
             credits_stor[stor_idx] = Container(get_credit(c_stor, data, stor[stor_idx, :]))
@@ -342,6 +342,32 @@ function modify_results!(mod::ReserveRequirement, config, data)
     pres_req_bus = get_raw_result(data, Symbol("pres_req_bus_$(mod.name)"))::Array{Float64, 3} # nbus x nyr x nhr
     add_table_col!(data, :bus, pres_req_name, pres_req_bus, MWReserve, "The required reserve power in from $(mod.name), in MW.")
 
+    ### Pull out and add results to the requirements table
+    add_table_col!(data, Symbol("$(mod.name)_requirements"), :price, hourly_price_per_credit, DollarsPerMWCapacityPerHour, "Shadow price on the capacity constraint, in dollars per MW reserve capacity supplied per hour")
+    pres_supply_subarea = get_raw_result(data, Symbol("pres_total_subarea_$(mod.name)"))::Array{Float64, 3}
+    add_table_col!(data, Symbol("$(mod.name)_requirements"), :pres_supply, pres_supply_subarea, MWCapacity, "Supplied reserve capacity in the region")
+    pres_req_subarea = get_raw_result(data, Symbol("pres_req_subarea_$(mod.name)"))::Array{Float64, 3}
+    add_table_col!(data, Symbol("$(mod.name)_requirements"), :pres_req, pres_req_subarea, MWReserve, "Required reserve power in the region")
+    pres_flow_subarea = get_raw_result(data, Symbol("pres_flow_subarea_$(mod.name)"))::Array{Float64, 3}
+    add_table_col!(data, Symbol("$(mod.name)_requirements"), :pres_flow, pres_flow_subarea, MWReserve, "Reserve power capacity flowing out of the region")
+    
+    # Add results formulas for aggregating supply and demand of reserve requirements by region
+    add_results_formula!(data, "$(mod.name)_requirements", :pres_req_max, "MaxHourly(pres_req)", MWReserve, "Maximum hourly required reserve power for the region")
+    add_results_formula!(data, "$(mod.name)_requirements", :pres_req_min, "MinHourly(pres_req)", MWReserve, "Minimum hourly required reserve power for the region")
+    add_results_formula!(data, "$(mod.name)_requirements", :pres_req_sum_max, "SumMaxHourly(pres_req)", MWReserve, "Sum of maximum hourly required reserve power for each region")
+    add_results_formula!(data, "$(mod.name)_requirements", :pres_req_sum_min, "SumMinHourly(pres_req)", MWReserve, "Sum of minimum hourly required reserve power for each region")
+    add_results_formula!(data, "$(mod.name)_requirements", :pres_supply_max, "MaxHourly(pres_supply)", MWReserve, "Maximum hourly supplied reserve power for the region")
+    add_results_formula!(data, "$(mod.name)_requirements", :pres_supply_min, "MinHourly(pres_supply)", MWReserve, "Minimum hourly supplied reserve power for the region")
+    add_results_formula!(data, "$(mod.name)_requirements", :pres_supply_sum_max, "SumMaxHourly(pres_supply)", MWReserve, "Sum of maximum hourly supplied reserve power for each region")
+    add_results_formula!(data, "$(mod.name)_requirements", :pres_supply_sum_min, "SumMinHourly(pres_supply)", MWReserve, "Sum of minimum hourly supplied reserve power for each region")
+    add_results_formula!(data, "$(mod.name)_requirements", :eres_supply, "SumHourlyWeighted(pres_supply)", MWhCapacity, "Reserve energy supplied.  Could be a misleading result, but useful for calculations.")
+    add_results_formula!(data, "$(mod.name)_requirements", :cost_total, "SumHourlyWeighted(price, pres_supply)", DollarsPerMWCapacityPerHour, "Cost paid for the supplied reserve power.")
+    add_results_formula!(data, "$(mod.name)_requirements", :price_avg, "cost_total / eres_supply", DollarsPerMWCapacityPerHour, "Shadow price on the capacity constraint, in dollars per MW reserve capacity supplied per hour")
+    add_results_formula!(data, "$(mod.name)_requirements", :pres_flow_max, "MaxHourly(pres_flow)", MWReserve, "Maximum hourly power flowing out of the region.  Note this could be misleading when aggregating above the subarea level")
+    add_results_formula!(data, "$(mod.name)_requirements", :pres_flow_min, "MinHourly(pres_flow)", MWReserve, "Minimum hourly power flowing out of the region.  Note this could be misleading when aggregating above the subarea level")
+    
+    
+
     # Make a gen table column the price for bus and gen tables
     price_per_mw_per_hr_gen = Container[ByNothing(0.0) for _ in axes(gen,1)]
     price_per_mw_per_hr_bus = Container[ByNothing(0.0) for _ in axes(bus,1)]
@@ -368,6 +394,7 @@ function modify_results!(mod::ReserveRequirement, config, data)
 
     # Make results formulas for bus table
     add_results_formula!(data, :bus, cost_result_name, "SumHourlyWeighted($pres_req_name, $cost_col_name)", Dollars, "This is the total rebate paid by users to EGU's from the $(mod.name) reserve requirement, not including merchandising surplus.")
+    add_results_formula!(data, :bus, "pres_req_sum_max_$(mod.name)", "SumMaxHourly($pres_req_name)", MWCapacity, "The sum of hourly maximum power capacity required at each of the buses provided.")
 
     # Make results formulas for the gen table
     add_results_formula!(data, :gen, rebate_result_name, "SumHourlyWeighted(pcap, $rebate_col_name)", Dollars, "This is the total rebate recieved by EGU's from the $(mod.name) reserve requirement.")

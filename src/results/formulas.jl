@@ -482,6 +482,8 @@ function (f::MinHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
     minimum(_sum_hourly(v1, idxs, y, h) for h in hr_idxs for y in yr_idxs)
 end
 
+
+
 @doc raw"""
     MaxHourly(cols...) <: Function
 
@@ -502,6 +504,62 @@ function (f::MaxHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
     v1 = col_or_container(data, table, col1)
     maximum(_sum_hourly(v1, idxs, y, h) for h in hr_idxs for y in yr_idxs)
+end
+
+@doc raw"""
+    SumMaxHourly(cols...) <: Function
+
+This function returns the sum of each of the maximum hourly values. 
+
+```math
+\sum_{i \in \text{idxs}} \max_{y \in \text{yr\_idxs}, h \in \text{hr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
+```
+"""
+struct SumMaxHourly{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+SumMaxHourly(cols::Symbol...) = MaxHourly(cols)
+export SumMaxHourly
+
+function (f::SumMaxHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    v1 = col_or_container(data, table, col1)
+    return sum(maximum(_getindex(v1, i, y, h) for h in hr_idxs, y in yr_idxs) for i in idxs)
+end
+
+function (f::SumMaxHourly{2})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, col2 = f.cols
+    v1 = col_or_container(data, table, col1)
+    v2 = col_or_container(data, table, col2)
+    return sum(maximum(_getindex(v1, i, y, h) * _getindex(v2, i, y, h) for h in hr_idxs, y in yr_idxs) for i in idxs)
+end
+
+@doc raw"""
+    SumMinHourly(cols...) <: Function
+
+This function returns the sum of each of the minimum hourly values. 
+
+```math
+\sum_{i \in \text{idxs}} \min_{y \in \text{yr\_idxs}, h \in \text{hr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
+```
+"""
+struct SumMinHourly{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+SumMinHourly(cols::Symbol...) = MaxHourly(cols)
+export SumMinHourly
+
+function (f::SumMinHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    v1 = col_or_container(data, table, col1)
+    return sum(minimum(_getindex(v1, i, y, h) for h in hr_idxs, y in yr_idxs) for i in idxs)
+end
+
+function (f::SumMinHourly{2})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, col2 = f.cols
+    v1 = col_or_container(data, table, col1)
+    v2 = col_or_container(data, table, col2)
+    return sum(minimum(_getindex(v1, i, y, h) * _getindex(v2, i, y, h) for h in hr_idxs, y in yr_idxs) for i in idxs)
 end
 
 """
