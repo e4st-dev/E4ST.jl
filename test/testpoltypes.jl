@@ -516,6 +516,9 @@
             @test compute_result(data, :storage, :state_reserve_rebate_per_mw_price) > 0.0
         end
 
+        @test compute_result(data, :state_reserve_requirements, :pres_req_sum_min) <= compute_result(data, :state_reserve_requirements, :pres_req_min)
+        @test compute_result(data, :state_reserve_requirements, :pres_req_sum_max) >= compute_result(data, :state_reserve_requirements, :pres_req_max)
+
         @test haskey(data[:results][:raw], :pres_flow_subarea_state_reserve)
 
         @test compute_result(data, :bus, :state_reserve_merchandising_surplus_total) > 0.0
