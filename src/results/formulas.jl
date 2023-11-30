@@ -518,7 +518,7 @@ This function returns the sum of each of the maximum hourly values.
 struct SumMaxHourly{N} <: Function
     cols::NTuple{N, Symbol}
 end
-SumMaxHourly(cols::Symbol...) = MaxHourly(cols)
+SumMaxHourly(cols::Symbol...) = SumMaxHourly(cols)
 export SumMaxHourly
 
 function (f::SumMaxHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
@@ -546,7 +546,7 @@ This function returns the sum of each of the minimum hourly values.
 struct SumMinHourly{N} <: Function
     cols::NTuple{N, Symbol}
 end
-SumMinHourly(cols::Symbol...) = MaxHourly(cols)
+SumMinHourly(cols::Symbol...) = SumMinHourly(cols)
 export SumMinHourly
 
 function (f::SumMinHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
