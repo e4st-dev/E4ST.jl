@@ -54,7 +54,7 @@ function modify_results!(mod::AggregationTemplate, config, data)
         if col_to_expand == :filter_hours
             area = row.filter_hours
             hours_table_col = get_table_col(data, :hours, area)
-            subareas = sort!(unique(hours_table_col))
+            subareas = Base.sort!(String.(string.(unique(hours_table_col))), by=hours_sortby)
         else
             area = row[col_to_expand]
             data_table_col = get_table_col(data, row.table_name, area)
@@ -87,6 +87,15 @@ function modify_results!(mod::AggregationTemplate, config, data)
     results = get_results(data)
     results[mod.name] = table
     return
+end
+
+function hours_sortby(s::T) where T
+    if endswith(s, r"h\d+")
+        m = match(r"h(\d+)", s)
+        return lpad(m.captures[1], 4, '0') |> T
+    else
+        return s |> T
+    end
 end
 
 function extract_results(m::AggregationTemplate, config, data)

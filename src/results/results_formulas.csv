@@ -1,6 +1,6 @@
 table_name,result_name,formula,unit,description
 gen,egen_total,SumHourlyWeighted(pgen),MWhGenerated,"Total energy generated, in MWh"
-gen,pgen_avg,AverageHourly(pgen),MWGenerated,Average power generation
+gen,pgen_avg,AverageHourlyWeighted(pgen),MWGenerated,Average power generation
 gen,pgen_min,MinHourly(pgen),MWGenerated,Minimum power generation in an hour
 gen,pgen_max,MaxHourly(pgen),MWGenerated,Maximum power generation in an hour
 gen,ecap_total,SumHourlyWeighted(pcap),MWhCapacity,"Total energy capacity, in MWh.  This is equal to the power generation capacity multiplied by the number of hours."

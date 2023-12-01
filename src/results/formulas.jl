@@ -95,6 +95,9 @@ function add_results_formula!(data, table_name::Symbol, result_name::Symbol, for
     # push!(results_formulas_table, (;table_name, result_name, formula, unit, description, dependent_columns, fn))
     results_formulas[table_name, result_name] = rf
 end
+function add_results_formula!(data, table_name, result_name, formula::String, unit::Type{<:Unit}, description::String)
+    return add_results_formula!(data, table_name |> Symbol, result_name |> Symbol, formula, unit, description)
+end
 export add_results_formula!
 
 """
@@ -479,6 +482,8 @@ function (f::MinHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
     minimum(_sum_hourly(v1, idxs, y, h) for h in hr_idxs for y in yr_idxs)
 end
 
+
+
 @doc raw"""
     MaxHourly(cols...) <: Function
 
@@ -499,6 +504,62 @@ function (f::MaxHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
     v1 = col_or_container(data, table, col1)
     maximum(_sum_hourly(v1, idxs, y, h) for h in hr_idxs for y in yr_idxs)
+end
+
+@doc raw"""
+    SumMaxHourly(cols...) <: Function
+
+This function returns the sum of each of the maximum hourly values. 
+
+```math
+\sum_{i \in \text{idxs}} \max_{y \in \text{yr\_idxs}, h \in \text{hr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
+```
+"""
+struct SumMaxHourly{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+SumMaxHourly(cols::Symbol...) = SumMaxHourly(cols)
+export SumMaxHourly
+
+function (f::SumMaxHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    v1 = col_or_container(data, table, col1)
+    return sum(maximum(_getindex(v1, i, y, h) for h in hr_idxs, y in yr_idxs) for i in idxs)
+end
+
+function (f::SumMaxHourly{2})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, col2 = f.cols
+    v1 = col_or_container(data, table, col1)
+    v2 = col_or_container(data, table, col2)
+    return sum(maximum(_getindex(v1, i, y, h) * _getindex(v2, i, y, h) for h in hr_idxs, y in yr_idxs) for i in idxs)
+end
+
+@doc raw"""
+    SumMinHourly(cols...) <: Function
+
+This function returns the sum of each of the minimum hourly values. 
+
+```math
+\sum_{i \in \text{idxs}} \min_{y \in \text{yr\_idxs}, h \in \text{hr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y, h]
+```
+"""
+struct SumMinHourly{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+SumMinHourly(cols::Symbol...) = SumMinHourly(cols)
+export SumMinHourly
+
+function (f::SumMinHourly{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    v1 = col_or_container(data, table, col1)
+    return sum(minimum(_getindex(v1, i, y, h) for h in hr_idxs, y in yr_idxs) for i in idxs)
+end
+
+function (f::SumMinHourly{2})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, col2 = f.cols
+    v1 = col_or_container(data, table, col1)
+    v2 = col_or_container(data, table, col2)
+    return sum(minimum(_getindex(v1, i, y, h) * _getindex(v2, i, y, h) for h in hr_idxs, y in yr_idxs) for i in idxs)
 end
 
 """
@@ -636,6 +697,45 @@ function (f::AverageHourly{3})(data, table, idxs, yr_idxs, hr_idxs)
     hour_weights = get_hour_weights(data)
     _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
 end
+
+
+
+@doc raw"""
+    AverageHourlyWeighted(cols...) <: Function
+
+Function used in results formulas.  Computes the sum of the products of the columns for each index in idxs for each year and hour weighted by the number of hours, divided by the total number of hours.
+
+```math
+\frac{\sum_{i \in \text{idxs}} \sum_{y \in \text{yr\_idxs}} \sum_{h \in \text{hr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y]}{\sum_{y \in \text{yr\_idxs}}\sum{h \in \text{hr\_idxs}} w_{h}}
+```
+"""
+struct AverageHourlyWeighted{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+AverageHourlyWeighted(cols::Symbol...) = AverageHourlyWeighted(cols)
+export AverageHourlyWeighted
+
+function (f::AverageHourlyWeighted{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    hour_weights = get_hour_weights(data)
+    hc = data[:hours_container]::HoursContainer
+    _sum_hourly(col_or_container(data, table, col1), hc, idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
+end
+
+function (f::AverageHourlyWeighted{2})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2 = f.cols
+    hour_weights = get_hour_weights(data)
+    hc = data[:hours_container]::HoursContainer
+    _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), hc, idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
+end
+
+function (f::AverageHourlyWeighted{3})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2,col3 = f.cols
+    hour_weights = get_hour_weights(data)
+    hc = data[:hours_container]::HoursContainer
+    _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), hc, idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
+end
+
 
 
 """
