@@ -31,6 +31,14 @@ function setup_welfare!(config, data)
     add_welfare_term!(data, :electricity_payments, :bus, :electricity_cost, +)
     add_welfare_term!(data, :electricity_payments, :bus, :merchandising_surplus_total, -)
     add_welfare_term!(data, :electricity_payments, :gen, :electricity_revenue, -)
+
+    #Create welfare check for net_total_revenue_prelim (gen)
+    add_welfare_term!(data, :net_rev_prelim_check, :gen, :electricity_revenue, +)
+    add_welfare_term!(data, :net_rev_prelim_check, :gen, :net_government_revenue, -)
+    add_welfare_term!(data, :net_rev_prelim_check, :gen, :production_cost, -)
+    add_welfare_term!(data, :net_rev_prelim_check, :gen, :gs_rebate, +)
+    add_welfare_term!(data, :net_rev_prelim_check, :gen, :past_invest_cost_total, -)
+
 end
 export setup_welfare!
 

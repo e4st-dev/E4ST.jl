@@ -390,10 +390,10 @@ function modify_results!(mod::ReserveRequirement, config, data)
 
     add_table_col!(data, :gen, pres_name, pres_gen, MWCapacity, "The power reserve capacity used to fill $(mod.name)")
     add_table_col!(data, :gen, rebate_col_name, price_per_mw_per_hr_gen, DollarsPerMWCapacityPerHour, "This is the rebate recieved by EGU's for each MW of capacity for each hour from the $(mod.name) reserve requirement.")
-    add_table_col!(data, :bus, cost_col_name, price_per_mw_per_hr_bus, DollarsPerMWCapacityPerHour, "This is the rebate payed by users to EGU's for each MW of demand for each hour from the $(mod.name) reserve requirement.")
+    add_table_col!(data, :bus, cost_col_name, price_per_mw_per_hr_bus, DollarsPerMWCapacityPerHour, "This is the rebate payed by users to EGU's (and storage if present) for each MW of demand for each hour from the $(mod.name) reserve requirement.")
 
     # Make results formulas for bus table
-    add_results_formula!(data, :bus, cost_result_name, "SumHourlyWeighted($pres_req_name, $cost_col_name)", Dollars, "This is the total rebate paid by users to EGU's from the $(mod.name) reserve requirement, not including merchandising surplus.")
+    add_results_formula!(data, :bus, cost_result_name, "SumHourlyWeighted($pres_req_name, $cost_col_name)", Dollars, "This is the total rebate paid by users to EGU's (and storage if present) from the $(mod.name) reserve requirement, not including merchandising surplus.")
     add_results_formula!(data, :bus, "pres_req_sum_max_$(mod.name)", "SumMaxHourly($pres_req_name)", MWCapacity, "The sum of hourly maximum power capacity required at each of the buses provided.")
 
     # Make results formulas for the gen table
@@ -483,5 +483,9 @@ function modify_results!(mod::ReserveRequirement, config, data)
         add_table_col!(data, :bus, Symbol("$(mod.name)_merchandising_surplus"), ms_bus, Dollars, "Merchandising surplus earned from differences in power reserve prices across reserve regions, for $(mod.name)")
         add_results_formula!(data, :bus, Symbol("$(mod.name)_merchandising_surplus_total"), "SumHourly($(mod.name)_merchandising_surplus)", Dollars, "Total merchandising surplus payed to users in the area.")
         add_welfare_term!(data, :user, :bus, Symbol("$(mod.name)_merchandising_surplus_total"), +)
+
+        # add rebate to net_rev_prelim_check in welfare table
+        add_welfare_term!(data, :net_rev_prelim_check, :bus, cost_result_name, +)
+        add_welfare_term!(data, :net_rev_prelim_check, :bus, Symbol("$(mod.name)_merchandising_surplus_total"), -)
     end    
 end
