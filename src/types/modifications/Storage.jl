@@ -170,6 +170,10 @@ function modify_setup_data!(mod::Storage, config, data)
 
     data[:storage_table_original_cols] = propertynames(storage)
 
+    b = "built" # pre-allocate
+    transform!(storage, :build_status => ByRow(s->isnew(s) ? b : s) => :build_status) # transform in-place
+
+
     add_buildable_storage!(config, data)
 
     ### Add the following columns to the storage table:
