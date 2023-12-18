@@ -524,5 +524,8 @@
         @test compute_result(data, :bus, :state_reserve_merchandising_surplus_total) > 0.0
 
         @test compute_result(data, :bus, :state_reserve_cost) ≈ compute_result(data, :gen, :state_reserve_rebate) + compute_result(data, :storage, :state_reserve_rebate) + compute_result(data, :bus, :state_reserve_merchandising_surplus_total)
+    
+        # use welfare check to make sure that reserve requirement is working correctly
+        @test compute_welfare(data, :net_rev_prelim_check) ≈ compute_result(data, :gen, :net_total_revenue_prelim) + compute_result(data, :storage, :net_total_revenue_prelim)
     end
 end
