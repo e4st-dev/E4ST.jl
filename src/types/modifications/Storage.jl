@@ -673,6 +673,13 @@ function modify_results!(mod::Storage, config, data)
     add_welfare_term!(data, :electricity_payments, :storage, :electricity_cost, +)
     add_welfare_term!(data, :electricity_payments, :storage, :electricity_revenue, -)
 
+    # Add costs to net revenue preliminary check 
+    add_welfare_term!(data, :net_rev_prelim_check, :storage, :electricity_revenue, +)
+    add_welfare_term!(data, :net_rev_prelim_check, :storage, :electricity_cost, -)
+    add_welfare_term!(data, :net_rev_prelim_check, :storage, :net_government_revenue, -)
+    add_welfare_term!(data, :net_rev_prelim_check, :storage, :production_cost, -)
+    add_welfare_term!(data, :net_rev_prelim_check, :storage, :past_invest_cost_total, -)
+
     # Update and save the storage table
     update_build_status!(config, data, :storage)
     save_updated_storage_table(config, data)

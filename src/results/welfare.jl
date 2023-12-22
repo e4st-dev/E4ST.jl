@@ -1,7 +1,13 @@
 """
     setup_welfare!(config, data)
 
-Sets up the welfare structure.
+Sets up the welfare structure. 
+Add in welfare terms for our standard welfare results and for several welfare checks.
+
+Welfare Checks: 
+* `system_cost_check` - This is the "system cost" and the delta of total system cost should equal the delta of the sum of user, producer, and government revenue.
+* `electricity_payments` - This should sum to zero to check whether electricity payments equals electricity revenue paid to producers.
+* `net_rev_prelim_check` - This is meant to check that producer `net_total_revenue_prelim` is being calculated correctly, particularly when there are reserve requirements. The sum of this check should equal the sum of `net_total_revenue_prelim` for gen and storage.
 """
 function setup_welfare!(config, data)
     welfare = OrderedDict{Symbol, OrderedDict{Symbol,OrderedDict{Symbol,Function}}}()
@@ -31,6 +37,14 @@ function setup_welfare!(config, data)
     add_welfare_term!(data, :electricity_payments, :bus, :electricity_cost, +)
     add_welfare_term!(data, :electricity_payments, :bus, :merchandising_surplus_total, -)
     add_welfare_term!(data, :electricity_payments, :gen, :electricity_revenue, -)
+
+    #Create welfare check for net_total_revenue_prelim (gen)
+    add_welfare_term!(data, :net_rev_prelim_check, :gen, :electricity_revenue, +)
+    add_welfare_term!(data, :net_rev_prelim_check, :gen, :net_government_revenue, -)
+    add_welfare_term!(data, :net_rev_prelim_check, :gen, :production_cost, -)
+    add_welfare_term!(data, :net_rev_prelim_check, :gen, :gs_rebate, +)
+    add_welfare_term!(data, :net_rev_prelim_check, :gen, :past_invest_cost_total, -)
+
 end
 export setup_welfare!
 
