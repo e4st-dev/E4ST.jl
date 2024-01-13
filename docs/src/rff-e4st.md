@@ -47,8 +47,15 @@ We assume that storage can be built at any bus.  Storage is assumed to be an 8-h
 
 ## Carbon Sequestration Market
 Coming Soon!
+
 # Reserve Requirements
-Coming Soon!
+
+We use a representation for hourly capacity [reserve requirements](@ref ReserveRequirement) by balancing authority area such that the available generation and storage discharge capacity (see note below) in each hour is greater than or equal to the load for that hour plus a percent margin.  The percent margin comes from the assumptions computed for the [NREL ReEDS model](https://github.com/NREL/ReEDS-2.0/blob/main/inputs/reserves/prm_annual.csv).  The balancing authority areas are allowed to trade capacity credits with neighboring areas up to a trade limit calculated based on the load carrying capacity of the grid, given that the offering area still meets its own load with an N-1 contingency.
+
+!!! note
+
+    The available capacity for a given generator is equal to the nameplate capacity times of the generator times its availability factor at each hour.
+
 # Policies
 Coming Soon!
 # Air Pollution Model
