@@ -207,7 +207,7 @@ function rand_af(;n_hours, n_af)
             joint += 1
             for genfuel in genfuels(), gentype in gt[genfuel]
                 year = rand(yrs)
-                push!(af, ("nation", nation, genfuel, gentype, year, joint, true, rand(n_hours)...))
+                push!(af, ("bus_nation", nation, genfuel, gentype, year, joint, true, rand(n_hours)...))
                 if nrow(af) == n_af
                     break
                 end
