@@ -6,7 +6,7 @@ mods:
   results_stor:
     type: YearlyTable
     table_name: storage
-    groupby: state
+    groupby: bus_state
   example_storage_itc:
     type: "ITCStorage"
     values:

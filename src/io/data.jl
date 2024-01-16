@@ -456,7 +456,7 @@ function setup_table!(config, data, ::Val{:gen})
 
     ### Create new gens and add to the gen table
     if haskey(config, :build_gen_file) 
-        setup_new_gens!(config, data)  
+        append_builds!(config, data, :gen, :build_gen)  
     end
     
     ### Add age column as by ByYear based on year_on
@@ -472,14 +472,17 @@ function setup_table!(config, data, ::Val{:gen})
 
     ### Map bus characteristics to generators
     names_before = propertynames(gen)
-    leftjoin!(gen, select(bus, Not(:reg_factor)), on=:bus_idx)
-    select!(gen, Not(:plnom))
+    bus_names_no_join = [:reg_factor, :ref_bus, :plnom, :distribution_cost, :connected_branch_idxs]
+    bus_join = select(bus, Not(bus_names_no_join))
+    leftjoin!(gen, bus_join, on=:bus_idx)
     disallowmissing!(gen)
     names_after = propertynames(gen)
 
     for name in names_after
         name in names_before && continue
-        add_table_col!(data, :gen, name, gen[!,name], get_table_col_unit(data, :bus, name), get_table_col_description(data, :bus, name), warn_overwrite=false)
+        new_name = "bus_$name"
+        rename!(gen, name => new_name)
+        add_table_col!(data, :gen, Symbol(new_name), gen[!,new_name], get_table_col_unit(data, :bus, name), get_table_col_description(data, :bus, name), warn_overwrite=false)
     end
 
     # Add necessary columns if they don't exist.

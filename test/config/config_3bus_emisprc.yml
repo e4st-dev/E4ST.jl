@@ -10,7 +10,7 @@ mods:
     years_after_ref_max: 10
     ref_year_col: "year_on"
     gen_filters:
-      nation: "narnia"
+      bus_nation: "narnia"
   summer_co2_price:
     type: "EmissionPrice"
     emis_col: "emis_co2"

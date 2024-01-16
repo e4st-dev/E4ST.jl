@@ -6,7 +6,7 @@ mods:
     type: YearlyTable
     table_name: gen
     groupby: 
-      - nation
+      - bus_nation
       - genfuel
   bus_res_season_time_of_day:
     type: YearlyTable

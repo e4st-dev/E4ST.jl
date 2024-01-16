@@ -124,8 +124,8 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
     subareas = requirements.subarea
     subarea2idx = Dict(subareas[i]=>i for i in axes(subareas,1))
 
-
-    gdf_gen = groupby(gen, area)
+    gen_area = hasproperty(gen, area) ? area : "bus_$area"
+    gdf_gen = groupby(gen, gen_area)
     gdf_bus = groupby(bus, area)
 
     gen_idx_sets = map(subarea -> haskey(gdf_gen, (subarea,)) ? getfield(gdf_gen[(subarea,)], :rows) : Int64[], subareas)
@@ -228,7 +228,7 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
     # Add in credit for storage if applicable
     if haskey(data, :storage)
         stor = get_table(data, :storage)
-        gdf_stor = groupby(stor, area)
+        gdf_stor = groupby(stor, gen_area)
         stor_idx_sets = map(subarea -> haskey(gdf_stor, (subarea,)) ? getfield(gdf_stor[(subarea,)], :rows) : Int64[], subareas)
         requirements.stor_idx_sets = stor_idx_sets
         c_stor = mod.credit_stor

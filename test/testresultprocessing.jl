@@ -84,7 +84,7 @@
             @test tot ≈ compute_result(data, :gen, :egen_total, :emis_co2 => <=(0.1)) + compute_result(data, :gen, :egen_total, :emis_co2 => >(0.1))
 
             # Provide a region for filtering
-            @test tot ≈ compute_result(data, :gen, :egen_total, :nation => "narnia") + compute_result(data, :gen, :egen_total, :nation => !=("narnia"))
+            @test tot ≈ compute_result(data, :gen, :egen_total, :bus_nation => "narnia") + compute_result(data, :gen, :egen_total, :bus_nation => !=("narnia"))
 
             # Provide a tuple for filtering
             @test tot ≈ compute_result(data, :gen, :egen_total, :vom => (0,1.1) ) + compute_result(data, :gen, :egen_total, :vom => (1.1,Inf))
@@ -95,7 +95,7 @@
             # Provide an index(es) for filtering
             @test tot ≈ compute_result(data, :gen, :egen_total, 1 ) + compute_result(data, :gen, :egen_total, 2:nrow(data[:gen]))
 
-            @test aggregate_generation(data, :gentype, [:nation=>"archenland"], "y2030", :season=>"summer") isa OrderedDict
+            @test aggregate_generation(data, :gentype, [:bus_nation=>"archenland"], "y2030", :season=>"summer") isa OrderedDict
         end
 
         @testset "Test year_idx filters" begin
