@@ -219,19 +219,7 @@ function modify_setup_data!(mod::Storage, config, data)
     end
 
     ### Map bus characteristics to storage
-    names_before = propertynames(storage)
-    bus_names_no_join = [:reg_factor, :ref_bus, :plnom, :distribution_cost, :connected_branch_idxs]
-    bus_join = select(bus, Not(bus_names_no_join))
-    leftjoin!(storage, bus_join, on=:bus_idx)
-    disallowmissing!(storage)
-    names_after = propertynames(storage)
-
-    for name in names_after
-        name in names_before && continue
-        new_name = "bus_$name"
-        rename!(storage, name => new_name)
-        add_table_col!(data, :storage, Symbol(new_name), storage[!,new_name], get_table_col_unit(data, :bus, name), get_table_col_description(data, :bus, name), warn_overwrite=false)
-    end
+    join_bus_columns!(data, :storage)
     return storage
 end
 

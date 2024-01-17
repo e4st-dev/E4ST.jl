@@ -470,21 +470,9 @@ function setup_table!(config, data, ::Val{:gen})
 
     add_table_col!(data, :gen, :age, gen_age, NumYears, "The age of the generator in each simulation year, given as a byYear container. Negative age is given for gens before their year_on.")
 
-    ### Map bus characteristics to generators
-    names_before = propertynames(gen)
-    bus_names_no_join = [:reg_factor, :ref_bus, :plnom, :distribution_cost, :connected_branch_idxs]
-    bus_join = select(bus, Not(bus_names_no_join))
-    leftjoin!(gen, bus_join, on=:bus_idx)
-    disallowmissing!(gen)
-    names_after = propertynames(gen)
-
-    for name in names_after
-        name in names_before && continue
-        new_name = "bus_$name"
-        rename!(gen, name => new_name)
-        add_table_col!(data, :gen, Symbol(new_name), gen[!,new_name], get_table_col_unit(data, :bus, name), get_table_col_description(data, :bus, name), warn_overwrite=false)
-    end
-
+    ### Map bus characteristics to generators   
+    join_bus_columns!(data, :gen)
+    
     # Add necessary columns if they don't exist.
     hasproperty(gen, :af) || (gen.af = fill(ByNothing(1.0), nrow(gen)))
     hasproperty(gen, :fuel_price) || (gen.fuel_price = fill(0.0, nrow(gen)))
@@ -492,6 +480,35 @@ function setup_table!(config, data, ::Val{:gen})
     return gen
 end
 export setup_table!
+
+"""
+    join_bus_columns!(data, table_name)
+
+Joins relevant columns of the bus table to table `table_name`
+"""
+function join_bus_columns!(data, table_name)
+    table = get_table(data, table_name)
+    bus = get_table(data, :bus)
+
+    names_before = names(table)
+    bus_names_no_join = [:reg_factor, :ref_bus, :plnom, :distribution_cost, :connected_branch_idxs]
+    bus_join = select(bus, Not(bus_names_no_join))
+    bus_names = names(bus_join)
+    for col_name in bus_names
+        col_name == "bus_idx" && continue  
+        rename!(bus_join, col_name => "bus_$col_name")
+    end
+    leftjoin!(table, bus_join, on=:bus_idx)
+    disallowmissing!(table)
+    names_after = names(table)
+
+    for name in names_after
+        name in names_before && continue
+        name_old = name[5:end] # Take off bus_
+        add_table_col!(data, table_name, Symbol(name), table[!,name], get_table_col_unit(data, :bus, name_old), get_table_col_description(data, :bus, name_old), warn_overwrite=false)
+    end
+end
+export join_bus_columns!
 
 """
     setup_table!(config, data, ::Val{:build_gen})
