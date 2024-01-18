@@ -53,7 +53,7 @@ function append_builds!(config, data, table_name, build_table_name)
 
         # If the column needs to come solely from the bus table, add it here.
         if startswith(col_name, "bus_") || hasproperty(bus, col_name)
-            bus_col = hasproperty(bus, col_name) ? bus[!, col_name] : bus[!, "bus_$col_name"]
+            bus_col = hasproperty(bus, col_name) ? bus[!, col_name] : bus[!, col_name[5:end]]
             new[!, col_name] = map(new_bus_idxs) do bus_idx
                 bus_col[bus_idx]
             end
