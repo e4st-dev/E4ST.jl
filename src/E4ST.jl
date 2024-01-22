@@ -33,7 +33,6 @@ export should_iterate, iterate!
 export Modification, Policy
 export modify_raw_data!, modify_setup_data!, modify_model!, modify_results!, fieldnames_for_yaml
 export run_e4st
-export setup_new_gens!
 
 include("io/util.jl")
 
