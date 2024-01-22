@@ -1,7 +1,7 @@
 name = "E4ST"
 uuid = "15c74807-6cb5-473c-8677-542c31c16277"
 authors = ["Ethan Russell <erussell@rff.org>", "Sally Robson <srobson@rff.org>"]
-version = "0.1.1"
+version = "0.1.2"
 
 [deps]
 BasicInterpolators = "26cce99e-4866-4b6d-ab74-862489e035e0"

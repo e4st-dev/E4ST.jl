@@ -383,17 +383,17 @@
 
                 gen = get_table(data, :gen)
 
-                gen_total_qual = compute_result(data, :gen, :egen_total, [:emis_co2 => 0, :nation => "archenland"])
+                gen_total_qual = compute_result(data, :gen, :egen_total, [:emis_co2 => 0, :bus_nation => "archenland"])
                 elserv_total_qual = compute_result(data, :bus, :elserv_total, :state => "stormness")
 
-                gen_total_qual_2035 = compute_result(data, :gen, :egen_total, [:emis_co2 => 0, :nation => "archenland"], 2)
+                gen_total_qual_2035 = compute_result(data, :gen, :egen_total, [:emis_co2 => 0, :bus_nation => "archenland"], 2)
                 elserv_total_qual_2035 = compute_result(data, :bus, :el_gs_total, :state => "stormness", 2)
 
                 targets = first(values(rps_mod.load_targets))[:targets]
 
                 @test gen_total_qual_2035 / elserv_total_qual_2035 >= targets[:y2035] - tol
 
-                gen_total_qual_2040 = compute_result(data, :gen, :egen_total, [:emis_co2 => 0, :nation => "archenland"], 3)
+                gen_total_qual_2040 = compute_result(data, :gen, :egen_total, [:emis_co2 => 0, :bus_nation => "archenland"], 3)
                 elserv_total_qual_2040 = compute_result(data, :bus, :el_gs_total, :state => "stormness", 3)
 
                 @test gen_total_qual_2040 / elserv_total_qual_2040 >= targets[:y2040] - tol
@@ -464,15 +464,15 @@
                 ces_mod = config[:mods][:example_ces]
                 targets = first(values(ces_mod.load_targets))[:targets]
 
-                gen_total_qual_2035 = compute_result(data, :gen, :egen_total, [:emis_co2 => <(0.5), :nation => "archenland"], 2)
-                gen_total_qual_2035_ref = compute_result(data_ref, :gen, :egen_total, [:emis_co2 => <(0.5), :nation => "archenland"], 2)
+                gen_total_qual_2035 = compute_result(data, :gen, :egen_total, [:emis_co2 => <(0.5), :bus_nation => "archenland"], 2)
+                gen_total_qual_2035_ref = compute_result(data_ref, :gen, :egen_total, [:emis_co2 => <(0.5), :bus_nation => "archenland"], 2)
                 elserv_total_qual_2035 = compute_result(data, :bus, :el_gs_total, :state => "anvard", 2)
 
                 @test gen_total_qual_2035 > gen_total_qual_2035_ref
                 @test gen_total_qual_2035 / elserv_total_qual_2035 >= targets[:y2035] - 0.001 #would use approx but need the > in case partial credit gen is used
 
-                gen_total_qual_2040 = compute_result(data, :gen, :egen_total, [:emis_co2 => <(0.5), :nation => "archenland"], 3)
-                gen_total_qual_2040_ref = compute_result(data_ref, :gen, :egen_total, [:emis_co2 => <(0.5), :nation => "archenland"], 3)
+                gen_total_qual_2040 = compute_result(data, :gen, :egen_total, [:emis_co2 => <(0.5), :bus_nation => "archenland"], 3)
+                gen_total_qual_2040_ref = compute_result(data_ref, :gen, :egen_total, [:emis_co2 => <(0.5), :bus_nation => "archenland"], 3)
                 elserv_total_qual_2040 = compute_result(data, :bus, :el_gs_total, :state => "anvard", 3)
 
                 @test gen_total_qual_2040 > gen_total_qual_2040_ref
@@ -510,7 +510,7 @@
         @test compute_result(data, :gen, :pcap_qual_state_reserve) < compute_result(data, :gen, :pcap_total)
 
     
-        if compute_result(data, :storage, :edischarge_total, :nation=>"narnia") > 0
+        if compute_result(data, :storage, :edischarge_total, :bus_nation=>"narnia") > 0
             @test compute_result(data, :storage, :state_reserve_rebate, :, "y2030") == 0.0
             @test compute_result(data, :storage, :state_reserve_rebate) > 0.0
             @test compute_result(data, :storage, :state_reserve_rebate_per_mw_price) > 0.0

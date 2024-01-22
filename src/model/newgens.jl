@@ -1,75 +1,93 @@
-# Create new generators 
-
 """
-    setup_new_gens!(config, data)
+    append_builds!(config, data, existing_table_name, build_table_name)
 
-Creates new generators with zero capacity. Location is determined by build___ columns in bus table. 
+Adds new builds from `build_table_name` to `existing_table_name`.  
+For each row of the build table, it may denote one or more buses to connect to via the `area` and `subarea` columns.  
+For any column included in the existing table but not the build table that is also included in the bus table, the value from the connected bus will be used.
 """
-function setup_new_gens!(config, data)
-
-    newgen = make_newgen_table(config, data)
-
-    append_newgen_table!(data, newgen)
-
-end
-export setup_new_gens!
-
-
-"""
-    make_newgen_table(config, data) -> 
-    
-Create empty newgen table with a structure that mirrors the existing gen table.
-"""
-function make_newgen_table(config, data)
-    #create table with same columns as gen
-    gen = get_table(data, :gen)
-    newgen = similar(gen, 0) 
-
-    # add potential generation capacity and exogenously built generators 
-    make_newgens!(config, data, newgen)
-    
-    return newgen
-end
-
-"""
-    make_newgens!(config, data, newgen) -> 
-
-Create newgen rows for each spec in build_gen. Creates a generator of the given type at all buses in the area/subarea. 
-Endogenous unbuilt gens are created for each year in years.
-Exogenously specified generators are also added to newgen through the build_gen sheet.
-"""
-function make_newgens!(config, data, newgen)
-    build_gen = get_table(data, :build_gen)
+function append_builds!(config, data, table_name, build_table_name)
+    if !haskey(data, build_table_name)
+        @warn "No table $build_table_name defined, not appending any builds to the $table_name table"
+        return
+    end
+    build = get_table(data, build_table_name)
     bus = get_table(data, :bus)
-    gen = get_table(data, :gen)
+    existing = get_table(data, table_name)
     years = get_years(data)
 
-    newgen_cols = Symbol.(names(newgen))
-
     # Filter any already-built exogenous generators
-    filter!(build_gen) do row
+    filter!(build) do row
         if row.build_type == "exog"
             row.year_on <= config[:year_gen_data] && return false
             row.year_on > last(years) && return false
-        end
-        
+        end 
         return true
     end
+    build.build_idx = 1:nrow(build)
 
-    #get the names of specifications that will be pulled from the build_gen table
-    spec_names = filter!(
-        !in((:bus_idx, :gen_latitude, :gen_longitude, :gen_state, :gen_county, :reg_factor, :year_off, :year_shutdown, :pcap_inv, :year_unbuilt, :past_invest_cost, :past_invest_subsidy)), 
-        propertynames(newgen)
-    ) #this needs to be updated if there is anything else in gen that isn't a spec
+    # Set up a table to add to the gen table
+    new = make_new_from_build(config, data, build_table_name)
 
-    for n in spec_names
-        hasproperty(build_gen, n) || error("Gen table has column $n, but not found in build_gen table. If this is a mod specific column, consider adding it to build_gen using modify_raw_data!()")
+    # Begin filling in the other columns.
+    leftjoin!(new, build, on=:build_idx, makeunique=true)
+
+    # Add custom columns:
+    new[!, "year_shutdown"]       .= "y9999" # add_to_year(year, spec_row.age_shutdown)
+    new[!, "year_off"]            .= "y9999"
+    new[!, "pcap_inv"]            .= 0.0
+    new[!, "past_invest_cost"]    .= Ref(Container(0.0))
+    new[!, "past_invest_subsidy"] .= Ref(Container(0.0))
+
+    new_bus_idxs = new.bus_idx::Vector{Int64}
+    
+    # Loop through and add all the other columns from the existing table
+    for col_name in names(existing)
+        # If the column already exists in `new`, impute from `bus` if it is a `bus` column and there are missing values
+        if hasproperty(new, col_name)
+            if hasproperty(bus, col_name)
+                col = new[!, col_name]
+                for (i, val) in enumerate(col)
+                    ismissing(val) || isnothing(val) || isempty(val) || continue
+                    bus_idx = new_bus_idxs[i]
+                    col[i] = bus[col_name, bus_idx]
+                end
+            end
+            continue
+        end
+
+        # If the column needs to come solely from the bus table, add it here.
+        if startswith(col_name, "bus_") || hasproperty(bus, col_name)
+            bus_col = hasproperty(bus, col_name) ? bus[!, col_name] : bus[!, col_name[5:end]]
+            new[!, col_name] = map(new_bus_idxs) do bus_idx
+                bus_col[bus_idx]
+            end
+            continue
+        end
+
+        error("Column $col_name not found in build table nor bus table.")
     end
 
-    for spec_row in eachrow(build_gen)
-        # continue if status is false
+    append!(existing, new, cols = :intersect, promote = true)
+    return new
+end
+export append_builds!
+
+
+function make_new_from_build(config, data, s)
+    build = get_table(data, s)
+    bus = get_table(data, :bus)
+    new = DataFrame(
+        :bus_idx => Int64[], 
+        :build_idx => Int64[],
+        :year_on => String[],
+        :year_unbuilt => String[],        
+    )
+    years = get_years(config)
+    year_gen_data = config[:year_gen_data]::String
+    for (build_idx, spec_row) in enumerate(eachrow(build))
         get(spec_row, :status, true) || continue
 
+        # Get the bus indexes for which this will be built
         area = spec_row.area
         subarea = spec_row.subarea
         if isempty(area)
@@ -84,78 +102,35 @@ function make_newgens!(config, data, newgen)
 
         for bus_idx in bus_idxs
             if spec_row.build_type == "endog"
-                # for endogenous new builds, a new gen is created for each sim year
+                # for endogenous new builds, a new build is created for each sim year
                 for (yr_idx, year) in enumerate(years)
                     year < year_on_min && continue
                     year > year_on_max && continue
-                    #populate newgen_row with specs
-                    newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
-
-                    #set year_on and off
-                    newgen_row[:year_on] = year
-                    newgen_row[:year_unbuilt] = get(years, yr_idx - 1, config[:year_gen_data])
-                    newgen_row[:year_shutdown] = "y9999" # add_to_year(year, spec_row.age_shutdown)
-                    newgen_row[:year_off] = "y9999"
-                    newgen_row[:pcap_inv] = 0.0
-                    newgen_row[:past_invest_cost] = Container(0.0)
-                    newgen_row[:past_invest_subsidy] = Container(0.0)
-
-                    #add gen location
-                    hasproperty(newgen, :gen_latitude) && (newgen_row[:gen_latitude] = bus.bus_latitude[bus_idx])
-                    hasproperty(newgen, :gen_longitude) && (newgen_row[:gen_longitude] = bus.bus_longitude[bus_idx])
-                    hasproperty(newgen, :gen_state) && (newgen_row[:gen_state] = bus.state[bus_idx])
-                    hasproperty(newgen, :gen_county) && (newgen_row[:gen_county] = bus.county[bus_idx])
-                    hasproperty(newgen, :reg_factor) && (newgen_row[:reg_factor] = bus.reg_factor[bus_idx])
-
-                    push!(newgen, newgen_row, promote=true)
+                    new_row = (;
+                        bus_idx,
+                        build_idx,
+                        year_on = year,
+                        year_unbuilt = get(years, yr_idx - 1, year_gen_data)
+                    )
+                    push!(new, new_row)
                 end
             else
-                @assert !isempty(spec_row.year_on) "Exogenous generators must have a specified year_on value" 
-
+                @assert !isempty(spec_row.year_on) "Exogenous builds must have a specified year_on value" 
                 # Skip this build if it is after the simulation
-                spec_row.year_on > last(years) && continue
-                
-                # for exogenously specified gens, only one generator is created with the specified year_on
-                newgen_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
-                hasproperty(newgen, :gen_latitude) && (newgen_row[:gen_latitude] = bus.bus_latitude[bus_idx])
-                hasproperty(newgen, :gen_longitude) && (newgen_row[:gen_longitude] = bus.bus_longitude[bus_idx])
-                hasproperty(newgen, :reg_factor) && (newgen_row[:reg_factor] = bus.reg_factor[bus_idx])
-
-                newgen_row[:year_shutdown] = "y9999" #add_to_year(spec_row.year_on, spec_row.age_shutdown)
-                newgen_row[:year_off] = "y9999"
-                newgen_row[:pcap_inv] = 0.0
-                newgen_row[:year_unbuilt] = add_to_year(newgen_row[:year_on], -1)
-                newgen_row[:past_invest_cost] = Container(0.0)
-                newgen_row[:past_invest_subsidy] = Container(0.0)
-
-                # set gen_state and gen_county if specified, otherwise set to bus location
-                hasproperty(newgen, :gen_state) &&  (hasproperty(spec_row, :gen_state) ? (newgen_row[:gen_state] = spec_row[:gen_state]) : (newgen_row[:gen_state] = bus.state[bus_idx]))
-                hasproperty(newgen, :gen_county) && (hasproperty(spec_row, :gen_county) ? (newgen_row[:gen_county] = spec_row[:gen_county]) : (newgen_row[:gen_county] = bus.county[bus_idx]))
-
-                #check that all necessary columns are present in newgen_row
-                newgen_row_cols = keys(newgen_row)
-                issetequal(newgen_cols, newgen_row_cols) || @warn("The newgen_row does not contain the following columns that are in the newgen table: $(setdiff(newgen_cols, newgen_row_cols))")
-                #@show setdiff(newgen_cols, newgen_row_cols)
-
-                push!(newgen, newgen_row, promote=true)
+                year_on = spec_row.year_on
+                year_on > last(years) && continue
+                new_row = (;
+                    bus_idx,
+                    build_idx,
+                    year_on,
+                    year_unbuilt = add_to_year(year_on, -1)
+                )
+                push!(new, new_row)
             end
-
-            
         end
     end
-    return newgen
+    return new
 end
-
-
-"""
-    append_newgen_table!(data, newgen) -> 
-
-Appends the newgen table to the gen table. 
-"""
-function append_newgen_table!(data, newgen)
-    append!(get_table(data, :gen), newgen, promote = true)
-end
-
 
 
 # This is unecessary for how the new gen code is current written but might be helpful later. 

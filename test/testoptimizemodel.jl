@@ -100,8 +100,8 @@
 
         @test compute_result(data, :gen, :egen_total) ≈ compute_result(data, :gen, :egen_total, :)
         @test compute_result(data, :gen, :egen_total, :genfuel=>"ng") ≈
-            compute_result(data, :gen, :egen_total, (:genfuel=>"ng", :nation=>"narnia")) + 
-            compute_result(data, :gen, :egen_total, (:genfuel=>"ng", :nation=>"archenland"))
+            compute_result(data, :gen, :egen_total, (:genfuel=>"ng", :bus_nation=>"narnia")) + 
+            compute_result(data, :gen, :egen_total, (:genfuel=>"ng", :bus_nation=>"archenland"))
         
     end
 
@@ -152,10 +152,10 @@
         @test compute_result(data, :gen, :fuel_burned, (:genfuel=>"ng")) > 1e3 # If this is failing, probably need to redesign test or make fuel cheaper.
 
         for yr_idx in 1:nyr
-            ng_used = compute_result(data, :gen, :fuel_burned, (:genfuel=>"ng", :nation=>"archenland"), yr_idx)
+            ng_used = compute_result(data, :gen, :fuel_burned, (:genfuel=>"ng", :bus_nation=>"archenland"), yr_idx)
             ng_used == 0 && continue
             ng_price = compute_result(data, :fuel_markets, :fuel_clearing_price_per_mmbtu, (:genfuel=>"ng", :subarea=>"archenland"), yr_idx)
-            ng_idxs = get_table_row_idxs(data, :gen, (:genfuel=>"ng", :nation=>"archenland"))
+            ng_idxs = get_table_row_idxs(data, :gen, (:genfuel=>"ng", :bus_nation=>"archenland"))
             for ng_idx in ng_idxs
                 for hr_idx in 1:nhr
                     fuel_price = gen.fuel_price[ng_idx][yr_idx, hr_idx]
