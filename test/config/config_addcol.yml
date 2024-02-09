@@ -1,0 +1,14 @@
+mods: 
+  add_nation_mapping_setup: 
+    type: AddTableCols
+    table: bus
+    join_cols: [nation]
+    cols_file: "../data/3bus/narnia_mapping.csv"
+    mod_step: modify_setup_data!
+  add_nation_mapping_raw: 
+    type: AddTableCols
+    table: bus
+    join_cols: [nation]
+    cols_file: "../data/3bus/narnia_mapping.csv"
+    mod_step: modify_raw_data!
+
