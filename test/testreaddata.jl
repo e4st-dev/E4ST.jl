@@ -51,7 +51,12 @@
         data = read_data(config)
         gen = get_table(data, :gen)
         @test "gen_hash" in names(gen)
-        @test !(0. in gen.gen_hash) # all new builds given a hash
+        @test !("" in gen.gen_hash) # all new builds given a hash
         @test length(unique(gen.gen_hash)) == nrow(gen) #all hashes are unique
+
+        # this is mostly to make sure that the parse doesn't error
+        gen_hash_test = parse.(UInt64, gen.gen_hash, base = 16)
+        @test typeof(gen_hash_test[1]) == UInt64
+        
     end
 end
