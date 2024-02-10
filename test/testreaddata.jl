@@ -45,9 +45,9 @@
         @test all(x->x≈10, branch.pflow_max)
     end
 
-    @testset "Test AddTableCols mod" begin
+    @testset "Test LeftJoinCols mod" begin
         # test with just the mod that applies in modify_setup_data
-        config = read_config(config_file, joinpath(@__DIR__, "config", "config_addcol.yml"))
+        config = read_config(config_file, joinpath(@__DIR__, "config", "config_joincol.yml"))
         delete!(config[:mods], :add_nation_mapping_raw)
         data = read_data(config)
         bus = get_table(data, :bus)
@@ -57,7 +57,7 @@
         @test sum(bus.is_archenland) == 2
 
         # test with just the mod that applies in modify_raw_data
-        config = read_config(config_file, joinpath(@__DIR__, "config", "config_addcol.yml"))
+        config = read_config(config_file, joinpath(@__DIR__, "config", "config_joincol.yml"))
         delete!(config[:mods], :add_nation_mapping_setup)
         data = read_data(config)
         bus = get_table(data, :bus)
