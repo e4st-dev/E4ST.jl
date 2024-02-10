@@ -44,4 +44,14 @@
         @test all(x->x≈0.01, branch.x)
         @test all(x->x≈10, branch.pflow_max)
     end
+
+
+    @testset "Test GenHashID mod" begin
+        config = read_config(config_file, joinpath(@__DIR__, "config", "config_gen_hash.yml"))
+        data = read_data(config)
+        gen = get_table(data, :gen)
+        @test "gen_hash" in names(gen)
+        @test !(0. in gen.gen_hash) # all new builds given a hash
+        @test length(unique(gen.gen_hash)) == nrow(gen) #all hashes are unique
+    end
 end

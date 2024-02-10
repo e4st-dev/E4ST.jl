@@ -1,0 +1,5 @@
+gen_file:    "../data/3bus/gen_with_hash.csv"
+mods:
+  gen_hash: 
+    type: GenHashID
+    hash_col_name: gen_hash
