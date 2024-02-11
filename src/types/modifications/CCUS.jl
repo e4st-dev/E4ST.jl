@@ -375,9 +375,10 @@ function modify_results!(mod::CCUS, config, data)
     raw_results[:cons_co2_stor] ./= co2_scalar
 
     # Join the co2 balancing constraints into a single shadow price
-    raw_results[:cons_co2_bal] = (raw_results[:cons_co2_bal_geq] .- raw_results[:cons_co2_bal_leq]) ./ sqrt(co2_scalar)
-    delete!(raw_results, :cons_co2_bal_geq)
-    delete!(raw_results, :cons_co2_bal_leq)
+    # if the two equality constraints have already been deleted and cons_co2_bal already exists in raw_results, then don't try to calcualte again because it will error
+    ((!haskey(raw_results, :cons_co2_bal_geq) || !haskey(raw_results, :cons_co2_bal_leq)) && haskey(raw_results, :cons_co2_bal)) || (raw_results[:cons_co2_bal] = (raw_results[:cons_co2_bal_geq] .- raw_results[:cons_co2_bal_leq]) ./ sqrt(co2_scalar))
+    # delete!(raw_results, :cons_co2_bal_geq)
+    # delete!(raw_results, :cons_co2_bal_leq)
 
     ccus_storers = get_table(data, :ccus_storers)
     ccus_producers = get_table(data, :ccus_producers)
