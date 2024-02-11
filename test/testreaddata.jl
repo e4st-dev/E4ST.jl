@@ -45,7 +45,6 @@
         @test all(x->x≈10, branch.pflow_max)
     end
 
-
     @testset "Test GenHashID mod" begin
         config = read_config(config_file, joinpath(@__DIR__, "config", "config_gen_hash.yml"))
         data = read_data(config)
@@ -59,4 +58,30 @@
         @test typeof(gen_hash_test[1]) == UInt64
         
     end
+    
+    @testset "Test LeftJoinCols mod" begin
+        # test with just the mod that applies in modify_setup_data
+        config = read_config(config_file, joinpath(@__DIR__, "config", "config_joincol.yml"))
+        delete!(config[:mods], :add_nation_mapping_raw)
+        data = read_data(config)
+        bus = get_table(data, :bus)
+        @test "is_narnia" in names(bus)
+        @test "is_archenland" in names(bus)
+        @test sum(bus.is_narnia) == 1
+        @test sum(bus.is_archenland) == 2
+
+        # test with just the mod that applies in modify_raw_data
+        config = read_config(config_file, joinpath(@__DIR__, "config", "config_joincol.yml"))
+        delete!(config[:mods], :add_nation_mapping_setup)
+        data = read_data(config)
+        bus = get_table(data, :bus)
+
+        @test "is_narnia" in names(bus)
+        @test "is_archenland" in names(bus)
+        @test sum(bus.is_narnia) == 1
+        @test sum(bus.is_archenland) == 2
+
+    end
+
+
 end
