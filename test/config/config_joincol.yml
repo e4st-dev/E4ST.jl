@@ -5,10 +5,12 @@ mods:
     on: [nation]
     right_table_file: "../data/3bus/narnia_mapping.csv"
     mod_step: modify_setup_data!
+    matchmissing: notequal
   add_nation_mapping_raw: 
     type: LeftJoinCols
     left_table_name: bus
     on: [nation]
     right_table_file: "../data/3bus/narnia_mapping.csv"
     mod_step: modify_raw_data!
+    matchmissing: notequal
 
