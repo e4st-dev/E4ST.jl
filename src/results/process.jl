@@ -7,7 +7,7 @@ function process_results!(config::OrderedDict, data::OrderedDict)
     log_header("PROCESSING RESULTS")
 
     for (name, mod) in get_mods(config)
-        modify_results!(mod, config, data)
+        _try_catch(modify_results!, name, mod, config, data)
     end
 
     # Save the summary table and results formulas
