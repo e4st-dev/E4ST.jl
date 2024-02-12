@@ -1,10 +1,22 @@
 mods:
+  stor:
+    type: Storage
+    file: ../data/3bus/storage.csv
+    build_file: ../data/3bus/build_storage.csv
   solar_cap_const:
     type: CapacityConstraint
+    table: gen
     max_values: 
       y2030: 0.5
       y2035: 0.76
     min_values: 
       y2035: 0.75
-    gen_filters:
+    table_filters:
       gentype: solar
+  storage_cap_const:
+    type: CapacityConstraint
+    table: storage
+    max_values:
+      y2040: 0.04
+    min_values: 
+      y2040: 0.035

@@ -542,6 +542,8 @@
 
         @test haskey(model, :cons_solar_cap_const_max)
         @test haskey(model, :cons_solar_cap_const_min)
+        @test haskey(model, :cons_storage_cap_const_max)
+        @test haskey(model, :cons_storage_cap_const_min)
 
         # process results
         parse_results!(config, data, model)
@@ -550,5 +552,7 @@
         @test compute_result(data, :gen, :pcap_total, :gentype => "solar", 1) <= 0.5
         @test compute_result(data, :gen, :pcap_total, :gentype => "solar", 2) >= 0.75
         @test compute_result(data, :gen, :pcap_total, :gentype => "solar", 2) <= 0.76
+        @test compute_result(data, :storage, :pcap_total, :, 3) >= 0.035
+        @test compute_result(data, :storage, :pcap_total, :, 3) <= 0.040000001
     end
 end
