@@ -15,3 +15,9 @@ AdjustHourly
 ```@docs
 AdjustByAge
 ```
+
+# Adjusting Strings
+
+```@docs
+AdjustString
+```

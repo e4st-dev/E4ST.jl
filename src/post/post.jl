@@ -115,7 +115,7 @@ function extract_results(post_config)
         @info "Data has been read, starting result extraction"
         config = read_config(sim_path)
         for (key, post_mod) in post_mods
-            post_data[key][sim_name] = extract_results(post_mod, config, data)
+            post_data[key][sim_name] = _try_catch(extract_results, key, post_mod, config, data)
         end
         @info "Done extracting results"
         
@@ -147,7 +147,7 @@ function combine_results(post_config, post_data)
 
     # Combine results
     for (key, post_mod) in post_mods
-        combine_results(post_mod, post_config, post_data[key])
+        _try_catch(combine_results, key, post_mod, post_config, post_data[key])
     end
 end
 export combine_results
