@@ -298,7 +298,16 @@ function get_egen_gen(data, model, gen_idx, year_idx, hour_idx)
 end
 
 export get_egen_gen
-  
+
+"""
+    get_pcap_gen(data, model, gen_idx, year_idx)
+
+Returns the capacity (pcap_gen) for the gen_idx and year_idx given. 
+"""
+function get_pcap_gen(data, model, gen_idx, year_idx)
+    return model[:pcap_gen][gen_idx, year_idx]
+end
+export get_pcap_gen
 
 """
     add_obj_term!(data, model, ::Term, s::Symbol; oper)

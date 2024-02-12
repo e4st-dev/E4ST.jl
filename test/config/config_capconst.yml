@@ -1,0 +1,10 @@
+mods:
+  solar_cap_const:
+    type: CapacityConstraint
+    max_values: 
+      y2030: 0.5
+      y2035: 0.76
+    min_values: 
+      y2035: 0.75
+    gen_filters:
+      gentype: solar

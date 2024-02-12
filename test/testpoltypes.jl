@@ -528,4 +528,27 @@
         # use welfare check to make sure that reserve requirement is working correctly
         @test compute_welfare(data, :net_rev_prelim_check) ≈ compute_result(data, :gen, :net_total_revenue_prelim) + compute_result(data, :storage, :net_total_revenue_prelim)
     end
+
+    @testset "Test CapacityConstraint" begin
+        config_file = joinpath(@__DIR__, "config", "config_capconst.yml")
+        config = read_config(config_file_ref, config_file)
+
+        data = read_data(config)
+        model = setup_model(config, data)
+        gen = get_table(data, :gen)
+
+        optimize!(model)
+        @test check(model)
+
+        @test haskey(model, :cons_solar_cap_const_max)
+        @test haskey(model, :cons_solar_cap_const_min)
+
+        # process results
+        parse_results!(config, data, model)
+        process_results!(config, data)
+
+        @test compute_result(data, :gen, :pcap_total, :gentype => "solar", 1) <= 0.5
+        @test compute_result(data, :gen, :pcap_total, :gentype => "solar", 2) >= 0.75
+        @test compute_result(data, :gen, :pcap_total, :gentype => "solar", 2) <= 0.76
+    end
 end
