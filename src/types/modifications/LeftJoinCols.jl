@@ -27,7 +27,7 @@ struct LeftJoinCols <: Modification
 end
 
 mod_rank(::Type{LeftJoinCols}) = -1.0
-fieldnames_for_yaml(::Type{LeftJoinCols}) = (:left_table_name, :on, :right_table_file, :mod_step)
+fieldnames_for_yaml(::Type{LeftJoinCols}) = (:left_table_name, :on, :right_table_file, :mod_step, :matchmissing)
 
 """
     modify_raw_data!(m::LeftJoinCols, config, data) -> 
