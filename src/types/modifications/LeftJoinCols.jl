@@ -8,7 +8,7 @@ This can happen during `modify_raw_data!` or `modify_setup_data!` which is speci
 * `left_table_name` - the name of the table within `data` that you want to join to
 * `on` - the column names you want to join on
 * `right_table_file` - file path for the table you are trying to join onto the left table
-* `mod_step` - which modification step you would like to do the join in, options are `modify_raw_data!` or `modify_setup_data!`
+* `mod_step` - which modification step you would like to do the join in, options are `modify_raw_data!`, `modify_setup_data!` or `extract_results`
 * `matchmissing` - how you would like to treat missing values in the leftjoin, options are from `leftjoin!()`: `error`, `equal`, `notequal` where `notequal` is likely the best option
 """
 struct LeftJoinCols <: Modification 
@@ -34,7 +34,7 @@ fieldnames_for_yaml(::Type{LeftJoinCols}) = (:left_table_name, :on, :right_table
 """
 function modify_raw_data!(m::LeftJoinCols, config, data)
     # check that the mod_step is legitimate
-    (m.mod_step != "modify_raw_data!" && m.mod_step != "modify_setup_data!") && error("The mod step you specified is not an option, please check your spelling. No columns will be added to the $(m.left_table_name) table.")
+    (m.mod_step != "modify_raw_data!" && m.mod_step != "modify_setup_data!" && m.mod_step != "extract_results") && error("The mod step you specified is not an option, please check your spelling. No columns will be added to the $(m.left_table_name) table.")
 
     if m.mod_step == "modify_raw_data!"
         left_table = get_table(data, m.left_table_name)
@@ -51,5 +51,25 @@ function modify_setup_data!(m::LeftJoinCols, config, data)
         left_table = get_table(data, m.left_table_name)
 
         leftjoin!(left_table, m.right_table, on = m.on ,matchmissing = m.matchmissing)
+    end
+end
+
+"""
+    extract_results(m::LeftJoinCols, config, data) -> 
+"""
+function extract_results(m::LeftJoinCols, config, data)
+    if m.mod_step == "extract_results"
+        left_table = get_table(data, m.left_table_name)
+
+        #check if left table already has the columns that will be joined
+        right_names = Symbol.(names(right_table))
+        left_names = Symbol.(names(left_table))
+        joined_cols = right_names[right_names .∉ m.on] #columns that will be joined to the left table
+
+        existing_cols = joined_cols[joined_cols .∈ left_names] #columns that would be joined but exist already in the left table
+        @info "The following columns already exist in the $(m.left_table_name) table and will not be joined by $(m.name)."
+        on_new = [m.on ; existing_cols]
+
+        leftjoin!(left_table, m.right_table, on = on_new, matchmissing = m.matchmissing)
     end
 end
