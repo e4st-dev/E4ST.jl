@@ -62,11 +62,11 @@ function extract_results(m::LeftJoinCols, config, data)
         left_table = get_table(data, m.left_table_name)
 
         #check if left table already has the columns that will be joined
-        right_names = Symbol.(names(right_table))
+        right_names = Symbol.(names(m.right_table))
         left_names = Symbol.(names(left_table))
-        joined_cols = right_names[right_names .∉ m.on] #columns that will be joined to the left table
+        joined_cols = right_names[right_names .∉ Ref(m.on)] #columns that will be joined to the left table
 
-        existing_cols = joined_cols[joined_cols .∈ left_names] #columns that would be joined but exist already in the left table
+        existing_cols = joined_cols[joined_cols .∈ Ref(left_names)] #columns that would be joined but exist already in the left table
         @info "The following columns already exist in the $(m.left_table_name) table and will not be joined by $(m.name)."
         on_new = [m.on ; existing_cols]
 
