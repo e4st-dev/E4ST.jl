@@ -8,6 +8,7 @@
         mods[:adj_yearly] = AdjustYearly(file=joinpath(@__DIR__, "data", "3bus", "adjust_yearly.csv"), name=:adj_yearly) #overwrites previous adj_yearly
         mods[:adj_hourly] = AdjustHourly(file=joinpath(@__DIR__, "data", "3bus", "adjust_hourly.csv"), name=:adj_hourly)
         mods[:adj_by_age] = AdjustByAge(file=joinpath(@__DIR__, "data", "3bus", "adjust_by_age.csv"), name=:adj_by_age)
+        mods[:adjust_string] = AdjustString(file=joinpath(@__DIR__, "data", "3bus", "adjust_string.csv"), name=:adjust_string)
         data = read_data(config)
         nyr = get_num_years(data)
         @test data isa AbstractDict
@@ -91,6 +92,10 @@
                 @test get_table_num(data, :gen, :af, solar_idx, "y2035", 1) ≈ 0.5 * (1-0.08)
                 @test get_table_num(data, :gen, :af, solar_idx, "y2040", 1) ≈ 0.5 * (1-0.10)
             end
+        end
+        @testset "Test AdjustString" begin
+            table = get_table(data, :gen, :year_shutdown=>"y2051")
+            @test nrow(table) > 0
         end
     end
 end

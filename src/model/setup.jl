@@ -92,7 +92,7 @@ function setup_model(config, data)
         setup_dcopf!(config, data, model)
     
         for (name, mod) in get_mods(config)
-            modify_model!(mod, config, data, model)
+            _try_catch(modify_model!, name, mod, config, data, model)
         end
 
         # Set the objective, scaling down for numerical stability.

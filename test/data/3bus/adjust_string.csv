@@ -1,0 +1,2 @@
+table_name,variable_name,filter1,value
+gen,year_shutdown,year_shutdown=>y2050,y2051

@@ -64,7 +64,9 @@ include("types/modifications/CO2eCalc.jl")
 include("types/modifications/FuelPrice.jl")
 include("types/modifications/InterfaceLimit.jl")
 include("types/modifications/ReserveRequirement.jl")
+include("types/modifications/GenHashID.jl")
 include("types/modifications/LeftJoinCols.jl")
+include("types/modifications/CapacityConstraint.jl")
 
 
 # Include Policies

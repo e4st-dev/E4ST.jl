@@ -93,9 +93,24 @@ Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_raw_data!
 """
 function modify_raw_data!(config, data)
     for (sym, mod) in get_mods(config)
-        modify_raw_data!(mod, config, data)
+        _try_catch(modify_raw_data!, sym, mod, config, data)
     end
     return nothing
+end
+
+"""
+    _try_catch(f, sym, args...)
+
+Try-catch for [`modify_raw_data!`](@ref)
+"""
+function _try_catch(f, sym, args...)
+    try
+        return f(args...)
+    catch e
+        println("Error during function $f for Modification $sym")
+        @error e
+        throw(e)
+    end
 end
 
 """
@@ -105,7 +120,7 @@ Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_setup_dat
 """
 function modify_setup_data!(config, data)    
     for (sym, mod) in get_mods(config)
-        modify_setup_data!(mod, config, data)
+        _try_catch(modify_setup_data!, sym, mod, config, data)
     end
     return nothing
 end
