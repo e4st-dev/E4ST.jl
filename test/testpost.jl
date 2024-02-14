@@ -24,6 +24,7 @@
     e4st_post(post_config)
 
     @test isfile(get_out_path(post_config, "agg_res_combined.csv"))
+    @test isfile(get_out_path(post_config, "agg_res_for_join_combined.csv"))
 
     rm(out_path, force=true, recursive=true)
 end

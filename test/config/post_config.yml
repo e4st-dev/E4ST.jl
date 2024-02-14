@@ -2,3 +2,13 @@ mods:
   agg_res:
     type: AggregationTemplate
     file: ../data/3bus/aggregate_template.csv
+  join_in_post:
+    type: LeftJoinCols
+    left_table_name: bus
+    on: [nation]
+    right_table_file: "../data/3bus/narnia_mapping.csv"
+    mod_step: extract_results
+    matchmissing: notequal
+  agg_res_for_join:
+    type: AggregationTemplate
+    file: ../data/3bus/agg_temp_for_join.csv
