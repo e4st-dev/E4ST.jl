@@ -13,4 +13,13 @@ mods:
     right_table_file: "../data/3bus/narnia_mapping.csv"
     mod_step: modify_raw_data!
     matchmissing: notequal
+  add_beaversdam_mapping_setup: 
+    type: LeftJoinCols
+    left_table_name: bus
+    on: [state]
+    right_table_file: "../data/3bus/beaverdam_mapping.csv"
+    mod_step: modify_setup_data!
+    matchmissing: notequal
+    replace_missing:
+      is_beaverdam: false
 

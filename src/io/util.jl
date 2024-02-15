@@ -273,12 +273,21 @@ function comparison(value::Function, ::Type)
     return value
 end
 
-function comparison(value::AbstractString, ::Type{<:Integer})
+function comparison(value::AbstractString, ::Type{<:Union{Missing, <:Integer}})
     num = parse(Int, value)
     return ==(num)
 end
 
-function comparison(value::AbstractString, ::Type{<:AbstractString})
+function comparison(value::AbstractString, ::Type{<:Union{Missing, <:Number}})
+    num = parse(Float64, value)
+    return ==(num)
+end
+
+function comparison(value::AbstractString, ::Type{<:Union{Missing, <:Bool}})
+    num = parse(Bool, value)
+    return ==(num)
+end
+function comparison(value::AbstractString, ::Type{<:Union{Missing, <:AbstractString}})
     return ==(value)
 end
 
@@ -286,7 +295,7 @@ function comparison(value::AbstractString, ::Type)
     return x->string(x) == value
 end
 
-function comparison(value::Tuple{<:Real, <:Real}, ::Type{<:Real})
+function comparison(value::Tuple{<:Real, <:Real}, ::Type{<:Union{Missing, <:Real}})
     lo, hi = value
     return x -> lo <= x <= hi
 end
@@ -295,7 +304,7 @@ function comparison(value::Vector, ::Type)
     return in(value)
 end
 
-function comparison(value::Tuple{<:AbstractString, <:AbstractString}, ::Type{<:AbstractString})
+function comparison(value::Tuple{<:AbstractString, <:AbstractString}, ::Type{<:Union{Missing, <:AbstractString}})
     lo, hi = value
     return x -> lo <= x <= hi
 end
