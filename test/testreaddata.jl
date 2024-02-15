@@ -81,6 +81,9 @@
         @test sum(bus.is_narnia) == 1
         @test sum(bus.is_archenland) == 2
 
+        @test "is_beaverdam" in names(bus)
+        @test count(==(true), bus.is_beaverdam) == 1
+        @test count(==(false), bus.is_beaverdam) == 2
     end
 
 

@@ -9,7 +9,8 @@ This can happen during `modify_raw_data!` or `modify_setup_data!` which is speci
 * `on` - the column names you want to join on
 * `right_table_file` - file path for the table you are trying to join onto the left table
 * `mod_step` - which modification step you would like to do the join in, options are `modify_raw_data!`, `modify_setup_data!` or `extract_results`
-* `matchmissing` - how you would like to treat missing values in the leftjoin, options are from `leftjoin!()`: `error`, `equal`, `notequal` where `notequal` is likely the best option
+* `matchmissing` - how you would like to treat missing values in the leftjoin, options are from `leftjoin!()`: `error`, `equal`, `notequal` where `notequal` is likely the best option.  This is passed straight into `DataFrames.leftjoin!`
+* `replace_missing::OrderedDict` - an OrderedDict mapping col_name => val for each column for which you would like to replace missing values.  For the columns specified, 
 """
 struct LeftJoinCols <: Modification 
     name::Symbol
@@ -18,28 +19,28 @@ struct LeftJoinCols <: Modification
     right_table_file::AbstractString
     mod_step::AbstractString
     matchmissing::Symbol
+    replace_missing::OrderedDict{Symbol, Any}
     right_table::DataFrame
 
-    function LeftJoinCols(;name, left_table_name, on, right_table_file, mod_step, matchmissing)
+    function LeftJoinCols(;name, left_table_name, on, right_table_file, mod_step, matchmissing, replace_missing=OrderedDict{Symbol, Any}())
         right_table = CSV.read(right_table_file, DataFrame)
-        return new(name, Symbol(left_table_name), Symbol.(on), right_table_file, mod_step, Symbol(matchmissing), right_table)
+
+        # check that the mod_step is legitimate
+        (mod_step != "modify_raw_data!" && mod_step != "modify_setup_data!" && mod_step != "extract_results") && error("The mod step you specified is not an option, please check your spelling. No columns will be added to the $(m.left_table_name) table.")
+
+        return new(name, Symbol(left_table_name), Symbol.(on), right_table_file, mod_step, Symbol(matchmissing), replace_missing, right_table)
     end
 end
 
 mod_rank(::Type{LeftJoinCols}) = -1.0
-fieldnames_for_yaml(::Type{LeftJoinCols}) = (:left_table_name, :on, :right_table_file, :mod_step, :matchmissing)
+fieldnames_for_yaml(::Type{LeftJoinCols}) = (:left_table_name, :on, :right_table_file, :mod_step, :matchmissing, :replace_missing)
 
 """
     modify_raw_data!(m::LeftJoinCols, config, data) -> 
 """
 function modify_raw_data!(m::LeftJoinCols, config, data)
-    # check that the mod_step is legitimate
-    (m.mod_step != "modify_raw_data!" && m.mod_step != "modify_setup_data!" && m.mod_step != "extract_results") && error("The mod step you specified is not an option, please check your spelling. No columns will be added to the $(m.left_table_name) table.")
-
     if m.mod_step == "modify_raw_data!"
-        left_table = get_table(data, m.left_table_name)
-
-        leftjoin!(left_table, m.right_table, on = m.on, matchmissing = m.matchmissing)
+        left_join_cols!(m, config, data)
     end
 end
 
@@ -48,9 +49,7 @@ end
 """
 function modify_setup_data!(m::LeftJoinCols, config, data)
     if m.mod_step == "modify_setup_data!"
-        left_table = get_table(data, m.left_table_name)
-
-        leftjoin!(left_table, m.right_table, on = m.on ,matchmissing = m.matchmissing)
+        left_join_cols!(m, config, data)
     end
 end
 
@@ -59,17 +58,34 @@ end
 """
 function extract_results(m::LeftJoinCols, config, data)
     if m.mod_step == "extract_results"
-        left_table = get_table(data, m.left_table_name)
+        left_join_cols!(m, config, data)
+    end
+end
 
-        #check if left table already has the columns that will be joined
-        right_names = Symbol.(names(m.right_table))
-        left_names = Symbol.(names(left_table))
-        joined_cols = right_names[right_names .∉ Ref(m.on)] #columns that will be joined to the left table
+function left_join_cols!(m, config, data)
+    left_table = get_table(data, m.left_table_name)
 
-        existing_cols = joined_cols[joined_cols .∈ Ref(left_names)] #columns that would be joined but exist already in the left table
-        @info "The following columns already exist in the $(m.left_table_name) table and will not be joined by $(m.name)."
-        on_new = [m.on ; existing_cols]
+    #check if left table already has the columns that will be joined
+    right_names = Symbol.(names(m.right_table))
+    left_names = Symbol.(names(left_table))
+    joined_cols = right_names[right_names .∉ Ref(m.on)] #columns that will be joined to the left table
 
-        leftjoin!(left_table, m.right_table, on = on_new, matchmissing = m.matchmissing)
+    existing_cols = joined_cols[joined_cols .∈ Ref(left_names)] #columns that would be joined but exist already in the left table
+    @info "The following columns already exist in the $(m.left_table_name) table and will not be joined by $(m.name)."
+    on_new = [m.on ; existing_cols]
+
+    leftjoin!(left_table, m.right_table, on = on_new, matchmissing = m.matchmissing)
+
+    # Clean missing from columns
+    for col_name in propertynames(left_table)
+        if !any(ismissing, left_table[!, col_name])
+            disallowmissing!(left_table, col_name)
+        else
+            if haskey(m.replace_missing, col_name)
+                missing_val = m.replace_missing[col_name]
+                replace!(left_table[!, col_name], missing=>missing_val)
+                disallowmissing!(left_table, col_name)
+            end
+        end
     end
 end
