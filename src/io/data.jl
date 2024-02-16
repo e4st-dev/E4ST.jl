@@ -108,7 +108,7 @@ function _try_catch(f, sym, args...)
         return f(args...)
     catch e
         println("Error during function $f for Modification $sym")
-        @error e
+        @error (e, catch_backtrace())
         rethrow(e)
     end
 end
