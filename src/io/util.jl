@@ -410,9 +410,11 @@ function parse_comparisons(row::DataFrameRow)
         name = "filter$i"
         hasproperty(row, name) || break
         s = row[name]
-        isempty(s) && break
+        isempty(s) && continue
         pair = parse_comparison(s)
-        push!(pairs, pair)
+        if pair !== nothing
+            push!(pairs, pair)
+        end
     end
     
     # Check for area/subarea
@@ -437,6 +439,7 @@ Returns a set of pairs to be used in filtering rows of another table, where each
 """
 function parse_comparisons(d::AbstractDict)
     pairs = collect(parse_comparison("$k=>$v") for (k,v) in d if ~isempty(v))
+    filter!(!isnothing, pairs)
     pairs = convert(Vector{Any}, pairs)
     return pairs
 end
