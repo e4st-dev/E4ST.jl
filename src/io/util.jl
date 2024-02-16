@@ -377,6 +377,16 @@ function parse_comparison(_s::AbstractString)
         end
     end
 
+    # In the form latitude=>-89.01
+    if (m = match(r"([\w\s]+)=>(\s?-?\s?\d+[\d\.\s]*)", s)) !== nothing
+        n = parse(Float64, strip(m.captures[2]))
+        if isinteger(n)
+            return strip(m.captures[1]) => Int(n)
+        else
+            return strip(m.captures[1]) => n
+        end
+    end
+
     # In the form "nation=>narnia" or "bus_idx=>5"
     if (m = match(r"([\w\s]+)=>([\w\s]+)", s)) !== nothing
         return strip(m.captures[1])=>strip(m.captures[2])

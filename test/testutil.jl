@@ -42,6 +42,9 @@ end
         @test parse_comparison("emis_rate => >=y2020") == ("emis_rate" => >=("y2020"))
         @test parse_comparison("emis_rate => <=y2020") == ("emis_rate" => <=("y2020"))
 
+        @test parse_comparison("bus_idx => 1") == ("bus_idx" => 1)
+        @test parse_comparison("latitude => -12.345") == ("latitude" => -12.345)
+
         @test parse_comparison("genfuel => [ng ,solar, wind ]") == ("genfuel" => in(["ng", "solar", "wind"]))
         @test parse_comparison("region => [northern marsh]") == ("region" => in(["northern marsh"]))
         @test parse_comparison("bus_idx => [1, 2 ,3 ]") == ("bus_idx" => in([1,2,3]))
