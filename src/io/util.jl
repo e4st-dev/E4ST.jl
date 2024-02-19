@@ -300,6 +300,10 @@ function comparison(value::Tuple{<:Real, <:Real}, ::Type{<:Union{Missing, <:Real
     return x -> lo <= x <= hi
 end
 
+function comparison(value::Number, T::Type{<:Union{Missing, <:AbstractString}})
+    comparison(string(value), T)
+end
+
 function comparison(value::Vector, ::Type)
     return in(value)
 end
@@ -378,7 +382,7 @@ function parse_comparison(_s::AbstractString)
     end
 
     # In the form latitude=>-89.01
-    if (m = match(r"([\w\s]+)=>(\s?-?\s?\d+[\d\.\s]*)", s)) !== nothing
+    if (m = match(r"([\w\s]+)=>(\s?-?\s?\d+[\d\.\s]*$)", s)) !== nothing
         n = parse(Float64, strip(m.captures[2]))
         if isinteger(n)
             return strip(m.captures[1]) => Int(n)
@@ -388,7 +392,7 @@ function parse_comparison(_s::AbstractString)
     end
 
     # In the form "nation=>narnia" or "bus_idx=>5"
-    if (m = match(r"([\w\s]+)=>([\w\s]+)", s)) !== nothing
+    if (m = match(r"([\w\s]+)=>([\w\s\.]+$)", s)) !== nothing
         return strip(m.captures[1])=>strip(m.captures[2])
     end
 end
