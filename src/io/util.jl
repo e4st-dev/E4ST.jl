@@ -300,6 +300,10 @@ function comparison(value::Tuple{<:Real, <:Real}, ::Type{<:Union{Missing, <:Real
     return x -> lo <= x <= hi
 end
 
+function comparison(value::Number, T::Type{<:Union{Missing, <:AbstractString}})
+    comparison(string(value), T)
+end
+
 function comparison(value::Vector, ::Type)
     return in(value)
 end
@@ -378,7 +382,7 @@ function parse_comparison(_s::AbstractString)
     end
 
     # In the form latitude=>-89.01
-    if (m = match(r"([\w\s]+)=>(\s?-?\s?\d+[\d\.\s]*)", s)) !== nothing
+    if (m = match(r"([\w\s]+)=>(\s?-?\s?\d+[\d\.\s]*$)", s)) !== nothing
         n = parse(Float64, strip(m.captures[2]))
         if isinteger(n)
             return strip(m.captures[1]) => Int(n)
@@ -388,7 +392,7 @@ function parse_comparison(_s::AbstractString)
     end
 
     # In the form "nation=>narnia" or "bus_idx=>5"
-    if (m = match(r"([\w\s]+)=>([\w\s]+)", s)) !== nothing
+    if (m = match(r"([\w\s]+)=>([\w\s\.]+$)", s)) !== nothing
         return strip(m.captures[1])=>strip(m.captures[2])
     end
 end
@@ -410,9 +414,11 @@ function parse_comparisons(row::DataFrameRow)
         name = "filter$i"
         hasproperty(row, name) || break
         s = row[name]
-        isempty(s) && break
+        isempty(s) && continue
         pair = parse_comparison(s)
-        push!(pairs, pair)
+        if pair !== nothing
+            push!(pairs, pair)
+        end
     end
     
     # Check for area/subarea
@@ -437,6 +443,7 @@ Returns a set of pairs to be used in filtering rows of another table, where each
 """
 function parse_comparisons(d::AbstractDict)
     pairs = collect(parse_comparison("$k=>$v") for (k,v) in d if ~isempty(v))
+    filter!(!isnothing, pairs)
     pairs = convert(Vector{Any}, pairs)
     return pairs
 end

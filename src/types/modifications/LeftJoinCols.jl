@@ -71,7 +71,7 @@ function left_join_cols!(m, config, data)
     joined_cols = right_names[right_names .∉ Ref(m.on)] #columns that will be joined to the left table
 
     existing_cols = joined_cols[joined_cols .∈ Ref(left_names)] #columns that would be joined but exist already in the left table
-    @info "The following columns already exist in the $(m.left_table_name) table and will not be joined by $(m.name)."
+    isempty(existing_cols) || @info "The following columns already exist in the $(m.left_table_name) table and will not be joined by $(m.name): $(existing_cols)"
     on_new = [m.on ; existing_cols]
 
     leftjoin!(left_table, m.right_table, on = on_new, matchmissing = m.matchmissing)
