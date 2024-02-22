@@ -112,8 +112,9 @@ function extract_results(post_config)
     for (sim_path, sim_name) in zip(sim_paths, sim_names)
         @info "Beginning extract_results for $sim_name"
         data = read_processed_results(sim_path)
-        @info "Data has been read, starting result extraction"
+        @info "Data has been read, reading config."
         config = read_config(sim_path)
+        @info "Config has been read, starting extraction."
         for (key, post_mod) in post_mods
             @info "Extracting Results for Modificaion $key of type $(typeof(post_mod))"
             post_data[key][sim_name] = _try_catch(extract_results, key, post_mod, config, data)
