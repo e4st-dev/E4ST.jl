@@ -27,6 +27,7 @@ function read_post_config(filenames...; create_out_path = true, kwargs...)
     create_out_path && make_out_path!(post_config)
     convert_mods!(post_config)
     sort_mods_by_rank!(post_config)
+    save_config(post_config)
     return post_config
 end
 export read_post_config

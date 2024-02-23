@@ -648,19 +648,23 @@ end
 SumHourlyWeighted(cols::Symbol...) = SumHourlyWeighted(cols)
 export SumHourlyWeighted
 
+function get_hours_container(data)
+    return data[:hours_container]::HoursContainer
+end
+
 function (f::SumHourlyWeighted{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
-    hc = data[:hours_container]::HoursContainer
+    hc = get_hours_container(data)::HoursContainer
     _sum_hourly(col_or_container(data, table, col1), hc, idxs, yr_idxs, hr_idxs)
 end
 function (f::SumHourlyWeighted{2})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2 = f.cols
-    hc = data[:hours_container]::HoursContainer
+    hc = get_hours_container(data)::HoursContainer
     _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), hc, idxs, yr_idxs, hr_idxs)
 end
 function (f::SumHourlyWeighted{3})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2,col3 = f.cols
-    hc = data[:hours_container]::HoursContainer
+    hc = get_hours_container(data)::HoursContainer
     _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), hc, idxs, yr_idxs, hr_idxs)
 end
 
@@ -718,21 +722,21 @@ export AverageHourlyWeighted
 function (f::AverageHourlyWeighted{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
     hour_weights = get_hour_weights(data)
-    hc = data[:hours_container]::HoursContainer
+    hc = get_hours_container(data)::HoursContainer
     _sum_hourly(col_or_container(data, table, col1), hc, idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
 end
 
 function (f::AverageHourlyWeighted{2})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2 = f.cols
     hour_weights = get_hour_weights(data)
-    hc = data[:hours_container]::HoursContainer
+    hc = get_hours_container(data)::HoursContainer
     _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), hc, idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
 end
 
 function (f::AverageHourlyWeighted{3})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2,col3 = f.cols
     hour_weights = get_hour_weights(data)
-    hc = data[:hours_container]::HoursContainer
+    hc = get_hours_container(data)::HoursContainer
     _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), hc, idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
 end
 
