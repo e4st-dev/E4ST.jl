@@ -142,6 +142,66 @@ struct HoursContainer <: Container{Float64, 2}
 end
 export HoursContainer
 
+function Base.convert(::Type{<:OriginalContainer{N, D, C}}, x::OriginalContainer) where {N,D,C}
+    return OriginalContainer(x.original, convert(C, x.v))
+end
+function Base.convert(::Type{<:OriginalContainer{N, D, C}}, x::ByNothing) where {N,D,C}
+    return OriginalContainer(x.v, convert(C, x))
+end
+function Base.convert(::Type{ByNothing}, c::ByYear)
+    if length(c.v) == 1
+        return ByNothing(c.v[1])
+    end
+    error("To convert from ByYear to ByNothing, it must have only a single value")
+end
+
+
+
+function promote_col(col::Vector{C}) where {C<:Container}
+    isabstracttype(C) || return col
+    T = get_promotion_type(col)
+    if ismulti(T)
+        scalar = _get_unity_scalar(T, col)
+        for i in eachindex(col)
+            col[i] = col[i] .* scalar
+        end
+    end
+
+    return convert(Vector{T}, col)
+end
+
+function get_promotion_type(col::Vector{<:Container})
+    ET = typeof(first(col))
+    if all(e->e isa ET, col)
+        return ET
+    elseif all(e->length(e) == 1, col)
+        return any(isoriginal, col) ? OriginalContainer{Float64, 0, ByNothing} : ByNothing
+    else
+        types = unique!(typeof.(col))
+        res = 0.0
+        for type in types
+            i = findfirst(e->e isa type, col)
+            val = col[i]
+            res = res .* val
+        end
+        return typeof(res)
+    end
+    return Container
+end
+
+isoriginal(e) = false
+isoriginal(e::OriginalContainer) = true
+ismulti(::Type{<:OriginalContainer{N, 0}}) where N = false
+ismulti(::Type{<:Container}) = true
+ismulti(::Type{<:ByNothing}) = false
+
+function _get_unity_scalar(T, col)
+    i = findfirst(e->e isa T, col)
+    c = col[i]
+    return c .* 0 .+ 1
+end
+
+
 """
     get_original(c::Container) -> original::Float64
 

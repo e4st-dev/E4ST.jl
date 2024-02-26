@@ -279,7 +279,8 @@ function modify_results!(mod::FuelPrice, config, data)
         
         row.clearing_price = fuel_price.price[fp_idxs] .- shad_price #shadow price should be negative so clearing price should be higher than step
         for gen_idx in row.gen_idxs
-            gen.fuel_price[gen_idx] = row.clearing_price
+            fp = gen.fuel_price[gen_idx]
+            gen.fuel_price[gen_idx] = (fp .* 0) .+ row.clearing_price
         end
     end
 end
