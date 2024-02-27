@@ -46,6 +46,7 @@ function read_data!(config, data)
     setup_data!(config, data)  
     modify_setup_data!(config, data)
 
+    promote_cols!(data)
     setup_results_formulas!(config, data)
     setup_welfare!(config, data)
 
@@ -85,6 +86,40 @@ function read_data_files!(config, data)
     read_table!(config, data, :gentype_genfuel_file => :genfuel, optional=true)
 end
 export read_data_files!
+
+"""
+    promote_cols!(data)
+
+promotes columns of every table in data to be `Vector{CT}` for all `Vector{AT}` where `AT` is an abstract type and every element is of concrete type `CT`
+"""
+function promote_cols!(data::OrderedDict)
+    for (k,v) in data
+        promote_cols!(v)
+    end
+end
+function promote_cols!(x)
+end
+function promote_cols!(df::DataFrame)
+    for cn in propertynames(df)
+        col = df[!, cn]
+        col_new = promote_col(col)
+        df[!, cn] = col_new
+    end
+end
+export promote_cols!
+
+function promote_col(col::Vector{AT}) where AT
+    if isabstracttype(AT)
+        ET = typeof(first(col))
+        if all(e->e isa ET, col)
+            return convert(Vector{ET}, col)
+        end
+    end
+    return col
+end
+function promote_col(col)
+    return col
+end
 
 """
     modify_raw_data!(config, data)

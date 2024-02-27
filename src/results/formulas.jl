@@ -648,19 +648,23 @@ end
 SumHourlyWeighted(cols::Symbol...) = SumHourlyWeighted(cols)
 export SumHourlyWeighted
 
+function get_hours_container(data)
+    return data[:hours_container]::HoursContainer
+end
+
 function (f::SumHourlyWeighted{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
-    hc = data[:hours_container]::HoursContainer
+    hc = get_hours_container(data)::HoursContainer
     _sum_hourly(col_or_container(data, table, col1), hc, idxs, yr_idxs, hr_idxs)
 end
 function (f::SumHourlyWeighted{2})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2 = f.cols
-    hc = data[:hours_container]::HoursContainer
+    hc = get_hours_container(data)::HoursContainer
     _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), hc, idxs, yr_idxs, hr_idxs)
 end
 function (f::SumHourlyWeighted{3})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2,col3 = f.cols
-    hc = data[:hours_container]::HoursContainer
+    hc = get_hours_container(data)::HoursContainer
     _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), hc, idxs, yr_idxs, hr_idxs)
 end
 
@@ -718,21 +722,21 @@ export AverageHourlyWeighted
 function (f::AverageHourlyWeighted{1})(data, table, idxs, yr_idxs, hr_idxs)
     col1, = f.cols
     hour_weights = get_hour_weights(data)
-    hc = data[:hours_container]::HoursContainer
+    hc = get_hours_container(data)::HoursContainer
     _sum_hourly(col_or_container(data, table, col1), hc, idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
 end
 
 function (f::AverageHourlyWeighted{2})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2 = f.cols
     hour_weights = get_hour_weights(data)
-    hc = data[:hours_container]::HoursContainer
+    hc = get_hours_container(data)::HoursContainer
     _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), hc, idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
 end
 
 function (f::AverageHourlyWeighted{3})(data, table, idxs, yr_idxs, hr_idxs)
     col1,col2,col3 = f.cols
     hour_weights = get_hour_weights(data)
-    hc = data[:hours_container]::HoursContainer
+    hc = get_hours_container(data)::HoursContainer
     _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), hc, idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
 end
 
@@ -747,42 +751,132 @@ struct CostOfServiceRebate <: Function
     table_name::Symbol
 end
 function (f::CostOfServiceRebate)(data, table, idxs, yr_idxs, hr_idxs)
-    reg_factor = table.reg_factor
-    return sum0(reg_factor[i] * compute_result(data, f.table_name, :net_total_revenue_prelim, i, yr_idxs, hr_idxs) for i in idxs)
+    reg_factor = table.reg_factor::Vector{Float64}
+    res = 0.0
+    for i in idxs
+        rf = reg_factor[i]
+        rev_prelim = compute_result(data, f.table_name, :net_total_revenue_prelim, i, yr_idxs, hr_idxs)
+        prod = rf * rev_prelim
+        res += prod
+    end
+    return res
+    # return sum0(reg_factor[i] * compute_result(data, f.table_name, :net_total_revenue_prelim, i, yr_idxs, hr_idxs) for i in idxs)
 end
 export CostOfServiceRebate
 
 
 function _sum(v1, idxs)
-    sum(_getindex(v1,i) for i in idxs)
+    res = 0.0
+    for i in idxs
+        x1 = _getindex(v1, i)
+        p = x1
+        res += p
+    end
+    return res
+    # sum(_getindex(v1,i) for i in idxs)
 end
 function _sum(v1, v2, idxs)
-    sum(_getindex(v1,i)*_getindex(v2,i) for i in idxs)
+    res = 0.0
+    for i in idxs
+        x1 = _getindex(v1, i)
+        x2 = _getindex(v2, i)
+        p = x1 * x2
+        res += p
+    end
+    return res
+    # sum(_getindex(v1,i)*_getindex(v2,i) for i in idxs)
 end
 function _sum(v1, v2, v3, idxs)
-    sum(_getindex(v1,i)*_getindex(v2,i)*_getindex(v3,i) for i in idxs)
+    res = 0.0
+    for i in idxs
+        x1 = _getindex(v1, i)
+        x2 = _getindex(v2, i)
+        x3 = _getindex(v3, i)
+        p = x1 * x2 * x3
+        res += p
+    end
+    return res
+    # sum(_getindex(v1,i)*_getindex(v2,i)*_getindex(v3,i) for i in idxs)
 end
 function _sum_yearly(v1, idxs, yr_idxs)
-    sum(_getindex(v1, i, y) for i in idxs, y in yr_idxs)
+    res = 0.0
+    for i in idxs, y in yr_idxs
+        x1 = _getindex(v1, i, y)
+        p = x1
+        res += p
+    end
+    return res
+    # sum(_getindex(v1, i, y) for i in idxs, y in yr_idxs)
 end
 function _sum_yearly(v1, v2, idxs, yr_idxs)
-    sum(_getindex(v1, i, y)*_getindex(v2, i, y) for i in idxs, y in yr_idxs)
+    res = 0.0
+    for i in idxs, y in yr_idxs
+        x1 = _getindex(v1, i, y)
+        x2 = _getindex(v2, i, y)
+        p = x1 * x2
+        res += p
+    end
+    return res
+    # sum(_getindex(v1, i, y)*_getindex(v2, i, y) for i in idxs, y in yr_idxs)
 end
 function _sum_yearly(v1, v2, v3, idxs, yr_idxs)
-    sum(_getindex(v1, i, y)*_getindex(v2, i, y)*_getindex(v3, i, y) for i in idxs, y in yr_idxs)
+    res = 0.0
+    for i in idxs, y in yr_idxs
+        x1 = _getindex(v1, i, y)
+        x2 = _getindex(v2, i, y)
+        x3 = _getindex(v3, i, y)
+        p = x1 * x2 * x3
+        res += p
+    end
+    return res
+    # sum(_getindex(v1, i, y)*_getindex(v2, i, y)*_getindex(v3, i, y) for i in idxs, y in yr_idxs)
 end
 
 function _sum_hourly(v1, idxs, yr_idxs, hr_idxs)
-    sum(_getindex(v1, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
+    res = 0.0
+    for i in idxs, y in yr_idxs, h in hr_idxs
+        x1 = _getindex(v1, i, y, h)
+        p = x1
+        res += p
+    end
+    return res
+    # sum(_getindex(v1, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
 end
 function _sum_hourly(v1, v2, idxs, yr_idxs, hr_idxs)
-    sum(_getindex(v1, i, y, h)*_getindex(v2, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
+    res = 0.0
+    for i in idxs, y in yr_idxs, h in hr_idxs
+        x1 = _getindex(v1, i, y, h)
+        x2 = _getindex(v2, i, y, h)
+        p = x1 * x2
+        res += p
+    end
+    return res
+    # sum(_getindex(v1, i, y, h)*_getindex(v2, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
 end
 function _sum_hourly(v1, v2, v3, idxs, yr_idxs, hr_idxs)
-    sum(_getindex(v1, i, y, h)*_getindex(v2, i, y, h)*_getindex(v3, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
+    res = 0.0
+    for i in idxs, y in yr_idxs, h in hr_idxs
+        x1 = _getindex(v1, i, y, h)
+        x2 = _getindex(v2, i, y, h)
+        x3 = _getindex(v3, i, y, h)
+        p = x1 * x2 * x3
+        res += p
+    end
+    return res
+    # sum(_getindex(v1, i, y, h)*_getindex(v2, i, y, h)*_getindex(v3, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
 end
 function _sum_hourly(v1, v2, v3, v4, idxs, yr_idxs, hr_idxs)
-    sum(_getindex(v1, i, y, h)*_getindex(v2, i, y, h)*_getindex(v3, i, y, h)*_getindex(v4, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
+    res = 0.0
+    for i in idxs, y in yr_idxs, h in hr_idxs
+        x1 = _getindex(v1, i, y, h)
+        x2 = _getindex(v2, i, y, h)
+        x3 = _getindex(v3, i, y, h)
+        x4 = _getindex(v4, i, y, h)
+        p = x1 * x2 * x3 * x4
+        res += p
+    end
+    return res
+    # sum(_getindex(v1, i, y, h)*_getindex(v2, i, y, h)*_getindex(v3, i, y, h)*_getindex(v4, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
 end
 
 function _iterator_hourly(v1, idxs, yr_idxs, hr_idxs)

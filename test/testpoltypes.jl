@@ -37,7 +37,7 @@
             @test hasproperty(gen, :example_ptc_capex_adj)
 
             #test that there are byYear containers 
-            @test typeof(gen.example_ptc) == Vector{Container}
+            @test gen.example_ptc isa Vector{<:Container}
 
             @test any(ptc -> typeof(ptc) == E4ST.ByYear, gen.example_ptc)
 
@@ -139,7 +139,7 @@
             @test hasproperty(gen, :example_itc)
 
             # Test that there are byYear containers 
-            @test typeof(gen.example_itc) == Vector{Container}
+            @test gen.example_itc isa Vector{<:Container}
 
             # Check that there are ByYear containers
             @test any(itc -> typeof(itc) == E4ST.ByYear, gen.example_itc)
