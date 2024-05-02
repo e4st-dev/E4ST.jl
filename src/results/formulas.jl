@@ -740,6 +740,37 @@ function (f::AverageHourlyWeighted{3})(data, table, idxs, yr_idxs, hr_idxs)
     _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), hc, idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
 end
 
+"""
+    PercentWeightedHoursNonZero{N} <: Function
+
+Returns the percent of weighted hours (as a decimal) where the column value is non-zero. 
+This is done by creating a boolean matrix of whether the column value is non zero at that index. Then the average is taken over all of the specified indices. 
+
+This is useful in finding the percent of time that a constraint is binding. To do this, you first need to add a column containing the shadow price of the constraint to the relevant table in data (ie. gen table if it is a constraint on generators)
+"""
+struct PercentWeightedHoursNonZero{N} <: Function 
+    cols::NTuple{N, Symbol}
+end
+PercentWeightedHoursNonZero(cols::Symbol...) = PercentWeightedHoursNonZero(cols)
+export(PercentWeightedHoursNonZero)
+
+function (f::PercentWeightedHoursNonZero{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols  
+    
+    _PercentWeightedHoursNonZero(col_or_container(data, table, col1), get_hour_weights(data), idxs, yr_idxs, hr_idxs)
+
+end
+
+function _PercentWeightedHoursNonZero(v1, hour_weights, idxs, yr_idxs, hr_idxs)
+    count = 0.0
+    for i in idxs, y in yr_idxs, h in hr_idxs
+        v1[i][y, h] != 0 && (count += hour_weights[h])
+    end
+
+    res = count / (length(idxs)*length(yr_idxs)*sum(hour_weights[hr_idxs]))
+    return res
+end
+
 
 
 """
@@ -882,3 +913,6 @@ end
 function _iterator_hourly(v1, idxs, yr_idxs, hr_idxs)
     return (_getindex(v1, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
 end
+
+
+

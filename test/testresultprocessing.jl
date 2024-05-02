@@ -188,6 +188,10 @@
             ch4_rate = compute_result(data, :gen, :emis_upstream_ch4_rate)
             @test ch4_rate > 0
 
+            # test that % of hours that lmp is nonzero is between 1 and 0 for PercentWeightedHoursNonZero formula (likely will be 1, also tested separately using a larger test)
+            lmp_perc_time_nonzero = compute_result(data, :bus, :percent_time_elec_prc_nonzero)
+            @test 0.0 < lmp_perc_time_nonzero <= 1.0
+
 
         end
 
