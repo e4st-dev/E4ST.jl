@@ -703,15 +703,28 @@ function setup_table!(config, data, ::Val{:af_table})
         end
         
         pairs = parse_comparisons(row)
-        gens = get_table(data, :gen, pairs)
+        cur_gens = get_table(data, :gen, pairs)
 
-        isempty(gens) && continue
+        isempty(cur_gens) && continue
         
         af = [(row[i_hr] < af_threshold ? 0.0 : row[i_hr]) for i_hr in hr_idx:(hr_idx + nhr - 1)]
-        foreach(eachrow(gens)) do gen
+        foreach(eachrow(cur_gens)) do gen
             gen.af = set_hourly(gen.af, af, yr_idx, nyr)
         end
     end
+
+    # find all wind and solar generators with zero AF
+    gen_idx_wrong = findall(af->all(==(0), af), gens.af)
+    n_gen_wrong = length(gen_idx_wrong)
+    if n_gen_wrong > 0
+        message = "There are $n_gen_wrong generators with all zero availability factor.\n  gen_idxs: $gen_idx_wrong"
+        if config[:error_if_zero_af] == true
+            error(message)
+        else
+            @warn(message)
+        end
+    end
+
     return data
 end
 
