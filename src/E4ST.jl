@@ -95,10 +95,10 @@ include("model/newgens.jl")
 include("model/util.jl")
 
 # Include Results
+include("results/formulas.jl")
 include("results/parse.jl")
 include("results/process.jl")
 include("results/aggregate.jl")
-include("results/formulas.jl")
 include("results/welfare.jl")
 include("results/util.jl")
 

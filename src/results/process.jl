@@ -78,6 +78,18 @@ end
 
 
 function save_results_formulas(config, data)
+    results_formulas = get_results_formulas(data)
+    table = make_results_formulas_table(results_formulas)
+    out_file = get_out_path(config, "results_formulas.csv")
+    CSV.write(out_file, table)
+end
+
+"""
+    make_results_formulas_table(results_formulas::OrderedDict{Tuple{Symbol, Symbol},ResultsFormula}) -> df
+
+
+"""
+function make_results_formulas_table(results_formulas::OrderedDict{Tuple{Symbol, Symbol},ResultsFormula})
     table = DataFrame(;
         table_name=Symbol[],
         result_name=Symbol[],
@@ -85,7 +97,6 @@ function save_results_formulas(config, data)
         unit=Type[],
         description = String[]
     )
-    results_formulas = get_results_formulas(data)
     for (k,v) in results_formulas
         (table_name, result_name) = k
         formula = v.formula
@@ -93,6 +104,5 @@ function save_results_formulas(config, data)
         description = v.description
         push!(table, (;table_name, result_name, formula, unit, description))
     end
-    out_file = get_out_path(config, "results_formulas.csv")
-    CSV.write(out_file, table)
+    return table
 end
