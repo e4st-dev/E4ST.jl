@@ -47,6 +47,7 @@ function append_builds!(config, data, table_name, build_table_name)
             if hasproperty(bus, col_name)
                 col = new[!, col_name]
                 for (i, val) in enumerate(col)
+                    # Continue if the value is filled in.
                     ismissing(val) || isnothing(val) || isempty(val) || continue
                     bus_idx = new_bus_idxs[i]
                     col[i] = bus[col_name, bus_idx]
@@ -64,10 +65,26 @@ function append_builds!(config, data, table_name, build_table_name)
             continue
         end
 
-        error("Column $col_name not found in build table nor bus table.")
+        if hasmethod(get_default_column_value, Tuple{Val{Symbol(col_name)}})
+            new[!, col_name] .= get_default_column_value(Val(Symbol(col_name)))
+            continue
+        end
+
+        error("Column $col_name was in the $table_name table but not found in $build_table_name table nor bus table.")
     end
 
-    append!(existing, new, cols = :intersect, promote = true)
+    # Add any columns to existing that are present in `new` but not in `existing`
+    new_table_extra_cols = setdiff(propertynames(new), propertynames(existing))
+    for extra_col in new_table_extra_cols
+        if hasmethod(get_default_column_value, Tuple{Val{extra_col}})
+            existing[!, extra_col] .= get_default_column_value(Val(extra_col))
+        else
+            @warn "No column $(extra_col) defined in the table $table_name, but it is defined in $build_table_name. Removing that column from both tables.  Consider defining a default value using get_default_column_value"
+            select!(new, Not(extra_col))
+        end
+    end
+
+    append!(existing, new, promote = true)
     return new
 end
 export append_builds!

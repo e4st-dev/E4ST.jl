@@ -95,14 +95,19 @@
             data = read_data(config)
             gen = get_table(data, :gen)
             @test !hasproperty(gen, :annual_fish_displacement)
+            @test !hasproperty(gen, :capt_co2_percent)
+            @test !hasproperty(gen, :extra_col)
         end
-        
+
         # Insert a test that the gen table has the extra column.
         E4ST.get_default_column_value(::Val{:annual_fish_displacement}) = 0
         E4ST.get_default_column_value(::Val{:capt_co2_percent}) = 0
+        E4ST.get_default_column_value(::Val{:extra_col}) = ""
 
         data = read_data(config)
         gen = get_table(data, :gen)
+
+        # Test that everything is working properly with column `annual_fish_displacement`
         @test hasproperty(gen, :annual_fish_displacement)
 
         # Make sure that exactly one generator has annual_fish_displacement == 3
@@ -110,6 +115,11 @@
 
         # Make sure that all the rest of the generators have annual_fish_displacement == 0
         @test count(==(0), gen.annual_fish_displacement) == nrow(gen) - 1
+
+        # Now test that the `extra_col`, introduced through `build_gen`, is added to the gen table
+        @test hasproperty(gen, :extra_col) 
+        @test count(==(""), gen.extra_col) > 0
+
     end
 
 

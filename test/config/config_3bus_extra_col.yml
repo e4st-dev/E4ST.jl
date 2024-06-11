@@ -1,7 +1,7 @@
 base_out_path:    "../out/3bus"
 gen_file: 
   - "../data/3bus/gen.csv"
-  - "../data/3bus/gen2.csv"
+  - "../data/3bus/gen_extra_col.csv"
 bus_file:    "../data/3bus/bus.csv"
 branch_file: "../data/3bus/branch.csv"
 hours_file:  "../data/3bus/hours.csv"
@@ -11,7 +11,7 @@ load_shape_file: "../data/3bus/load_shape.csv"
 load_match_file: "../data/3bus/load_match.csv"
 load_add_file: "../data/3bus/load_add.csv"
 gentype_genfuel_file: "../data/3bus/gentype_genfuel.csv"
-build_gen_file: "../data/3bus/build_gen.csv"
+build_gen_file: "../data/3bus/build_gen_extra_col.csv"
 summary_table_file: 
   - "../data/3bus/summary_table.csv"
   - "../data/3bus/summary_table2.csv"
