@@ -86,5 +86,23 @@
         @test count(==(false), bus.is_beaverdam) == 2
     end
 
+    # @testset "Test Column Defaults" begin
+    #     config_file = joinpath(@__DIR__, "config/config_3bus_extra_col.yml")
+    #     config = read_config(config_file)
+        
+    #     # Test before specifying, that the column gets dropped
+    #     data = read_data(config_file)
+    #     gen = get_table(data, :gen)
+    #     @test !hasproperty(gen, :annual_fish_displacement)
+
+    #     # Insert a test that the gen table has the extra column.
+    #     E4ST.get_default_column_value(::Val{:annual_fish_displacement}) = 0
+    #     data = read_data(config_file)
+    #     gen = get_table(data, :gen)
+    #     @test hasproperty(gen, :annual_fish_displacement)
+    #     @test gen.annual_fish_displacement[end] == 3
+    #     @test all(==(0), gen.annual_fish_displacement[1:end-1])
+    # end
+
 
 end
