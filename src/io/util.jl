@@ -305,7 +305,7 @@ function comparison(value::Number, T::Type{<:Union{Missing, <:AbstractString}})
 end
 
 function comparison(value::Vector, ::Type)
-    return in(value)
+    return ArrayComparison(value)
 end
 
 function comparison(value::Tuple{<:AbstractString, <:AbstractString}, ::Type{<:Union{Missing, <:AbstractString}})
@@ -371,13 +371,20 @@ function parse_comparison(_s::AbstractString)
     end
 
     # In the form "genfuel=>[ng,solar,wind]"
-    if (m=match(r"([\w\s]+)=>\s*!?\[([\w,.\s]*)\]", s)) !== nothing
-        ar = str2array(m.captures[2])
+    if (m=match(r"([\w\s]+)=>\s*(!?\[[\w,.\s]*\])", s)) !== nothing
+        ar_str = m.captures[2]
+        ar_str_clean = replace(ar_str, 
+            r"\s+,"=>",",
+            r",\s+"=>",",
+            r"\[\s+"=>"[",
+            r"\s+\]" => "]"
+        )
+        ar = str2array(ar_str)
         name = strip(m.captures[1])
         if contains(s, "![")
-            return name => !in(ar)
+            return name => ArrayComparison(ar, not=true)
         else
-            return name => in(ar)
+            return name => ArrayComparison(ar)
         end
     end
 
@@ -448,6 +455,49 @@ function parse_comparisons(d::AbstractDict)
     return pairs
 end
 
+struct ArrayComparison{T, I, F} <: Function
+    v::Vector{T}
+    not::Bool
+    f::F
+    function ArrayComparison(v::Vector{T}; not=false) where T
+        if not == true
+            f = !in(v)
+        else
+            f = in(v)
+        end
+        return new{T, not, typeof(f)}(v, not, f)
+    end
+end
+
+function (c::ArrayComparison{T})(x::AbstractString) where {T <: AbstractString}
+    f = c.f
+    if startswith(x, r"!?\[")
+        v = str2array(x, T)
+        return all(f, v)
+    else
+        return f(x)
+    end
+end
+
+function (c::ArrayComparison{T})(x::AbstractString) where {T}
+    f = c.f
+    if startswith(x, r"!?\[")
+        v = str2array(x, T)
+        return all(f, v)
+    else
+        x1 = parse(T,x)
+        return f(x1)
+    end
+end
+
+function (c::ArrayComparison{T})(x) where {T}
+    f = c.f
+    return f(x)
+end
+
+function (c::ArrayComparison{T})(x::AbstractVector) where {T}
+    return all(c, x)
+end
 
 """
     parse_year_idxs(s::AbstractString) -> comparisons
@@ -508,12 +558,34 @@ export parse_hour_idxs
 
 function str2array(s::AbstractString)
     v = split(s,',')
-    v = strip.(v)
+    v = strip.(v, Ref([' ', '[', ']', '!']))
     v_int = tryparse.(Int64, v)
     v_int isa Vector{Int64} && return v_int
     v_float = tryparse.(Float64, v)
     v_float isa Vector{Float64} && return v_float
     return String.(v)
+end
+
+function str2array(s::AbstractString, T)
+    # TODO: could make this more efficient by iterating through
+    v = split(s,',')
+    out = Vector{T}(undef, length(v))
+    for (i,ss) in enumerate(v)
+        sss = strip(ss, (' ', '[', ']', '!'))
+        out[i] = parse(T, sss)
+    end
+    return out
+end
+
+function str2array(s::AbstractString, ::Type{<:AbstractString})
+    # TODO: could make this more efficient by iterating through
+    v = split(s,',')
+    out = Vector{String}(undef, length(v))
+    for (i,ss) in enumerate(v)
+        sss = strip(ss, (' ', '[', ']', '!'))
+        out[i] = String(sss)
+    end
+    return out
 end
 
 """

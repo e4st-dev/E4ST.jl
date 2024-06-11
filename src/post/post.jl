@@ -109,20 +109,32 @@ function extract_results(post_config)
         post_data[key] = OrderedDict{String, Any}()
     end
 
+    results_formulas_combined = OrderedDict{Tuple{Symbol, Symbol},ResultsFormula}()
+
     # Pull in the processed results for each of the paths and transfer/compute necessary things, add to `post_data`
     for (sim_path, sim_name) in zip(sim_paths, sim_names)
         @info "Beginning extract_results for $sim_name"
         data = read_processed_results(sim_path)
         @info "Data has been read, reading config."
         config = read_config(sim_path)
+
+        results_formula = get_results_formulas(data)
+        for (k,v) in results_formula
+            get!(results_formulas_combined, k, v)
+        end
+
         @info "Config has been read, starting extraction."
         for (key, post_mod) in post_mods
-            @info "Extracting Results for Modificaion $key of type $(typeof(post_mod))"
+            @info "Extracting Results for Modification $key of type $(typeof(post_mod))"
             post_data[key][sim_name] = _try_catch(extract_results, key, post_mod, config, data)
         end
         @info "Done extracting results"
         
     end
+    results_formulas_table = make_results_formulas_table(results_formulas_combined)
+
+    CSV.write(get_out_path(post_config, "results_formulas.csv"), results_formulas_table)
+
     return post_data
 end
 export extract_results
