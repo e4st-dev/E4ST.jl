@@ -252,7 +252,7 @@ function read_table(filenames::AbstractVector)
                 table[!, extra_col] .= get_default_column_value(Val(extra_col))
             else
                 @warn "No column $(extra_col) defined in the table that file $(filename) is being added to, removing that column from both tables. Consider defining a default value using get_default_column_value"
-                select!(new, Not(extra_col))
+                select!(tmp, Not(extra_col))
             end
         end
 
