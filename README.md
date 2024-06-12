@@ -5,7 +5,6 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![CI](https://github.com/e4st-dev/E4ST.jl/workflows/CI/badge.svg)](https://github.com/e4st-dev/E4ST.jl/actions?query=workflow%3ACI)
 [![Code Coverage](https://codecov.io/gh/e4st-dev/E4ST.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/e4st-dev/E4ST.jl)
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://e4st-dev.github.io/E4ST.jl/stable/)
 [![In Development](https://img.shields.io/badge/docs-dev-blue.svg)](https://e4st-dev.github.io/E4ST.jl/dev/)
 
 This is the Julia rewrite of the Engineering, Economic, and Environmental Electricity Simulation Tool (E4ST), [originally written in MATLAB](https://github.com/e4st-dev/e4st-mp), based on top of MATPOWER.  The idea for E4ST was developed in a joint effort at Cornell University and Resources for the Future by Daniel Shawhan and Ray Zimmerman, with major contributions from Biao Mao, Paul Picciano, Christoph Funke, Steven Whitkin, Ethan Russell, and Sally Robson.

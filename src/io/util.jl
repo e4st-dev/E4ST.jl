@@ -399,7 +399,7 @@ function parse_comparison(_s::AbstractString)
     end
 
     # In the form "nation=>narnia" or "bus_idx=>5"
-    if (m = match(r"([\w\s]+)=>([\w\s\.]+$)", s)) !== nothing
+    if (m = match(r"([\w\s]+)=>(.+$)", s)) !== nothing
         return strip(m.captures[1])=>strip(m.captures[2])
     end
 end

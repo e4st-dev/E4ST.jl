@@ -76,7 +76,8 @@ function modify_setup_data!(ret::Retrofit, config, data)
 
         # Add a retrofit candidate for each year
         for yr_idx in 1:nyr
-            newgen = Dict(pairs(row))
+            newgen = deepcopy(Dict(pairs(row)))
+
             # Set year_retrofit
             year = years[yr_idx]
             newgen[:year_retrofit] = year
@@ -98,7 +99,6 @@ function modify_setup_data!(ret::Retrofit, config, data)
 
     @info "Added $(nrow(gen) - ngen) retrofit generators to gen table"
 end
-
 
 """
     modify_model!(ret::Retrofit, config, data, model)
