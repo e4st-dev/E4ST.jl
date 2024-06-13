@@ -231,11 +231,47 @@ function read_table(filenames::AbstractVector)
     for i in 2:length(filenames)
         filename = filenames[i]
         tmp = read_table(filename)
+
+        # Check to see if either table has columns that the other does not.
+        original_table_extra_cols = setdiff(propertynames(table), propertynames(tmp))
+        new_table_extra_cols = setdiff(propertynames(tmp), propertynames(table))
+
+        # Add extra columns to `tmp`
+        for extra_col in original_table_extra_cols
+            if hasmethod(get_default_column_value, Tuple{Val{extra_col}})
+                tmp[!, extra_col] .= get_default_column_value(Val(extra_col))
+            else
+                @warn "No column $(extra_col) defined in file $(filename), removing that column from both tables. Consider defining a default value using get_default_column_value"
+                select!(table, Not(extra_col))
+            end
+        end
+
+        # Add extra columns to `table`
+        for extra_col in new_table_extra_cols
+            if hasmethod(get_default_column_value, Tuple{Val{extra_col}})
+                table[!, extra_col] .= get_default_column_value(Val(extra_col))
+            else
+                @warn "No column $(extra_col) defined in the table that file $(filename) is being added to, removing that column from both tables. Consider defining a default value using get_default_column_value"
+                select!(tmp, Not(extra_col))
+            end
+        end
+
         append!(table, tmp, promote=true)
     end
     return table
 end
 export read_table
+
+
+"""
+    get_default_column_value(::Val{<custom column name>}) = <default value>
+
+Define this function for your custom column name in order to specify a default value for that column.
+"""
+function get_default_column_value end
+export get_default_column_value
+
+
 
 
 """
