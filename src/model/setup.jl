@@ -70,6 +70,8 @@ function setup_model(config, data)
 
     log_header("SETTING UP MODEL")
 
+    validate(config, data)
+
     # Create set of model keys not to parse
     data[:do_not_parse_model_keys] = Set{Symbol}()
     do_not_parse!(data, :cons_pgen_max)
@@ -114,6 +116,46 @@ function setup_model(config, data)
     config[:log_model_summary] === true && @info summarize(model)
 
     return model
+end
+
+"""
+    validate(config, data)
+
+Validates the data by checking:
+* Makes sure that there are no generators with all-zero costs
+* Makes sure that there are no generators with all-zero availability factors
+"""
+function validate(config, data)
+    gen = get_table(data, :gen)
+
+    # Find all generators with all-zero costs.
+    gen_idx_zero_cost = findall(
+        row->all(iszero, row.capex) && all(iszero, row.fom) && all(iszero, row.heat_rate) && all(iszero, row.vom), 
+        eachrow(gen)
+    )
+    n_gen_zero_cost = length(gen_idx_zero_cost)
+
+    if n_gen_zero_cost > 0
+        message = "There are $n_gen_zero_cost generators with all zero costs.\n  gen_idxs: $gen_idx_zero_cost"
+        if config[:error_if_zero_cost] == true
+            error(message)
+        else
+            @warn(message)
+        end
+    end
+
+
+    # find all generators with zero AF
+    gen_idx_wrong = findall(af->all(==(0), af), gen.af)
+    n_gen_wrong = length(gen_idx_wrong)
+    if n_gen_wrong > 0
+        message = "There are $n_gen_wrong generators with all zero availability factor.\n  gen_idxs: $gen_idx_wrong"
+        if config[:error_if_zero_af] == true
+            error(message)
+        else
+            @warn(message)
+        end
+    end
 end
 
 """
