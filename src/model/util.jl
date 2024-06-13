@@ -174,8 +174,7 @@ function get_gentype_cf_hist(gentype::AbstractString)
     gentype == "ngcc" && return 0.58
     gentype == "ngt" && return 0.04 
     gentype == "ngo" && return 0.06 
-    gentype == "ngccccs_new" && return 0.55
-    gentype == "ngccccs_ret" && return 0.55 # this is set to same as new because no ret was done in the sim
+    gentype == "ngccccs" && return 0.55
     gentype == "coal" && return 0.68
     gentype == "igcc" && return 0.55 # this is taken from the EIA monthly average coal (in general)
     gentype == "coalccs_new" && return 0.85 # set to same as ret because no new in run

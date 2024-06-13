@@ -90,6 +90,31 @@ function get_sim_names(post_config)
 end
 export get_sim_names
 
+
+
+const CACHE_RESULTS = Ref(true)
+const RESULTS = OrderedDict()
+const CONFIGS = OrderedDict()
+
+"""
+    should_cache_results() -> ::Bool
+
+Returns whether or not to cache deserialized data during [`extract_results`](@ref)
+"""
+function should_cache_results()
+    return CACHE_RESULTS[]    
+end
+export should_cache_results
+
+"""
+    set_cache_results!(x::Bool)
+
+Controls whether or not to cache results for [`extract_results`](@ref).  See [`should_cache_results`](@ref)
+"""
+function set_cache_results!(x::Bool)
+    CACHE_RESULTS[] = x
+end
+export set_cache_results!
 """
     extract_results(post_config) -> post_data::OrderedDict{Symbol, Any}
 
@@ -114,9 +139,21 @@ function extract_results(post_config)
     # Pull in the processed results for each of the paths and transfer/compute necessary things, add to `post_data`
     for (sim_path, sim_name) in zip(sim_paths, sim_names)
         @info "Beginning extract_results for $sim_name"
-        data = read_processed_results(sim_path)
-        @info "Data has been read, reading config."
-        config = read_config(sim_path)
+
+        if should_cache_results() === true
+            data = get!(RESULTS, sim_path) do
+                read_processed_results(sim_path)
+            end
+            config = get!(CONFIGS, sim_path) do
+                read_config(sim_path)
+            end
+        else
+            data = read_processed_results(sim_path)
+            @info "Data has been read, reading config."
+            config = read_config(sim_path)
+        end
+
+        @info "Data and Config have been read, beginning extraction."
 
         results_formula = get_results_formulas(data)
         for (k,v) in results_formula

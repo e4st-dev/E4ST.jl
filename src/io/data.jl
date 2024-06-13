@@ -713,18 +713,6 @@ function setup_table!(config, data, ::Val{:af_table})
         end
     end
 
-    # find all wind and solar generators with zero AF
-    gen_idx_wrong = findall(af->all(==(0), af), gens.af)
-    n_gen_wrong = length(gen_idx_wrong)
-    if n_gen_wrong > 0
-        message = "There are $n_gen_wrong generators with all zero availability factor.\n  gen_idxs: $gen_idx_wrong"
-        if config[:error_if_zero_af] == true
-            error(message)
-        else
-            @warn(message)
-        end
-    end
-
     return data
 end
 

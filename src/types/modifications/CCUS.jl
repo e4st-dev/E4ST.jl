@@ -234,7 +234,7 @@ function update_ccus_gens!(mod::CCUS, config, data)
             row.ccus_type = "saline"
 
             # Make a new row for each other ccus_type
-            newrow = Dict(pairs(row))
+            newrow = deepcopy(Dict(pairs(row))) # Make sure things are not pointing to the same reference.
             newrow[:ccus_type] = "eor"
             push!(gen, newrow)
             push!(gen_set, new_idx)
@@ -250,7 +250,7 @@ function update_ccus_gens!(mod::CCUS, config, data)
     gen_eor = get_subtable(gen, :ccus_type=>"eor")
     eor_leakage_rate = get(config, :eor_leakage_rate, 0.5)
     for row in eachrow(gen_eor)
-        row.emis_co2 .+=  eor_leakage_rate * row.capt_co2
+        row.emis_co2 = row.emis_co2 .+ eor_leakage_rate .* row.capt_co2
     end
 end
 export update_ccus_gens!

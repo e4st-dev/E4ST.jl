@@ -154,7 +154,17 @@ function Base.convert(::Type{ByNothing}, c::ByYear)
     end
     error("To convert from ByYear to ByNothing, it must have only a single value")
 end
+function Base.convert(::Type{Float64}, c::Container)
+    if length(c) == 1
+        return c[1]
+    else
+        error("Cannot convert Container of length $(length(c)) to Float64")
+    end
+end
 
+function Base.convert(::Type{<:Container}, c::Float64)
+    return ByNothing(c)
+end
 
 
 function promote_col(col::Vector{C}) where {C<:Container}
