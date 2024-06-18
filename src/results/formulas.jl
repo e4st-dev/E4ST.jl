@@ -769,7 +769,7 @@ end
 
 function _PercentWeightedHoursNonZero(v1, hour_weights, idxs, yr_idxs, hr_idxs)
     count = 0.0
-    tolerance = abs(1.0e-12*mean(mean(v1)))
+    tolerance = abs(1.0e-5*mean(mean(v1)))
     for i in idxs, y in yr_idxs, h in hr_idxs
         isapprox(v1[i][y, h],0.0, atol = tolerance) || (count += hour_weights[h])
     end
