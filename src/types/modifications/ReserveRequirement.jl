@@ -28,8 +28,8 @@ Representation of reserve requirement, such that the sum of eligible power injec
 * `(:<name>_requirements, :pres_req)` - the required reserve capacity in the region for each hour.
 * `(:<name>_requirements, :pres_flow)` - the reserve power capacity flowing out of the region for each hour.
 * `(:gen, :<name>_pres)` - the reserve power capacity supplied by the generator.
-* `(:gen, :<name>_rebate_per_mw)` - This is the rebate recieved by EGU's for each MW of capacity for each hour from the $(mod.name) reserve requirement.
-* `(:bus, :<name>_cost_per_mw)` - This is the rebate payed by users to EGU's (and storage if present) for each MW of demand for each hour from the $(mod.name) reserve requirement.
+* `(:gen, :<name>_rebate_per_mw)` - This is the rebate recieved by EGU's for each MW of capacity for each hour from the reserve requirement.
+* `(:bus, :<name>_cost_per_mw)` - This is the rebate payed by users to EGU's (and storage if present) for each MW of demand for each hour from the reserve requirement.
 * `(:storage, :<name>_pres)` - the reserve power capacity supplied by the storage unit.
 * `(:storage, :<name>_rebate_per_mw)` - This is the rebate recieved by storage facilities for each MW for each hour from the reserve requirement.
 * `(:bus, :<name>_merchandising_surplus_total)` - Merchandising surplus earned from differences in power reserve prices across reserve regions.
