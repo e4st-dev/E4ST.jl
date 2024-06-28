@@ -4,7 +4,7 @@
 
 Representation of reserve requirement, such that the sum of eligible power injection capacity in the region (including both generators and storage devices) is constrained to be greater than or equal to some percentage above the load.
 
-Keyword arguments:
+### Keyword arguments:
 * `name` - name of the modification
 * `area` - the area by which to group the buses by for the reserve requirements.
 * `credit_gen` - the [`Crediting`](@ref) for the generators, defaults to [`AvailabilityFactorCrediting`](@ref)
@@ -15,7 +15,26 @@ Keyword arguments:
     * `plnom` - (default), nominal load power.
     * `plserv` - served load power.
 
-Model Modification:
+### Tables Added:
+* `<name>_requirements` - this has one row for each of the reserve requirements regions specified in `requirements_file`
+* `<name>_flow_limits` - this has one row for each flow limit specified in `flow_limits_file` (only created if that file is provided.)
+
+### Table Columns Added:
+* `(:gen, :<name>)` - the hourly qualifying credit level for reserve requirement.  This gets multiplied by the power capacity in the reserve requirement constraint.
+* `(:storage, :<name>)` - the hourly qualifying credit level for reserve requirement.  This gets multiplied by the power capacity in the reserve requirement constraint.
+* `(:bus, :<name>_pres_req)` - the required reserve power in the bus from the reserve requirement, in MW.
+* `(:<name>_requirements, :price)` - the hourly shadow price on the capacity constraint, in dollars per MW reserve capacity supplied per hour.
+* `(:<name>_requirements, :pres_supply)` - the supplied reserve capacity in the region for each hour.
+* `(:<name>_requirements, :pres_req)` - the required reserve capacity in the region for each hour.
+* `(:<name>_requirements, :pres_flow)` - the reserve power capacity flowing out of the region for each hour.
+* `(:gen, :<name>_pres)` - the reserve power capacity supplied by the generator.
+* `(:gen, :<name>_rebate_per_mw)` - This is the rebate recieved by EGU's for each MW of capacity for each hour from the $(mod.name) reserve requirement.
+* `(:bus, :<name>_cost_per_mw)` - This is the rebate payed by users to EGU's (and storage if present) for each MW of demand for each hour from the $(mod.name) reserve requirement.
+* `(:storage, :<name>_pres)` - the reserve power capacity supplied by the storage unit.
+* `(:storage, :<name>_rebate_per_mw)` - This is the rebate recieved by storage facilities for each MW for each hour from the reserve requirement.
+* `(:bus, :<name>_merchandising_surplus_total)` - Merchandising surplus earned from differences in power reserve prices across reserve regions.
+
+### Model Modification:
 * Variables
   * `pres_flow_<name>` - (nflow x nyr x nhr) Reserve power flow for each row of the flow limit table, bounded by forward and reverse max flows. (only present if there is `flow_limits_file` file provided)
 * Expressions
@@ -27,7 +46,7 @@ Model Modification:
 * Constraints
   * `cons_pres_<name>` - (nsubarea x nyr x nhr) Constrain that `pres_total_subarea_<name> ≥ pres_req_subarea_<name>`.
 
-Adds results:
+### Results Formulas:
 * `(:gen, :<name>_rebate)` - the total rebate for generators, for satisfying the reserve requirement.  Generally ≥ 0.  This is added to `(:gen, :net_total_revenue_prelim)`, and subtracted from electricity `user` welfare.
 * `(:storage, :<name>_rebate)` - (only added if [`Storage`](@ref) included) the total rebate for storage units, for satisfying the reserve requirement.  Generally ≥ 0.  This is added to `(:storage, :net_total_revenue_prelim)`, and subtracted from electricity `user` welfare.
 """
