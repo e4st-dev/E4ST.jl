@@ -77,8 +77,8 @@ function add_upstream_methane_col!(data, ng_upstream_ch4_leakage, coal_upstream_
     "Upstream methane emission rate per MWh generated, primarily for coal and ng.")
 
     for row in eachrow(gen)
-        row.genfuel == "ng" && (row.emis_upstream_ch4 = ByNothing(row.heat_rate * ng_upstream_ch4_leakage))
-        row.genfuel == "coal" && (row.emis_upstream_ch4 = ByNothing(row.heat_rate * coal_upstream_ch4_leakage))
+        row.genfuel == "ng" && (row.emis_upstream_ch4 = Container(row.heat_rate .* ng_upstream_ch4_leakage))
+        row.genfuel == "coal" && (row.emis_upstream_ch4 = Container(row.heat_rate .* coal_upstream_ch4_leakage))
     end
 end
 

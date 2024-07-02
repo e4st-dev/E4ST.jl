@@ -48,9 +48,9 @@ function append_builds!(config, data, table_name, build_table_name)
                 col = new[!, col_name]
                 for (i, val) in enumerate(col)
                     # Continue if the value is filled in.
-                    ismissing(val) || isnothing(val) || isempty(val) || continue
+                    ismissing(val) || isnothing(val) || isempty(val) || isnan(val) || continue
                     bus_idx = new_bus_idxs[i]
-                    col[i] = bus[col_name, bus_idx]
+                    col[i] = bus[bus_idx, col_name]
                 end
             end
             continue
