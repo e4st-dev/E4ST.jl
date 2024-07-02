@@ -136,7 +136,10 @@ function validate(config, data)
     n_gen_zero_cost = length(gen_idx_zero_cost)
 
     if n_gen_zero_cost > 0
-        message = "There are $n_gen_zero_cost generators with all zero costs.\n  gen_idxs: $gen_idx_zero_cost"
+        message = "There are $n_gen_zero_cost generators with all zero costs.\n 
+        They include generators with gentypes of: $(unique(gen[gen_idx_zero_cost, [:gentype, :build_type]])) \n 
+        The year_on of these generators includes $(unique(gen[gen_idx_zero_cost, [:gentype, :year_on]])) \n
+        gen_idxs: $gen_idx_zero_cost"
         if config[:error_if_zero_cost] == true
             error(message)
         else
