@@ -862,8 +862,8 @@ $(table2markdown(summarize_table(Val(:af_table))))
 function summarize_table(::Val{:af_table})
     df = TableSummary()
     push!(df, 
-        (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
-        (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:area, AbstractString, NA, false, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, AbstractString, NA, false, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
         (:gentype, String, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
         (:year, YearString, Year, false, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
