@@ -152,7 +152,10 @@ function validate(config, data)
     gen_idx_wrong = findall(af->all(==(0), af), gen.af)
     n_gen_wrong = length(gen_idx_wrong)
     if n_gen_wrong > 0
-        message = "There are $n_gen_wrong generators with all zero availability factor.\n  gen_idxs: $gen_idx_wrong"
+        message = "There are $n_gen_wrong generators with all zero availability factor.\n  
+        They include generators with gentypes of: $(unique(gen[gen_idx_wrong, [:gentype, :build_type]])) \n 
+        The year_on of these generators includes $(unique(gen[gen_idx_wrong, [:gentype, :year_on]])) \n
+        gen_idxs: $gen_idx_wrong"
         if config[:error_if_zero_af] == true
             error(message)
         else
