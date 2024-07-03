@@ -9,12 +9,6 @@ Constraints and expressions can also be defined outside of setup_dcopf!() before
 setup_dcopf!
 ```
 
-### Constraint/Expression Info Function
-These functions are used in defining the model constraints. 
-```@docs
-get_pgen_max
-```
-
 ### Model Mutation Functions
 These functions are used to modify the model, specifically creating and adding terms to the objective expression. The `Term` abstract type is used to determine how the term (cost or benefit) should be added to the objective function.
 
