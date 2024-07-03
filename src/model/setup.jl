@@ -137,7 +137,10 @@ function validate(config, data)
     n_gen_zero_cost = length(gen_idx_zero_cost)
 
     if n_gen_zero_cost > 0
-        message = "There are $n_gen_zero_cost generators with all zero costs.\n  gen_idxs: $gen_idx_zero_cost"
+        message = "There are $n_gen_zero_cost generators with all zero costs.\n 
+        They include generators with gentypes of: $(unique(gen[gen_idx_zero_cost, [:gentype, :build_type]])) \n 
+        The year_on of these generators includes $(unique(gen[gen_idx_zero_cost, [:gentype, :year_on]])) \n
+        gen_idxs: $gen_idx_zero_cost"
         if config[:error_if_zero_cost] == true
             error(message)
         else
@@ -150,7 +153,10 @@ function validate(config, data)
     gen_idx_wrong = findall(af->all(==(0), af), gen.af)
     n_gen_wrong = length(gen_idx_wrong)
     if n_gen_wrong > 0
-        message = "There are $n_gen_wrong generators with all zero availability factor.\n  gen_idxs: $gen_idx_wrong"
+        message = "There are $n_gen_wrong generators with all zero availability factor.\n  
+        They include generators with gentypes of: $(unique(gen[gen_idx_wrong, [:gentype, :build_type]])) \n 
+        The year_on of these generators includes $(unique(gen[gen_idx_wrong, [:gentype, :year_on]])) \n
+        gen_idxs: $gen_idx_wrong"
         if config[:error_if_zero_af] == true
             error(message)
         else
