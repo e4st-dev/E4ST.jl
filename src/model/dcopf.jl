@@ -61,15 +61,47 @@ function setup_dcopf!(config, data, model)
     ## Expressions to be used later
     @info "Creating Expressions"
     
-    # Power flowing through a given branch
-    @expression(model, pflow_branch[branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour], get_pflow_branch(data, model, branch_idx, year_idx, hour_idx))
+    # Power flowing through a given branch = (θ_f - θ_t) / x
+    @expression(model, 
+        pflow_branch[branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour], 
+        AffExpr(0.0)
+    )
+
+    f_bus_idxs = branch.f_bus_idx::Vector{Int64}
+    t_bus_idxs = branch.t_bus_idx::Vector{Int64}
+    for branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour
+        x = get_table_num(data, :branch, :x, branch_idx, year_idx, hour_idx)
+        b = 1/x
+        f_bus_idx = f_bus_idxs[branch_idx]
+        t_bus_idx = t_bus_idxs[branch_idx]
+        add_to_expression!(pflow_branch[branch_idx, year_idx, hour_idx], θ_bus[f_bus_idx, year_idx, hour_idx], b)
+        add_to_expression!(pflow_branch[branch_idx, year_idx, hour_idx], θ_bus[t_bus_idx, year_idx, hour_idx], -b)
+    end
 
     # Power flowing out of a given bus
-    @expression(model, pflow_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pflow_bus(data, model, bus_idx, year_idx, hour_idx))
+    @expression(model, 
+        pflow_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
+        AffExpr(0.0)
+    )
+
+    # Loop through each branch and add to the corresponding bus expression.
+    for branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour
+        f_bus_idx = f_bus_idxs[branch_idx]
+        t_bus_idx = t_bus_idxs[branch_idx]
+        add_to_expression!(
+            pflow_bus[f_bus_idx, year_idx, hour_idx], 
+            pflow_branch[branch_idx, year_idx, hour_idx],
+        )
+        add_to_expression!(
+            pflow_bus[t_bus_idx, year_idx, hour_idx], 
+            pflow_branch[branch_idx, year_idx, hour_idx],
+            -1
+        )
+    end
+
 
     # Power flowing in/out of buses, only necessary if modeling line losses from pflow.
     if config[:line_loss_type] == "pflow"
-
         # Make variables for positive and negative power flowing out of the bus.
         @variable(model, pflow_out_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], lower_bound = 0)
         @variable(model, pflow_in_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], lower_bound = 0)
@@ -79,7 +111,15 @@ function setup_dcopf!(config, data, model)
     @expression(model, plserv_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_plnom(data, bus_idx, year_idx, hour_idx) - plcurt_bus[bus_idx, year_idx, hour_idx])
 
     # Generated power of a given bus
-    @expression(model, pgen_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_pgen_bus(data, model, bus_idx, year_idx, hour_idx))
+    @expression(model, 
+        pgen_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
+        AffExpr(0.0)
+    )
+    gen_bus_idxs = gen.bus_idx::Vector{Int64}
+    for gen_idx in 1:ngen, year_idx in 1:nyear, hour_idx in 1:nhour
+        bus_idx = gen_bus_idxs[gen_idx]
+        add_to_expression!(pgen_bus[bus_idx, year_idx, hour_idx], pgen_gen[gen_idx, year_idx, hour_idx])
+    end
 
     ## Constraints
     @info "Creating Constraints"
@@ -104,7 +144,7 @@ function setup_dcopf!(config, data, model)
 
     # Constrain Reference Bus
     for ref_bus_idx in get_ref_bus_idxs(data), yr_idx in 1:nyear, hr_idx in 1:nhour
-        fix(model[:θ_bus][ref_bus_idx, yr_idx, hr_idx], 0.0, force=true)
+        fix(θ_bus[ref_bus_idx, yr_idx, hr_idx], 0.0, force=true)
     end
 
     # Constrain Transmission Lines, positive and negative
@@ -132,9 +172,7 @@ function setup_dcopf!(config, data, model)
     
     ## Objective Function 
     @info "Building Objective"
-    @expression(model, obj, 0*model[:θ_bus][1,1,1]) 
-    # needed to be defined as an GenericAffExp instead of an Int64 so multiplied by an arbitrary var
-
+    @expression(model, obj, AffExpr(0.0)) 
 
     # This keeps track of the expressions added to the obj and their signs
     data[:obj_vars] = OrderedDict{Symbol, Any}()
@@ -191,58 +229,6 @@ export setup_dcopf!
 # Accessor Functions
 ################################################################################
 
-
-
-### Get Model Variables Functions
-
-
-"""
-    get_pgen_bus(data, model, bus_idx, year_idx, hour_idx)
-
-Returns total power generation for a bus at a time
-    * To use this to retieve the variable values after the model has been optimized, wrap the function with value() like this: value.(get_pgen_bus).
-"""
-function get_pgen_bus(data, model, bus_idx, year_idx, hour_idx) 
-    bus_gens = get_bus_gens(data, bus_idx)
-    sum(model[:pgen_gen][bus_gens, year_idx, hour_idx])
-end
-export get_pgen_bus
-
-
-"""
-    get_pflow_bus(data, model, f_bus_idx, year_idx, hour_idx)
-
-Returns net power flow out of the bus
-* To use this to retieve the variable values after the model has been optimized, wrap the function with value() like this: value.(get_pflow_bus).
-""" 
-function get_pflow_bus(data, model, bus_idx, year_idx, hour_idx) 
-    branch_idxs = get_table(data, :bus)[bus_idx, :connected_branch_idxs] #vector of the connecting branches with positive values for branches going out (branch f_bus = bus_idx) and negative values for branches coming in (branch t_bus = bus_idx)
-    isempty(branch_idxs) && return AffExpr(0.0)
-    return sum(get_pflow_branch(data, model, branch_idx, year_idx, hour_idx) for branch_idx in branch_idxs)
-end
-export get_pflow_bus
-
-"""
-    get_pflow_branch(data, model, branch_idx, year_idx, hour_idx)
-
-Return total power flow on a branch. 
-* If branch_idx_signed is positive then positive power flow is in the direction f_bus -> t_bus listed in the branch table. It is measuring the power flow out of f_bus.
-* If branch_idx_signed is negative then positive power flow is in the opposite direction, t_bus -> f_bus listed in the branch table. It is measuring the power flow out of t_bus. 
-* To use this to retieve the variable values after the model has been optimized, wrap the function with value() like this: value.(get_pflow_branch).
-""" 
-function get_pflow_branch(data, model, branch_idx_signed, year_idx, hour_idx)
-    direction = sign(branch_idx_signed)
-    branch_idx = abs(branch_idx_signed)
-
-    f_bus_idx = data[:branch].f_bus_idx[branch_idx]
-    t_bus_idx = data[:branch].t_bus_idx[branch_idx]
-    x = get_table_num(data, :branch, :x, branch_idx, year_idx, hour_idx)
-    Δθ = direction * (model[:θ_bus][f_bus_idx, year_idx, hour_idx] - model[:θ_bus][t_bus_idx, year_idx, hour_idx]) #positive for power flow out(f_bus to t_bus)
-    return Δθ / x
-end
-export get_pflow_branch
-
-
 ### Contraint/Expression Info Functions
 """
     get_cf_max(data, gen_idx, year_idx, hour_idx)
@@ -265,49 +251,6 @@ function get_cf_max(config, data, gen_idx, year_idx, hour_idx)
     return cf_max
 end
 export get_cf_max
-
-
-"""
-    get_egen_gen(data, model, gen_idx)
-
-Returns the total energy generation from a gen summed over all rep time. 
-
-    get_egen_gen(data, model, gen_idx, year_idx)
-
-Returns the total energy generation from a gen summed over rep time for the given year. 
-
-    get_egen_gen(data, model, gen_idx, year_idx, hour_idx)
-
-Returns the total energy generation from a gen for the given year and hour.  This is pgen_gen multiplied by the number of hours spent at that representative hour.  See [`get_hour_weight`](@ref) 
-
-* To use this to retieve the variable values after the model has been optimized, wrap the function with `value()` like this: `value.(get_egen_gen(args...))`.
-"""
-function get_egen_gen(data, model, gen_idx)
-    rep_hours = get_table(data, :hours)
-    years = get_years(data)
-    return sum(rep_hours.hours[hour_idx] .* model[:pgen_gen][gen_idx, year_idx, hour_idx] for hour_idx in 1:nrow(rep_hours), year_idx in 1:length(years))
-end
-
-function get_egen_gen(data, model, gen_idx, year_idx)
-    rep_hours = get_table(data, :hours)
-    return sum(rep_hours.hours[hour_idx] .* model[:pgen_gen][gen_idx, year_idx, hour_idx] for hour_idx in 1:nrow(rep_hours))
-end
-
-function get_egen_gen(data, model, gen_idx, year_idx, hour_idx)
-    return model[:pgen_gen][gen_idx, year_idx, hour_idx] * get_hour_weight(data, hour_idx)
-end
-
-export get_egen_gen
-
-"""
-    get_pcap_gen(data, model, gen_idx, year_idx)
-
-Returns the capacity (pcap_gen) for the gen_idx and year_idx given. 
-"""
-function get_pcap_gen(data, model, gen_idx, year_idx)
-    return model[:pcap_gen][gen_idx, year_idx]
-end
-export get_pcap_gen
 
 """
     add_obj_term!(data, model, ::Term, s::Symbol; oper)
@@ -409,12 +352,22 @@ function add_obj_term!(data, model, ::PerMWhCurtailed, s::Symbol; oper)
     
     #write expression for the term
     bus = get_table(data, :bus)
-    rep_hours = get_table(data, :hours)
     years = get_years(data)
 
+    plcurt_bus = model[:plcurt_bus]::Array{VariableRef, 3}
+    hour_weights = get_hour_weights(data)
+    nhr = length(hour_weights)
+
     # Use this expression for single VOLL
-    model[s] = @expression(model, [bus_idx in 1:nrow(bus)],
-        sum(get_voll(data, bus_idx, year_idx, hour_idx) .* rep_hours.hours[hour_idx] .* model[:plcurt_bus][bus_idx, year_idx, hour_idx] for year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours)))
+    model[s] = @expression(model, 
+        [bus_idx in 1:nrow(bus)],
+        sum(
+            get_voll(data, bus_idx, year_idx, hour_idx) * 
+            hour_weights[hour_idx] * 
+            plcurt_bus[bus_idx, year_idx, hour_idx] 
+            for year_idx in 1:length(years), hour_idx in 1:nhr
+        )
+    )
 
     # add or subtract the expression from the objective function
     add_obj_exp!(data, model, PerMWhCurtailed(), s; oper = oper)  
@@ -428,13 +381,14 @@ Adds the name, oper, and type of the term to data[:obj_vars].
 """
 function add_obj_exp!(data, model, term::Term, s::Symbol; oper)
     expr = model[s]
+    obj = model[:obj]::AffExpr
     if oper == + 
         for new_term in expr
-            add_to_expression!(model[:obj], new_term)
+            add_to_expression!(obj, new_term)
         end
     elseif oper == -
         for new_term in expr
-            add_to_expression!(model[:obj], -1, new_term)
+            add_to_expression!(obj, -1, new_term)
         end
     else
         Base.error("The entered operator isn't valid, oper must be + or -")

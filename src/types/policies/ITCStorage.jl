@@ -74,7 +74,7 @@ function E4ST.modify_model!(pol::ITCStorage, config, data, model)
 
     #name = Symbol("$(pol.name)_obj")
     name = pol.name
-    pcap_stor_inv_sim = model[:pcap_stor_inv_sim]::Vector
+    pcap_stor_inv_sim = model[:pcap_stor_inv_sim]::Vector{AffExpr}
     model[name] = @expression(model,
         [yr_idx in 1:nyr],
         sum(

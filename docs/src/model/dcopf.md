@@ -8,18 +8,11 @@ Constraints and expressions can also be defined outside of setup_dcopf!() before
 ```@docs
 setup_dcopf!
 ```
-### Get Model Variable Function
-These functions get or use model variables. To get the value after optimizing the model they must be wrapped in value.(). 
-```@docs
-get_pgen_bus
-get_pflow_bus
-get_pflow_branch
-```
-### Constriant/Expression Info Function
+
+### Constraint/Expression Info Function
 These functions are used in defining the model constraints. 
 ```@docs
 get_pgen_max
-get_egen_gen
 ```
 
 ### Model Mutation Functions

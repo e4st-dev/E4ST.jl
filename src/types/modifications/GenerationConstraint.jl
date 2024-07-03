@@ -71,6 +71,8 @@ function E4ST.modify_model!(cons::GenerationConstraint, config, data, model)
     #create max and min constraints
     nhours = get_num_hours(data)
 
+    pgen_gen = model[:pgen_gen]::Array{VariableRef, 3}
+    hour_weights = get_hour_weights(data)
     if ~isempty(max_years)
         @info "Creating a maximum generation constraint based on $(cons.col) for $(length(gen_idxs)) generators. Constraint name is $(max_cons_name)"
         model[Symbol(max_cons_name)] = @constraint(model, 
@@ -79,7 +81,7 @@ function E4ST.modify_model!(cons::GenerationConstraint, config, data, model)
                 years[yr_idx] in max_years
             ], 
             sum(
-                get_egen_gen(data, model, gen_idx, yr_idx, hour_idx) * 
+                pgen_gen[gen_idx, yr_idx, hour_idx] * hour_weights[hour_idx] * 
                 get_table_num(data, :gen, cons.name, gen_idx, yr_idx, hour_idx) *
                 get_table_num(data, :gen, cons.col, gen_idx, yr_idx, hour_idx)
                 for gen_idx=gen_idxs, hour_idx=1:nhours
@@ -95,7 +97,7 @@ function E4ST.modify_model!(cons::GenerationConstraint, config, data, model)
                 years[yr_idx] in min_years
             ], 
             sum(
-                get_egen_gen(data, model, gen_idx, yr_idx, hour_idx) * 
+                pgen_gen[gen_idx, yr_idx, hour_idx] * hour_weights[hour_idx] * 
                 get_table_num(data, :gen, cons.name, gen_idx, yr_idx, hour_idx) *
                 get_table_num(data, :gen, cons.col, gen_idx, yr_idx, hour_idx)
                 for gen_idx=gen_idxs, hour_idx=1:nhours
