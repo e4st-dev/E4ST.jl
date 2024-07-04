@@ -362,8 +362,8 @@ function modify_model!(mod::Storage, config, data, model)
     add_build_constraints!(data, model, :storage, :pcap_stor)
     
     ### Add charge/discharge to appropriate expressions in power balancing equation
-    plserv_bus = model[:plserv_bus]
-    pgen_bus = model[:pgen_bus]
+    plserv_bus = model[:plserv_bus]::Array{AffExpr,3}
+    pgen_bus = model[:pgen_bus]::Array{AffExpr,3}
     for (stor_idx, row) in enumerate(eachrow(storage))
         bus_idx = row.bus_idx
         if row.side == "load"

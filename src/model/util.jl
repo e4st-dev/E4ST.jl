@@ -60,7 +60,7 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
     years = get_years(data)
     nyr = get_num_years(data)
 
-    pcap = model[pcap_name]
+    pcap = model[pcap_name]::Matrix{VariableRef}
     years = get_years(data)
 
     year_built_idx = map(eachrow(table)) do r

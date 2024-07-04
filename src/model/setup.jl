@@ -99,7 +99,8 @@ function setup_model(config, data)
 
         # Set the objective, scaling down for numerical stability.
         obj_scalar = config[:objective_scalar]
-        @objective(model, Min, model[:obj]/obj_scalar)
+        obj = model[:obj]::AffExpr
+        @objective(model, Min, obj/obj_scalar)
 
         constrain_pbal!(config, data, model)
 
@@ -187,37 +188,39 @@ function constrain_pbal!(config, data, model)
     nbus = nrow(get_table(data, :bus))
     line_loss_rate = config[:line_loss_rate]::Float64
     line_loss_type = config[:line_loss_type]::String
+
+    pflow_bus = model[:pflow_bus]::Array{AffExpr,3}
+    pgen_bus = model[:pgen_bus]::Array{AffExpr,3}
+    plserv_bus = model[:plserv_bus]::Array{AffExpr,3}
+
     if line_loss_type == "pflow"
-        pflow_out_bus = model[:pflow_out_bus]
-        pflow_in_bus = model[:pflow_in_bus]
-        pflow_bus = model[:pflow_bus]
-        pgen_bus = model[:pgen_bus]
-        plserv_bus = model[:plserv_bus]
+        pflow_out_bus = model[:pflow_out_bus]::Array{VariableRef,3}
+        pflow_in_bus = model[:pflow_in_bus]::Array{VariableRef,3}
 
         # Constrain power flowing out of the bus.
-        @constraint(model, cons_pflow_in_out_geq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
-            pflow_out_bus[bus_idx, year_idx, hour_idx] - pflow_in_bus[bus_idx, year_idx, hour_idx] >= pflow_bus[bus_idx, year_idx, hour_idx]
+        @constraint(model, cons_pflow_in_out_geq[b in 1:nbus, y in 1:nyear, h in 1:nhour], 
+            pflow_out_bus[b, y, h] - pflow_in_bus[b, y, h] >= pflow_bus[b, y, h]
         )
-        @constraint(model, cons_pflow_in_out_leq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
-            pflow_out_bus[bus_idx, year_idx, hour_idx] - pflow_in_bus[bus_idx, year_idx, hour_idx] <= pflow_bus[bus_idx, year_idx, hour_idx]
-        )
-        @constraint(model, 
-            cons_pbal_geq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            pgen_bus[bus_idx, year_idx, hour_idx] - plserv_bus[bus_idx, year_idx, hour_idx] - pflow_out_bus[bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * pflow_in_bus[bus_idx, year_idx, hour_idx] >= 0.0
+        @constraint(model, cons_pflow_in_out_leq[b in 1:nbus, y in 1:nyear, h in 1:nhour], 
+            pflow_out_bus[b, y, h] - pflow_in_bus[b, y, h] <= pflow_bus[b, y, h]
         )
         @constraint(model, 
-            cons_pbal_leq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            pgen_bus[bus_idx, year_idx, hour_idx] - plserv_bus[bus_idx, year_idx, hour_idx] - pflow_out_bus[bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * pflow_in_bus[bus_idx, year_idx, hour_idx] <= 0.0
+            cons_pbal_geq[b in 1:nbus, y in 1:nyear, h in 1:nhour],
+            pgen_bus[b, y, h] - plserv_bus[b, y, h] - pflow_out_bus[b, y, h] + (1-line_loss_rate) * pflow_in_bus[b, y, h] >= 0.0
+        )
+        @constraint(model, 
+            cons_pbal_leq[b in 1:nbus, y in 1:nyear, h in 1:nhour],
+            pgen_bus[b, y, h] - plserv_bus[b, y, h] - pflow_out_bus[b, y, h] + (1-line_loss_rate) * pflow_in_bus[b, y, h] <= 0.0
         )
     elseif line_loss_type == "plserv"
         plserv_scalar = 1/(1-line_loss_rate)
         @constraint(model, 
-            cons_pbal_geq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] * plserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] >= 0.0
+            cons_pbal_geq[b in 1:nbus, y in 1:nyear, h in 1:nhour],
+            pgen_bus[b, y, h] - plserv_bus[b, y, h] * plserv_scalar - pflow_bus[b, y, h] >= 0.0
         )
         @constraint(model, 
-            cons_pbal_leq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] * plserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] <= 0.0
+            cons_pbal_leq[b in 1:nbus, y in 1:nyear, h in 1:nhour],
+            pgen_bus[b, y, h] - plserv_bus[b, y, h] * plserv_scalar - pflow_bus[b, y, h] <= 0.0
         )
     else
         error("config[:line_loss_type] must be `plserv` or `pflow`, but $line_loss_type was given")
