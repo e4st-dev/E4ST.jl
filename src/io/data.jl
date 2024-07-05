@@ -642,30 +642,11 @@ function setup_table!(config, data, ::Val{:branch})
     hasproperty(branch, :status) && filter!(:status => ==(true), branch)
 
     # Switch f_bus_idx and t_bus_idx if they are out of order
-    for row in eachrow(branch)
-        f_bus_idx = row.f_bus_idx::Int
-        t_bus_idx = row.t_bus_idx::Int
-        f_bus_idx < t_bus_idx && continue
-        row.t_bus_idx = f_bus_idx
-        row.f_bus_idx = t_bus_idx
-    end
-
+    order_f_bus_t_bus!(branch)
+    
     # Handle duplicate lines
-    if ~allunique((row.f_bus_idx,row.t_bus_idx) for row in eachrow(branch))
-        @warn "Handling Duplicate Lines"
-        gdf = groupby(branch, [:f_bus_idx, :t_bus_idx])
-        cols_remaining = setdiff(propertynames(branch), [:f_bus_idx, :t_bus_idx, :x, :pflow_max])
-        res = combine(gdf,
-            [:pflow_max, :x] => ((pflow_max, x)->(minimum(prod, zip(pflow_max, x)))/(inv(sum(inv, x)))) => :pflow_max,
-            :x => (x->(inv(sum(inv, x)))) => :x,
-            (col=>first=>col for col in cols_remaining)...
-        )
-        branch = res
-        data[:branch] = res
-    end
-
-
-
+    combine_parallel_lines!(branch)
+    
     bus = get_table(data, :bus)
 
     # Add connected branches, connected buses.
@@ -680,6 +661,51 @@ function setup_table!(config, data, ::Val{:branch})
     return
 end
 export setup_table!
+
+"""
+    order_f_bus_t_bus!(branch)
+
+Orders each branch's `f_bus_idx` and `t_bus_idx` such that `f_bus_idx < t_bus_idx`.
+"""
+function order_f_bus_t_bus!(branch)
+    for row in eachrow(branch)
+        f_bus_idx = row.f_bus_idx::Int
+        t_bus_idx = row.t_bus_idx::Int
+        f_bus_idx < t_bus_idx && continue
+        row.t_bus_idx = f_bus_idx
+        row.f_bus_idx = t_bus_idx
+    end
+    return nothing
+end
+export order_f_bus_t_bus!
+
+"""
+    combine_parallel_lines!(branch)
+
+Combines parallel lines by:
+* x_new = inverse of the sum of the inverses of x
+* pflow_max_new = (minimum of the products of `pflow_max` and `x`) / x_new
+"""
+function combine_parallel_lines!(branch)
+    if ~allunique(zip(branch.f_bus_idx,branch.t_bus_idx))
+        replace!(branch.pflow_max, 0=>Inf)
+
+        @warn "Handling Duplicate Lines"
+        gdf = groupby(branch, [:f_bus_idx, :t_bus_idx])
+        cols_remaining = setdiff(propertynames(branch), [:f_bus_idx, :t_bus_idx, :x, :pflow_max])
+        res = combine(gdf,
+            [:pflow_max, :x] => ((pflow_max, x)->(minimum(prod, zip(pflow_max, x)))/(inv(sum(inv, x)))) => :pflow_max,
+            :x => (x->(inv(sum(inv, x)))) => :x,
+            (col=>first=>col for col in cols_remaining)...
+        )
+        
+        empty!(branch)
+        append!(branch, res)
+        
+        replace!(branch.pflow_max, Inf=>0)
+    end
+end
+
 
 """
     setup_table!(config, data, ::Val{:hours})
