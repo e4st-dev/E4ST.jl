@@ -646,6 +646,9 @@ function setup_table!(config, data, ::Val{:branch})
     
     # Handle duplicate lines
     combine_parallel_lines!(branch)
+
+    # Force positive branch limits
+    force_positive_line_limits!(branch)
     
     bus = get_table(data, :bus)
 
@@ -675,7 +678,7 @@ function order_f_bus_t_bus!(branch)
         row.t_bus_idx = f_bus_idx
         row.f_bus_idx = t_bus_idx
     end
-    return nothing
+    return branch
 end
 export order_f_bus_t_bus!
 
@@ -701,16 +704,28 @@ function combine_parallel_lines!(branch)
         
         empty!(branch)
         append!(branch, res)
-        
-        replace!(branch.pflow_max, Inf=>0)
-    end
-end
 
+        replace!(branch.pflow_max, Inf=>0, -Inf=>0)
+    end
+    return branch
+end
+export combine_parallel_lines!
+
+function force_positive_line_limits!(branch)
+    pflow_max = branch.pflow_max::Vector{Float64}
+    for (i, pf) in enumerate(pflow_max)
+        if pf < 0
+            pflow_max[i] = abs(pf)
+        end
+    end
+    return branch
+end
+export force_positive_line_limits!
 
 """
     setup_table!(config, data, ::Val{:hours})
 
-Doesn't do anything yet.
+Sets up an `HoursContainer`
 """
 function setup_table!(config, data, ::Val{:hours})
     weights = get_hour_weights(data)
