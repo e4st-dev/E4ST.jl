@@ -89,12 +89,13 @@ function setup_model(config, data)
         model = JuMP.Model()
 
         # Comment this out for debugging so you can see variable names.  Saves quite a bit of RAM to leave out
-        set_string_names_on_creation(model, false)
+        # set_string_names_on_creation(model, false)
 
         setup_dcopf!(config, data, model)
     
-        for (name, mod) in get_mods(config)
-            _try_catch(modify_model!, name, mod, config, data, model)
+        for (name, m) in get_mods(config)
+            @info "Modifying model with Modification $name of type $(typeof(m))"
+            _try_catch(modify_model!, name, m, config, data, model)
         end
 
         # Set the objective, scaling down for numerical stability.

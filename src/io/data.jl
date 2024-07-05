@@ -127,8 +127,9 @@ end
 Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_raw_data!(mod, config, data)`](@ref)
 """
 function modify_raw_data!(config, data)
-    for (sym, mod) in get_mods(config)
-        _try_catch(modify_raw_data!, sym, mod, config, data)
+    for (sym, m) in get_mods(config)
+        @info "Modifying raw data with Modification $sym of type $(typeof(m))"
+        _try_catch(modify_raw_data!, sym, m, config, data)
     end
     return nothing
 end
@@ -154,8 +155,9 @@ end
 Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_setup_data!(mod, config, data)`](@ref)
 """
 function modify_setup_data!(config, data)    
-    for (sym, mod) in get_mods(config)
-        _try_catch(modify_setup_data!, sym, mod, config, data)
+    for (sym, m) in get_mods(config)
+        @info "Modifying setup data with Modification $sym of type $(typeof(m))"
+        _try_catch(modify_setup_data!, sym, m, config, data)
     end
     return nothing
 end

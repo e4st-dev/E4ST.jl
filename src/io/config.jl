@@ -55,6 +55,8 @@ function summarize_config()
         (:model_presolve_file, false, nothing, "The filepath (relative or absolute) to the unsolved model.  If this is provided, it will use this instead of creating a new model."),
         (:save_data_parsed, false, true, "A boolean specifying whether or not to save the raw results after solving the model.  This could be useful for calling [`process_results!(config)`](@ref) in the future. Defaults to `true`"),
         (:save_data_processed, false, true, "A boolean specifying whether or not to save the processed results after solving the model.  Defaults to `true`."),
+        (:save_data_debug, false, false, "A boolean specifying whether or not to save the data if the model fails to solve.  Defaults to `false`."),
+        (:save_model_debug, false, false, "A boolean specifying whether or not to save the model if the model fails to solve.  Defaults to `false`."),
         (:objective_scalar, false, 1e3, "This is specifies how much to scale the objective by for the sake of the solver.  Does not impact any user-created expressions or shadow prices from the raw results, as they get scaled back.  (Defaults to 1e6)"),
         (:pgen_scalar, false, 1e3, "This specifies how much to scale pgen by in the cons_pgen_max constraint.  Helps with numerical stability if there are small availability factors present.  See also cf_threshold"),
         (:pcap_retirement_threshold, false, 1e-6, "This is the minimum `pcap` threshold (in MW) for new generators to be kept.  Defaults to 1e-6 (i.e. 1W).  See also [`save_updated_gen_table`](@ref)"),

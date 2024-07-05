@@ -6,8 +6,9 @@ Calls [`modify_results!(mod, config, data)`](@ref) for each `Modification` in `c
 function process_results!(config::OrderedDict, data::OrderedDict)
     log_header("PROCESSING RESULTS")
 
-    for (name, mod) in get_mods(config)
-        _try_catch(modify_results!, name, mod, config, data)
+    for (name, m) in get_mods(config)
+        @info "Modifying results with Modification $name of type $(typeof(m))"
+        _try_catch(modify_results!, name, m, config, data)
     end
 
     # Save the summary table and results formulas

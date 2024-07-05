@@ -199,6 +199,7 @@ function combine_results(post_config, post_data)
 
     # Combine results
     for (key, post_mod) in post_mods
+        @info "Combining results with Modification $key of type $(typeof(post_mod))"
         _try_catch(combine_results, key, post_mod, post_config, post_data[key])
     end
 end
