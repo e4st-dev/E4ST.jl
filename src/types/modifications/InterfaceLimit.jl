@@ -69,7 +69,7 @@ function modify_model!(mod::InterfaceLimit, config, data, model)
     nhr = get_num_hours(data)
     nyr = get_num_years(data)
     hour_weights = get_hour_weights(data)
-    pflow_branch = model[:pflow_branch]::Array{AffExpr, 3}
+    pflow_branch = model[:pflow_branch]::Array{VariableRef, 3}
     
     # Retrieve forward and reverse branch indices for each interface limit
     table.forward_branch_idxs = fill(Int64[], nrow(table))
