@@ -311,14 +311,17 @@ function parse_lmp_results!(config, data)
     # cons_branch_pflow_pos = res_raw[:cons_branch_pflow_pos]::Array{Float64, 3}
     # lmp_pflow = -cons_branch_pflow_neg - cons_branch_pflow_pos
 
-    # Loop through each branch and add the hourly merchandising surplus, in dollars, to the appropriate bus
-    ms = zeros(size(lmp_elserv)) # nbus x nyr x nhr
     branch = get_table(data, :branch)
     f_bus_idxs = branch.f_bus_idx::Vector{Int64}
     t_bus_idxs = branch.t_bus_idx::Vector{Int64}
     pflow_branch = res_raw[:pflow_branch]::Array{Float64, 3}
     hour_weights = get_hour_weights(data)
     hour_weights_mat = [hour_weights[hr_idx] for yr_idx in 1:nyr, hr_idx in 1:nhr]
+
+    # Loop through each branch and add the hourly merchandising surplus, in dollars, to the appropriate bus
+    ms = zeros(size(lmp_elserv)) # nbus x nyr x nhr
+    ms_branch = zeros(size(pflow_branch))
+    
     for branch_idx in 1:nrow(branch)
         f_bus_idx = f_bus_idxs[branch_idx]
         t_bus_idx = t_bus_idxs[branch_idx]
@@ -328,9 +331,12 @@ function parse_lmp_results!(config, data)
         ms_per_bus = ((t_bus_lmp .- f_bus_lmp) .* pflow) .* hour_weights_mat .* 0.5
         ms[f_bus_idx, :, :] .+= ms_per_bus
         ms[t_bus_idx, :, :] .+= ms_per_bus
+        ms_branch[branch_idx, :, :] = ms_per_bus .* 2
     end
 
     add_table_col!(data, :bus, :merchandising_surplus, ms, Dollars, "Merchandising surplus, in dollars, from selling electricity for a higher price at one end of a line than another.")
+    
+    add_table_col!(data, :branch, :merchandising_surplus, ms_branch, Dollars, "Merchandising surplus, in dollars, from selling electricity for a higher price at one end of a line than another.")
     
     # # Add the LMP's to the results and to the branch table
     # res_raw[:lmp_pflow_branch] = lmp_pflow

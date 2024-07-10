@@ -164,6 +164,11 @@ function validate(config, data)
             @warn(message)
         end
     end
+
+    if config[:validate_ref_bus] == true
+        # Check how many islands, and check that each has a reference bus.
+        check_islands_and_ref_bus!(data)
+    end
 end
 
 """

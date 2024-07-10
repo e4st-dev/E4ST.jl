@@ -722,6 +722,168 @@ function force_positive_line_limits!(branch)
 end
 export force_positive_line_limits!
 
+function check_islands_and_ref_bus!(data)
+    branch = get_table(data, :branch)
+    bus = get_table(data, :bus)
+
+    calc_islands!(branch, bus)
+
+    n_solo = count(==(0), bus.island_idx)
+    n_island = maximum(bus.island_idx)
+
+    if n_solo > 0
+        @warn "There are $n_solo buses not connected to any other buses"
+    end
+    @info "There are $n_island islands"
+
+    gdf = groupby(bus, :island_idx)
+    for i in 1:n_island
+        sdf = gdf[(;island_idx = i)]
+        n_ref_bus = count(==(true), sdf.ref_bus)
+        if n_ref_bus < 1
+            @warn "Island $i has no reference bus!  Setting one arbitrarily"
+            sdf.ref_bus[1] = 1
+        elseif n_ref_bus > 1
+            @warn "Island $i has $n_ref_bus reference buses!"
+            ref_bus_idxs = findall(==(true), sdf.ref_bus)
+            for bus_idx in ref_bus_idxs[2:end]
+                sdf.ref_bus[bus_idx] = 0
+            end
+        end
+    end
+end
+export check_islands_and_ref_bus!
+
+function calc_islands!(branch, bus)
+    f_bus_idxs = branch.f_bus_idx::Vector{Int64}
+    t_bus_idxs = branch.t_bus_idx::Vector{Int64}
+    nbus = nrow(bus)
+
+    
+    branch_island_idxs = Vector{Int64}(undef, nrow(branch))
+    bus_island_idxs = fill(0, nbus)
+    # Initialize an empty array of sets of bus idxs
+    islands = Set{Int64}[]
+
+
+
+
+    connected_bus_idxs = [Int64[] for _ in 1:nbus]
+    for (f_bus_idx, t_bus_idx) in zip(f_bus_idxs, t_bus_idxs)
+        push!(connected_bus_idxs[f_bus_idx], t_bus_idx)
+        push!(connected_bus_idxs[t_bus_idx], f_bus_idx)
+    end
+
+
+    n_island = 0
+    remaining_bus_idxs = collect(1:nbus)
+    bus_idx_disconnected = findall(isempty, connected_bus_idxs)
+    n_disconnected = length(bus_idx_disconnected)
+    if n_disconnected > 0
+        @info "Found $n_disconnected buses that are not connected to any AC branches! $(bus_idx_disconnected)"
+    end
+    filter!(!in(bus_idx_disconnected), remaining_bus_idxs)
+
+    while !isempty(remaining_bus_idxs)
+        n_island += 1
+
+        cur_bus_idx = first(remaining_bus_idxs)
+        island_bus_idxs = _get_connected_bus_idxs(connected_bus_idxs, cur_bus_idx)
+
+        for island_bus_idx in island_bus_idxs
+            bus_island_idxs[island_bus_idx] = n_island
+        end
+        
+        filter!(!in(island_bus_idxs), remaining_bus_idxs)
+    end
+
+    branch_island_idxs = map(i->bus_island_idxs[i], f_bus_idxs)
+
+
+
+
+
+
+    # for (bus_idx, bus_idxs) in enumerate(connected_bus_idxs)
+    #     in_island = false
+    #     for (island_idx, island) in enumerate(islands)
+    #         if bus_idx in island
+    #             union!(island, bus_idxs)
+    #             in_island = true
+    #             bus_island_idxs[bus_idx] = island_idx
+    #         end
+    #     end
+    #     if in_island === false
+    #         new_island = Set(bus_idx)
+    #         union!(new_island, bus_idxs)
+    #         push!(islands, new_island)
+    #         len = length(islands)
+    #         bus_island_idxs[bus_idx] = len
+    #     end
+    # end
+    
+
+
+
+
+
+
+
+
+    # branch_island_idxs = Vector{Int64}(undef, nrow(branch))
+    # bus_island_idxs = zeros(nrow(bus))
+    # # Initialize an empty array of sets of bus idxs
+    # islands = Set{Int64}[]
+    # # Loop through each branch and add to appropriate island
+    # for (i, (f_bus_idx, t_bus_idx)) in enumerate(zip(f_bus_idxs, t_bus_idxs))
+    #     in_island = false
+    #     for (island_idx, island) in enumerate(islands)
+    #         if f_bus_idx in island
+    #             push!(island, t_bus_idx)
+    #             in_island = true
+    #             branch_island_idxs[i] = island_idx
+    #             bus_island_idxs[t_bus_idx] = island_idx
+    #         elseif t_bus_idx in island
+    #             push!(island, f_bus_idx)
+    #             in_island = true
+    #             branch_island_idxs[i] = island_idx
+    #             bus_island_idxs[f_bus_idx] = island_idx
+    #         end
+    #     end
+    #     if in_island === false
+    #         push!(islands, Set((f_bus_idx, t_bus_idx)))
+    #         len = length(islands)
+    #         branch_island_idxs[i] = len
+    #         bus_island_idxs[f_bus_idx] = len
+    #         bus_island_idxs[t_bus_idx] = len
+    #     end
+    # end
+
+    branch.island_idx = branch_island_idxs
+    bus.island_idx = bus_island_idxs
+    return nothing
+end
+export calc_islands!
+
+function _get_connected_bus_idxs(connected_bus_idxs, i)
+    island_bus_idxs = Set(i)
+    for connected_bus_idx in connected_bus_idxs[i]
+        _get_connected_bus_idxs!(island_bus_idxs, connected_bus_idxs, connected_bus_idx)
+    end
+    return island_bus_idxs
+end
+
+
+function _get_connected_bus_idxs!(island_bus_idxs, connected_bus_idxs, i)
+    i ∈ island_bus_idxs && return
+    push!(island_bus_idxs, i)
+    for connected_bus_idx in connected_bus_idxs[i]
+        _get_connected_bus_idxs!(island_bus_idxs, connected_bus_idxs, connected_bus_idx)
+    end
+    return
+end
+
+
 """
     setup_table!(config, data, ::Val{:hours})
 
