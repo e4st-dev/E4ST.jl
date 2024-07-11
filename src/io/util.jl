@@ -204,7 +204,7 @@ function get_row_idxs(table, pairs)
     row_idxs = Int64[i for i in 1:nrow(table)]
     for pair in pairs
         key, val = pair
-        v = table[!,key]
+        v = get_col(table, key)
         comp = comparison(val, v)
         filter!(row_idx->comp(v[row_idx]), row_idxs)
     end
@@ -215,17 +215,31 @@ function get_row_idxs(table, pairs::Pair...)
     row_idxs = Int64[i for i in 1:nrow(table)]
     for pair in pairs
         key, val = pair
-        v = table[!,key]
+        v = get_col(table, key)
         comp = comparison(val, v)
         filter!(row_idx->comp(v[row_idx]), row_idxs)
     end
 
     return row_idxs
 end
+
+function get_col(table, key)
+    if hasproperty(table, key)
+        v = table[!, key]
+    else
+        bus_key = "bus_$key"
+        if hasproperty(table, bus_key)
+            v = table[!, bus_key]
+        else
+            error("table does not have column $key or $bus_key.")
+        end
+    end
+    return v
+end
 function get_row_idxs(table, pair::Pair)
     row_idxs = Int64[i for i in 1:nrow(table)]
     key, val = pair
-    v = table[!, key]
+    v = get_col(table, key)
     comp = comparison(val, v)
     filter!(row_idx->comp(v[row_idx]), row_idxs)
     return row_idxs

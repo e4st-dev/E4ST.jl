@@ -6,7 +6,7 @@ After optimizing the model, the following things happen:
     * results can now be computed using [`compute_result`](@ref)
 * [`process_results!`](@ref) is called, which in turn calls [`modify_results!(mod, config, data)`] for each [`Modification`](@ref) in the config.  Here are a couple of [`Modification`](@ref)s that write some handy results:
     * [`YearlyTable`](@ref)
-    * [`AggregationTemplate`](@ref)
+    * [`ResultsTemplate`](@ref)
 
 
 ```@docs

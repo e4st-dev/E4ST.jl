@@ -36,7 +36,11 @@ end
 
 export ResultsTemplate
 
+# Deal with backwards compatibility
 const AggregationTemplate = ResultsTemplate
+SYM2TYPE[:AggregationTemplate] = ResultsTemplate
+STR2TYPE["AggregationTemplate"] = ResultsTemplate
+
 
 export AggregationTemplate
 
@@ -85,7 +89,7 @@ function modify_results!(mod::ResultsTemplate, config, data)
         idxs = parse_comparisons(row)
         yr_idxs = parse_year_idxs(row.filter_years)
         hr_idxs = parse_hour_idxs(row.filter_hours)
-        if isempty(table_name)
+        if table_name == Symbol("")
             return compute_welfare(data, result_name, idxs, yr_idxs, hr_idxs)
         else
             return compute_result(data, table_name, result_name, idxs, yr_idxs, hr_idxs)

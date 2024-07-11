@@ -1,7 +1,7 @@
 Results Modifications
 ===================
 ```@docs
-AggregationTemplate
+ResultsTemplate
 YearlyTable
 WelfareTable
 ```
