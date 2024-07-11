@@ -284,7 +284,7 @@ function comparison(value::AbstractString, ::Type{<:Union{Missing, <:Number}})
 end
 
 function comparison(value::AbstractString, ::Type{<:Union{Missing, <:Bool}})
-    num = parse(Bool, value)
+    num = parse(Bool, String(value))
     return ==(num)
 end
 function comparison(value::AbstractString, ::Type{<:Union{Missing, <:AbstractString}})
