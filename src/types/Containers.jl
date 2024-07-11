@@ -169,6 +169,7 @@ end
 
 function promote_col(col::Vector{C}) where {C<:Container}
     isabstracttype(C) || return col
+    isempty(col) && return ByNothing[]
     T = get_promotion_type(col)
     if ismulti(T)
         scalar = _get_unity_scalar(T, col)

@@ -200,8 +200,8 @@ function parse_power_results!(config, data)
     egen_bus = weight_hourly(data, pgen_bus)
     ecap_gen = weight_hourly(data, pcap_gen)
 
-    pflow_out_bus = map(x-> max(x,0), pflow_bus)
-    pflow_in_bus = map(x-> max(-x,0), pflow_bus)
+    pflow_out_bus = map(x-> max(x, 0.), pflow_bus)
+    pflow_in_bus = map(x-> max(-x, 0.), pflow_bus)
 
     obj_pcap_cost_raw = res_raw[:obj_coef][:pcap_gen]::Array{Float64, 2}
     obj_pcap_cost = obj_pcap_cost_raw ./ hours_per_year
