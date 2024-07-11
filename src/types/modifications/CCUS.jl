@@ -12,7 +12,7 @@ This is a [`Modification`](@ref) that sets up markets for carbon captured by gen
 * `co2_step_quantity_limit` - A `Float64` for the maximum quantity of CO₂ that can be stored in any step.
 
 ### Tables Added
-* `<name>_ccus_paths` - contains all the pathways to selling CO₂. The table includes the producing region, the sequstering region and the type of storage, market steps, the quantity available for storage, and the costs of storage and transport.
+* `ccus_paths` - contains all the pathways to selling CO₂. The table includes the producing region, the sequstering region and the type of storage, market steps, the quantity available for storage, and the costs of storage and transport.
 
 ### Table Columns Added
 * `(:ccus_paths, :path_idx)` - the index of this path. 
@@ -21,7 +21,7 @@ This is a [`Modification`](@ref) that sets up markets for carbon captured by gen
 * `(:ccus_paths, :storer_cost)` - total storage cost of CCUS via this pathway, from the perspective of the sequesterer.
 * `(:ccus_paths, :storer_revenue)` - total revenue earned from storage for CCUS via this pathway.  This is the amount paid by the EGU's to the sequesterer, equal to the clearing price minus the transport cost.
 * `(:ccus_paths, :storer_profit)` -  total profit earned by storing carbon via this pathway, equal to the revenue minus the cost.
-* `(:gen, :capt_co2)` - the rate of capture of CO2 (calculated from emis_co2 and capt_co2_percent).
+* `(:gen, :capt_co2)` - the rate of capture of CO2 (calculated from `emis_co2` and `capt_co2_percent`).
 * `(:gen, :ccus_type)` - the type of the step the CO₂ will be sent to (`eor` or `saline`).
 * `(:gen, :price_capt_co2)` - region-wide clearing price for the generator to pay for the transport and storage of a short ton of captured CO2.
 * `(:gen, :price_capt_co2_store)` - region-wide clearing price for the generator to pay for the storage of a short ton of captured CO2.
@@ -51,7 +51,7 @@ Creates the following tables in `data`:
 
 ### Model Modification: 
 * Variables
-    * `co2_trans[1:nrow(ccus_paths), 1:nyear]` - the amount of captured CO₂ transported to each step along the producer-producer pathway. It is measured in MMT and bounded by [0, max_co2_storage * 1.1].
+    * `co2_trans[1:nrow(ccus_paths), 1:nyear]` - the amount of captured CO₂ transported to each step along the producer-producer pathway. It is measured in MMT and bounded by [0, `max_co2_storage` * 1.1].
 * Expressions  
     * `cost_ccus_obj[1:nyear]` - the total cost of ccus, as added to the objective function.
     * `co2_stor[1:nrow(ccus_storers), 1:nyear]` - the amount of CO₂ stored by each storer (expression of `co2_trans`).

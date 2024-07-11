@@ -53,12 +53,12 @@ Representation of reserve requirement, such that the sum of eligible power injec
 * `(:<name>_requirements, :cost_total)` - cost paid for the supplied reserve power. 
 * `(:<name>_requirements, :price_avg)` - the total cost divided by the supply of reserve power. This represents the shadow price on the capacity constraint, in dollars per MW reserve capacity supplied per hour. 
 * `(:<name>_requirements, :pres_flow)` - the hourly power flowing out of the region. May be misleading when aggregating above the subarea level. 
-* `(:bus, :<name>_cost_result)` - the total rebate paid by users to EGUs (and storage if present) from the $(mod.name) reserve requirement, not including merchandising surplus.
+* `(:bus, :<name>_cost_result)` - the total rebate paid by users to EGUs (and storage if present) from the reserve requirement, not including merchandising surplus.
 * `(:bus, :<name>_pres_req)` - the hourly power capacity required at each of the buses provided. 
 * `(:bus, :<name>_merchandising_surplus_total)` - the total merchandising surplus paid to users in the area. 
-* `(:gen, :<name>_pcap_qual)` - the hourly-weighted average capacity that qualifies for the $(mod.name)
+* `(:gen, :<name>_pcap_qual)` - the hourly-weighted average capacity that qualifies for the reserve requirement
 * `(:gen, :<name>_rebate)` - the total rebate for generators, for satisfying the reserve requirement.  Generally ≥ 0.  This is added to `(:gen, :net_total_revenue_prelim)`, and subtracted from electricity `user` welfare.
-* `(:storage, :<name>_pcap_qual)` - the hourly-weighted average capacity that qualifies for the $(mod.name)
+* `(:storage, :<name>_pcap_qual)` - the hourly-weighted average capacity that qualifies for the reserve requirement
 * `(:storage, :<name>_rebate)` - (only added if [`Storage`](@ref) included) the total rebate for storage units, for satisfying the reserve requirement.  Generally ≥ 0.  This is added to `(:storage, :net_total_revenue_prelim)`, and subtracted from electricity `user` welfare.
 """
 struct ReserveRequirement <: Modification
