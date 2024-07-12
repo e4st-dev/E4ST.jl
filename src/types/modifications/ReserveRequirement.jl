@@ -32,7 +32,7 @@ Representation of reserve requirement, such that the sum of eligible power injec
 * `(:bus, :<name>_cost_per_mw)` - This is the rebate payed by users to EGU's (and storage if present) for each MW of demand for each hour from the reserve requirement.
 * `(:storage, :<name>_pres)` - the reserve power capacity supplied by the storage unit.
 * `(:storage, :<name>_rebate_per_mw)` - This is the rebate recieved by storage facilities for each MW for each hour from the reserve requirement.
-* `(:bus, :<name>_merchandising_surplus_total)` - Merchandising surplus earned from differences in power reserve prices across reserve regions.
+* `(:bus, :<name>_merchandising_surplus)` - Merchandising surplus earned from differences in power reserve prices across reserve regions.
 
 ### Model Modification:
 * Variables
@@ -47,7 +47,18 @@ Representation of reserve requirement, such that the sum of eligible power injec
   * `cons_pres_<name>` - (nsubarea x nyr x nhr) Constrain that `pres_total_subarea_<name> ≥ pres_req_subarea_<name>`.
 
 ### Results Formulas:
+* `(:<name>_requirements, :pres_req)` - the hourly required reserve power for the region.
+* `(:<name>_requirements, :pres_supply)` - the hourly supplied reserve power for the region. 
+* `(:<name>_requirements, :eres_supply)` - the supply for reserve energy. May be misleading but useful for calculations. 
+* `(:<name>_requirements, :cost_total)` - cost paid for the supplied reserve power. 
+* `(:<name>_requirements, :price_avg)` - the total cost divided by the supply of reserve power. This represents the shadow price on the capacity constraint, in dollars per MW reserve capacity supplied per hour. 
+* `(:<name>_requirements, :pres_flow)` - the hourly power flowing out of the region. May be misleading when aggregating above the subarea level. 
+* `(:bus, :<name>_cost_result)` - the total rebate paid by users to EGUs (and storage if present) from the reserve requirement, not including merchandising surplus.
+* `(:bus, :<name>_pres_req)` - the hourly power capacity required at each of the buses provided. 
+* `(:bus, :<name>_merchandising_surplus_total)` - the total merchandising surplus paid to users in the area. 
+* `(:gen, :<name>_pcap_qual)` - the hourly-weighted average capacity that qualifies for the reserve requirement
 * `(:gen, :<name>_rebate)` - the total rebate for generators, for satisfying the reserve requirement.  Generally ≥ 0.  This is added to `(:gen, :net_total_revenue_prelim)`, and subtracted from electricity `user` welfare.
+* `(:storage, :<name>_pcap_qual)` - the hourly-weighted average capacity that qualifies for the reserve requirement
 * `(:storage, :<name>_rebate)` - (only added if [`Storage`](@ref) included) the total rebate for storage units, for satisfying the reserve requirement.  Generally ≥ 0.  This is added to `(:storage, :net_total_revenue_prelim)`, and subtracted from electricity `user` welfare.
 """
 struct ReserveRequirement <: Modification
