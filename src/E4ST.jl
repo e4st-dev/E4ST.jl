@@ -34,9 +34,13 @@ export Modification, Policy
 export modify_raw_data!, modify_setup_data!, modify_model!, modify_results!, fieldnames_for_yaml
 export run_e4st
 
+# Define constants
+global const STR2TYPE = Dict{String, Type}()
+global const SYM2TYPE = Dict{Symbol, Type}()
+global const STR2OPT= Dict{String, Type}()
+
+# Include utilities
 include("io/util.jl")
-
-
 
 # Include types
 include("types/Modification.jl")
@@ -67,7 +71,6 @@ include("types/modifications/ReserveRequirement.jl")
 include("types/modifications/GenHashID.jl")
 include("types/modifications/LeftJoinCols.jl")
 include("types/modifications/CapacityConstraint.jl")
-
 
 # Include Policies
 include("types/policies/ITC.jl")
@@ -188,10 +191,6 @@ function run_e4st(config::OrderedDict)
 end
 
 run_e4st(path...; kwargs...) = run_e4st(read_config(path...; kwargs...))
-
-global STR2TYPE = Dict{String, Type}()
-global SYM2TYPE = Dict{Symbol, Type}()
-global STR2OPT= Dict{String, Type}()
 
 function reload_optimizers!()
     global STR2OPT
