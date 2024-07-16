@@ -38,10 +38,11 @@ Thermal generators are allowed to be built at the sites of buses which are direc
 
 ### Solar
 
-
+Available solar capacity comes from the [NREL solar supply curve](https://www.nrel.gov/gis/solar-supply-curves.html) reference case.  This contains the available solar capacity of a 11.5x11.5km grid across the continental United States.  We then gather the solar data including the GHI, DHI, DNI, wind speed,air temperature, and zenith angle of the nearest point in the NREL National Solar Radiation Database (NSRDB) for each site during each of our representative hours.  From the site and time specific solar data, we then calculate the availability factor at each representative hour for a single-axis tracking solar farm using NREL's System Advisor Model (SAM).  Finally, we use a k-means clustering algorithm to group the supply curve sites into 3,000 larger farms.  We take the capacity-weighted average of the supply curve site availability factors to get the final hourly availability factors for each cluster.
 
 ### Wind
 
+Available wind capacity comes from the [NREL wind supply curve](https://www.nrel.gov/gis/wind-supply-curves.html) reference case.  This contains the available wind capacity of a 11.5x11.5km grid across the continental United States.  We then gather the wind speeds at a variety of heights for the nearest point in the NREL National Solar Radiation Database (NSRDB) for each site during each of our representative hours.  From the site and time specific wind data, we then calculate the availability factor using a power curve provided for the [NREL reference 5.5MW turbine](https://nrel.github.io/turbine-models/2020ATB_NREL_Reference_5.5MW_175.html), with some haircut and wake losses assumed.  Finally, we use a k-means clustering algorithm to group the supply curve sites into 3,000 larger farms.  We take the capacity-weighted average of the supply curve site availability factors to get the final hourly availability factors for each cluster.
 
 ## Storage
 
