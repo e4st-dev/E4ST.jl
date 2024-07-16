@@ -4,7 +4,7 @@
 
 Representation of reserve requirement, such that the sum of eligible power injection capacity in the region (including both generators and storage devices) is constrained to be greater than or equal to some percentage above the load.
 
-Keyword arguments:
+### Keyword arguments:
 * `name` - name of the modification
 * `area` - the area by which to group the buses by for the reserve requirements.
 * `credit_gen` - the [`Crediting`](@ref) for the generators, defaults to [`AvailabilityFactorCrediting`](@ref)
@@ -15,7 +15,26 @@ Keyword arguments:
     * `plnom` - (default), nominal load power.
     * `plserv` - served load power.
 
-Model Modification:
+### Tables Added:
+* `<name>_requirements` - this has one row for each of the reserve requirements regions specified in `requirements_file`
+* `<name>_flow_limits` - this has one row for each flow limit specified in `flow_limits_file` (only created if that file is provided.)
+
+### Table Columns Added:
+* `(:gen, :<name>)` - the hourly qualifying credit level for reserve requirement.  This gets multiplied by the power capacity in the reserve requirement constraint.
+* `(:storage, :<name>)` - the hourly qualifying credit level for reserve requirement.  This gets multiplied by the power capacity in the reserve requirement constraint.
+* `(:bus, :<name>_pres_req)` - the required reserve power in the bus from the reserve requirement, in MW.
+* `(:<name>_requirements, :price)` - the hourly shadow price on the capacity constraint, in dollars per MW reserve capacity supplied per hour.
+* `(:<name>_requirements, :pres_supply)` - the supplied reserve capacity in the region for each hour.
+* `(:<name>_requirements, :pres_req)` - the required reserve capacity in the region for each hour.
+* `(:<name>_requirements, :pres_flow)` - the reserve power capacity flowing out of the region for each hour.
+* `(:gen, :<name>_pres)` - the reserve power capacity supplied by the generator.
+* `(:gen, :<name>_rebate_per_mw)` - This is the rebate recieved by EGU's for each MW of capacity for each hour from the reserve requirement.
+* `(:bus, :<name>_cost_per_mw)` - This is the rebate payed by users to EGU's (and storage if present) for each MW of demand for each hour from the reserve requirement.
+* `(:storage, :<name>_pres)` - the reserve power capacity supplied by the storage unit.
+* `(:storage, :<name>_rebate_per_mw)` - This is the rebate recieved by storage facilities for each MW for each hour from the reserve requirement.
+* `(:bus, :<name>_merchandising_surplus)` - Merchandising surplus earned from differences in power reserve prices across reserve regions.
+
+### Model Modification:
 * Variables
   * `pres_flow_<name>` - (nflow x nyr x nhr) Reserve power flow for each row of the flow limit table, bounded by forward and reverse max flows. (only present if there is `flow_limits_file` file provided)
 * Expressions
@@ -27,8 +46,19 @@ Model Modification:
 * Constraints
   * `cons_pres_<name>` - (nsubarea x nyr x nhr) Constrain that `pres_total_subarea_<name> ≥ pres_req_subarea_<name>`.
 
-Adds results:
+### Results Formulas:
+* `(:<name>_requirements, :pres_req)` - the hourly required reserve power for the region.
+* `(:<name>_requirements, :pres_supply)` - the hourly supplied reserve power for the region. 
+* `(:<name>_requirements, :eres_supply)` - the supply for reserve energy. May be misleading but useful for calculations. 
+* `(:<name>_requirements, :cost_total)` - cost paid for the supplied reserve power. 
+* `(:<name>_requirements, :price_avg)` - the total cost divided by the supply of reserve power. This represents the shadow price on the capacity constraint, in dollars per MW reserve capacity supplied per hour. 
+* `(:<name>_requirements, :pres_flow)` - the hourly power flowing out of the region. May be misleading when aggregating above the subarea level. 
+* `(:bus, :<name>_cost_result)` - the total rebate paid by users to EGUs (and storage if present) from the reserve requirement, not including merchandising surplus.
+* `(:bus, :<name>_pres_req)` - the hourly power capacity required at each of the buses provided. 
+* `(:bus, :<name>_merchandising_surplus_total)` - the total merchandising surplus paid to users in the area. 
+* `(:gen, :<name>_pcap_qual)` - the hourly-weighted average capacity that qualifies for the reserve requirement
 * `(:gen, :<name>_rebate)` - the total rebate for generators, for satisfying the reserve requirement.  Generally ≥ 0.  This is added to `(:gen, :net_total_revenue_prelim)`, and subtracted from electricity `user` welfare.
+* `(:storage, :<name>_pcap_qual)` - the hourly-weighted average capacity that qualifies for the reserve requirement
 * `(:storage, :<name>_rebate)` - (only added if [`Storage`](@ref) included) the total rebate for storage units, for satisfying the reserve requirement.  Generally ≥ 0.  This is added to `(:storage, :net_total_revenue_prelim)`, and subtracted from electricity `user` welfare.
 """
 struct ReserveRequirement <: Modification
@@ -124,8 +154,8 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
     subareas = requirements.subarea
     subarea2idx = Dict(subareas[i]=>i for i in axes(subareas,1))
 
-
-    gdf_gen = groupby(gen, area)
+    gen_area = hasproperty(gen, area) ? area : "bus_$area"
+    gdf_gen = groupby(gen, gen_area)
     gdf_bus = groupby(bus, area)
 
     gen_idx_sets = map(subarea -> haskey(gdf_gen, (subarea,)) ? getfield(gdf_gen[(subarea,)], :rows) : Int64[], subareas)
@@ -228,7 +258,7 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
     # Add in credit for storage if applicable
     if haskey(data, :storage)
         stor = get_table(data, :storage)
-        gdf_stor = groupby(stor, area)
+        gdf_stor = groupby(stor, gen_area)
         stor_idx_sets = map(subarea -> haskey(gdf_stor, (subarea,)) ? getfield(gdf_stor[(subarea,)], :rows) : Int64[], subareas)
         requirements.stor_idx_sets = stor_idx_sets
         c_stor = mod.credit_stor
@@ -390,10 +420,10 @@ function modify_results!(mod::ReserveRequirement, config, data)
 
     add_table_col!(data, :gen, pres_name, pres_gen, MWCapacity, "The power reserve capacity used to fill $(mod.name)")
     add_table_col!(data, :gen, rebate_col_name, price_per_mw_per_hr_gen, DollarsPerMWCapacityPerHour, "This is the rebate recieved by EGU's for each MW of capacity for each hour from the $(mod.name) reserve requirement.")
-    add_table_col!(data, :bus, cost_col_name, price_per_mw_per_hr_bus, DollarsPerMWCapacityPerHour, "This is the rebate payed by users to EGU's for each MW of demand for each hour from the $(mod.name) reserve requirement.")
+    add_table_col!(data, :bus, cost_col_name, price_per_mw_per_hr_bus, DollarsPerMWCapacityPerHour, "This is the rebate payed by users to EGU's (and storage if present) for each MW of demand for each hour from the $(mod.name) reserve requirement.")
 
     # Make results formulas for bus table
-    add_results_formula!(data, :bus, cost_result_name, "SumHourlyWeighted($pres_req_name, $cost_col_name)", Dollars, "This is the total rebate paid by users to EGU's from the $(mod.name) reserve requirement, not including merchandising surplus.")
+    add_results_formula!(data, :bus, cost_result_name, "SumHourlyWeighted($pres_req_name, $cost_col_name)", Dollars, "This is the total rebate paid by users to EGU's (and storage if present) from the $(mod.name) reserve requirement, not including merchandising surplus.")
     add_results_formula!(data, :bus, "pres_req_sum_max_$(mod.name)", "SumMaxHourly($pres_req_name)", MWCapacity, "The sum of hourly maximum power capacity required at each of the buses provided.")
 
     # Make results formulas for the gen table
@@ -483,5 +513,9 @@ function modify_results!(mod::ReserveRequirement, config, data)
         add_table_col!(data, :bus, Symbol("$(mod.name)_merchandising_surplus"), ms_bus, Dollars, "Merchandising surplus earned from differences in power reserve prices across reserve regions, for $(mod.name)")
         add_results_formula!(data, :bus, Symbol("$(mod.name)_merchandising_surplus_total"), "SumHourly($(mod.name)_merchandising_surplus)", Dollars, "Total merchandising surplus payed to users in the area.")
         add_welfare_term!(data, :user, :bus, Symbol("$(mod.name)_merchandising_surplus_total"), +)
+
+        # add rebate to net_rev_prelim_check in welfare table
+        add_welfare_term!(data, :net_rev_prelim_check, :bus, cost_result_name, +)
+        add_welfare_term!(data, :net_rev_prelim_check, :bus, Symbol("$(mod.name)_merchandising_surplus_total"), -)
     end    
 end

@@ -8,6 +8,7 @@
         mods[:adj_yearly] = AdjustYearly(file=joinpath(@__DIR__, "data", "3bus", "adjust_yearly.csv"), name=:adj_yearly) #overwrites previous adj_yearly
         mods[:adj_hourly] = AdjustHourly(file=joinpath(@__DIR__, "data", "3bus", "adjust_hourly.csv"), name=:adj_hourly)
         mods[:adj_by_age] = AdjustByAge(file=joinpath(@__DIR__, "data", "3bus", "adjust_by_age.csv"), name=:adj_by_age)
+        mods[:adjust_string] = AdjustString(file=joinpath(@__DIR__, "data", "3bus", "adjust_string.csv"), name=:adjust_string)
         data = read_data(config)
         nyr = get_num_years(data)
         @test data isa AbstractDict
@@ -15,13 +16,13 @@
         @testset "Test Yearly Adjustments" begin
 
             # Test that FOM is reduced in narnia for solar generators
-            gen_idxs = get_table_row_idxs(data, :gen, ("nation"=>"narnia", "genfuel"=>"solar", "year_on"=>"y2030"))
+            gen_idxs = get_table_row_idxs(data, :gen, ("bus_nation"=>"narnia", "genfuel"=>"solar", "year_on"=>"y2030"))
             @test all(get_table_num(data, :gen, :fom, gen_idx, yr_idx, 1) ≈ get_table_num(data0, :gen, :fom, gen_idx, yr_idx, 1) - 0.2 for yr_idx in 1:nyr, gen_idx in gen_idxs)
 
-            gen_idxs = get_table_row_idxs(data, :gen, ("nation"=>"narnia", "genfuel"=>"solar", "year_on"=>"y2035"))
+            gen_idxs = get_table_row_idxs(data, :gen, ("bus_nation"=>"narnia", "genfuel"=>"solar", "year_on"=>"y2035"))
             @test all(get_table_num(data, :gen, :fom, gen_idx, yr_idx, 1) ≈ get_table_num(data0, :gen, :fom, gen_idx, yr_idx, 1) - 0.3 for yr_idx in 1:nyr, gen_idx in gen_idxs)
 
-            gen_idxs = get_table_row_idxs(data, :gen, ("nation"=>"narnia", "genfuel"=>"solar", "year_on"=>"y2040"))
+            gen_idxs = get_table_row_idxs(data, :gen, ("bus_nation"=>"narnia", "genfuel"=>"solar", "year_on"=>"y2040"))
             @test all(get_table_num(data, :gen, :fom, gen_idx, yr_idx, 1) ≈ get_table_num(data0, :gen, :fom, gen_idx, yr_idx, 1) - 0.4 for yr_idx in 1:nyr, gen_idx in gen_idxs)
 
             # Test that max branch power flow is greater in later years
@@ -39,7 +40,7 @@
             @test all(wind_idx->(get_af(data, wind_idx, 1, 1) != get_af(data0, wind_idx, 1, 1)), wind_idxs)
 
             # Test that vom of narnian solar generators is higher in some hours after adjusting
-            gen_idxs = get_table_row_idxs(data, :gen, "nation"=>"narnia", "genfuel"=>"solar")
+            gen_idxs = get_table_row_idxs(data, :gen, "bus_nation"=>"narnia", "genfuel"=>"solar")
             @test all(gen_idx -> (get_table_num(data, :gen, :vom, gen_idx, 1, 4)>get_table_num(data0, :gen, :vom, gen_idx, 1, 4)), gen_idxs)
 
             # Test that vom of narnian solar generators is even higher in 2030
@@ -91,6 +92,10 @@
                 @test get_table_num(data, :gen, :af, solar_idx, "y2035", 1) ≈ 0.5 * (1-0.08)
                 @test get_table_num(data, :gen, :af, solar_idx, "y2040", 1) ≈ 0.5 * (1-0.10)
             end
+        end
+        @testset "Test AdjustString" begin
+            table = get_table(data, :gen, :year_shutdown=>"y2051")
+            @test nrow(table) > 0
         end
     end
 end

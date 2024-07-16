@@ -33,7 +33,6 @@ export should_iterate, iterate!
 export Modification, Policy
 export modify_raw_data!, modify_setup_data!, modify_model!, modify_results!, fieldnames_for_yaml
 export run_e4st
-export setup_new_gens!
 
 include("io/util.jl")
 
@@ -65,6 +64,9 @@ include("types/modifications/CO2eCalc.jl")
 include("types/modifications/FuelPrice.jl")
 include("types/modifications/InterfaceLimit.jl")
 include("types/modifications/ReserveRequirement.jl")
+include("types/modifications/GenHashID.jl")
+include("types/modifications/LeftJoinCols.jl")
+include("types/modifications/CapacityConstraint.jl")
 
 
 # Include Policies
@@ -93,10 +95,10 @@ include("model/newgens.jl")
 include("model/util.jl")
 
 # Include Results
+include("results/formulas.jl")
 include("results/parse.jl")
 include("results/process.jl")
 include("results/aggregate.jl")
-include("results/formulas.jl")
 include("results/welfare.jl")
 include("results/util.jl")
 

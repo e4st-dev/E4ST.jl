@@ -67,8 +67,12 @@ function summarize_config()
         (:bio_pctco2e, false, 0.273783186, "The fraction of biomass co2 emissions that are considered new to the atmostphere. 0.225 metric tons/MWh * (2204 short tons/2000 metric tons) / 0.904 short tons/MWh"),
         (:ng_upstream_ch4_leakage, false, 0.000434, "Natural gas methane fuel content. (Short ton/MMBtu)"),
         (:coal_upstream_ch4_leakage, false, 0.000175, "Coal methane fuel content. (Short ton/MMBtu)"),
-        (:wacc, false, 0.0544, "Assumed Weighted Average Cost of Capital (used as discount rate), currently only used for calculating ptc capex adjustment but should be the same as the wacc/discount rate used to calculate annualized generator costs. Current value (0.0544) was using in annulaizing ATB 2022 costs.")
-        )
+        (:wacc, false, 0.0544, "Assumed Weighted Average Cost of Capital (used as discount rate), currently only used for calculating ptc capex adjustment but should be the same as the wacc/discount rate used to calculate annualized generator costs. Current value (0.0544) was using in annulaizing ATB 2022 costs."),
+        (:error_if_zero_af, false, true, "Whether or not to throw an error if there are generators with zero availability over the entire year.  If set to equal false, it will throw a warning message rather than an error."),
+        (:error_if_zero_cost, false, true, "Whether or not to throw an error if there are generators with zero costs over the entire year.  If set to equal false, it will throw a warning message rather than an error.")
+
+    )
+        
     return df
 end
 export summarize_config
@@ -212,7 +216,7 @@ function start_logging!(config)
         # logger = Base.SimpleLogger(open(abspath(config[:out_path], "E4ST.log"),"w"), log_level)
         io = open(get_out_path(config, "E4ST.log"),"w")
         format = "{[{timestamp}] - {level} - :func}{@ {module} {filepath}:{line:cyan}:light_green}\n{message}"
-        logger = MiniLogger(;io, minlevel, format, message_mode=:notransformations)
+        logger = MiniLogger(;io, ioerr = io, minlevel, format, message_mode=:notransformations)
     end
 
     old_logger = Logging.global_logger(logger)

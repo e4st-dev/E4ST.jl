@@ -65,6 +65,24 @@ function summarize_table(::Val{:adjust_by_age})
     return df
 end
 
+@doc """
+    summarize_table(::Val{:adjust_string})
+
+$(table2markdown(summarize_table(Val(:adjust_string))))
+"""
+function summarize_table(::Val{:adjust_string})
+    df = TableSummary()
+    push!(df, 
+        (:table_name, AbstractString, NA, true, "The name of the table to adjust.  Leave blank if this adjustment is intended for a variable in `data`"),
+        (:variable_name, AbstractString, NA, true, "The name of the variable/column to adjust"),
+        (:filter_, String, NA, true, "There can be multiple filter conditions - `filter1`, `filter2`, etc.  It denotes a comparison used for selecting the table rows to apply the adjustment to.  See `parse_comparison` for examples"),
+        (:status, Bool, NA, false, "Whether or not to use this adjustment"),
+        (:value, String, NA, true, "Value to set to."),
+    )
+    return df
+end
+
+
 
 
 """
@@ -74,6 +92,7 @@ This [`Modification`](@ref) creates a way to adjust table values or data paramet
 * [`AdjustHourly`](@ref)
 * [`AdjustYearly`](@ref)
 * [`AdjustByAge`](@ref)
+* [`AdjustString`](@ref)
 """
 Base.@kwdef struct Adjust{T} <: Modification
     name::Symbol
@@ -107,7 +126,16 @@ Adjusts tables and parameters by year.  Stores the table stored in `file` into `
 $(table2markdown(summarize_table(Val(:adjust_by_age))))
 """
 const AdjustByAge = Adjust{:adjust_by_age}
-export Adjust, AdjustHourly, AdjustYearly, AdjustByAge
+
+"""
+    AdjustString(;file, name)
+
+Adjusts tables and parameters by setting a string.  Stores the table stored in `file` into `data[name]`.
+
+$(table2markdown(summarize_table(Val(:adjust_string))))
+"""
+const AdjustString = Adjust{:adjust_string}
+export Adjust, AdjustHourly, AdjustYearly, AdjustByAge, AdjustString
 
 
 
@@ -140,6 +168,11 @@ end
 function adjust!(mod::Adjust{:adjust_by_age}, config, data, row)
     adjust_by_age!(config, data, row)
 end
+
+function adjust!(mod::Adjust{:adjust_string}, config, data, row)
+    adjust_string!(config, data, row)
+end
+
 
 """
     adjust_hourly!(config, data, row)
@@ -360,3 +393,32 @@ function adjust_by_age!(config, data, row)
     end
     return
 end
+
+"""
+    adjust_string!(config, data, row)
+
+Adjusts the string according to `row`
+"""
+function adjust_string!(config, data, row)
+    table_name = row.table_name::AbstractString
+    variable_name = row.variable_name::AbstractString
+    val = row.value::String
+    nyr = get_num_years(data)
+
+    if isempty(table_name)
+        @warn "adjust_string table requires non-empty table_name to adjust by age"
+        return
+    end
+
+    table = get_table(data, table_name)
+    col = table[!, variable_name]::Vector{<:AbstractString}
+
+    filters = parse_comparisons(row)
+
+    idxs = get_row_idxs(table, filters)
+
+    col[idxs] .= val
+
+    return
+end
+export adjust_string!

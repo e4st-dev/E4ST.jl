@@ -6,7 +6,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 env:
-  CODECOV_TOKEN: 6b63b55f-caba-4243-9007-28c0fb8b5981
+  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 jobs:
   test:
     if: "!contains(github.event.head_commit.message, 'skip ci')"

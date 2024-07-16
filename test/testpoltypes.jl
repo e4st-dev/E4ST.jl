@@ -37,7 +37,7 @@
             @test hasproperty(gen, :example_ptc_capex_adj)
 
             #test that there are byYear containers 
-            @test typeof(gen.example_ptc) == Vector{Container}
+            @test gen.example_ptc isa Vector{<:Container}
 
             @test any(ptc -> typeof(ptc) == E4ST.ByYear, gen.example_ptc)
 
@@ -139,7 +139,7 @@
             @test hasproperty(gen, :example_itc)
 
             # Test that there are byYear containers 
-            @test typeof(gen.example_itc) == Vector{Container}
+            @test gen.example_itc isa Vector{<:Container}
 
             # Check that there are ByYear containers
             @test any(itc -> typeof(itc) == E4ST.ByYear, gen.example_itc)
@@ -383,17 +383,17 @@
 
                 gen = get_table(data, :gen)
 
-                gen_total_qual = compute_result(data, :gen, :egen_total, [:emis_co2 => 0, :nation => "archenland"])
+                gen_total_qual = compute_result(data, :gen, :egen_total, [:emis_co2 => 0, :bus_nation => "archenland"])
                 elserv_total_qual = compute_result(data, :bus, :elserv_total, :state => "stormness")
 
-                gen_total_qual_2035 = compute_result(data, :gen, :egen_total, [:emis_co2 => 0, :nation => "archenland"], 2)
+                gen_total_qual_2035 = compute_result(data, :gen, :egen_total, [:emis_co2 => 0, :bus_nation => "archenland"], 2)
                 elserv_total_qual_2035 = compute_result(data, :bus, :el_gs_total, :state => "stormness", 2)
 
                 targets = first(values(rps_mod.load_targets))[:targets]
 
                 @test gen_total_qual_2035 / elserv_total_qual_2035 >= targets[:y2035] - tol
 
-                gen_total_qual_2040 = compute_result(data, :gen, :egen_total, [:emis_co2 => 0, :nation => "archenland"], 3)
+                gen_total_qual_2040 = compute_result(data, :gen, :egen_total, [:emis_co2 => 0, :bus_nation => "archenland"], 3)
                 elserv_total_qual_2040 = compute_result(data, :bus, :el_gs_total, :state => "stormness", 3)
 
                 @test gen_total_qual_2040 / elserv_total_qual_2040 >= targets[:y2040] - tol
@@ -464,15 +464,15 @@
                 ces_mod = config[:mods][:example_ces]
                 targets = first(values(ces_mod.load_targets))[:targets]
 
-                gen_total_qual_2035 = compute_result(data, :gen, :egen_total, [:emis_co2 => <(0.5), :nation => "archenland"], 2)
-                gen_total_qual_2035_ref = compute_result(data_ref, :gen, :egen_total, [:emis_co2 => <(0.5), :nation => "archenland"], 2)
+                gen_total_qual_2035 = compute_result(data, :gen, :egen_total, [:emis_co2 => <(0.5), :bus_nation => "archenland"], 2)
+                gen_total_qual_2035_ref = compute_result(data_ref, :gen, :egen_total, [:emis_co2 => <(0.5), :bus_nation => "archenland"], 2)
                 elserv_total_qual_2035 = compute_result(data, :bus, :el_gs_total, :state => "anvard", 2)
 
                 @test gen_total_qual_2035 > gen_total_qual_2035_ref
                 @test gen_total_qual_2035 / elserv_total_qual_2035 >= targets[:y2035] - 0.001 #would use approx but need the > in case partial credit gen is used
 
-                gen_total_qual_2040 = compute_result(data, :gen, :egen_total, [:emis_co2 => <(0.5), :nation => "archenland"], 3)
-                gen_total_qual_2040_ref = compute_result(data_ref, :gen, :egen_total, [:emis_co2 => <(0.5), :nation => "archenland"], 3)
+                gen_total_qual_2040 = compute_result(data, :gen, :egen_total, [:emis_co2 => <(0.5), :bus_nation => "archenland"], 3)
+                gen_total_qual_2040_ref = compute_result(data_ref, :gen, :egen_total, [:emis_co2 => <(0.5), :bus_nation => "archenland"], 3)
                 elserv_total_qual_2040 = compute_result(data, :bus, :el_gs_total, :state => "anvard", 3)
 
                 @test gen_total_qual_2040 > gen_total_qual_2040_ref
@@ -510,7 +510,7 @@
         @test compute_result(data, :gen, :pcap_qual_state_reserve) < compute_result(data, :gen, :pcap_total)
 
     
-        if compute_result(data, :storage, :edischarge_total, :nation=>"narnia") > 0
+        if compute_result(data, :storage, :edischarge_total, :bus_nation=>"narnia") > 0
             @test compute_result(data, :storage, :state_reserve_rebate, :, "y2030") == 0.0
             @test compute_result(data, :storage, :state_reserve_rebate) > 0.0
             @test compute_result(data, :storage, :state_reserve_rebate_per_mw_price) > 0.0
@@ -524,5 +524,35 @@
         @test compute_result(data, :bus, :state_reserve_merchandising_surplus_total) > 0.0
 
         @test compute_result(data, :bus, :state_reserve_cost) ≈ compute_result(data, :gen, :state_reserve_rebate) + compute_result(data, :storage, :state_reserve_rebate) + compute_result(data, :bus, :state_reserve_merchandising_surplus_total)
+    
+        # use welfare check to make sure that reserve requirement is working correctly
+        @test compute_welfare(data, :net_rev_prelim_check) ≈ compute_result(data, :gen, :net_total_revenue_prelim) + compute_result(data, :storage, :net_total_revenue_prelim)
+    end
+
+    @testset "Test CapacityConstraint" begin
+        config_file = joinpath(@__DIR__, "config", "config_capconst.yml")
+        config = read_config(config_file_ref, config_file)
+
+        data = read_data(config)
+        model = setup_model(config, data)
+        gen = get_table(data, :gen)
+
+        optimize!(model)
+        @test check(model)
+
+        @test haskey(model, :cons_solar_cap_const_max)
+        @test haskey(model, :cons_solar_cap_const_min)
+        @test haskey(model, :cons_storage_cap_const_max)
+        @test haskey(model, :cons_storage_cap_const_min)
+
+        # process results
+        parse_results!(config, data, model)
+        process_results!(config, data)
+
+        @test compute_result(data, :gen, :pcap_total, :gentype => "solar", 1) <= 0.5
+        @test compute_result(data, :gen, :pcap_total, :gentype => "solar", 2) >= 0.75
+        @test compute_result(data, :gen, :pcap_total, :gentype => "solar", 2) <= 0.76
+        @test compute_result(data, :storage, :pcap_total, :, 3) >= 0.035
+        @test compute_result(data, :storage, :pcap_total, :, 3) <= 0.040000001
     end
 end

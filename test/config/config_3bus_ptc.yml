@@ -9,11 +9,11 @@ mods:
     years_after_ref_max: 10
     gen_filters:
       emis_co2: "<= 0.1"
-      nation: "narnia"
+      bus_nation: "narnia"
   example_ptc_no_age_filter:
     type: "PTC"
     values: 
       y2035: 1
       y2040: 1
     gen_filters:
-      nation: "archenland"
+      bus_nation: "archenland"

@@ -170,7 +170,10 @@ function modify_setup_data!(mod::Storage, config, data)
 
     data[:storage_table_original_cols] = propertynames(storage)
 
-    add_buildable_storage!(config, data)
+    b = "built" # pre-allocate
+    transform!(storage, :build_status => ByRow(s->isnew(s) ? b : s) => :build_status) # transform in-place
+
+    append_builds!(config, data, :storage, :build_storage)
 
     ### Add the following columns to the storage table:
     # num_intervals: number of time intervals for storage of this device
@@ -219,102 +222,9 @@ function modify_setup_data!(mod::Storage, config, data)
     end
 
     ### Map bus characteristics to storage
-    names_before = propertynames(storage)
-    leftjoin!(storage, select(bus, Not(:reg_factor)), on=:bus_idx)
-    select!(storage, Not(:plnom))
-    disallowmissing!(storage)
-    names_after = propertynames(storage)
-
-    for name in names_after
-        name in names_before && continue
-        add_table_col!(data, :storage, name, storage[!,name], get_table_col_unit(data, :bus, name), get_table_col_description(data, :bus, name), warn_overwrite=false)
-    end
+    join_bus_columns!(data, :storage)
+    return storage
 end
-
-"""
-    add_buildable_storage!(config, data)
-
-Add buildable storage from `build_storage` table to `storage` table, if the `build_storage` table exists
-"""
-function add_buildable_storage!(config, data)
-    haskey(data, :build_storage) || return nothing
-
-    storage =       get_table(data, :storage)
-    build_storage = get_table(data, :build_storage)
-    bus =           get_table(data, :bus)
-
-    # Filter any already-built exogenous storage units
-    filter!(build_storage) do row
-        if row.build_type == "exog"
-            row.year_on <= config[:year_gen_data] && return false
-            row.year_on > last(years) && return false
-        end
-        return true
-    end
-
-
-    spec_names = filter!(
-        !in((:bus_idx, :reg_factor, :year_off, :year_shutdown, :pcap_inv, :year_unbuilt, :past_invest_cost, :past_invest_subsidy)),
-        propertynames(storage)
-    )
-    years = get_years(data)
-
-    for spec_row in eachrow(build_storage)
-        area = spec_row.area
-        subarea = spec_row.subarea
-        bus_idxs = get_row_idxs(bus, (area=>subarea))
-
-        #set default min and max for year_on if blank
-        year_on_min = (spec_row.year_on_min == "" ? "y0" : spec_row.year_on_min)
-        year_on_max = (spec_row.year_on_max == "" ? "y9999" : spec_row.year_on_max)
-
-        for bus_idx in bus_idxs
-            if spec_row.build_type == "endog"
-                # For endogenous new builds a new storage device is created for each year
-                for (yr_idx, year) in enumerate(years)
-                    year < year_on_min && continue
-                    year > year_on_max && continue
-
-                    # Make row to add to the storage table
-                    new_row = Dict(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
-                    new_row[:year_on] = year
-                    new_row[:year_unbuilt] = get(years, yr_idx - 1, config[:year_gen_data])
-                    new_row[:year_shutdown] = "y9999" #add_to_year(year, spec_row.age_shutdown)
-                    new_row[:year_off] = "y9999"
-                    new_row[:pcap_inv] = 0.0
-                    new_row[:past_invest_cost] = Container(0.0)
-                    new_row[:past_invest_subsidy] = Container(0.0)
-
-                    # Add reg_factor if needed
-                    hasproperty(storage, :reg_factor) && (new_row[:reg_factor] = bus.reg_factor[bus_idx])
-
-                    push!(storage, new_row, promote=true)
-                end
-            else # exogenous
-                @assert !isempty(spec_row.year_on) "Exogenous storage devices must have a specified year_on value"
-
-                # Skip this build if it is after the simulation
-                spec_row.year_on > last(years) && continue
-
-                # for exogenously specified storage, only one storage device is created with the specified year_on
-                new_row = Dict{}(:bus_idx => bus_idx, (spec_name=>spec_row[spec_name] for spec_name in spec_names)...)
-                
-                new_row[:year_shutdown] = "y9999" #add_to_year(spec_row.year_on, spec_row.age_shutdown)
-                new_row[:year_off] = "y9999"
-                new_row[:pcap_inv] = 0.0
-                new_row[:year_unbuilt] = add_to_year(new_row[:year_on], -1)
-                new_row[:past_invest_cost] = Container(0.0)
-                new_row[:past_invest_subsidy] = Container(0.0)
-
-                # Add reg_factor if needed
-                hasproperty(storage, :reg_factor) && (new_row[:reg_factor] = bus.reg_factor[bus_idx])
-
-                push!(storage, new_row, promote=true)
-            end
-        end
-    end
-end
-export add_buildable_storage!
 
 function modify_model!(mod::Storage, config, data, model)
     storage = get_table(data, :storage)
@@ -452,8 +362,8 @@ function modify_model!(mod::Storage, config, data, model)
     add_build_constraints!(data, model, :storage, :pcap_stor)
     
     ### Add charge/discharge to appropriate expressions in power balancing equation
-    plserv_bus = model[:plserv_bus]
-    pgen_bus = model[:pgen_bus]
+    plserv_bus = model[:plserv_bus]::Array{AffExpr,3}
+    pgen_bus = model[:pgen_bus]::Array{AffExpr,3}
     for (stor_idx, row) in enumerate(eachrow(storage))
         bus_idx = row.bus_idx
         if row.side == "load"
@@ -672,6 +582,13 @@ function modify_results!(mod::Storage, config, data)
     # Add the costs to the electricity_payments
     add_welfare_term!(data, :electricity_payments, :storage, :electricity_cost, +)
     add_welfare_term!(data, :electricity_payments, :storage, :electricity_revenue, -)
+
+    # Add costs to net revenue preliminary check 
+    add_welfare_term!(data, :net_rev_prelim_check, :storage, :electricity_revenue, +)
+    add_welfare_term!(data, :net_rev_prelim_check, :storage, :electricity_cost, -)
+    add_welfare_term!(data, :net_rev_prelim_check, :storage, :net_government_revenue, -)
+    add_welfare_term!(data, :net_rev_prelim_check, :storage, :production_cost, -)
+    add_welfare_term!(data, :net_rev_prelim_check, :storage, :past_invest_cost_total, -)
 
     # Update and save the storage table
     update_build_status!(config, data, :storage)

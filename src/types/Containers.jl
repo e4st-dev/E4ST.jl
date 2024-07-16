@@ -142,6 +142,76 @@ struct HoursContainer <: Container{Float64, 2}
 end
 export HoursContainer
 
+function Base.convert(::Type{<:OriginalContainer{N, D, C}}, x::OriginalContainer) where {N,D,C}
+    return OriginalContainer(x.original, convert(C, x.v))
+end
+function Base.convert(::Type{<:OriginalContainer{N, D, C}}, x::ByNothing) where {N,D,C}
+    return OriginalContainer(x.v, convert(C, x))
+end
+function Base.convert(::Type{ByNothing}, c::ByYear)
+    if length(c.v) == 1
+        return ByNothing(c.v[1])
+    end
+    error("To convert from ByYear to ByNothing, it must have only a single value")
+end
+function Base.convert(::Type{Float64}, c::Container)
+    if length(c) == 1
+        return c[1]
+    else
+        error("Cannot convert Container of length $(length(c)) to Float64")
+    end
+end
+
+function Base.convert(::Type{<:Container}, c::Float64)
+    return ByNothing(c)
+end
+
+
+function promote_col(col::Vector{C}) where {C<:Container}
+    isabstracttype(C) || return col
+    T = get_promotion_type(col)
+    if ismulti(T)
+        scalar = _get_unity_scalar(T, col)
+        for i in eachindex(col)
+            col[i] = col[i] .* scalar
+        end
+    end
+
+    return convert(Vector{T}, col)
+end
+
+function get_promotion_type(col::Vector{<:Container})
+    ET = typeof(first(col))
+    if all(e->e isa ET, col)
+        return ET
+    elseif all(e->length(e) == 1, col)
+        return any(isoriginal, col) ? OriginalContainer{Float64, 0, ByNothing} : ByNothing
+    else
+        types = unique!(typeof.(col))
+        res = 0.0
+        for type in types
+            i = findfirst(e->e isa type, col)
+            val = col[i]
+            res = res .* val
+        end
+        return typeof(res)
+    end
+    return Container
+end
+
+isoriginal(e) = false
+isoriginal(e::OriginalContainer) = true
+ismulti(::Type{<:OriginalContainer{N, 0}}) where N = false
+ismulti(::Type{<:Container}) = true
+ismulti(::Type{<:ByNothing}) = false
+
+function _get_unity_scalar(T, col)
+    i = findfirst(e->e isa T, col)
+    c = col[i]
+    return c .* 0 .+ 1
+end
+
+
 """
     get_original(c::Container) -> original::Float64
 
@@ -216,10 +286,13 @@ end
 function _getindex(v::Vector{<:AbstractVector{<:Real}}, i::Int64, y::Int64)
     return v[i][y]::Float64
 end
-_getindex(c::Container, i::Int64, y::Int64, h::Int64) = c[y,h]
-_getindex(c::Container, i::Int64, y::Int64) = c[y,(:)]
+_getindex(c::Container, i::Int64, y::Int64, h::Int64) = c[y,h]::Float64
+_getindex(c::Container, i::Int64, y::Int64) = c[y,(:)]::Float64
 _getindex(c::Container, i::Int64) = error("Cannot use _getindex into container $c with a single index")
-_getindex(args...) = getindex(args...) |> Float64
+function _getindex(args...)
+    res = getindex(args...) |> Float64
+    return res::Float64
+end
 
 
 
@@ -248,48 +321,48 @@ function operate_yearly(oper::AbstractString, args...)
 end
 
 """
-    set_yearly(c::Container, v::Vector{Float64}) -> Container 
+    set_yearly(c::Container, v::Vector{<:Number}) -> Container 
 
 Sets the yearly values for `c`.
 """
-function set_yearly(c::ByNothing, v::Vector{Float64})
+function set_yearly(c::ByNothing, v::Vector{<:Number})
     return OriginalContainer(c.v, ByYear(v))
 end
-function set_yearly(c::OriginalContainer, v::Vector{Float64})
+function set_yearly(c::OriginalContainer, v::Vector{<:Number})
     return OriginalContainer(c.original, set_yearly(c.v, v))
 end
-function set_yearly(c::ByYear, v::Vector{Float64})
+function set_yearly(c::ByYear, v::Vector{<:Number})
     return ByYear(v)
 end
-function set_yearly(c::ByHour, v::Vector{Float64})
+function set_yearly(c::ByHour, v::Vector{<:Number})
     return ByYear(v)
 end
-function set_yearly(c::ByYearAndHour, v::Vector{Float64})
+function set_yearly(c::ByYearAndHour, v::Vector{<:Number})
     return ByYear(v)
 end
 
 """
     set_yearly(c::Container, v::Float64, yr_idx::Int64, nyr::Int64) -> c'
 """
-function set_yearly(c::OriginalContainer, v::Float64, yr_idx::Int64, nyr::Int64)
+function set_yearly(c::OriginalContainer, v::Number, yr_idx::Int64, nyr::Int64)
     return OriginalContainer(c.original, set_yearly(c.v, v, yr_idx, nyr))
 end
-function set_yearly(c::ByNothing, x::Float64, yr_idx::Int64, nyr::Int64)
+function set_yearly(c::ByNothing, x::Number, yr_idx::Int64, nyr::Int64)
     v = fill(c.v, nyr)
     v[yr_idx] = x
     return OriginalContainer(c.v, ByYear(v))
 end
-function set_yearly(c::ByYear, x::Float64, yr_idx::Int64, nyr::Int64)
+function set_yearly(c::ByYear, x::Number, yr_idx::Int64, nyr::Int64)
     v = copy(c.v)
     v[yr_idx] = x
     return ByYear(v)
 end
-function set_yearly(c::ByYearAndHour, x::Float64, yr_idx::Int64, nyr::Int64)
+function set_yearly(c::ByYearAndHour, x::Number, yr_idx::Int64, nyr::Int64)
     v = map(copy, c.v)
     v[yr_idx] .= x
     return ByYearAndHour(v)
 end
-function set_yearly(c::ByHour, x::Float64, yr_idx::Int64, nyr::Int64)
+function set_yearly(c::ByHour, x::Number, yr_idx::Int64, nyr::Int64)
     v = [copy(c.v) for _ in 1:nyr]
     v[yr_idx] .= x
     return ByYearAndHour(v)
@@ -300,22 +373,22 @@ end
 
 adds the yearly values for `c`.
 """
-function add_yearly(c::ByNothing, v::Vector{Float64})
+function add_yearly(c::ByNothing, v::Vector{<:Number})
     return OriginalContainer(c.v, ByYear(c.v .+ v))
 end
-function add_yearly(c::OriginalContainer, v::Vector{Float64})
+function add_yearly(c::OriginalContainer, v::Vector{<:Number})
     return OriginalContainer(c.original, add_yearly(c.v, v))
 end
-function add_yearly(c::ByYear, v::Vector{Float64})
+function add_yearly(c::ByYear, v::Vector{<:Number})
     return ByYear(c.v .+ v)
 end
-function add_yearly(c::ByHour, v::Vector{Float64})
+function add_yearly(c::ByHour, v::Vector{<:Number})
     vv = map(v) do x
         c.v .+ x
     end
     return ByYearAndHour(vv)
 end
-function add_yearly(c::ByYearAndHour, v::Vector{Float64})
+function add_yearly(c::ByYearAndHour, v::Vector{<:Number})
     v′ = map(copy, c.v)
     for _v in v′
         _v .+= v
@@ -326,25 +399,25 @@ end
 """
     add_yearly(c::Container, v::Float64, yr_idx::Int64, nyr) -> c'
 """
-function add_yearly(c::OriginalContainer, v::Float64, yr_idx::Int64, nyr::Int64)
+function add_yearly(c::OriginalContainer, v::Number, yr_idx::Int64, nyr::Int64)
     return OriginalContainer(c.original, add_yearly(c.v, v, yr_idx, nyr))
 end
-function add_yearly(c::ByNothing, x::Float64, yr_idx::Int64, nyr::Int64)
+function add_yearly(c::ByNothing, x::Number, yr_idx::Int64, nyr::Int64)
     v = fill(c.v, nyr)
     v[yr_idx] += x
     return OriginalContainer(c.v, ByYear(v))
 end
-function add_yearly(c::ByYear, x::Float64, yr_idx::Int64, nyr::Int64)
+function add_yearly(c::ByYear, x::Number, yr_idx::Int64, nyr::Int64)
     v = copy(c.v)
     v[yr_idx] += x
     return ByYear(v)
 end
-function add_yearly(c::ByYearAndHour, x::Float64, yr_idx::Int64, nyr::Int64)
+function add_yearly(c::ByYearAndHour, x::Number, yr_idx::Int64, nyr::Int64)
     v = map(copy, c.v)
     v[yr_idx] .+= x
     return ByYearAndHour(v)
 end
-function add_yearly(c::ByHour, x::Float64, yr_idx::Int64, nyr::Int64)
+function add_yearly(c::ByHour, x::Number, yr_idx::Int64, nyr::Int64)
     v = [copy(c.v) for _ in 1:nyr]
     v[yr_idx] .+= x
     return ByYearAndHour(v)
@@ -357,32 +430,32 @@ end
 
 scales the yearly values for `c`.
 """
-function scale_yearly(c::ByNothing, v::Vector{Float64})
+function scale_yearly(c::ByNothing, v::Vector{<:Number})
     return OriginalContainer(c.v, ByYear(c.v .* v))
 end
-function scale_yearly(c::OriginalContainer, v::Vector{Float64})
+function scale_yearly(c::OriginalContainer, v::Vector{<:Number})
     return OriginalContainer(c.original, scale_yearly(c.v, v))
 end
-function scale_yearly(c::ByYear, v::Vector{Float64})
+function scale_yearly(c::ByYear, v::Vector{<:Number})
     return ByYear(c.v .* v)
 end
-function scale_yearly(c::ByYear, n::Float64)
+function scale_yearly(c::ByYear, n::Number)
     return ByYear(c.v .* n)
 end
-function scale_yearly(c::ByHour, v::Vector{Float64})
+function scale_yearly(c::ByHour, v::Vector{<:Number})
     vv = map(v) do x
         c.v .* x
     end
     return ByYearAndHour(vv)
 end
-function scale_yearly(c::ByYearAndHour, v::Vector{Float64})
+function scale_yearly(c::ByYearAndHour, v::Vector{<:Number})
     v′ = map(copy, c.v)
     for _v in v′
         _v .*= v
     end
     return ByYearAndHour(v′)
 end
-function scale_yearly(c::Number, v::Vector{Float64})
+function scale_yearly(c::Number, v::Vector{<:Number})
     return ByYear(c .* v)
 end
 function scale_yearly(c::ByYear, v::OriginalContainer)
@@ -398,25 +471,25 @@ end
 """
     scale_yearly(c::Container, v::Float64, yr_idx::Int64, nyr) -> c'
 """
-function scale_yearly(c::OriginalContainer, v::Float64, yr_idx::Int64, nyr::Int64)
+function scale_yearly(c::OriginalContainer, v::Number, yr_idx::Int64, nyr::Int64)
     return OriginalContainer(c.original, scale_yearly(c.v, v, yr_idx, nyr))
 end
-function scale_yearly(c::ByNothing, x::Float64, yr_idx::Int64, nyr::Int64)
+function scale_yearly(c::ByNothing, x::Number, yr_idx::Int64, nyr::Int64)
     v = fill(c.v, nyr)
     v[yr_idx] *= x
     return OriginalContainer(c.v, ByYear(v))
 end
-function scale_yearly(c::ByYear, x::Float64, yr_idx::Int64, nyr::Int64)
+function scale_yearly(c::ByYear, x::Number, yr_idx::Int64, nyr::Int64)
     v = copy(c.v)
     v[yr_idx] *= x
     return ByYear(v)
 end
-function scale_yearly(c::ByYearAndHour, x::Float64, yr_idx::Int64, nyr::Int64)
+function scale_yearly(c::ByYearAndHour, x::Number, yr_idx::Int64, nyr::Int64)
     v = map(copy,c.v)
     v[yr_idx] .*= x
     return ByYearAndHour(v)
 end
-function scale_yearly(c::ByHour, x::Float64, yr_idx::Int64, nyr::Int64)
+function scale_yearly(c::ByHour, x::Number, yr_idx::Int64, nyr::Int64)
     v = [copy(c.v) for _ in 1:nyr]
     v[yr_idx] .*= x
     return ByYearAndHour(v)

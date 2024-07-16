@@ -46,6 +46,7 @@ function read_data!(config, data)
     setup_data!(config, data)  
     modify_setup_data!(config, data)
 
+    promote_cols!(data)
     setup_results_formulas!(config, data)
     setup_welfare!(config, data)
 
@@ -87,15 +88,64 @@ end
 export read_data_files!
 
 """
+    promote_cols!(data)
+
+promotes columns of every table in data to be `Vector{CT}` for all `Vector{AT}` where `AT` is an abstract type and every element is of concrete type `CT`
+"""
+function promote_cols!(data::OrderedDict)
+    for (k,v) in data
+        promote_cols!(v)
+    end
+end
+function promote_cols!(x)
+end
+function promote_cols!(df::DataFrame)
+    for cn in propertynames(df)
+        col = df[!, cn]
+        col_new = promote_col(col)
+        df[!, cn] = col_new
+    end
+end
+export promote_cols!
+
+function promote_col(col::Vector{AT}) where AT
+    if isabstracttype(AT)
+        ET = typeof(first(col))
+        if all(e->e isa ET, col)
+            return convert(Vector{ET}, col)
+        end
+    end
+    return col
+end
+function promote_col(col)
+    return col
+end
+
+"""
     modify_raw_data!(config, data)
 
 Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_raw_data!(mod, config, data)`](@ref)
 """
 function modify_raw_data!(config, data)
     for (sym, mod) in get_mods(config)
-        modify_raw_data!(mod, config, data)
+        _try_catch(modify_raw_data!, sym, mod, config, data)
     end
     return nothing
+end
+
+"""
+    _try_catch(f, sym, args...)
+
+Try-catch for [`modify_raw_data!`](@ref)
+"""
+function _try_catch(f, sym, args...)
+    try
+        return f(args...)
+    catch e
+        println("Error during function $f for Modification $sym")
+        @error (e, catch_backtrace())
+        rethrow(e)
+    end
 end
 
 """
@@ -105,7 +155,7 @@ Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_setup_dat
 """
 function modify_setup_data!(config, data)    
     for (sym, mod) in get_mods(config)
-        modify_setup_data!(mod, config, data)
+        _try_catch(modify_setup_data!, sym, mod, config, data)
     end
     return nothing
 end
@@ -181,11 +231,47 @@ function read_table(filenames::AbstractVector)
     for i in 2:length(filenames)
         filename = filenames[i]
         tmp = read_table(filename)
+
+        # Check to see if either table has columns that the other does not.
+        original_table_extra_cols = setdiff(propertynames(table), propertynames(tmp))
+        new_table_extra_cols = setdiff(propertynames(tmp), propertynames(table))
+
+        # Add extra columns to `tmp`
+        for extra_col in original_table_extra_cols
+            if hasmethod(get_default_column_value, Tuple{Val{extra_col}})
+                tmp[!, extra_col] .= get_default_column_value(Val(extra_col))
+            else
+                @warn "No column $(extra_col) defined in file $(filename), removing that column from both tables. Consider defining a default value using get_default_column_value"
+                select!(table, Not(extra_col))
+            end
+        end
+
+        # Add extra columns to `table`
+        for extra_col in new_table_extra_cols
+            if hasmethod(get_default_column_value, Tuple{Val{extra_col}})
+                table[!, extra_col] .= get_default_column_value(Val(extra_col))
+            else
+                @warn "No column $(extra_col) defined in the table that file $(filename) is being added to, removing that column from both tables. Consider defining a default value using get_default_column_value"
+                select!(tmp, Not(extra_col))
+            end
+        end
+
         append!(table, tmp, promote=true)
     end
     return table
 end
 export read_table
+
+
+"""
+    get_default_column_value(::Val{<custom column name>}) = <default value>
+
+Define this function for your custom column name in order to specify a default value for that column.
+"""
+function get_default_column_value end
+export get_default_column_value
+
+
 
 
 """
@@ -407,7 +493,7 @@ end
 
 Sets up the generator table.
 Creates potential new generators and exogenously built generators. 
-Calls [`setup_new_gens!`](@ref)
+Calls [`append_builds!`](@ref)
 Creates age column which is a ByYear column. Unbuilt generators have a negative age before year_on.
 """
 function setup_table!(config, data, ::Val{:gen})
@@ -456,7 +542,7 @@ function setup_table!(config, data, ::Val{:gen})
 
     ### Create new gens and add to the gen table
     if haskey(config, :build_gen_file) 
-        setup_new_gens!(config, data)  
+        append_builds!(config, data, :gen, :build_gen)  
     end
     
     ### Add age column as by ByYear based on year_on
@@ -470,18 +556,9 @@ function setup_table!(config, data, ::Val{:gen})
 
     add_table_col!(data, :gen, :age, gen_age, NumYears, "The age of the generator in each simulation year, given as a byYear container. Negative age is given for gens before their year_on.")
 
-    ### Map bus characteristics to generators
-    names_before = propertynames(gen)
-    leftjoin!(gen, select(bus, Not(:reg_factor)), on=:bus_idx)
-    select!(gen, Not(:plnom))
-    disallowmissing!(gen)
-    names_after = propertynames(gen)
-
-    for name in names_after
-        name in names_before && continue
-        add_table_col!(data, :gen, name, gen[!,name], get_table_col_unit(data, :bus, name), get_table_col_description(data, :bus, name), warn_overwrite=false)
-    end
-
+    ### Map bus characteristics to generators   
+    join_bus_columns!(data, :gen)
+    
     # Add necessary columns if they don't exist.
     hasproperty(gen, :af) || (gen.af = fill(ByNothing(1.0), nrow(gen)))
     hasproperty(gen, :fuel_price) || (gen.fuel_price = fill(0.0, nrow(gen)))
@@ -489,6 +566,35 @@ function setup_table!(config, data, ::Val{:gen})
     return gen
 end
 export setup_table!
+
+"""
+    join_bus_columns!(data, table_name)
+
+Joins relevant columns of the bus table to table `table_name`
+"""
+function join_bus_columns!(data, table_name)
+    table = get_table(data, table_name)
+    bus = get_table(data, :bus)
+
+    names_before = names(table)
+    bus_names_no_join = [:reg_factor, :ref_bus, :plnom, :distribution_cost, :connected_branch_idxs]
+    bus_join = select(bus, Not(bus_names_no_join))
+    bus_names = names(bus_join)
+    for col_name in bus_names
+        col_name == "bus_idx" && continue  
+        rename!(bus_join, col_name => "bus_$col_name")
+    end
+    leftjoin!(table, bus_join, on=:bus_idx)
+    disallowmissing!(table)
+    names_after = names(table)
+
+    for name in names_after
+        name in names_before && continue
+        name_old = name[5:end] # Take off bus_
+        add_table_col!(data, table_name, Symbol(name), table[!,name], get_table_col_unit(data, :bus, name_old), get_table_col_description(data, :bus, name_old), warn_overwrite=false)
+    end
+end
+export join_bus_columns!
 
 """
     setup_table!(config, data, ::Val{:build_gen})
@@ -633,15 +739,16 @@ function setup_table!(config, data, ::Val{:af_table})
         end
         
         pairs = parse_comparisons(row)
-        gens = get_table(data, :gen, pairs)
+        cur_gens = get_table(data, :gen, pairs)
 
-        isempty(gens) && continue
+        isempty(cur_gens) && continue
         
         af = [(row[i_hr] < af_threshold ? 0.0 : row[i_hr]) for i_hr in hr_idx:(hr_idx + nhr - 1)]
-        foreach(eachrow(gens)) do gen
+        foreach(eachrow(cur_gens)) do gen
             gen.af = set_hourly(gen.af, af, yr_idx, nyr)
         end
     end
+
     return data
 end
 
@@ -755,8 +862,8 @@ $(table2markdown(summarize_table(Val(:af_table))))
 function summarize_table(::Val{:af_table})
     df = TableSummary()
     push!(df, 
-        (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
-        (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:area, AbstractString, NA, false, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, AbstractString, NA, false, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
         (:gentype, String, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
         (:year, YearString, Year, false, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
@@ -890,7 +997,7 @@ export get_table_col
 
 Adds `col` to `data[table_name][!, col_name]`, also adding the description and unit to the summary table.
 """
-function add_table_col!(data, table_name, column_name, col::AbstractVector, unit, description; warn_overwrite = true)
+function add_table_col!(data, table_name::Symbol, column_name::Symbol, col::AbstractVector, unit, description; warn_overwrite = true)
     # Add col to table
     table = get_table(data, table_name)
     hasproperty(table, column_name) && warn_overwrite == true && @warn "Table data[$table_name] already has column $column_name, overwriting"
@@ -904,14 +1011,17 @@ function add_table_col!(data, table_name, column_name, col::AbstractVector, unit
     data[:unit_lookup][(table_name, column_name)] = unit
     data[:desc_lookup][(table_name, column_name)] = description
 end
-function add_table_col!(data, table_name, column_name, ar::AbstractArray{<:Real, 3}, unit, description; warn_overwrite = true)
-    v = [view(ar, i, :, :) for i in 1:size(ar, 1)]
-    return add_table_col!(data, table_name, column_name, v, unit, description; warn_overwrite)
+function add_table_col!(data, table_name, column_name, col::AbstractVector, unit, description; kwargs...)
+    add_table_col!(data, Symbol(table_name), Symbol(column_name), col::AbstractVector, unit, description; kwargs...)
 end
-function add_table_col!(data, table_name, column_name, ar::AbstractMatrix{<:Real}, unit, description; warn_overwrite = true)
+function add_table_col!(data, table_name, column_name, ar::AbstractArray{<:Real, 3}, unit, description; kwargs...)
+    v = [view(ar, i, :, :) for i in 1:size(ar, 1)]
+    return add_table_col!(data, table_name, column_name, v, unit, description; kwargs...)
+end
+function add_table_col!(data, table_name, column_name, ar::AbstractMatrix{<:Real}, unit, description; kwargs...)
     # Might need to make this into a container.
     v = [view(ar, i, :) for i in 1:size(ar, 1)]
-    return add_table_col!(data, table_name, column_name, v, unit, description; warn_overwrite)
+    return add_table_col!(data, table_name, column_name, v, unit, description; kwargs...)
 end
 export add_table_col!
 
