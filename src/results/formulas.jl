@@ -70,7 +70,7 @@ end
 """
     add_results_formula!(data, table_name::Symbol, result_name::Symbol, formula::String, unit::Type{<:Unit}, description::String)
 
-Adds a formula that can be used to compute results.  See [`compute_result`](@ref).  This is also used by [`AggregationTemplate`](@ref) and [`YearlyTable`](@ref).
+Adds a formula that can be used to compute results.  See [`compute_result`](@ref).  This is also used by [`ResultsTemplate`](@ref) and [`YearlyTable`](@ref).
 
 Arguments:
 * `data`

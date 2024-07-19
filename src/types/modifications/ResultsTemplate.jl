@@ -1,11 +1,11 @@
 
 """
-    AggregationTemplate(;file, name) <: Modification
+    ResultsTemplate(;file, name) <: Modification
 
-This is a mod that outputs aggregated results, given a `file` representing the template of the things to be aggregated.  `name` is simply the name of the modification, and will be used as the root for the filename that the aggregated information is saved to.
+This is a mod that outputs computed results, given a `file` representing the template of the things to be aggregated.  `name` is simply the name of the modification, and will be used as the root for the filename that the aggregated information is saved to.  This can be used for computing results or welfare.
 
 The `file` should represent a csv table with the following columns:
-* `table_name` - the name of the table being aggregated.  i.e. `gen`, `bus`, etc.
+* `table_name` - the name of the table being aggregated.  i.e. `gen`, `bus`, etc.  If you leave it empty, it will call `compute_welfare` instead of `compute_result`
 * `result_name` - the name of the column in the table being aggregated.  Note that the column must have a Unit accessible via [`get_table_col_unit`](@ref).
 * `filter_` - the filtering conditions for the rows of the table. I.e. `filter1`.  See [`parse_comparisons`](@ref) for information on what types of filters could be provided.
 * `filter_years` - the filtering conditions for the years to be aggregated.  See [`parse_year_idxs`](@ref) for information on the year filters.
@@ -13,11 +13,11 @@ The `file` should represent a csv table with the following columns:
 
 Note that, for the `filter_` or `filter_hours` columns, if a column name of the data table (or hours table) is given, new rows will be created for each unique value of that column.  I.e. if a value of `gentype` is given, there will be made a new row for `gentype=>coal`, `gentype=>ng`, etc.
 """
-struct AggregationTemplate <: Modification
+struct ResultsTemplate <: Modification
     file::String
     name::Symbol
     table::DataFrame
-    function AggregationTemplate(;file, name)
+    function ResultsTemplate(;file, name)
         table = read_table(file)
         force_table_types!(table, name, 
             :table_name=>Symbol,
@@ -34,12 +34,20 @@ struct AggregationTemplate <: Modification
     end
 end
 
+export ResultsTemplate
+
+# Deal with backwards compatibility
+const AggregationTemplate = ResultsTemplate
+SYM2TYPE[:AggregationTemplate] = ResultsTemplate
+STR2TYPE["AggregationTemplate"] = ResultsTemplate
+
+
 export AggregationTemplate
 
-mod_rank(::Type{<:AggregationTemplate}) = 5.0
+mod_rank(::Type{<:ResultsTemplate}) = 5.0
 
-fieldnames_for_yaml(::Type{AggregationTemplate}) = (:file,)
-function modify_results!(mod::AggregationTemplate, config, data)
+fieldnames_for_yaml(::Type{ResultsTemplate}) = (:file,)
+function modify_results!(mod::ResultsTemplate, config, data)
     table = copy(mod.table)
 
     filter_cols = setdiff(propertynames(table), [:table_name, :result_name])
@@ -81,7 +89,11 @@ function modify_results!(mod::AggregationTemplate, config, data)
         idxs = parse_comparisons(row)
         yr_idxs = parse_year_idxs(row.filter_years)
         hr_idxs = parse_hour_idxs(row.filter_hours)
-        return compute_result(data, table_name, result_name, idxs, yr_idxs, hr_idxs)
+        if table_name == Symbol("")
+            return compute_welfare(data, result_name, idxs, yr_idxs, hr_idxs)
+        else
+            return compute_result(data, table_name, result_name, idxs, yr_idxs, hr_idxs)
+        end
     end    
     CSV.write(get_out_path(config, string(mod.name, ".csv")), table)
     results = get_results(data)
@@ -98,13 +110,13 @@ function hours_sortby(s::T) where T
     end
 end
 
-function extract_results(m::AggregationTemplate, config, data)
+function extract_results(m::ResultsTemplate, config, data)
     results = get_results(data)
     haskey(results, m.name) || modify_results!(m, config, data)
     return get_result(data, m.name)
 end
 
-function combine_results(m::AggregationTemplate, post_config, post_data)
+function combine_results(m::ResultsTemplate, post_config, post_data)
     
     res = join_sim_tables(post_data, :value)
 

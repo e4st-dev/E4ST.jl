@@ -25,4 +25,5 @@ gen,vom_cost,genfuel=>solar,,
 gen,vom_cost,genfuel=>wind,,
 gen,vom_cost,genfuel=>coal,,
 gen,vom_cost,genfuel=>nuclear,,
+,user,nation=>"narnia",,
 gen,emis_co2_total,genfuel,,season
