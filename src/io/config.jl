@@ -72,7 +72,9 @@ function summarize_config()
         (:wacc, false, 0.0544, "Assumed Weighted Average Cost of Capital (used as discount rate), currently only used for calculating ptc capex adjustment but should be the same as the wacc/discount rate used to calculate annualized generator costs. Current value (0.0544) was using in annulaizing ATB 2022 costs."),
         (:error_if_zero_af, false, true, "Whether or not to throw an error if there are generators with zero availability over the entire year.  If set to equal false, it will throw a warning message rather than an error."),
         (:validate_ref_bus, false, true, "Whether or not to validate whether every island has a reference bus.  True by default"),
-        (:error_if_zero_cost, false, true, "Whether or not to throw an error if there are generators with zero costs over the entire year.  If set to equal false, it will throw a warning message rather than an error.")
+        (:error_if_zero_cost, false, true, "Whether or not to throw an error if there are generators with zero costs over the entire year.  If set to equal false, it will throw a warning message rather than an error."),
+        (:voltage_angle_bound, false, 1e3, "The magnitude of the bounds to use for the voltage angle, θ, for each bus.  It helps numerical stability to keep tight bounds, but these bounds should never be binding.  The simulation will throw an error if the bounds are too tight."),
+
 
     )
         

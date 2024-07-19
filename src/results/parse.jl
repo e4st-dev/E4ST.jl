@@ -45,6 +45,7 @@ function parse_results!(config, data, model)
     data[:results] = results
     results[:raw] = results_raw
 
+    check_voltage_angle_bounds(config, data)
     parse_lmp_results!(config, data)
     parse_power_results!(config, data)
 
@@ -60,6 +61,24 @@ function parse_results!(config, data, model)
 
     return nothing
 end
+
+"""
+    check_voltage_angle_bounds(config, data)
+
+errors if the voltage angles are too close to the bounds (they should never be binding)
+"""
+function check_voltage_angle_bounds(config, data)
+    θ_bound = config[:voltage_angle_bound] |> Float64
+    res_raw = get_raw_results(data)
+    θ = res_raw[:θ_bus]::Array{Float64, 3}
+
+    (Θ_min, θ_max) = extrema(θ)
+
+    if max(abs(Θ_min), θ_max) >= (θ_bound * (1 - 0.01))
+        error("Voltage angle is within 1% of the bounds, that indicates something is wrong with the grid representation, or that config[:voltage_angle_bound] needs to be increased.")
+    end
+end
+export check_voltage_angle_bounds
 
 
 """
@@ -273,6 +292,10 @@ function parse_lmp_results!(config, data)
     nyr = get_num_years(data)
     nhr = get_num_hours(data)
     res_raw = get_raw_results(data)
+
+    branch = get_table(data, :branch)
+    f_bus_idxs = branch.f_bus_idx::Vector{Int64}
+    t_bus_idxs = branch.t_bus_idx::Vector{Int64}
     
     # Get the shadow price of the average power flow constraint ($/MW flowing)
     cons_pbal_geq = res_raw[:cons_pbal_geq]::Array{Float64, 3}
@@ -284,6 +307,17 @@ function parse_lmp_results!(config, data)
 
     # Divide by number of hours because we want $/MWh, not $/MW
     lmp_elserv = unweight_hourly(data, cons_pbal, -)
+
+    # cons_pflow_branch_geq = res_raw[:cons_pflow_branch_geq]::Array{Float64, 3}
+    # cons_pflow_branch_leq = res_raw[:cons_pflow_branch_leq]::Array{Float64, 3}
+    # cons_pflow_branch = cons_pflow_branch_geq .- cons_pflow_branch_leq
+    # lmp_eflow = unweight_hourly(data, cons_pflow_branch, -)
+
+    # for (branch_idx, (f_bus_idx, t_bus_idx)) in enumerate(zip(f_bus_idxs, t_bus_idxs))
+    #     cur_lmp_eflow = view(lmp_eflow, branch_idx, :, :)
+    #     lmp_elserv[f_bus_idx, :, :] .+= 
+    # end
+
     
     # Add the LMP's to the results and to the bus table
     res_raw[:lmp_elserv_bus] = lmp_elserv
@@ -311,9 +345,6 @@ function parse_lmp_results!(config, data)
     # cons_branch_pflow_pos = res_raw[:cons_branch_pflow_pos]::Array{Float64, 3}
     # lmp_pflow = -cons_branch_pflow_neg - cons_branch_pflow_pos
 
-    branch = get_table(data, :branch)
-    f_bus_idxs = branch.f_bus_idx::Vector{Int64}
-    t_bus_idxs = branch.t_bus_idx::Vector{Int64}
     pflow_branch = res_raw[:pflow_branch]::Array{Float64, 3}
     hour_weights = get_hour_weights(data)
     hour_weights_mat = [hour_weights[hr_idx] for yr_idx in 1:nyr, hr_idx in 1:nhr]
