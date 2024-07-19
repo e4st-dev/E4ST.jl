@@ -307,17 +307,6 @@ function parse_lmp_results!(config, data)
 
     # Divide by number of hours because we want $/MWh, not $/MW
     lmp_elserv = unweight_hourly(data, cons_pbal, -)
-
-    # cons_pflow_branch_geq = res_raw[:cons_pflow_branch_geq]::Array{Float64, 3}
-    # cons_pflow_branch_leq = res_raw[:cons_pflow_branch_leq]::Array{Float64, 3}
-    # cons_pflow_branch = cons_pflow_branch_geq .- cons_pflow_branch_leq
-    # lmp_eflow = unweight_hourly(data, cons_pflow_branch, -)
-
-    # for (branch_idx, (f_bus_idx, t_bus_idx)) in enumerate(zip(f_bus_idxs, t_bus_idxs))
-    #     cur_lmp_eflow = view(lmp_eflow, branch_idx, :, :)
-    #     lmp_elserv[f_bus_idx, :, :] .+= 
-    # end
-
     
     # Add the LMP's to the results and to the bus table
     res_raw[:lmp_elserv_bus] = lmp_elserv

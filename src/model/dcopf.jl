@@ -60,14 +60,6 @@ function setup_dcopf!(config, data, model)
         upper_bound = get_plnom(data, bus_idx, year_idx, hour_idx),
     )
 
-    # # Power flowing through a given branch = (θ_f - θ_t) / x
-    # @variable(model, 
-    #     pflow_branch[branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour], 
-    #     start=0.0,
-    #     lower_bound = -get_pflow_branch_max(data, branch_idx, year_idx, hour_idx),
-    #     upper_bound = get_pflow_branch_max(data, branch_idx, year_idx, hour_idx),
-    # )
-
     ## Expressions to be used later
     @info "Creating Expressions"
 
@@ -78,21 +70,6 @@ function setup_dcopf!(config, data, model)
         pflow_branch[br in 1:nbranch, y in 1:nyear, h in 1:nhour],
         (θ_bus[f_bus_idxs[br], y, h] - θ_bus[t_bus_idxs[br], y, h]) / get_table_num(data, :branch, :x, br, y, h)
     )
-    # @expression(model, 
-    #     pflow_branch[branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour], 
-    #     AffExpr(0.0)
-    # )
-
-    # f_bus_idxs = branch.f_bus_idx::Vector{Int64}
-    # t_bus_idxs = branch.t_bus_idx::Vector{Int64}
-    # for branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour
-    #     x = get_table_num(data, :branch, :x, branch_idx, year_idx, hour_idx)
-    #     b = 1/x
-    #     f_bus_idx = f_bus_idxs[branch_idx]
-    #     t_bus_idx = t_bus_idxs[branch_idx]
-    #     add_to_expression!(pflow_branch[branch_idx, year_idx, hour_idx], θ_bus[f_bus_idx, year_idx, hour_idx], b)
-    #     add_to_expression!(pflow_branch[branch_idx, year_idx, hour_idx], θ_bus[t_bus_idx, year_idx, hour_idx], -b)
-    # end
 
     # Power flowing out of a given bus
     @expression(model, 
