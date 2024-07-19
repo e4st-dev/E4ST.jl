@@ -154,9 +154,13 @@ function run_e4st(config::OrderedDict)
         run_optimize!(config, data, model)
 
         if ~check(model)
-            @info "Model did not pass the check, saving model and data to model_debug.jls and data_debug.jls"
-            serialize(get_out_path(config, "model_debug.jls"), model)
-            serialize(get_out_path(config, "data_debug.jls"), data)
+            @info "Model did not pass the check!"
+            if config[:save_model_debug] == true
+                serialize(get_out_path(config, "model_debug.jls"), model)
+            end
+            if config[:save_data_debug] == true
+                serialize(get_out_path(config, "data_debug.jls"), data)
+            end
             return get_out_path(config) # all_results
         end
 

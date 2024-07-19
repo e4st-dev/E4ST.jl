@@ -26,12 +26,14 @@ function setup_dcopf!(config, data, model)
     ## Variables
     @info "Creating Variables"
 
+    θ_bound = config[:voltage_angle_bound] |> Float64
+
     # Voltage Angle
     @variable(model, 
         θ_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
         start=0.0,
-        lower_bound = -1e6, # Lower value from MATLAB E4ST minimum(res.base.bus(:, VA)) was ~-2.5e5
-        upper_bound =  1e6  # Upper value from MATLAB E4ST maximum(res.base.bus(:, VA)) was ~200
+        lower_bound = -θ_bound,
+        upper_bound =  θ_bound
     )
 
     # Capacity
@@ -60,23 +62,14 @@ function setup_dcopf!(config, data, model)
 
     ## Expressions to be used later
     @info "Creating Expressions"
-    
-    # Power flowing through a given branch = (θ_f - θ_t) / x
-    @expression(model, 
-        pflow_branch[branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour], 
-        AffExpr(0.0)
-    )
 
     f_bus_idxs = branch.f_bus_idx::Vector{Int64}
     t_bus_idxs = branch.t_bus_idx::Vector{Int64}
-    for branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour
-        x = get_table_num(data, :branch, :x, branch_idx, year_idx, hour_idx)
-        b = 1/x
-        f_bus_idx = f_bus_idxs[branch_idx]
-        t_bus_idx = t_bus_idxs[branch_idx]
-        add_to_expression!(pflow_branch[branch_idx, year_idx, hour_idx], θ_bus[f_bus_idx, year_idx, hour_idx], b)
-        add_to_expression!(pflow_branch[branch_idx, year_idx, hour_idx], θ_bus[t_bus_idx, year_idx, hour_idx], -b)
-    end
+    @expression(
+        model,
+        pflow_branch[br in 1:nbranch, y in 1:nyear, h in 1:nhour],
+        (θ_bus[f_bus_idxs[br], y, h] - θ_bus[t_bus_idxs[br], y, h]) / get_table_num(data, :branch, :x, br, y, h)
+    )
 
     # Power flowing out of a given bus
     @expression(model, 

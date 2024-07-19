@@ -45,6 +45,7 @@ function parse_results!(config, data, model)
     data[:results] = results
     results[:raw] = results_raw
 
+    check_voltage_angle_bounds(config, data)
     parse_lmp_results!(config, data)
     parse_power_results!(config, data)
 
@@ -60,6 +61,24 @@ function parse_results!(config, data, model)
 
     return nothing
 end
+
+"""
+    check_voltage_angle_bounds(config, data)
+
+errors if the voltage angles are too close to the bounds (they should never be binding)
+"""
+function check_voltage_angle_bounds(config, data)
+    θ_bound = config[:voltage_angle_bound] |> Float64
+    res_raw = get_raw_results(data)
+    θ = res_raw[:θ_bus]::Array{Float64, 3}
+
+    (Θ_min, θ_max) = extrema(θ)
+
+    if max(abs(Θ_min), θ_max) >= (θ_bound * (1 - 0.01))
+        error("Voltage angle is within 1% of the bounds, that indicates something is wrong with the grid representation, or that config[:voltage_angle_bound] needs to be increased.")
+    end
+end
+export check_voltage_angle_bounds
 
 
 """
@@ -200,8 +219,8 @@ function parse_power_results!(config, data)
     egen_bus = weight_hourly(data, pgen_bus)
     ecap_gen = weight_hourly(data, pcap_gen)
 
-    pflow_out_bus = map(x-> max(x,0), pflow_bus)
-    pflow_in_bus = map(x-> max(-x,0), pflow_bus)
+    pflow_out_bus = map(x-> max(x, 0.), pflow_bus)
+    pflow_in_bus = map(x-> max(-x, 0.), pflow_bus)
 
     obj_pcap_cost_raw = res_raw[:obj_coef][:pcap_gen]::Array{Float64, 2}
     obj_pcap_cost = obj_pcap_cost_raw ./ hours_per_year
@@ -273,6 +292,10 @@ function parse_lmp_results!(config, data)
     nyr = get_num_years(data)
     nhr = get_num_hours(data)
     res_raw = get_raw_results(data)
+
+    branch = get_table(data, :branch)
+    f_bus_idxs = branch.f_bus_idx::Vector{Int64}
+    t_bus_idxs = branch.t_bus_idx::Vector{Int64}
     
     # Get the shadow price of the average power flow constraint ($/MW flowing)
     cons_pbal_geq = res_raw[:cons_pbal_geq]::Array{Float64, 3}
@@ -311,14 +334,14 @@ function parse_lmp_results!(config, data)
     # cons_branch_pflow_pos = res_raw[:cons_branch_pflow_pos]::Array{Float64, 3}
     # lmp_pflow = -cons_branch_pflow_neg - cons_branch_pflow_pos
 
-    # Loop through each branch and add the hourly merchandising surplus, in dollars, to the appropriate bus
-    ms = zeros(size(lmp_elserv)) # nbus x nyr x nhr
-    branch = get_table(data, :branch)
-    f_bus_idxs = branch.f_bus_idx::Vector{Int64}
-    t_bus_idxs = branch.t_bus_idx::Vector{Int64}
     pflow_branch = res_raw[:pflow_branch]::Array{Float64, 3}
     hour_weights = get_hour_weights(data)
     hour_weights_mat = [hour_weights[hr_idx] for yr_idx in 1:nyr, hr_idx in 1:nhr]
+
+    # Loop through each branch and add the hourly merchandising surplus, in dollars, to the appropriate bus
+    ms = zeros(size(lmp_elserv)) # nbus x nyr x nhr
+    ms_branch = zeros(size(pflow_branch))
+    
     for branch_idx in 1:nrow(branch)
         f_bus_idx = f_bus_idxs[branch_idx]
         t_bus_idx = t_bus_idxs[branch_idx]
@@ -328,9 +351,12 @@ function parse_lmp_results!(config, data)
         ms_per_bus = ((t_bus_lmp .- f_bus_lmp) .* pflow) .* hour_weights_mat .* 0.5
         ms[f_bus_idx, :, :] .+= ms_per_bus
         ms[t_bus_idx, :, :] .+= ms_per_bus
+        ms_branch[branch_idx, :, :] = ms_per_bus .* 2
     end
 
     add_table_col!(data, :bus, :merchandising_surplus, ms, Dollars, "Merchandising surplus, in dollars, from selling electricity for a higher price at one end of a line than another.")
+    
+    add_table_col!(data, :branch, :merchandising_surplus, ms_branch, Dollars, "Merchandising surplus, in dollars, from selling electricity for a higher price at one end of a line than another.")
     
     # # Add the LMP's to the results and to the branch table
     # res_raw[:lmp_pflow_branch] = lmp_pflow
