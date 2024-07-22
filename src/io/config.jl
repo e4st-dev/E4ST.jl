@@ -400,10 +400,10 @@ function check_years(years)
     _vec(_check_years(years))
 end
 function _check_years(y::Int)
-    return "y$y"
+    return YearString(y)
 end
 function _check_years(y::String)
-    return y
+    return YearString(y)
 end
 function _check_years(v::AbstractVector)
     _check_years.(v)
