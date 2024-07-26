@@ -1,6 +1,6 @@
 mods:
   agg_res:
-    type: AggregationTemplate
+    type: ResultsTemplate
     file: ../data/3bus/aggregate_template.csv
   join_in_post:
     type: LeftJoinCols
@@ -10,5 +10,5 @@ mods:
     mod_step: extract_results
     matchmissing: notequal
   agg_res_for_join:
-    type: AggregationTemplate
+    type: ResultsTemplate
     file: ../data/3bus/agg_temp_for_join.csv

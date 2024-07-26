@@ -127,8 +127,9 @@ end
 Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_raw_data!(mod, config, data)`](@ref)
 """
 function modify_raw_data!(config, data)
-    for (sym, mod) in get_mods(config)
-        _try_catch(modify_raw_data!, sym, mod, config, data)
+    for (sym, m) in get_mods(config)
+        @info "Modifying raw data with Modification $sym of type $(typeof(m))"
+        _try_catch(modify_raw_data!, sym, m, config, data)
     end
     return nothing
 end
@@ -154,8 +155,9 @@ end
 Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_setup_data!(mod, config, data)`](@ref)
 """
 function modify_setup_data!(config, data)    
-    for (sym, mod) in get_mods(config)
-        _try_catch(modify_setup_data!, sym, mod, config, data)
+    for (sym, m) in get_mods(config)
+        @info "Modifying setup data with Modification $sym of type $(typeof(m))"
+        _try_catch(modify_setup_data!, sym, m, config, data)
     end
     return nothing
 end
@@ -231,11 +233,47 @@ function read_table(filenames::AbstractVector)
     for i in 2:length(filenames)
         filename = filenames[i]
         tmp = read_table(filename)
+
+        # Check to see if either table has columns that the other does not.
+        original_table_extra_cols = setdiff(propertynames(table), propertynames(tmp))
+        new_table_extra_cols = setdiff(propertynames(tmp), propertynames(table))
+
+        # Add extra columns to `tmp`
+        for extra_col in original_table_extra_cols
+            if hasmethod(get_default_column_value, Tuple{Val{extra_col}})
+                tmp[!, extra_col] .= get_default_column_value(Val(extra_col))
+            else
+                @warn "No column $(extra_col) defined in file $(filename), removing that column from both tables. Consider defining a default value using get_default_column_value"
+                select!(table, Not(extra_col))
+            end
+        end
+
+        # Add extra columns to `table`
+        for extra_col in new_table_extra_cols
+            if hasmethod(get_default_column_value, Tuple{Val{extra_col}})
+                table[!, extra_col] .= get_default_column_value(Val(extra_col))
+            else
+                @warn "No column $(extra_col) defined in the table that file $(filename) is being added to, removing that column from both tables. Consider defining a default value using get_default_column_value"
+                select!(tmp, Not(extra_col))
+            end
+        end
+
         append!(table, tmp, promote=true)
     end
     return table
 end
 export read_table
+
+
+"""
+    get_default_column_value(::Val{<custom column name>}) = <default value>
+
+Define this function for your custom column name in order to specify a default value for that column.
+"""
+function get_default_column_value end
+export get_default_column_value
+
+
 
 
 """
@@ -604,30 +642,14 @@ function setup_table!(config, data, ::Val{:branch})
     hasproperty(branch, :status) && filter!(:status => ==(true), branch)
 
     # Switch f_bus_idx and t_bus_idx if they are out of order
-    for row in eachrow(branch)
-        f_bus_idx = row.f_bus_idx::Int
-        t_bus_idx = row.t_bus_idx::Int
-        f_bus_idx < t_bus_idx && continue
-        row.t_bus_idx = f_bus_idx
-        row.f_bus_idx = t_bus_idx
-    end
-
+    order_f_bus_t_bus!(branch)
+    
     # Handle duplicate lines
-    if ~allunique((row.f_bus_idx,row.t_bus_idx) for row in eachrow(branch))
-        @warn "Handling Duplicate Lines"
-        gdf = groupby(branch, [:f_bus_idx, :t_bus_idx])
-        cols_remaining = setdiff(propertynames(branch), [:f_bus_idx, :t_bus_idx, :x, :pflow_max])
-        res = combine(gdf,
-            [:pflow_max, :x] => ((pflow_max, x)->(minimum(prod, zip(pflow_max, x)))/(inv(sum(inv, x)))) => :pflow_max,
-            :x => (x->(inv(sum(inv, x)))) => :x,
-            (col=>first=>col for col in cols_remaining)...
-        )
-        branch = res
-        data[:branch] = res
-    end
+    combine_parallel_lines!(branch)
 
-
-
+    # Force positive branch limits
+    force_positive_line_limits!(branch)
+    
     bus = get_table(data, :bus)
 
     # Add connected branches, connected buses.
@@ -644,9 +666,228 @@ end
 export setup_table!
 
 """
+    order_f_bus_t_bus!(branch)
+
+Orders each branch's `f_bus_idx` and `t_bus_idx` such that `f_bus_idx < t_bus_idx`.
+"""
+function order_f_bus_t_bus!(branch)
+    for row in eachrow(branch)
+        f_bus_idx = row.f_bus_idx::Int
+        t_bus_idx = row.t_bus_idx::Int
+        f_bus_idx < t_bus_idx && continue
+        row.t_bus_idx = f_bus_idx
+        row.f_bus_idx = t_bus_idx
+    end
+    return branch
+end
+export order_f_bus_t_bus!
+
+"""
+    combine_parallel_lines!(branch)
+
+Combines parallel lines by:
+* x_new = inverse of the sum of the inverses of x
+* pflow_max_new = (minimum of the products of `pflow_max` and `x`) / x_new
+"""
+function combine_parallel_lines!(branch)
+    if ~allunique(zip(branch.f_bus_idx,branch.t_bus_idx))
+        replace!(branch.pflow_max, 0=>Inf)
+
+        @warn "Handling Duplicate Lines"
+        gdf = groupby(branch, [:f_bus_idx, :t_bus_idx])
+        cols_remaining = setdiff(propertynames(branch), [:f_bus_idx, :t_bus_idx, :x, :pflow_max])
+        res = combine(gdf,
+            [:pflow_max, :x] => ((pflow_max, x)->(minimum(prod, zip(pflow_max, x)))/(inv(sum(inv, x)))) => :pflow_max,
+            :x => (x->(inv(sum(inv, x)))) => :x,
+            (col=>first=>col for col in cols_remaining)...
+        )
+        
+        empty!(branch)
+        append!(branch, res)
+
+        replace!(branch.pflow_max, Inf=>0, -Inf=>0)
+    end
+    return branch
+end
+export combine_parallel_lines!
+
+function force_positive_line_limits!(branch)
+    pflow_max = branch.pflow_max::Vector{Float64}
+    for (i, pf) in enumerate(pflow_max)
+        if pf < 0
+            pflow_max[i] = abs(pf)
+        end
+    end
+    return branch
+end
+export force_positive_line_limits!
+
+function check_islands_and_ref_bus!(data)
+    branch = get_table(data, :branch)
+    bus = get_table(data, :bus)
+
+    calc_islands!(branch, bus)
+
+    n_solo = count(==(0), bus.island_idx)
+    n_island = maximum(bus.island_idx)
+
+    if n_solo > 0
+        @warn "There are $n_solo buses not connected to any other buses"
+    end
+    @info "There are $n_island islands"
+
+    gdf = groupby(bus, :island_idx)
+    for i in 1:n_island
+        sdf = gdf[(;island_idx = i)]
+        n_ref_bus = count(==(true), sdf.ref_bus)
+        if n_ref_bus < 1
+            @warn "Island $i has no reference bus!  Setting one arbitrarily"
+            sdf.ref_bus[1] = 1
+        elseif n_ref_bus > 1
+            @warn "Island $i has $n_ref_bus reference buses!"
+            ref_bus_idxs = findall(==(true), sdf.ref_bus)
+            for bus_idx in ref_bus_idxs[2:end]
+                sdf.ref_bus[bus_idx] = 0
+            end
+        end
+    end
+end
+export check_islands_and_ref_bus!
+
+function calc_islands!(branch, bus)
+    f_bus_idxs = branch.f_bus_idx::Vector{Int64}
+    t_bus_idxs = branch.t_bus_idx::Vector{Int64}
+    nbus = nrow(bus)
+
+    
+    branch_island_idxs = Vector{Int64}(undef, nrow(branch))
+    bus_island_idxs = fill(0, nbus)
+    # Initialize an empty array of sets of bus idxs
+    islands = Set{Int64}[]
+
+
+
+
+    connected_bus_idxs = [Int64[] for _ in 1:nbus]
+    for (f_bus_idx, t_bus_idx) in zip(f_bus_idxs, t_bus_idxs)
+        push!(connected_bus_idxs[f_bus_idx], t_bus_idx)
+        push!(connected_bus_idxs[t_bus_idx], f_bus_idx)
+    end
+
+
+    n_island = 0
+    remaining_bus_idxs = collect(1:nbus)
+    bus_idx_disconnected = findall(isempty, connected_bus_idxs)
+    n_disconnected = length(bus_idx_disconnected)
+    if n_disconnected > 0
+        @info "Found $n_disconnected buses that are not connected to any AC branches! $(bus_idx_disconnected)"
+    end
+    filter!(!in(bus_idx_disconnected), remaining_bus_idxs)
+
+    while !isempty(remaining_bus_idxs)
+        n_island += 1
+
+        cur_bus_idx = first(remaining_bus_idxs)
+        island_bus_idxs = _get_connected_bus_idxs(connected_bus_idxs, cur_bus_idx)
+
+        for island_bus_idx in island_bus_idxs
+            bus_island_idxs[island_bus_idx] = n_island
+        end
+        
+        filter!(!in(island_bus_idxs), remaining_bus_idxs)
+    end
+
+    branch_island_idxs = map(i->bus_island_idxs[i], f_bus_idxs)
+
+
+
+
+
+
+    # for (bus_idx, bus_idxs) in enumerate(connected_bus_idxs)
+    #     in_island = false
+    #     for (island_idx, island) in enumerate(islands)
+    #         if bus_idx in island
+    #             union!(island, bus_idxs)
+    #             in_island = true
+    #             bus_island_idxs[bus_idx] = island_idx
+    #         end
+    #     end
+    #     if in_island === false
+    #         new_island = Set(bus_idx)
+    #         union!(new_island, bus_idxs)
+    #         push!(islands, new_island)
+    #         len = length(islands)
+    #         bus_island_idxs[bus_idx] = len
+    #     end
+    # end
+    
+
+
+
+
+
+
+
+
+    # branch_island_idxs = Vector{Int64}(undef, nrow(branch))
+    # bus_island_idxs = zeros(nrow(bus))
+    # # Initialize an empty array of sets of bus idxs
+    # islands = Set{Int64}[]
+    # # Loop through each branch and add to appropriate island
+    # for (i, (f_bus_idx, t_bus_idx)) in enumerate(zip(f_bus_idxs, t_bus_idxs))
+    #     in_island = false
+    #     for (island_idx, island) in enumerate(islands)
+    #         if f_bus_idx in island
+    #             push!(island, t_bus_idx)
+    #             in_island = true
+    #             branch_island_idxs[i] = island_idx
+    #             bus_island_idxs[t_bus_idx] = island_idx
+    #         elseif t_bus_idx in island
+    #             push!(island, f_bus_idx)
+    #             in_island = true
+    #             branch_island_idxs[i] = island_idx
+    #             bus_island_idxs[f_bus_idx] = island_idx
+    #         end
+    #     end
+    #     if in_island === false
+    #         push!(islands, Set((f_bus_idx, t_bus_idx)))
+    #         len = length(islands)
+    #         branch_island_idxs[i] = len
+    #         bus_island_idxs[f_bus_idx] = len
+    #         bus_island_idxs[t_bus_idx] = len
+    #     end
+    # end
+
+    branch.island_idx = branch_island_idxs
+    bus.island_idx = bus_island_idxs
+    return nothing
+end
+export calc_islands!
+
+function _get_connected_bus_idxs(connected_bus_idxs, i)
+    island_bus_idxs = Set(i)
+    for connected_bus_idx in connected_bus_idxs[i]
+        _get_connected_bus_idxs!(island_bus_idxs, connected_bus_idxs, connected_bus_idx)
+    end
+    return island_bus_idxs
+end
+
+
+function _get_connected_bus_idxs!(island_bus_idxs, connected_bus_idxs, i)
+    i ∈ island_bus_idxs && return
+    push!(island_bus_idxs, i)
+    for connected_bus_idx in connected_bus_idxs[i]
+        _get_connected_bus_idxs!(island_bus_idxs, connected_bus_idxs, connected_bus_idx)
+    end
+    return
+end
+
+
+"""
     setup_table!(config, data, ::Val{:hours})
 
-Doesn't do anything yet.
+Sets up an `HoursContainer`
 """
 function setup_table!(config, data, ::Val{:hours})
     weights = get_hour_weights(data)
@@ -703,15 +944,16 @@ function setup_table!(config, data, ::Val{:af_table})
         end
         
         pairs = parse_comparisons(row)
-        gens = get_table(data, :gen, pairs)
+        cur_gens = get_table(data, :gen, pairs)
 
-        isempty(gens) && continue
+        isempty(cur_gens) && continue
         
         af = [(row[i_hr] < af_threshold ? 0.0 : row[i_hr]) for i_hr in hr_idx:(hr_idx + nhr - 1)]
-        foreach(eachrow(gens)) do gen
+        foreach(eachrow(cur_gens)) do gen
             gen.af = set_hourly(gen.af, af, yr_idx, nyr)
         end
     end
+
     return data
 end
 
@@ -825,8 +1067,8 @@ $(table2markdown(summarize_table(Val(:af_table))))
 function summarize_table(::Val{:af_table})
     df = TableSummary()
     push!(df, 
-        (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
-        (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:area, AbstractString, NA, false, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, AbstractString, NA, false, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
         (:gentype, String, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
         (:year, YearString, Year, false, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),

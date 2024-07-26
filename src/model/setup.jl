@@ -56,7 +56,7 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 | $C_{PL_{l,y,h}}^{-}$ | $-P_{F_{l,y,h}} \leq P_{L_{l,y,h}}^{\text{max}}$ | `:cons_branch_pflow_neg` | MW | Constrain the negative branch power flow to be less than or equal to its maximum. |
 | $C_{PCGPB_{g,y}}$ | $P_{C_{g,y}} = 0 \quad \forall \left\{ y<y_{S_g} \right\}$ | `N/A` | MW | Constrain the power generation capacity to be zero before the start year. Implemented by fixing the variable.  |
 | $C_{PCGNA_{g,y}}$ | $P_{C_{g,y+1}} <= P_{C_{g,y}} \quad \forall \left\{ y >= y_{S_g} \right\}$ | `:cons_pcap_gen_noadd` | MW | Constrain the power generation capacity to be non-increasing after the start year. Generation capacity is only added when building new generators in their start year.|
-| $C_{PCGE_{g,y}}$ | $P_{C_{g,y}} == P_{C_{0_{g}}} \quad \forall \left\{ first y >= y_{S_g} \right\}$ | `:cons_pcap_gen_exog` | MW | Constrain unbuilt exogenous generators to be built to `pcap0` in the first year after `year_on`. |
+| $C_{PCGE_{g,y}}$ | $P_{C_{g,y}} == P_{C_{0_{g}}} \quad \forall \left\{ first y >= y_{S_g} \right\}$ | `:cons_pcap_gen_exog` | MW | Constrain unbuilt exogenous generators (with `build_type ∈ (real, exog)`) to be built to `pcap_max` in the first year after `year_on`. |
 
 # Objective
 
@@ -69,6 +69,8 @@ function setup_model(config, data)
     @info summarize(data)
 
     log_header("SETTING UP MODEL")
+
+    validate(config, data)
 
     # Create set of model keys not to parse
     data[:do_not_parse_model_keys] = Set{Symbol}()
@@ -87,17 +89,19 @@ function setup_model(config, data)
         model = JuMP.Model()
 
         # Comment this out for debugging so you can see variable names.  Saves quite a bit of RAM to leave out
-        set_string_names_on_creation(model, false)
+        # set_string_names_on_creation(model, false)
 
         setup_dcopf!(config, data, model)
     
-        for (name, mod) in get_mods(config)
-            _try_catch(modify_model!, name, mod, config, data, model)
+        for (name, m) in get_mods(config)
+            @info "Modifying model with Modification $name of type $(typeof(m))"
+            _try_catch(modify_model!, name, m, config, data, model)
         end
 
         # Set the objective, scaling down for numerical stability.
         obj_scalar = config[:objective_scalar]
-        @objective(model, Min, model[:obj]/obj_scalar)
+        obj = model[:obj]::AffExpr
+        @objective(model, Min, obj/obj_scalar)
 
         constrain_pbal!(config, data, model)
 
@@ -114,6 +118,57 @@ function setup_model(config, data)
     config[:log_model_summary] === true && @info summarize(model)
 
     return model
+end
+
+"""
+    validate(config, data)
+
+Validates the data by checking:
+* Makes sure that there are no generators with all-zero costs
+* Makes sure that there are no generators with all-zero availability factors
+"""
+function validate(config, data)
+    gen = get_table(data, :gen)
+
+    # Find all generators with all-zero costs.
+    gen_idx_zero_cost = findall(
+        row->all(iszero, row.capex) && all(iszero, row.fom) && all(iszero, row.heat_rate) && all(iszero, row.vom), 
+        eachrow(gen)
+    )
+    n_gen_zero_cost = length(gen_idx_zero_cost)
+
+    if n_gen_zero_cost > 0
+        message = "There are $n_gen_zero_cost generators with all zero costs.\n 
+        They include generators with gentypes of: $(unique(gen[gen_idx_zero_cost, [:gentype, :build_type]])) \n 
+        The year_on of these generators includes $(unique(gen[gen_idx_zero_cost, [:gentype, :year_on]])) \n
+        gen_idxs: $gen_idx_zero_cost"
+        if config[:error_if_zero_cost] == true
+            error(message)
+        else
+            @warn(message)
+        end
+    end
+
+
+    # find all generators with zero AF
+    gen_idx_wrong = findall(af->all(==(0), af), gen.af)
+    n_gen_wrong = length(gen_idx_wrong)
+    if n_gen_wrong > 0
+        message = "There are $n_gen_wrong generators with all zero availability factor.\n  
+        They include generators with gentypes of: $(unique(gen[gen_idx_wrong, [:gentype, :build_type]])) \n 
+        The year_on of these generators includes $(unique(gen[gen_idx_wrong, [:gentype, :year_on]])) \n
+        gen_idxs: $gen_idx_wrong"
+        if config[:error_if_zero_af] == true
+            error(message)
+        else
+            @warn(message)
+        end
+    end
+
+    if config[:validate_ref_bus] == true
+        # Check how many islands, and check that each has a reference bus.
+        check_islands_and_ref_bus!(data)
+    end
 end
 
 """
@@ -139,37 +194,39 @@ function constrain_pbal!(config, data, model)
     nbus = nrow(get_table(data, :bus))
     line_loss_rate = config[:line_loss_rate]::Float64
     line_loss_type = config[:line_loss_type]::String
+
+    pflow_bus = model[:pflow_bus]::Array{AffExpr,3}
+    pgen_bus = model[:pgen_bus]::Array{AffExpr,3}
+    plserv_bus = model[:plserv_bus]::Array{AffExpr,3}
+
     if line_loss_type == "pflow"
-        pflow_out_bus = model[:pflow_out_bus]
-        pflow_in_bus = model[:pflow_in_bus]
-        pflow_bus = model[:pflow_bus]
-        pgen_bus = model[:pgen_bus]
-        plserv_bus = model[:plserv_bus]
+        pflow_out_bus = model[:pflow_out_bus]::Array{VariableRef,3}
+        pflow_in_bus = model[:pflow_in_bus]::Array{VariableRef,3}
 
         # Constrain power flowing out of the bus.
-        @constraint(model, cons_pflow_in_out_geq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
-            pflow_out_bus[bus_idx, year_idx, hour_idx] - pflow_in_bus[bus_idx, year_idx, hour_idx] >= pflow_bus[bus_idx, year_idx, hour_idx]
+        @constraint(model, cons_pflow_in_out_geq[b in 1:nbus, y in 1:nyear, h in 1:nhour], 
+            pflow_out_bus[b, y, h] - pflow_in_bus[b, y, h] >= pflow_bus[b, y, h]
         )
-        @constraint(model, cons_pflow_in_out_leq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
-            pflow_out_bus[bus_idx, year_idx, hour_idx] - pflow_in_bus[bus_idx, year_idx, hour_idx] <= pflow_bus[bus_idx, year_idx, hour_idx]
-        )
-        @constraint(model, 
-            cons_pbal_geq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            pgen_bus[bus_idx, year_idx, hour_idx] - plserv_bus[bus_idx, year_idx, hour_idx] - pflow_out_bus[bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * pflow_in_bus[bus_idx, year_idx, hour_idx] >= 0.0
+        @constraint(model, cons_pflow_in_out_leq[b in 1:nbus, y in 1:nyear, h in 1:nhour], 
+            pflow_out_bus[b, y, h] - pflow_in_bus[b, y, h] <= pflow_bus[b, y, h]
         )
         @constraint(model, 
-            cons_pbal_leq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            pgen_bus[bus_idx, year_idx, hour_idx] - plserv_bus[bus_idx, year_idx, hour_idx] - pflow_out_bus[bus_idx, year_idx, hour_idx] + (1-line_loss_rate) * pflow_in_bus[bus_idx, year_idx, hour_idx] <= 0.0
+            cons_pbal_geq[b in 1:nbus, y in 1:nyear, h in 1:nhour],
+            pgen_bus[b, y, h] - plserv_bus[b, y, h] - pflow_out_bus[b, y, h] + (1-line_loss_rate) * pflow_in_bus[b, y, h] >= 0.0
+        )
+        @constraint(model, 
+            cons_pbal_leq[b in 1:nbus, y in 1:nyear, h in 1:nhour],
+            pgen_bus[b, y, h] - plserv_bus[b, y, h] - pflow_out_bus[b, y, h] + (1-line_loss_rate) * pflow_in_bus[b, y, h] <= 0.0
         )
     elseif line_loss_type == "plserv"
         plserv_scalar = 1/(1-line_loss_rate)
         @constraint(model, 
-            cons_pbal_geq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] * plserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] >= 0.0
+            cons_pbal_geq[b in 1:nbus, y in 1:nyear, h in 1:nhour],
+            pgen_bus[b, y, h] - plserv_bus[b, y, h] * plserv_scalar - pflow_bus[b, y, h] >= 0.0
         )
         @constraint(model, 
-            cons_pbal_leq[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
-            model[:pgen_bus][bus_idx, year_idx, hour_idx] - model[:plserv_bus][bus_idx, year_idx, hour_idx] * plserv_scalar - model[:pflow_bus][bus_idx, year_idx, hour_idx] <= 0.0
+            cons_pbal_leq[b in 1:nbus, y in 1:nyear, h in 1:nhour],
+            pgen_bus[b, y, h] - plserv_bus[b, y, h] * plserv_scalar - pflow_bus[b, y, h] <= 0.0
         )
     else
         error("config[:line_loss_type] must be `plserv` or `pflow`, but $line_loss_type was given")

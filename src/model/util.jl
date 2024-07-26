@@ -49,7 +49,7 @@ export match_capacity!
 Adds constraints to the model for:
 * `cons_<pcap_name>_prebuild` - Constrain Capacity to 0 before the start/build year 
 * `cons_<pcap_name>_noadd` - Constrain existing capacity to only decrease (only retire, not add capacity)
-* `cons_<pcap_name>_exog` - Constrain unbuilt exogenous generators to be built to pcap0 in the first year after year_on
+* `cons_<pcap_name>_exog` - Constrain unbuilt exogenous or real generators to be built to pcap0 in the first year after year_on
 * `cons_<pcap_name>_match_min_build` - Constrain minimum capacity of generators at the same site to add up to the >= minimum capacity.
 * `cons_<pcap_name>_match_min_build` - Constrain minimum capacity of generators at the same site to add up to the <= maximum capacity. 
 """
@@ -60,7 +60,7 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
     years = get_years(data)
     nyr = get_num_years(data)
 
-    pcap = model[pcap_name]
+    pcap = model[pcap_name]::Matrix{VariableRef}
     years = get_years(data)
 
     year_built_idx = map(eachrow(table)) do r
@@ -95,7 +95,7 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
     end
 
     # Constrain unbuilt exogenous generators to be built to pcap0 in the first year after year_on
-    if any(row->(row.build_type==("exog") && row.build_status == "unbuilt" && last(years) >= row.year_on), eachrow(table))
+    if any(row->(row.build_type ∈ ("real", "exog") && row.build_status == "unbuilt" && last(years) >= row.year_on), eachrow(table))
         # name = Symbol("cons_$(pcap_name)_exog")
         # model[name] = @constraint(model,
         #     [
@@ -114,7 +114,7 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
         # )
 
         for row_idx in axes(table,1), yr_idx in 1:nyr
-            if table.build_type[row_idx] == "exog" && 
+            if table.build_type[row_idx] ∈ ("exog", "real") && 
                     table.build_status[row_idx] == "unbuilt" &&
                     yr_idx == year_built_idx[row_idx]
                 fix(pcap[row_idx, yr_idx], table.pcap_max[row_idx], force=true)
@@ -174,8 +174,7 @@ function get_gentype_cf_hist(gentype::AbstractString)
     gentype == "ngcc" && return 0.58
     gentype == "ngt" && return 0.04 
     gentype == "ngo" && return 0.06 
-    gentype == "ngccccs_new" && return 0.55
-    gentype == "ngccccs_ret" && return 0.55 # this is set to same as new because no ret was done in the sim
+    gentype == "ngccccs" && return 0.55
     gentype == "coal" && return 0.68
     gentype == "igcc" && return 0.55 # this is taken from the EIA monthly average coal (in general)
     gentype == "coalccs_new" && return 0.85 # set to same as ret because no new in run

@@ -21,10 +21,12 @@ function setup_table!(config, data, ::Val{:nominal_load})
     plnom_bus = [LoadContainer() for _ in 1:nrow(bus)]
 
     add_table_col!(data, :bus, :plnom, plnom_bus, MWLoad, "Average MW of power load")
-    for row in eachrow(load)
-        bus_idx = row.bus_idx::Int64
-        c = bus[bus_idx, :plnom]
-        _add_view!(c, row.plnom)
+
+    load_bus_idxs = load.bus_idx::Vector{Int64}
+
+    for (cur_plnom, cur_bus_idx) in zip(plnom, load_bus_idxs)
+        c = plnom_bus[cur_bus_idx]
+        _add_view!(c, cur_plnom)
     end
 
     # Modify the load by shaping, matching, and adding

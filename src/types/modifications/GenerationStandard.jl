@@ -95,7 +95,8 @@ function E4ST.modify_model!(pol::GenerationStandard, config, data, model)
     tgt_load_name = Symbol("tgt_load_$(pol.name)")
     hour_weights = get_hour_weights(data)
 
-    pl_gs_bus = model[:pl_gs_bus]
+    pl_gs_bus = model[:pl_gs_bus]::Array{AffExpr, 3}
+    pgen_gen = model[:pgen_gen]::Array{VariableRef, 3}
 
     # Construct expression for target load
     tgt_load_expr = @expression(model,
@@ -131,7 +132,7 @@ function E4ST.modify_model!(pol::GenerationStandard, config, data, model)
             tgt_load_expr[yr_idx] != 0
         ],
         sum(
-            get_egen_gen(data, model, gen_idx, yr_idx, hr_idx) * 
+            pgen_gen[gen_idx, yr_idx, hr_idx] * hour_weights[hr_idx] * 
             get_table_num(data, :gen, pol.name, gen_idx, yr_idx, hr_idx)
             for gen_idx=gen_idxs, hr_idx=1:nhour
         ) >= (
@@ -205,7 +206,7 @@ function add_pl_gs_bus!(config, data, model)
     nhour = get_num_hours(data)
 
 
-    plcurt_bus = model[:plcurt_bus]
+    plcurt_bus = model[:plcurt_bus]::Array{VariableRef, 3}
     hour_weights = get_hour_weights(data)
 
     @expression(model, 
@@ -223,7 +224,7 @@ function add_pl_gs_bus!(config, data, model)
             add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pl_gs_bus[bus_idx, yr_idx, hr_idx], loss_scalar)
         end
     elseif line_loss_type == "pflow"
-        pflow_out_bus = model[:pflow_out_bus]
+        pflow_out_bus = model[:pflow_out_bus]::Array{VariableRef, 3}
         for bus_idx in axes(bus, 1), yr_idx in 1:nyear, hr_idx in 1:nhour
             add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pflow_out_bus[bus_idx, yr_idx, hr_idx], line_loss_rate)
         end
@@ -234,8 +235,8 @@ function add_pl_gs_bus!(config, data, model)
 
     # Add storage to the expression.  Note this must come after line losses so that the generation-side storage doesn't get penalized for line losses.
     if haskey(data, :storage)
-        pdischarge_stor = model[:pdischarge_stor]
-        pcharge_stor = model[:pcharge_stor]
+        pdischarge_stor = model[:pdischarge_stor]::Array{VariableRef, 3}
+        pcharge_stor = model[:pcharge_stor]::Array{VariableRef, 3}
         hour_weights = get_hour_weights(data)
         storage = get_table(data, :storage)
         for (stor_idx, row) in enumerate(eachrow(storage))

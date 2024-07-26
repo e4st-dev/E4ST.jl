@@ -205,11 +205,11 @@
         optimize!(model)
         parse_results!(config, data, model)
 
-        @testset "Test AggregationTemplate" begin
+        @testset "Test ResultsTemplate" begin
             # Make new mod
             agg_file=joinpath(@__DIR__, "data/3bus/aggregate_template.csv")
             name = :agg_res
-            mod = AggregationTemplate(;file=agg_file, name)
+            mod = ResultsTemplate(;file=agg_file, name)
 
             mods = get_mods(config)
             empty!(mods)
@@ -221,6 +221,9 @@
             @test haskey(results, name)
             table = get_result(data, name)
             @test table[end, :filter1] |> contains("=>")
+
+            welfare_idx = findfirst(==(Symbol("")), table.table_name)
+            @test table.value[welfare_idx] == compute_welfare(data, :user, :nation=>"narnia")
         end
 
         @testset "Test YearlyTable" begin

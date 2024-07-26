@@ -34,9 +34,13 @@ export Modification, Policy
 export modify_raw_data!, modify_setup_data!, modify_model!, modify_results!, fieldnames_for_yaml
 export run_e4st
 
+# Define constants
+global const STR2TYPE = Dict{String, Type}()
+global const SYM2TYPE = Dict{Symbol, Type}()
+global const STR2OPT= Dict{String, Type}()
+
+# Include utilities
 include("io/util.jl")
-
-
 
 # Include types
 include("types/Modification.jl")
@@ -50,7 +54,7 @@ include("types/Retrofit.jl")
 
 # Include Modifications
 include("types/modifications/DCLine.jl")
-include("types/modifications/AggregationTemplate.jl")
+include("types/modifications/ResultsTemplate.jl")
 include("types/modifications/AnnualCapacityFactorLimit.jl")
 include("types/modifications/GenerationConstraint.jl")
 include("types/modifications/GenerationStandard.jl")
@@ -67,7 +71,6 @@ include("types/modifications/ReserveRequirement.jl")
 include("types/modifications/GenHashID.jl")
 include("types/modifications/LeftJoinCols.jl")
 include("types/modifications/CapacityConstraint.jl")
-
 
 # Include Policies
 include("types/policies/ITC.jl")
@@ -95,10 +98,10 @@ include("model/newgens.jl")
 include("model/util.jl")
 
 # Include Results
+include("results/formulas.jl")
 include("results/parse.jl")
 include("results/process.jl")
 include("results/aggregate.jl")
-include("results/formulas.jl")
 include("results/welfare.jl")
 include("results/util.jl")
 
@@ -151,9 +154,13 @@ function run_e4st(config::OrderedDict)
         run_optimize!(config, data, model)
 
         if ~check(model)
-            @info "Model did not pass the check, saving model and data to model_debug.jls and data_debug.jls"
-            serialize(get_out_path(config, "model_debug.jls"), model)
-            serialize(get_out_path(config, "data_debug.jls"), data)
+            @info "Model did not pass the check!"
+            if config[:save_model_debug] == true
+                serialize(get_out_path(config, "model_debug.jls"), model)
+            end
+            if config[:save_data_debug] == true
+                serialize(get_out_path(config, "data_debug.jls"), data)
+            end
             return get_out_path(config) # all_results
         end
 
@@ -188,10 +195,6 @@ function run_e4st(config::OrderedDict)
 end
 
 run_e4st(path...; kwargs...) = run_e4st(read_config(path...; kwargs...))
-
-global STR2TYPE = Dict{String, Type}()
-global SYM2TYPE = Dict{Symbol, Type}()
-global STR2OPT= Dict{String, Type}()
 
 function reload_optimizers!()
     global STR2OPT

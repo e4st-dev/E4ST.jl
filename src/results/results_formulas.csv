@@ -6,6 +6,7 @@ gen,pgen_max,MaxHourly(pgen),MWGenerated,Maximum power generation in an hour
 gen,ecap_total,SumHourlyWeighted(pcap),MWhCapacity,"Total energy capacity, in MWh.  This is equal to the power generation capacity multiplied by the number of hours."
 gen,pcap_total,AverageYearly(pcap),MWCapacity,"Average power capacity.  If multiple years given, the average is taken."
 gen,ecap_available_total,"SumHourlyWeighted(pcap,af)",MWhCapacity,"Total available energy capacity, in MWh"
+gen,pcap_available_avg,"AverageHourlyWeighted(pcap,af)",MWCapacity,"Average available capacity, in MW, during the period of interest."
 gen,pcap_start_total,Sum(pcap0),MWCapacity,Starting power capacity.
 gen,pcap_built_total,SumYearly(pcap_built),MWCapacity,Total power capacity built.  Ignores subsets of hours and returns the built capacity for the whole year(s).
 gen,pcap_retired_total,SumYearly(pcap_retired),MWCapacity,Total power capacity retired.  Ignores subsets of hours and returns the retired capacity for the whole year(s).

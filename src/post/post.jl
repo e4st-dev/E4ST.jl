@@ -90,6 +90,31 @@ function get_sim_names(post_config)
 end
 export get_sim_names
 
+
+
+const CACHE_RESULTS = Ref(true)
+const RESULTS = OrderedDict()
+const CONFIGS = OrderedDict()
+
+"""
+    should_cache_results() -> ::Bool
+
+Returns whether or not to cache deserialized data during [`extract_results`](@ref)
+"""
+function should_cache_results()
+    return CACHE_RESULTS[]    
+end
+export should_cache_results
+
+"""
+    set_cache_results!(x::Bool)
+
+Controls whether or not to cache results for [`extract_results`](@ref).  See [`should_cache_results`](@ref)
+"""
+function set_cache_results!(x::Bool)
+    CACHE_RESULTS[] = x
+end
+export set_cache_results!
 """
     extract_results(post_config) -> post_data::OrderedDict{Symbol, Any}
 
@@ -109,20 +134,44 @@ function extract_results(post_config)
         post_data[key] = OrderedDict{String, Any}()
     end
 
+    results_formulas_combined = OrderedDict{Tuple{Symbol, Symbol},ResultsFormula}()
+
     # Pull in the processed results for each of the paths and transfer/compute necessary things, add to `post_data`
     for (sim_path, sim_name) in zip(sim_paths, sim_names)
         @info "Beginning extract_results for $sim_name"
-        data = read_processed_results(sim_path)
-        @info "Data has been read, reading config."
-        config = read_config(sim_path)
+
+        if should_cache_results() === true
+            data = get!(RESULTS, sim_path) do
+                read_processed_results(sim_path)
+            end
+            config = get!(CONFIGS, sim_path) do
+                read_config(sim_path)
+            end
+        else
+            data = read_processed_results(sim_path)
+            @info "Data has been read, reading config."
+            config = read_config(sim_path)
+        end
+
+        @info "Data and Config have been read, beginning extraction."
+
+        results_formula = get_results_formulas(data)
+        for (k,v) in results_formula
+            get!(results_formulas_combined, k, v)
+        end
+
         @info "Config has been read, starting extraction."
         for (key, post_mod) in post_mods
-            @info "Extracting Results for Modificaion $key of type $(typeof(post_mod))"
+            @info "Extracting Results for Modification $key of type $(typeof(post_mod))"
             post_data[key][sim_name] = _try_catch(extract_results, key, post_mod, config, data)
         end
         @info "Done extracting results"
         
     end
+    results_formulas_table = make_results_formulas_table(results_formulas_combined)
+
+    CSV.write(get_out_path(post_config, "results_formulas.csv"), results_formulas_table)
+
     return post_data
 end
 export extract_results
@@ -150,6 +199,7 @@ function combine_results(post_config, post_data)
 
     # Combine results
     for (key, post_mod) in post_mods
+        @info "Combining results with Modification $key of type $(typeof(post_mod))"
         _try_catch(combine_results, key, post_mod, post_config, post_data[key])
     end
 end

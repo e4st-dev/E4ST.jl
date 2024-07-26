@@ -3,11 +3,29 @@
 
     CCUS(;file, groupby, co2_scalar=1e5, co2_step_quantity_limit=1e9)
 
-This is a [`Modification`](@ref) that sets up markets for carbon captured by generators.  
+This is a [`Modification`](@ref) that sets up markets for carbon captured by generators.
+
+### Keyword Arguments    
 * `file` - a file to the table containing markets/prices for buying/selling carbon dioxide.  See the `ccus_paths` table below, or [`summarize_table(::Val{:ccus_paths})`](@ref)
 * `groupby` - a `String` indicating how markets are grouped.  I.e. "state".
 * `co2_scalar` - a `Float64` for how much to scale the co2 variables by.  This helps with numerical instability, given that some CO₂ steps can be very large and could bloat the RHS and bounds range of the model.  A good rule of thumb is that this should be no less than `1e4` times smaller than `co2_step_quantity_limit`.
 * `co2_step_quantity_limit` - A `Float64` for the maximum quantity of CO₂ that can be stored in any step.
+
+### Tables Added
+* `ccus_paths` - contains all the pathways to selling CO₂. The table includes the producing region, the sequstering region and the type of storage, market steps, the quantity available for storage, and the costs of storage and transport.
+
+### Table Columns Added
+* `(:ccus_paths, :path_idx)` - the index of this path. 
+* `(:ccus_paths, :price_total)` - the cost of transporting and storing a short ton of CO₂ in this storage pathway.
+* `(:ccus_paths, :stored_co2)` - the amount of CO₂ stored via this storage path, measured in short tons.
+* `(:ccus_paths, :storer_cost)` - total storage cost of CCUS via this pathway, from the perspective of the sequesterer.
+* `(:ccus_paths, :storer_revenue)` - total revenue earned from storage for CCUS via this pathway.  This is the amount paid by the EGU's to the sequesterer, equal to the clearing price minus the transport cost.
+* `(:ccus_paths, :storer_profit)` -  total profit earned by storing carbon via this pathway, equal to the revenue minus the cost.
+* `(:gen, :capt_co2)` - the rate of capture of CO2 (calculated from `emis_co2` and `capt_co2_percent`).
+* `(:gen, :ccus_type)` - the type of the step the CO₂ will be sent to (`eor` or `saline`).
+* `(:gen, :price_capt_co2)` - region-wide clearing price for the generator to pay for the transport and storage of a short ton of captured CO2.
+* `(:gen, :price_capt_co2_store)` - region-wide clearing price for the generator to pay for the storage of a short ton of captured CO2.
+* `(:gen, :price_capt_co2_trans)` - region-wide clearing price for the generator to pay for the transport of a short ton of captured CO2.
 
 Creates the following tables in `data`:
 * `ccus_paths` - contains all pathways possible to sell CO₂.  
@@ -21,7 +39,7 @@ Creates the following tables in `data`:
 * `ccus_storers` - contains all the storers
     * `storing_region` - the storing region
     * `step_id` - the number of the step for the region
-    * `ccus_type` - whether the step is `eor` or `saline`.
+    * `ccus_type` - whether the step is `eor,` `saline,` or `na`
     * `step_quantity` - the number of short tons that may be stored in the step
     * `price_store` - the price to store a short ton of CO₂.
     * `path_idxs` - A list of indices representing the transportation paths to store carbon in this step.  Indexes into `ccus_paths` table.
@@ -31,19 +49,28 @@ Creates the following tables in `data`:
     * `path_idxs` - A list of indices representing the transportation paths to send carbon from this step.  Indexes into `ccus_paths` table.
     * `gen_idxs` - A list of generator indices that produce CO₂ in this region.
 
-Creates the following variables/expressions
-* `co2_trans[1:nrow(ccus_paths), 1:nyear]` - the amount of CO₂ transported along this producer-producer pathway (variable)
-* `co2_stor[1:nrow(ccus_storers), 1:nyear]` - the amount of CO₂ stored by each storer (expression of `co2_trans`)
-* `co2_prod[1:nrow(ccus_producers), 1:nyear]` - the amount of CO₂ produced by each sending region (expression of electricity generation)
-* `co2_sent[1:nrow(ccus_producers), 1:nyear]` - the amount of CO₂ sent out from each sending region (expression of `co2_trans`).  This includes CO₂ sent within the same region.
-* `cost_ccus_obj[1:nyear]` - the total cost of ccus, as added to the objective function.
+### Model Modification: 
+* Variables
+    * `co2_trans[1:nrow(ccus_paths), 1:nyear]` - the amount of captured CO₂ transported to each step along the producer-producer pathway. It is measured in MMT and bounded by [0, `max_co2_storage` * 1.1].
+* Expressions  
+    * `cost_ccus_obj[1:nyear]` - the total cost of ccus, as added to the objective function.
+    * `co2_stor[1:nrow(ccus_storers), 1:nyear]` - the amount of CO₂ stored by each storer (expression of `co2_trans`).
+    * `co2_sent[1:nrow(ccus_producers), 1:nyear]` - the amount of CO₂ sent out from each sending region (expression of `co2_trans`).  This includes CO₂ sent within the same region.
+    * `co2_prod[1:nrow(ccus_producers), 1:nyear]` - the amount of CO₂ produced by each sending region (expression of electricity generation).
+* Constraints
+    * `cons_co2_stor[1:nrow(ccus_storers), 1:nyear]` - the CO₂ stored at each injection site must not exceed `step_quantity`
+    * `cons_co2_bal[1:nrow(ccus_producers), 1:nyear]` - the CO₂ balancing equation for each region, i.e. `co2_prod == co2_sent`.
 
-Creates the following constraints
-* `cons_co2_stor[1:nrow(ccus_storers), 1:nyear]` - the CO₂ stored at each injection site must not exceed `step_quantity`
-* `cons_co2_bal[1:nrow(ccus_producers), 1:nyear]` - the CO₂ balancing equation for each region, i.e. `co2_prod == co2_sent`.
-
-## Accessing Results
-Results are stored in 2 places; the `ccus_paths` table, and the `gen` table.
+### Results Formulas
+* `(:ccus_paths, :stored_co2_total)` - amount of CO₂ stored for the year, measured in short tons.
+* `(:ccus_paths, :storer_cost_total)` - the total annual storage cost of CCUS via this pathway, from the perspective of the sequesterer.
+* `(:ccus_paths, :storer_revenue_total)` - the total annual revenue earned from CCUS via this pathway. It is the amount paid by the EGUs to the sequesterer, which equals the clearing price minus the transport cost. 
+* `(:ccus_paths, :storer_profit_total)` - the total annual profit earned by storing carbon via this pathway.
+* `(:ccus_paths, :storer_cost_per_short_ton)` - the total storage cost of CCUS per short ton via this pathway, from the perspective of the sequesterer.
+* `(:ccus_paths, :storer_revenue_per_short_ton)` - the total revenue earned from CCUS per short ton via this pathway. It is the amount paid by the EGUs to the sequesterer, which equals the clearing price minus the transport cost.
+* `(:ccus_paths, :storer_profit_per_short_ton)` - the total profit earned by storing a short ton of CO₂ via this pathway.
+* `(:gen, :<name>_cost_capt_co2)` - the total cost paid by generators to transport and store a short ton of captured CO2, computed with the clearing price
+* `(:gen, :<name>_price_capt_co2_per_short_ton)` - the average price paid by generators to transport and store a short ton of captured CO2, computed with the clearing price
 
 Example Result Queries
 * `compute_result(data, :gen, :stored_co2_total, :ccus_type=>"eor", "y2030")`
@@ -234,7 +261,7 @@ function update_ccus_gens!(mod::CCUS, config, data)
             row.ccus_type = "saline"
 
             # Make a new row for each other ccus_type
-            newrow = Dict(pairs(row))
+            newrow = deepcopy(Dict(pairs(row))) # Make sure things are not pointing to the same reference.
             newrow[:ccus_type] = "eor"
             push!(gen, newrow)
             push!(gen_set, new_idx)
@@ -250,7 +277,7 @@ function update_ccus_gens!(mod::CCUS, config, data)
     gen_eor = get_subtable(gen, :ccus_type=>"eor")
     eor_leakage_rate = get(config, :eor_leakage_rate, 0.5)
     for row in eachrow(gen_eor)
-        row.emis_co2 .+=  eor_leakage_rate * row.capt_co2
+        row.emis_co2 = row.emis_co2 .+ eor_leakage_rate .* row.capt_co2
     end
 end
 export update_ccus_gens!
