@@ -311,4 +311,18 @@ function get_type(str::AbstractString)
 end
 export get_type
 
+"""
+    clean_type_string(thing) -> s
+
+Returns a clean type string, free of parameters, for the string.
+"""
+function clean_type_string(m::T) where T
+    return clean_type_string(T)
+end
+
+function clean_type_string(::Type{T}) where T
+    s = string(T)
+    return String(split(s, "{")[1])
+end
+
 end # module

@@ -1,8 +1,13 @@
 
 """
-    ResultsTemplate(;file, name) <: Modification
+    ResultsTemplate(;file, name, col_sort=:initial_order) <: Modification
 
 This is a mod that outputs computed results, given a `file` representing the template of the things to be aggregated.  `name` is simply the name of the modification, and will be used as the root for the filename that the aggregated information is saved to.  This can be used for computing results or welfare.
+
+## Keyword Arguments
+* `file` - the file pointing to a table specifying which results to calculate
+* `name` - the name of the mod, do not need to specify in a config file
+* `col_sort` - the column(s) to sort by.  Defaults to the order in which they were originally specified.
 
 The `file` should represent a csv table with the following columns:
 * `table_name` - the name of the table being aggregated.  i.e. `gen`, `bus`, etc.  If you leave it empty, it will call `compute_welfare` instead of `compute_result`
@@ -17,7 +22,8 @@ struct ResultsTemplate <: Modification
     file::String
     name::Symbol
     table::DataFrame
-    function ResultsTemplate(;file, name)
+    col_sort
+    function ResultsTemplate(;file, name, col_sort=:initial_order)
         table = read_table(file)
         force_table_types!(table, name, 
             :table_name=>Symbol,
@@ -30,7 +36,7 @@ struct ResultsTemplate <: Modification
             hasproperty(table, col_name) || continue
             force_table_types!(table, name, col_name=>String)
         end
-        return new(file, name, table)
+        return new(file, name, table, col_sort)
     end
 end
 
@@ -49,6 +55,7 @@ mod_rank(::Type{<:ResultsTemplate}) = 5.0
 fieldnames_for_yaml(::Type{ResultsTemplate}) = (:file,)
 function modify_results!(mod::ResultsTemplate, config, data)
     table = copy(mod.table)
+    table.initial_order = 1:nrow(table)
 
     filter_cols = setdiff(propertynames(table), [:table_name, :result_name])
 
@@ -95,6 +102,8 @@ function modify_results!(mod::ResultsTemplate, config, data)
             return compute_result(data, table_name, result_name, idxs, yr_idxs, hr_idxs)
         end
     end    
+    sort!(table, mod.col_sort)
+    select!(table, Not(:initial_order))
     CSV.write(get_out_path(config, string(mod.name, ".csv")), table)
     results = get_results(data)
     results[mod.name] = table

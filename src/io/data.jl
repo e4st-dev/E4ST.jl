@@ -457,6 +457,8 @@ function force_table_types!(df::DataFrame, name, pairs...; optional=false)
 end
 export force_table_types!
 
+Base.String(::Missing) = ""
+
 function force_table_types!(df::DataFrame, name, summary::AbstractDataFrame; kwargs...) 
     for row in eachrow(summary)
         force_table_types!(df, name, row; kwargs...)
