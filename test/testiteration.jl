@@ -116,7 +116,7 @@
         data = read_data(config)
         model = setup_model(config, data)
         optimize!(model)
-        @test check(model)
+        @test check(config, data, model)
         parse_results!(config, data, model)
         process_results!(config, data)
         gen = get_table(data, :gen)

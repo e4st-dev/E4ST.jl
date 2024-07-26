@@ -74,6 +74,7 @@ function summarize_config()
         (:validate_ref_bus, false, true, "Whether or not to validate whether every island has a reference bus.  True by default"),
         (:error_if_zero_cost, false, true, "Whether or not to throw an error if there are generators with zero costs over the entire year.  If set to equal false, it will throw a warning message rather than an error."),
         (:voltage_angle_bound, false, 1e3, "The magnitude of the bounds to use for the voltage angle, θ, for each bus.  It helps numerical stability to keep tight bounds, but these bounds should never be binding.  The simulation will throw an error if the bounds are too tight."),
+        (:require_optimal, false, true, "Whether or not to require whether or not the model is solved to optimality.  If set to true and the optimizer terminates with a suboptimal termination status,     [`run_e4st`](@ref) returns after optimizing, without parsing results, etc."),
 
 
     )

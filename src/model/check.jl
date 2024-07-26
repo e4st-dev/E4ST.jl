@@ -1,9 +1,15 @@
 """
-    check(model) -> ::Bool
+    check(config, data, model) -> ::Bool
 
-Logs the termination status, and returns true if OPTIMAL.
+Logs the termination status, and returns true if OPTIMAL, or if `config[:require_optimal]` is false and the status is LOCALLY_SOLVED.
 """
-function check(model)
+function check(config, data, model)
     ts = termination_status(model)
-    return ts == JuMP.OPTIMAL
+    if ts == JuMP.OPTIMAL
+        return true
+    elseif config[:require_optimal] == false && ts == JuMP.LOCALLY_SOLVED
+        return true
+    else
+        return false
+    end
 end
