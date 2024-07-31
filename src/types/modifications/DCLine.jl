@@ -7,6 +7,16 @@ This [`Modification`](@ref) takes in a file representing the dc lines to add to 
 
 This creates a single variable for each dc line (at each point in time), and adds it to `pbal_bus` of the `t_bus_idx`, and subtracts it from the `f_bus_idx`.  Represents a lossless transfer of power, ignoring voltage angle requirements.
 
+### Keyword Argument: 
+* `file` - the filename of the dc line table, where each row represents a different dc line. See also [`summarize_table(::Val{:dc_line})`](@ref) 
+
+### Table Added:
+* `dc_line` - this table contains information about each dc line, with rows for indexes of the buses power is flowing to/from and the amount of power flow.
+
+### Model Modification:
+* Variables 
+    * `(:dc_line, :pflow_dc)` - the amount of power flowing through a dc line 
+
 # Interfaces Implemented
 * [`modify_raw_data!(mod::DCLine, config, data)`](@ref) - loads `mod.file => data[:dc_line]`
 * [`modify_model!(mod::DCLine, config, data, model)`](@ref) - Add dc lines to the model from `data[:dc_lines]`, creating `pflow_dc` variables, and adding/subtracting to the corresponding `pflow_bus` variables.

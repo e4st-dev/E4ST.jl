@@ -6,6 +6,35 @@ Constrain power flowing between regions for each representative hour. See [`summ
 * [`modify_model!(mod::InterfaceLimit, config, data, model)`](@ref)
 
 To change the power flow min/max for each year and/or hour, see [`AdjustYearly`](@ref) and [`AdjustHourly`](@ref).
+
+### Keyword Arguments:
+* 'file' - the filename for the interface limit table
+
+### Tables Added
+* `interface_limit` - table contains information about the interface limit, the diretion of flow between bus tables, and the amunt of power/energy flow. 
+
+### Table Columns Added
+* `(:interface_limit, :pflow)` - MW of power flowing from an `f` bus to a `t` bus in each hour.
+* `(:interface_limit, :eflow)` - MWh of power flowing from an `f` bus to a `t` bus in each representative hour.
+* `(:interface_limit, :interface_limit_cost)` - cost on the net flow of electricity from an `f` bus to a `t` bus in each representative hour, from an explicitly specified price.
+
+### Model Modifications:
+* Expressions
+    * `pflow_if[if_idx, yr_idx, hr_idx]`- the power flowing, in MW, in each interface. This includes the sum of all `pflow_branch` terms for branches flowing `f` to `t` and nets the sum of all `pflow_branch` terms for branches flowing `t` to `f`.
+    * `interface_flow_cost_obj` - adds the cost objective to the objective function 
+* Constraints
+    * `cons_pflow_if_max[if_idx, yr_idx, hr_idx]` - the maximum power flow in each interface.
+    * `cons_pflow_if_min[if_idx, yr_idx, hr_idx]` - the minimum power flow in each interface. 
+    * `cons_eflow_if_max[if_idx, yr_idx, hr_idx]` - the sum of the maximum power flow in each interface during each representative hour.
+    * `cons_eflow_if_min[if_idx, yr_idx, hr_idx]` - the sum of the minimum power flow in each interface during each representative hour.
+
+### Results Formulas 
+* `(:interface_limit, :pflow_if_max)` - maximum net hourly diretional flow 
+* `(:interface_limit, :pflow_if_min)` - minimum net hourly directional flow 
+* `(:interface_limit, :pflow_if_avg)` - average net hourly directional flow 
+* `(:interface_limit, :eflow_if_total)` - total net MWh of energy flow across the interface.
+* `(:interface_limit, :pflow_line_max)` - maxmimum net hourly directional flow for a single line.
+
 """
 Base.@kwdef struct InterfaceLimit <: Modification
     file::String
