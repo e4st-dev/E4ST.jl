@@ -764,11 +764,6 @@ function calc_islands!(branch, bus)
     
     branch_island_idxs = Vector{Int64}(undef, nrow(branch))
     bus_island_idxs = fill(0, nbus)
-    # Initialize an empty array of sets of bus idxs
-    islands = Set{Int64}[]
-
-
-
 
     connected_bus_idxs = [Int64[] for _ in 1:nbus]
     for (f_bus_idx, t_bus_idx) in zip(f_bus_idxs, t_bus_idxs)
@@ -800,66 +795,6 @@ function calc_islands!(branch, bus)
     end
 
     branch_island_idxs = map(i->bus_island_idxs[i], f_bus_idxs)
-
-
-
-
-
-
-    # for (bus_idx, bus_idxs) in enumerate(connected_bus_idxs)
-    #     in_island = false
-    #     for (island_idx, island) in enumerate(islands)
-    #         if bus_idx in island
-    #             union!(island, bus_idxs)
-    #             in_island = true
-    #             bus_island_idxs[bus_idx] = island_idx
-    #         end
-    #     end
-    #     if in_island === false
-    #         new_island = Set(bus_idx)
-    #         union!(new_island, bus_idxs)
-    #         push!(islands, new_island)
-    #         len = length(islands)
-    #         bus_island_idxs[bus_idx] = len
-    #     end
-    # end
-    
-
-
-
-
-
-
-
-
-    # branch_island_idxs = Vector{Int64}(undef, nrow(branch))
-    # bus_island_idxs = zeros(nrow(bus))
-    # # Initialize an empty array of sets of bus idxs
-    # islands = Set{Int64}[]
-    # # Loop through each branch and add to appropriate island
-    # for (i, (f_bus_idx, t_bus_idx)) in enumerate(zip(f_bus_idxs, t_bus_idxs))
-    #     in_island = false
-    #     for (island_idx, island) in enumerate(islands)
-    #         if f_bus_idx in island
-    #             push!(island, t_bus_idx)
-    #             in_island = true
-    #             branch_island_idxs[i] = island_idx
-    #             bus_island_idxs[t_bus_idx] = island_idx
-    #         elseif t_bus_idx in island
-    #             push!(island, f_bus_idx)
-    #             in_island = true
-    #             branch_island_idxs[i] = island_idx
-    #             bus_island_idxs[f_bus_idx] = island_idx
-    #         end
-    #     end
-    #     if in_island === false
-    #         push!(islands, Set((f_bus_idx, t_bus_idx)))
-    #         len = length(islands)
-    #         branch_island_idxs[i] = len
-    #         bus_island_idxs[f_bus_idx] = len
-    #         bus_island_idxs[t_bus_idx] = len
-    #     end
-    # end
 
     branch.island_idx = branch_island_idxs
     bus.island_idx = bus_island_idxs

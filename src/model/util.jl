@@ -102,7 +102,7 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
             if table.build_type[row_idx] ∈ ("exog", "real") && 
                     table.build_status[row_idx] == "unbuilt" &&
                     yr_idx == year_built_idx[row_idx]
-                fix(pcap[row_idx, yr_idx], table.pcap_max[row_idx], force=true)
+                fix(pcap[row_idx, yr_idx], table.pcap_max[row_idx][yr_idx,1], force=true)
             end
         end
     end

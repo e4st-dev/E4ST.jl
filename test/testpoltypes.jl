@@ -554,5 +554,24 @@
         @test compute_result(data, :gen, :pcap_total, :gentype => "solar", 2) <= 0.76
         @test compute_result(data, :storage, :pcap_total, :, 3) >= 0.035
         @test compute_result(data, :storage, :pcap_total, :, 3) <= 0.040000001
+
+        @testset "Test invalid capacity constraint due to min value bigger than max value" begin
+            config_file = joinpath(@__DIR__, "config", "config_capconst_invalid_conflicting.yml")
+            config = read_config(config_file_ref, config_file)
+
+            data = read_data(config)
+
+            @test_throws "which is less than min value" setup_model(config, data)
+
+        end
+        @testset "Test invalid capacity constraint due to min value bigger possible capacity" begin
+            config_file = joinpath(@__DIR__, "config", "config_capconst_invalid_too_high.yml")
+            config = read_config(config_file_ref, config_file)
+
+            data = read_data(config)
+
+            @test_throws "which is greater than the max capacity" setup_model(config, data)
+
+        end
     end
 end
