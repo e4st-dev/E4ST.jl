@@ -23,10 +23,10 @@ To change the power flow min/max for each year and/or hour, see [`AdjustYearly`]
     * `pflow_if[if_idx, yr_idx, hr_idx]`- the power flowing, in MW, in each interface. This includes the sum of all `pflow_branch` terms for branches flowing `f` to `t` and nets the sum of all `pflow_branch` terms for branches flowing `t` to `f`.
     * `interface_flow_cost_obj` - adds the cost objective to the objective function 
 * Constraints
-    * `cons_pflow_if_max` - the maximum power flow in each interface.
-    * `cons_pflow_if_min` - the minimum power flow in each interface. 
-    * `cons_eflow_if_max` - the sum of the maximum power flow in each interface during each representative hour.
-    * `cons_eflow_if_min` - the sum of the minimum power flow in each interface during each representative hour.
+    * `cons_pflow_if_max[if_idx, yr_idx, hr_idx]` - the maximum power flow in each interface.
+    * `cons_pflow_if_min[if_idx, yr_idx, hr_idx]` - the minimum power flow in each interface. 
+    * `cons_eflow_if_max[if_idx, yr_idx, hr_idx]` - the sum of the maximum power flow in each interface during each representative hour.
+    * `cons_eflow_if_min[if_idx, yr_idx, hr_idx]` - the sum of the minimum power flow in each interface during each representative hour.
 
 ### Results Formulas 
 * `(:interface_limit, :pflow_if_max)` - maximum net hourly diretional flow 

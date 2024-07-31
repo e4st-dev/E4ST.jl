@@ -15,7 +15,7 @@ Storage is represented over sets of time-weighted sequential representative hour
 
 ### Tables Added:
 * `storage` - this table consists of rows defining the built and economic status of different storage units 
-* `build_storage` - this table also contains economic information of different storage units, but focuses more on their health and size 
+* `build_storage` - this table specifies the storage that the model can build  
 
 ### Table Columns Added:
 * `(:storage, :capex_obj)` - the hourly capital expenditure that is used in the objective function. Because capacity expansion is not considered for existing storage units, it is set to 0 for already built capacity.

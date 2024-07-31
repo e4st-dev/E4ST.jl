@@ -15,11 +15,11 @@ Emission Price - A price on a certain emission for a given set of generators.
 * `hour_filters`: OrderedDict of hour filters
 
 ### Table Column Added:
-* `(:gen, :pol.name)` - emissions price per MWh generated for each policy
+* `(:gen, :<name>)` - emissions price per MWh generated for each policy
 * `(:gen, :<name>_capex_adj)` - Adjustment factor added to the obj function as a PerMWCapInv term to account for emisprc payments that do not continue through the entire econ lifetime of a generator
 
 ### Results Formulas:
-* `(:gen, :cost_name)` - the cost of the policy 
+* `(:gen, :<name>_cost)` - the cost of the policy 
 * `(:gen, :<name>_capex_adj_total)` - The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.
 
 """

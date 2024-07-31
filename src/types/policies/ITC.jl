@@ -10,10 +10,10 @@ Investment Tax Credit - A tax incentive that is a percentage of capital cost giv
 * `gen_filters`: filters for qualifying generators, stored as an OrderedDict with gen table columns and values (`:emis_co2=>"<=0.1"` for co2 emission rate less than or equal to 0.1)
 
 ### Table Column Added: 
-* `(:gen, :pol.name)` - the investment tax credit value for the policy 
+* `(:gen, :<name>)` - the investment tax credit value for the policy 
 
 ### Results Formula:
-* `(:gen, :total_result_sym)` - the cost of the policy, as seen by the objective, not used for government spending welfare
+* `(:gen, :<name>_cost_obj)` - the cost of the policy, as seen by the objective, not used for government spending welfare
 
 """
 Base.@kwdef struct ITC <: Policy

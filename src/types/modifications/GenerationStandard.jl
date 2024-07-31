@@ -17,14 +17,14 @@ To assign the credit (the portion of generation that can contribute) to generato
 * `(:gen, :<name>_pol)` - credit level for generation standard, set to zero to start 
 * `(:gen, :pl_gs)` - served load power that qualifies for the generation standard.
 * `(:gen, :el_gs)` - served load energy that qualifies for the generation standard. 
-* `(:gen, :prc_name)` - The per MWh price of the policy. This is based on the shadow price of the policy. It is converted to DollarsPerMWhGenerated and multiplied by the credit. 
+* `(:gen, :<name>_prc)` - The per MWh price of the policy. This is based on the shadow price of the policy. It is converted to DollarsPerMWhGenerated and multiplied by the credit. 
 
 ### Model Modification
 * Expressions
-    * `tgt_load_expr` - the annual target load 
+    * `tgt_load_<name>` - the annual target load 
     * `pl_gs_bus` - the served load power that qualifies for the generation standard of each bus.
 * Constraints
-    * `<name>_cons_pol` - a generation constraint for the generation standard, based on the policy.
+    * `cons_<name>` - a generation constraint for the generation standard, based on the policy.
 
 ### Results Formulas 
 * `(:bus, :el_gs_total)` - total served load energy that qualifies for generation standards. 
