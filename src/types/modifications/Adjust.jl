@@ -93,15 +93,18 @@ This [`Modification`](@ref) creates a way to adjust table values or data paramet
 * [`AdjustYearly`](@ref)
 * [`AdjustByAge`](@ref)
 * [`AdjustString`](@ref)
+
+### Keyword Arguments
 """
 Base.@kwdef struct Adjust{T} <: Modification
     name::Symbol
     file::String
+    rank::Float64 = -2.0
 end
 
-mod_rank(::Type{<:Adjust}) = -2.0
+mod_rank(m::Adjust) = m.rank
 """
-    AdjustHourly(;file, name)
+    AdjustHourly(;file, name, rank)
 
 Adjusts tables and parameters by hour.  Stores the table stored in `file` into `data[name]`.
 
@@ -110,7 +113,7 @@ $(table2markdown(summarize_table(Val(:adjust_hourly))))
 const AdjustHourly = Adjust{:adjust_hourly}
 
 """
-    AdjustYearly(;file, name)
+    AdjustYearly(;file, name, rank)
 
 Adjusts tables and parameters by year.  Stores the table stored in `file` into `data[name]`.
 
@@ -119,7 +122,7 @@ $(table2markdown(summarize_table(Val(:adjust_yearly))))
 const AdjustYearly = Adjust{:adjust_yearly}
 
 """
-    AdjustByAge(;file, name)
+    AdjustByAge(;file, name, rank)
 
 Adjusts tables and parameters by year.  Stores the table stored in `file` into `data[name]`.
 
@@ -128,7 +131,7 @@ $(table2markdown(summarize_table(Val(:adjust_by_age))))
 const AdjustByAge = Adjust{:adjust_by_age}
 
 """
-    AdjustString(;file, name)
+    AdjustString(;file, name, rank)
 
 Adjusts tables and parameters by setting a string.  Stores the table stored in `file` into `data[name]`.
 

@@ -53,14 +53,16 @@ Adds constraints to the model for:
 * `cons_<pcap_name>_match_min_build` - Constrain minimum capacity of generators at the same site to add up to the >= minimum capacity.
 * `cons_<pcap_name>_match_min_build` - Constrain minimum capacity of generators at the same site to add up to the <= maximum capacity. 
 """
-function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symbol)
+function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symbol, pgen_name::Symbol)
     @info "Adding build constraints for table $table_name"
 
     table = get_table(data, table_name)
     years = get_years(data)
     nyr = get_num_years(data)
+    nhr = get_num_hours(data)
 
     pcap = model[pcap_name]::Matrix{VariableRef}
+    pgen = model[pgen_name]::Array{VariableRef, 3}
     years = get_years(data)
 
     year_built_idx = map(eachrow(table)) do r
@@ -96,28 +98,11 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
 
     # Constrain unbuilt exogenous generators to be built to pcap0 in the first year after year_on
     if any(row->(row.build_type ∈ ("real", "exog") && row.build_status == "unbuilt" && last(years) >= row.year_on), eachrow(table))
-        # name = Symbol("cons_$(pcap_name)_exog")
-        # model[name] = @constraint(model,
-        #     [
-        #         row_idx in axes(table,1),
-        #         yr_idx in 1:nyr;
-        #         # Only for exogenous generators, and only for the build year.
-        #         (
-        #             table.build_type[row_idx] == "exog" && 
-        #             table.build_status[row_idx] == "unbuilt" &&
-        #             (
-        #                 yr_idx == year_built_idx[row_idx]
-        #             )
-        #         )
-        #     ],
-        #     pcap[row_idx, yr_idx] == table.pcap_max[row_idx]
-        # )
-
         for row_idx in axes(table,1), yr_idx in 1:nyr
             if table.build_type[row_idx] ∈ ("exog", "real") && 
                     table.build_status[row_idx] == "unbuilt" &&
                     yr_idx == year_built_idx[row_idx]
-                fix(pcap[row_idx, yr_idx], table.pcap_max[row_idx], force=true)
+                fix(pcap[row_idx, yr_idx], table.pcap_max[row_idx][yr_idx,1], force=true)
             end
         end
     end
@@ -130,6 +115,9 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
         yr_off_idx = findfirst(>=(year_shutdown), years)
         for yr_idx in yr_off_idx:nyr
             fix(pcap[i, yr_idx], 0.0, force=true)
+            for hr_idx in 1:nhr
+                fix(pgen[i, yr_idx, hr_idx], 0.0, force=true)
+            end
         end
     end
 

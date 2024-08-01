@@ -92,6 +92,6 @@ Prints the field determined in fieldnames_for_yaml from the Modification.
 """
 function YAML._print(io::IO, iter::I, level::Int=0, ignore_level::Bool=false) where {I<:Iterable}
     println(io)
-    iter_dict = OrderedDict(:type => string(typeof(iter)), (k=>getproperty(iter, k) for k in fieldnames_for_yaml(I))...)
+    iter_dict = OrderedDict(:type => clean_type_string(iter), (k=>getproperty(iter, k) for k in fieldnames_for_yaml(I))...)
     YAML._print(io::IO, iter_dict, level, ignore_level)
 end

@@ -359,7 +359,7 @@ function modify_model!(mod::Storage, config, data, model)
     )
 
     ### Add build constraints for endogenous batteries
-    add_build_constraints!(data, model, :storage, :pcap_stor)
+    add_build_constraints!(data, model, :storage, :pcap_stor, :pdischarge_stor)
     
     ### Add charge/discharge to appropriate expressions in power balancing equation
     plserv_bus = model[:plserv_bus]::Array{AffExpr,3}

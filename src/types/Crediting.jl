@@ -52,7 +52,7 @@ Prints the field determined in fieldnames_for_yaml from the Crediting.
 """
 function YAML._print(io::IO, c::C, level::Int=0, ignore_level::Bool=false) where {C<:Crediting}
     println(io)
-    cdict = OrderedDict(:type => string(typeof(c)), (k=>getproperty(c, k) for k in fieldnames_for_yaml(C))...)
+    cdict = OrderedDict(:type => clean_type_string(c), (k=>getproperty(c, k) for k in fieldnames_for_yaml(C))...)
     YAML._print(io::IO, cdict, level, ignore_level)
 end
 

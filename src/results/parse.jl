@@ -75,7 +75,11 @@ function check_voltage_angle_bounds(config, data)
     (Θ_min, θ_max) = extrema(θ)
 
     if max(abs(Θ_min), θ_max) >= (θ_bound * (1 - 0.01))
-        error("Voltage angle is within 1% of the bounds, that indicates something is wrong with the grid representation, or that config[:voltage_angle_bound] needs to be increased.")
+        if config[:error_if_voltage_angle_at_bound] == true
+            error("Voltage angle is within 1% of the bounds, that indicates something is wrong with the grid representation, or that config[:voltage_angle_bound] needs to be increased.")
+        else
+            @warn "Voltage angle is within 1% of the bounds, that indicates something is wrong with the grid representation, or that config[:voltage_angle_bound] needs to be increased."
+        end
     end
 end
 export check_voltage_angle_bounds

@@ -89,7 +89,9 @@ function setup_model(config, data)
         model = JuMP.Model()
 
         # Comment this out for debugging so you can see variable names.  Saves quite a bit of RAM to leave out
-        # set_string_names_on_creation(model, false)
+        if config[:model_string_names] == false
+            set_string_names_on_creation(model, false)
+        end
 
         setup_dcopf!(config, data, model)
     
