@@ -90,6 +90,7 @@ function modify_results!(mod::ResultsTemplate, config, data)
         not_pair_idx = findfirst(not_a_full_filter, eachrow(table))
     end
 
+    results_formulas = get_results_formulas(data)
     table.value = map(eachrow(table)) do row
         table_name = row.table_name
         result_name = row.result_name
@@ -99,7 +100,12 @@ function modify_results!(mod::ResultsTemplate, config, data)
         if table_name == Symbol("")
             return compute_welfare(data, result_name, idxs, yr_idxs, hr_idxs)
         else
-            return compute_result(data, table_name, result_name, idxs, yr_idxs, hr_idxs)
+            if has_table(data, table_name) && haskey(results_formulas, (table_name, result_name))
+                return compute_result(data, table_name, result_name, idxs, yr_idxs, hr_idxs)
+            else
+                @warn "No results formula found for table $table_name and result $result_name"
+                return 0.0
+            end
         end
     end    
     sort!(table, mod.col_sort)
