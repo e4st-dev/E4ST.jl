@@ -97,6 +97,9 @@ function modify_setup_data!(ret::Retrofit, config, data)
         end
     end
 
+    original_gen_cols = data[:gen_table_original_cols]::Vector{Symbol}
+    (:year_retrofit in original_gen_cols) || push!(original_gen_cols, :year_retrofit)
+
     @info "Added $(nrow(gen) - ngen) retrofit generators to gen table"
 end
 

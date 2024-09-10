@@ -153,7 +153,7 @@ function run_e4st(config::OrderedDict)
     
         run_optimize!(config, data, model)
 
-        if ~check(model)
+        if ~check(config, data, model)
             @info "Model did not pass the check!"
             if config[:save_model_debug] == true
                 serialize(get_out_path(config, "model_debug.jls"), model)
@@ -169,6 +169,9 @@ function run_e4st(config::OrderedDict)
         process_results!(config, data)
         results = get_results(data)
         push!(all_results, results)
+
+        # Clean up memory by calling the garbage collector
+        GC.gc()
 
         ### Iteration
         # First check to see if we even need to iterate
@@ -310,5 +313,19 @@ function get_type(str::AbstractString)
     end
 end
 export get_type
+
+"""
+    clean_type_string(thing) -> s
+
+Returns a clean type string, free of parameters, for the string.
+"""
+function clean_type_string(m::T) where T
+    return clean_type_string(T)
+end
+
+function clean_type_string(::Type{T}) where T
+    s = string(T)
+    return String(split(s, "{")[1])
+end
 
 end # module

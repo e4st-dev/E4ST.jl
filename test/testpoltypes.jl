@@ -68,7 +68,7 @@
 
             #make sure model still optimizes 
             optimize!(model)
-            @test check(model)
+            @test check(config, data, model)
             parse_results!(config, data, model)
             process_results!(config, data)
 
@@ -112,7 +112,7 @@
 
         #make sure model still optimizes 
         optimize!(model)
-        @test check(model)
+        @test check(config, data, model)
         parse_results!(config, data, model)
         process_results!(config, data)
 
@@ -155,7 +155,7 @@
 
             #make sure model still optimizes 
             optimize!(model)
-            @test check(model)
+            @test check(config, data, model)
             parse_results!(config, data, model)
             process_results!(config, data)
 
@@ -212,7 +212,7 @@
         @testset "Model optimizes correctly" begin
             ## make sure model still optimizes 
             optimize!(model)
-            @test check(model)
+            @test check(config, data, model)
 
 
             parse_results!(config, data, model)
@@ -285,7 +285,7 @@
 
             #make sure model still optimizes 
             optimize!(model)
-            @test check(model)
+            @test check(config, data, model)
 
             # process results
             parse_results!(config, data, model)
@@ -360,7 +360,7 @@
 
                 #make sure model still optimizes 
                 optimize!(model)
-                @test check(model)
+                @test check(config, data, model)
 
                 @test haskey(model, :pl_gs_bus)
                 @test haskey(model, :cons_example_rps)
@@ -447,7 +447,7 @@
             @testset "Adding CES to model" begin
                 #make sure model still optimizes 
                 optimize!(model)
-                @test check(model)
+                @test check(config, data, model)
 
                 @test haskey(model, :pl_gs_bus)
                 @test haskey(model, :cons_example_ces)
@@ -538,7 +538,7 @@
         gen = get_table(data, :gen)
 
         optimize!(model)
-        @test check(model)
+        @test check(config, data, model)
 
         @test haskey(model, :cons_solar_cap_const_max)
         @test haskey(model, :cons_solar_cap_const_min)
@@ -554,5 +554,24 @@
         @test compute_result(data, :gen, :pcap_total, :gentype => "solar", 2) <= 0.76
         @test compute_result(data, :storage, :pcap_total, :, 3) >= 0.035
         @test compute_result(data, :storage, :pcap_total, :, 3) <= 0.040000001
+
+        @testset "Test invalid capacity constraint due to min value bigger than max value" begin
+            config_file = joinpath(@__DIR__, "config", "config_capconst_invalid_conflicting.yml")
+            config = read_config(config_file_ref, config_file)
+
+            data = read_data(config)
+
+            @test_throws "which is less than min value" setup_model(config, data)
+
+        end
+        @testset "Test invalid capacity constraint due to min value bigger possible capacity" begin
+            config_file = joinpath(@__DIR__, "config", "config_capconst_invalid_too_high.yml")
+            config = read_config(config_file_ref, config_file)
+
+            data = read_data(config)
+
+            @test_throws "which is greater than the max capacity" setup_model(config, data)
+
+        end
     end
 end

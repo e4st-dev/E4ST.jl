@@ -11,7 +11,7 @@
     optimize!(model)
     # solution_summary(model)
 
-    @test check(model)
+    @test check(config, data, model)
 
     parse_results!(config, data, model)
     process_results!(config, data)
@@ -193,7 +193,7 @@
         data = read_data(config)
         model = setup_model(config, data)
         optimize!(model)
-        @test check(model)
+        @test check(config, data, model)
         parse_results!(config, data, model)
         process_results!(config, data)
 

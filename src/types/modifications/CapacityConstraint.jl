@@ -12,10 +12,10 @@
 """
 Base.@kwdef struct CapacityConstraint <: Modification
     name::Symbol
-    table::AbstractString = "gen"
-    max_values::OrderedDict = OrderedDict()
-    min_values::OrderedDict = OrderedDict()
-    table_filters::OrderedDict = OrderedDict()
+    table::String = "gen"
+    max_values::OrderedDict{Symbol, Any} = OrderedDict{Symbol, Any}()
+    min_values::OrderedDict{Symbol, Any} = OrderedDict{Symbol, Any}()
+    table_filters::OrderedDict{Symbol, Any} = OrderedDict{Symbol, Any}()
 end
 export CapacityConstraint
 
@@ -62,6 +62,20 @@ function E4ST.modify_model!(cons::CapacityConstraint, config, data, model)
         pcap_var = model[:pcap_stor]::Matrix{VariableRef}
     else
         error("You must specify either the gen or storage table for the CapacityConstraint mod")
+    end
+
+    # Check to see if any infeasibilities introduced
+    for (yr_idx, year) in enumerate(years)
+        if haskey(cons.min_values, year) 
+            min_val = cons.min_values[year]
+            if haskey(cons.max_values, year)
+                max_val = cons.max_values[year]
+                # Check that they are not conflicting.
+                @assert max_val >= min_val "CapacityConstraint $(cons.name) has max value $max_val which is less than min value $min_val for year $year"
+            end
+            pcap_max_sum = sum(table_idx->table.pcap_max[table_idx][yr_idx, :], table_idxs)
+            @assert pcap_max_sum >= min_val "CapacityConstraint $(cons.name) has min value $min_val which is greater than the max capacity of the portion of the $(cons.name) table that it is constraining, which is $pcap_max_sum."
+        end
     end
 
     if ~isempty(max_years)

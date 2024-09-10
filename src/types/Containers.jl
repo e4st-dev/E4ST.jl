@@ -731,6 +731,7 @@ struct LoadContainer <: Container{Float64, 2}
     v::Vector{SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}}
 end
 
+
 _add_view!(c::LoadContainer, v) = push!(c.v, v)
 
 LoadContainer() = LoadContainer(SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}[])
@@ -738,6 +739,8 @@ function Base.getindex(c::LoadContainer, year_idx, hour_idx)
     isempty(c.v) && return 0.0
     return sum(vv->vv[year_idx, hour_idx], c.v)::Float64
 end
+Base.size(c::LoadContainer) = size(first(c.v))
+
 
 function Base.show(io::IO, c::LoadContainer)
     isempty(c.v) && return print(io, "empty LoadContainer")
