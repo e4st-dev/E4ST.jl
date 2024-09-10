@@ -52,12 +52,12 @@ function parse_results!(config, data, model)
     #change build_status to 'new' for generators built in the sim
     update_build_status!(config, data, :gen)
 
-    save_updated_gen_table(config, data)
-
     # Save the parsed data
     if config[:save_data_parsed] === true
         serialize(get_out_path(config, "data_parsed.jls"), data)
     end
+
+    save_updated_gen_table(config, data)
 
     return nothing
 end
@@ -382,6 +382,7 @@ function save_updated_gen_table(config, data)
 
     gen = get_table(data, :gen)
     original_cols = data[:gen_table_original_cols]
+    unique!(original_cols)
 
     # Grab only the original columns, and return to their original values for any that may have been modified.
     gen_tmp = gen[:, original_cols]

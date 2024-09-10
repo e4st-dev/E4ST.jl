@@ -25,9 +25,10 @@ function check(config, data, model)
         io = IOBuffer()
         println(io, "Model is infeasible, here is a list of conflicting constraints:")
         for cons in conflicting_constraints
-            print(io, name(cons))
+            n,i = find_constraint_name_and_index(model, cons)
+            print(io, "$n[$i]")
             print(io, ": ")
-            print(io, cons)
+            println(io, cons)
         end
         s = String(take!(io))
         @info s
@@ -36,4 +37,15 @@ function check(config, data, model)
     else
         return false
     end
+end
+
+function find_constraint_name_and_index(model, cons)
+    od = object_dictionary(model)
+    for (k,v) in od
+        if cons in v
+            i = findfirst(==(cons), v)
+            return k, i
+        end
+    end
+    return :not_found, 0
 end

@@ -100,9 +100,9 @@ function modify_results!(mod::ResultsTemplate, config, data)
         if table_name == Symbol("")
             return compute_welfare(data, result_name, idxs, yr_idxs, hr_idxs)
         else
-            if has_table(data, table_name) && haskey(results_formulas, (table_name, result_name))
+            try
                 return compute_result(data, table_name, result_name, idxs, yr_idxs, hr_idxs)
-            else
+            catch e
                 @warn "No results formula found for table $table_name and result $result_name"
                 return 0.0
             end
@@ -127,7 +127,8 @@ end
 
 function extract_results(m::ResultsTemplate, config, data)
     results = get_results(data)
-    haskey(results, m.name) || modify_results!(m, config, data)
+    # haskey(results, m.name) || modify_results!(m, config, data)
+    modify_results!(m, config, data)
     return get_result(data, m.name)
 end
 

@@ -170,6 +170,9 @@ function run_e4st(config::OrderedDict)
         results = get_results(data)
         push!(all_results, results)
 
+        # Clean up memory by calling the garbage collector
+        GC.gc()
+
         ### Iteration
         # First check to see if we even need to iterate
         should_iterate(iter, config, data) || break

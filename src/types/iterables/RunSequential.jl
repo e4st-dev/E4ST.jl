@@ -40,6 +40,8 @@ function init!(iter::RunSequential, config)
         @warn "config[:years] different than years specified in RunSequential iterator.\n    config[:years] = $(config[:years])\n    iter.years[1] =  $years"
         config[:years] = years
     end
+
+    save_config(config)
 end
 
 """
@@ -85,6 +87,7 @@ function iterate!(iter::RunSequential, config, data)
         m.file = abspath(old_out_path, "storage.csv")
     end
     
+    save_config(config)
     return nothing
 end
 
