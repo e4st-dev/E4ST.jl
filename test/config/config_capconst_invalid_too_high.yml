@@ -1,0 +1,10 @@
+mods:
+  stor:
+    type: Storage
+    file: ../data/3bus/storage.csv
+    build_file: ../data/3bus/build_storage.csv
+  storage_cap_const:
+    type: CapacityConstraint
+    table: storage
+    min_values: 
+      y2040: 100

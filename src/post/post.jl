@@ -231,7 +231,7 @@ function join_sim_tables(post_mod_data, keep_col; replace_missing = 0.)
 
     for (sim_name, df) in post_mod_data
         sim_name === first_sim_name && continue
-        res = outerjoin(res, df, on=joining_cols, matchmissing=:equal)
+        res = outerjoin(res, df, on=joining_cols, matchmissing=:equal, order=:left)
         rename!(res, keep_col=>sim_name)
     end
 
@@ -241,8 +241,6 @@ function join_sim_tables(post_mod_data, keep_col; replace_missing = 0.)
     end
 
     dropmissing!(res)
-
-    sort!(res)
 
     return res
 end

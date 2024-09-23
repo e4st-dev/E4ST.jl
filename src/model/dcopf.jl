@@ -161,7 +161,7 @@ function setup_dcopf!(config, data, model)
         -pflow_branch[branch_idx, year_idx, hour_idx] <= get_pflow_branch_max(data, branch_idx, year_idx, hour_idx)
     )
 
-    add_build_constraints!(data, model, :gen, :pcap_gen)
+    add_build_constraints!(data, model, :gen, :pcap_gen, :pgen_gen)
     
     ## Objective Function 
     @info "Building Objective"

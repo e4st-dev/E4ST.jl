@@ -457,6 +457,8 @@ function force_table_types!(df::DataFrame, name, pairs...; optional=false)
 end
 export force_table_types!
 
+Base.String(::Missing) = ""
+
 function force_table_types!(df::DataFrame, name, summary::AbstractDataFrame; kwargs...) 
     for row in eachrow(summary)
         force_table_types!(df, name, row; kwargs...)
@@ -762,11 +764,6 @@ function calc_islands!(branch, bus)
     
     branch_island_idxs = Vector{Int64}(undef, nrow(branch))
     bus_island_idxs = fill(0, nbus)
-    # Initialize an empty array of sets of bus idxs
-    islands = Set{Int64}[]
-
-
-
 
     connected_bus_idxs = [Int64[] for _ in 1:nbus]
     for (f_bus_idx, t_bus_idx) in zip(f_bus_idxs, t_bus_idxs)
@@ -798,66 +795,6 @@ function calc_islands!(branch, bus)
     end
 
     branch_island_idxs = map(i->bus_island_idxs[i], f_bus_idxs)
-
-
-
-
-
-
-    # for (bus_idx, bus_idxs) in enumerate(connected_bus_idxs)
-    #     in_island = false
-    #     for (island_idx, island) in enumerate(islands)
-    #         if bus_idx in island
-    #             union!(island, bus_idxs)
-    #             in_island = true
-    #             bus_island_idxs[bus_idx] = island_idx
-    #         end
-    #     end
-    #     if in_island === false
-    #         new_island = Set(bus_idx)
-    #         union!(new_island, bus_idxs)
-    #         push!(islands, new_island)
-    #         len = length(islands)
-    #         bus_island_idxs[bus_idx] = len
-    #     end
-    # end
-    
-
-
-
-
-
-
-
-
-    # branch_island_idxs = Vector{Int64}(undef, nrow(branch))
-    # bus_island_idxs = zeros(nrow(bus))
-    # # Initialize an empty array of sets of bus idxs
-    # islands = Set{Int64}[]
-    # # Loop through each branch and add to appropriate island
-    # for (i, (f_bus_idx, t_bus_idx)) in enumerate(zip(f_bus_idxs, t_bus_idxs))
-    #     in_island = false
-    #     for (island_idx, island) in enumerate(islands)
-    #         if f_bus_idx in island
-    #             push!(island, t_bus_idx)
-    #             in_island = true
-    #             branch_island_idxs[i] = island_idx
-    #             bus_island_idxs[t_bus_idx] = island_idx
-    #         elseif t_bus_idx in island
-    #             push!(island, f_bus_idx)
-    #             in_island = true
-    #             branch_island_idxs[i] = island_idx
-    #             bus_island_idxs[f_bus_idx] = island_idx
-    #         end
-    #     end
-    #     if in_island === false
-    #         push!(islands, Set((f_bus_idx, t_bus_idx)))
-    #         len = length(islands)
-    #         branch_island_idxs[i] = len
-    #         bus_island_idxs[f_bus_idx] = len
-    #         bus_island_idxs[t_bus_idx] = len
-    #     end
-    # end
 
     branch.island_idx = branch_island_idxs
     bus.island_idx = bus_island_idxs
@@ -912,9 +849,10 @@ P_{G_{g,h,y}} \leq f_{\text{avail}_{g,h,y}} \cdot P_{C{g,y}} \qquad \forall \{g 
 """
 function setup_table!(config, data, ::Val{:af_table})
     # Fill in gen table with default af of 1.0 for every hour
-    gens = get_table(data, :gen)
+    gen = get_table(data, :gen)
     default_af = ByNothing(1.0)
-    gens.af = Container[default_af for _ in 1:nrow(gens)]
+    gen_af = Container[default_af for _ in axes(gen,1)]
+    gen.af = gen_af
     af_threshold = config[:cf_threshold]::Float64
 
     # Return if there is no af_file
@@ -922,15 +860,24 @@ function setup_table!(config, data, ::Val{:af_table})
         return
     end
 
-    af_table = data[:af_table]
+    af_table = get_table(data, :af_table)
 
-    hr_idx = findfirst(s->s=="h1",names(af_table))
+    first_hr_col_idx = findfirst(s->s=="h1",names(af_table))
     all_years = get_years(data)
     nyr = get_num_years(data)
     nhr = get_num_hours(data)
 
-    for i = 1:nrow(af_table)
-        row = af_table[i, :]
+    af_table.gen_idxs .= Ref(Int64[])
+
+    gen_af_table_idxs = [Int64[] for _ in axes(gen,1)]
+
+    af_matrix = zeros(nrow(af_table), nhr)
+    for (hr_idx, hr_col) in enumerate(first_hr_col_idx:(first_hr_col_idx + nhr - 1))
+        af_matrix[:, hr_idx] = af_table[:, hr_col]
+    end
+
+    for af_idx in axes(af_table,1)
+        row = af_table[af_idx, :]
         if get(row, :status, true) == false
             continue
         end
@@ -944,15 +891,25 @@ function setup_table!(config, data, ::Val{:af_table})
         end
         
         pairs = parse_comparisons(row)
-        cur_gens = get_table(data, :gen, pairs)
+        gen_idxs = get_row_idxs(gen, pairs)
 
-        isempty(cur_gens) && continue
+        row.gen_idxs = gen_idxs
+
+        isempty(gen_idxs) && continue
         
-        af = [(row[i_hr] < af_threshold ? 0.0 : row[i_hr]) for i_hr in hr_idx:(hr_idx + nhr - 1)]
-        foreach(eachrow(cur_gens)) do gen
-            gen.af = set_hourly(gen.af, af, yr_idx, nyr)
+        af = view(af_matrix, af_idx, :)
+        for gen_idx in gen_idxs
+            # Store this af_idx into gen_af_table_idxs.
+            cur_gen_af_table_idxs = gen_af_table_idxs[gen_idx]
+            push!(cur_gen_af_table_idxs, af_idx)
+
+            # Update the af_idx
+            cur_gen_af = gen_af[gen_idx]
+            gen_af[gen_idx] = set_hourly(cur_gen_af, af, yr_idx, nyr)
         end
     end
+    
+    add_table_col!(data, :gen, :af_table_idxs, gen_af_table_idxs, NA, "The indices of the af_table that were used to modify the `af` column of each generator")
 
     return data
 end
