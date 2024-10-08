@@ -25,6 +25,7 @@ modify_model!(pol::PTC, config, data, model)
 ```
 
 **Derivation of the PTC capex adjustment**
+
 First, find the adjusted PTC value $x$ if it were a constant cash flow over entire econ lifetime $l$. \
 Start by setting the NPV of the actual PTC (per MW capacity) $p$ and the adjusted PTC (per MW capacity) $x$. \
 $m$ is the minimum age of the generator to qualify for the PTC \
