@@ -131,7 +131,7 @@ function get_ptc_capex_adj(pol::PTC, g::DataFrameRow, config)
 
     # This adjustment factor is the geometric formula for the difference between the actual PTC value per MW capacity and a PTC represented as a constant cash flow over the entire economic life. 
     # The derivation of this adj_factor can be found in the PTC documentation
-    adj_factor = 1 - ((1-(1/(1+r))^age_max)*(1-(1/(1+r))))/((1-(1/(1+r))^e)*(1-(1/(1+r))^(age_min+1)))
+    adj_factor = 1 - ((1-(1/(1+r))^(age_max+0.5))*(1-(1/(1+r))^(1.5)))/((1-(1/(1+r))^(e+0.5))*(1-(1/(1+r))^(age_min+1.5)))
 
     capex_adj = adj_factor .* cf .* ptc_vals
     return capex_adj
