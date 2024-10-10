@@ -10,6 +10,7 @@ using MiniLoggers
 using Pkg
 using Statistics
 using E4STUtil
+using BasicInterpolators
 
 # Package Imports
 import Dates
@@ -32,11 +33,14 @@ export should_iterate, iterate!
 export Modification, Policy
 export modify_raw_data!, modify_setup_data!, modify_model!, modify_results!, fieldnames_for_yaml
 export run_e4st
-export setup_new_gens!
 
+# Define constants
+global const STR2TYPE = Dict{String, Type}()
+global const SYM2TYPE = Dict{Symbol, Type}()
+global const STR2OPT= Dict{String, Type}()
+
+# Include utilities
 include("io/util.jl")
-
-
 
 # Include types
 include("types/Modification.jl")
@@ -50,10 +54,12 @@ include("types/Retrofit.jl")
 
 # Include Modifications
 include("types/modifications/DCLine.jl")
-include("types/modifications/AggregationTemplate.jl")
+include("types/modifications/ResultsTemplate.jl")
+include("types/modifications/AnnualCapacityFactorLimit.jl")
 include("types/modifications/GenerationConstraint.jl")
 include("types/modifications/GenerationStandard.jl")
 include("types/modifications/YearlyTable.jl")
+include("types/modifications/WelfareTable.jl")
 include("types/modifications/CCUS.jl")
 include("types/modifications/Storage.jl")
 include("types/modifications/Adjust.jl")
@@ -61,10 +67,14 @@ include("types/modifications/CoalCCSRetrofit.jl")
 include("types/modifications/CO2eCalc.jl")
 include("types/modifications/FuelPrice.jl")
 include("types/modifications/InterfaceLimit.jl")
-
+include("types/modifications/ReserveRequirement.jl")
+include("types/modifications/GenHashID.jl")
+include("types/modifications/LeftJoinCols.jl")
+include("types/modifications/CapacityConstraint.jl")
 
 # Include Policies
 include("types/policies/ITC.jl")
+include("types/policies/ITCStorage.jl")
 include("types/policies/PTC.jl")
 include("types/policies/RPS.jl")
 include("types/policies/CES.jl")
@@ -88,16 +98,20 @@ include("model/newgens.jl")
 include("model/util.jl")
 
 # Include Results
+include("results/formulas.jl")
 include("results/parse.jl")
 include("results/process.jl")
 include("results/aggregate.jl")
+include("results/welfare.jl")
 include("results/util.jl")
 
+# Include postprocessing
+include("post/post.jl")
 
 """
-    run_e4st(config) -> out_path, results
+    run_e4st(config) -> out_path
 
-    run_e4st(filename(s)) -> out_path, results
+    run_e4st(filename(s)) -> out_path
 
 Top-level function for running E4ST.  Here is a general overview of what happens:
 1. Book-keeping
@@ -119,6 +133,7 @@ function run_e4st(config::OrderedDict)
     t_start = now()
 
     # Initial config setup
+    sort_mods_by_rank!(config)
     save_config(config)
     start_logging!(config)
 
@@ -138,13 +153,25 @@ function run_e4st(config::OrderedDict)
     
         run_optimize!(config, data, model)
 
-        check(model) || return model # all_results
+        if ~check(config, data, model)
+            @info "Model did not pass the check!"
+            if config[:save_model_debug] == true
+                serialize(get_out_path(config, "model_debug.jls"), model)
+            end
+            if config[:save_data_debug] == true
+                serialize(get_out_path(config, "data_debug.jls"), data)
+            end
+            return get_out_path(config) # all_results
+        end
 
         ### Results
         parse_results!(config, data, model)
         process_results!(config, data)
         results = get_results(data)
         push!(all_results, results)
+
+        # Clean up memory by calling the garbage collector
+        GC.gc()
 
         ### Iteration
         # First check to see if we even need to iterate
@@ -167,14 +194,10 @@ function run_e4st(config::OrderedDict)
 
 
 
-    return get_out_path(config), all_results
+    return get_out_path(config)
 end
 
 run_e4st(path...; kwargs...) = run_e4st(read_config(path...; kwargs...))
-
-global STR2TYPE = Dict{String, Type}()
-global SYM2TYPE = Dict{Symbol, Type}()
-global STR2OPT= Dict{String, Type}()
 
 function reload_optimizers!()
     global STR2OPT
@@ -282,10 +305,27 @@ function get_type(str::AbstractString)
         reload_types!()
         get(STR2TYPE, str) do
             get(STR2TYPE, last(split(str, '.'))) do
-                error("There has been no type $str defined!")
+                get(STR2TYPE, first(split(str, '{'))) do 
+                    error("There has been no type $str defined!")
+                end
             end
         end
     end
+end
+export get_type
+
+"""
+    clean_type_string(thing) -> s
+
+Returns a clean type string, free of parameters, for the string.
+"""
+function clean_type_string(m::T) where T
+    return clean_type_string(T)
+end
+
+function clean_type_string(::Type{T}) where T
+    s = string(T)
+    return String(split(s, "{")[1])
 end
 
 end # module

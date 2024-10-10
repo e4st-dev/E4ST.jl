@@ -43,7 +43,7 @@ export get_year_idxs
 
     YearString(s) -> s
 
-    YearString(n::Number) -> year2string(n)
+    YearString(n::Number) -> year2str(n)
 
 This is a type that acts as a converter to ensure year columns are parsed correctly as strings.  If blank given, left blank.
 """
@@ -181,7 +181,7 @@ Returns row indices of the passed-in table that correspond to `conditions`, wher
 * `pairs`, an iterator of `Pair`s - returns a Vector containing the indices which satisfy all the pairs as above.
 
 Some possible pairs to filter by:
-* `:country => "narnia"`: checks if the `country` column is equal to the string "narnia"
+* `:nation => "narnia"`: checks if the `nation` column is equal to the string "narnia"
 * `:emis_co2 => >=(0.1)`: checks if the `emis_co2` column is greater than or equal to 0.1
 * `:age => (2,10)`: checks if the `age` column is between 2, and 10, inclusive.  To be exclusive, use different values like (2.0001, 9.99999) for clarity
 * `:state => in(("alabama", "arkansas"))`: checks if the `state` column is either "alabama" or "arkansas"
@@ -204,7 +204,7 @@ function get_row_idxs(table, pairs)
     row_idxs = Int64[i for i in 1:nrow(table)]
     for pair in pairs
         key, val = pair
-        v = table[!,key]
+        v = get_col(table, key)
         comp = comparison(val, v)
         filter!(row_idx->comp(v[row_idx]), row_idxs)
     end
@@ -215,22 +215,52 @@ function get_row_idxs(table, pairs::Pair...)
     row_idxs = Int64[i for i in 1:nrow(table)]
     for pair in pairs
         key, val = pair
-        v = table[!,key]
+        v = get_col(table, key)
         comp = comparison(val, v)
         filter!(row_idx->comp(v[row_idx]), row_idxs)
     end
 
     return row_idxs
 end
+
+function get_col(table, key)
+    if hasproperty(table, key)
+        v = table[!, key]
+    else
+        bus_key = "bus_$key"
+        if hasproperty(table, bus_key)
+            v = table[!, bus_key]
+        else
+            error("table does not have column $key or $bus_key.")
+        end
+    end
+    return v
+end
 function get_row_idxs(table, pair::Pair)
     row_idxs = Int64[i for i in 1:nrow(table)]
     key, val = pair
-    v = table[!, key]
+    v = get_col(table, key)
     comp = comparison(val, v)
     filter!(row_idx->comp(v[row_idx]), row_idxs)
     return row_idxs
 end
 export get_row_idxs
+
+"""
+    row_comparison(row::DataFrameRow, pairs)
+
+Compares a single DataFrameRow to the pairs given and returns the true/false result of the comparison. 
+"""
+function row_comparison(row::DataFrameRow, pairs)
+    for pair in pairs
+        key, val = pair
+        v = row[key]
+        comp = comparison(val, v)
+        comp(v) == false && return false
+    end
+    return true
+end
+export row_comparison
 
 
 """
@@ -249,16 +279,29 @@ function comparison(value, v::AbstractVector)
 end
 export comparison
 
+function comparison(value, v::Any)
+    comparison(value, eltype(v))
+end
+
 function comparison(value::Function, ::Type)
     return value
 end
 
-function comparison(value::AbstractString, ::Type{<:Integer})
+function comparison(value::AbstractString, ::Type{<:Union{Missing, <:Integer}})
     num = parse(Int, value)
     return ==(num)
 end
 
-function comparison(value::AbstractString, ::Type{<:AbstractString})
+function comparison(value::AbstractString, ::Type{<:Union{Missing, <:Number}})
+    num = parse(Float64, value)
+    return ==(num)
+end
+
+function comparison(value::AbstractString, ::Type{<:Union{Missing, <:Bool}})
+    num = parse(Bool, String(value))
+    return ==(num)
+end
+function comparison(value::AbstractString, ::Type{<:Union{Missing, <:AbstractString}})
     return ==(value)
 end
 
@@ -266,16 +309,20 @@ function comparison(value::AbstractString, ::Type)
     return x->string(x) == value
 end
 
-function comparison(value::Tuple{<:Real, <:Real}, ::Type{<:Real})
+function comparison(value::Tuple{<:Real, <:Real}, ::Type{<:Union{Missing, <:Real}})
     lo, hi = value
     return x -> lo <= x <= hi
 end
 
-function comparison(value::Vector, ::Type)
-    return in(value)
+function comparison(value::Number, T::Type{<:Union{Missing, <:AbstractString}})
+    comparison(string(value), T)
 end
 
-function comparison(value::Tuple{<:AbstractString, <:AbstractString}, ::Type{<:AbstractString})
+function comparison(value::Vector, ::Type)
+    return ArrayComparison(value)
+end
+
+function comparison(value::Tuple{<:AbstractString, <:AbstractString}, ::Type{<:Union{Missing, <:AbstractString}})
     lo, hi = value
     return x -> lo <= x <= hi
 end
@@ -285,20 +332,24 @@ function comparison(value, ::Type)
 end
 
 """
-    parse_comparison(table, s) -> comp
+    parse_comparison(s) -> comp
 
-Parses the string, `s` for a comparison with which to filter `table`.
+Parses the string, `s` for a comparison with which to filter a table.
 
 Possible examples of strings `s` to parse:
-* `"country=>narnia"` - All rows for which row.country=="narnia"
+* `"nation=>narnia"` - All rows for which row.nation=="narnia"
 * `"bus_idx=>5"` - All rows for which row.bus_idx==5
 * `"year_on=>(y2002,y2030)"` - All rows for which `row.year_on` is between 2002 and 2030, inclusive.
 * `"emis_co2=>(0.0,4.99)"` - All rows for which `row.emis_co2` is between 0.0 and 4.99, inclusive. (Works for integers and negatives too)
 * `"emis_co2=> >(0)"` - All rows for which `row.emis_co2` is greater than 0 (Works for integers and negatives too)
 * `"year_on=> >(y2002)` - All rows for which `row.year_on` is greater than "y2002" (works for fractional years too, such as "y2002.4")
 * `"genfuel=>[ng, wind, solar]"` - All rows for which `row.genfuel` is "ng", "wind", or "solar".  Works for Ints and Floats too.
+* `"genfuel=>![ng, coal, biomass]"` - All rows for which `row.genfuel` is not "ng", "coal", or "biomass".  Works for Ints and Floats too.
 """
-function parse_comparison(s::AbstractString)
+function parse_comparison(_s::AbstractString)
+    # Remove any quote characters from _s
+    s = replace(_s, "\""=>"")
+
     # In the form "emis_rate=>(0.0001,4.9999)" (should work for Ints, negatives, and Inf too)
     if (m=match(r"([\w\s]+)=>\s*\((\s*-?\s*(?:Inf)?[\d.]*)\s*,\s*-?\s*(?:Inf)?([\d.]*)\s*\)", s)) !== nothing
         r1 = parse(Float64, replace(m.captures[2], ' '=>""))
@@ -312,33 +363,57 @@ function parse_comparison(s::AbstractString)
     end
 
     # In the form "emis_rate=>>(0)" (should work for Ints, negatives, and Inf too)
-    if (m=match(r"([\w\s]+)=>\s*([><]{1}=?)\s*\(?\s*(-?\s*[\d.]+)\s*\)?", s)) !== nothing
+    if (m=match(r"([\w\s]+)=>\s*([><!]{1}=?)\s*\(?\s*(-?\s*[\d.]+)\s*\)?", s)) !== nothing
         r1 = parse(Float64, replace(m.captures[3],' '=>""))
         m.captures[2]==">" && (comp = >(r1))
         m.captures[2]=="<" && (comp = <(r1))
         m.captures[2]==">=" && (comp = >=(r1))
         m.captures[2]=="<=" && (comp = <=(r1))
+        m.captures[2] ∈ ("!", "!=") && (comp = !=(r1))
         return strip(m.captures[1])=>comp
     end
 
     # In the form "year_on=> >(y2020)" (should work decimals)
-    if (m=match(r"([\w\s]+)=>\s*([><]{1}=?)\s*\(?\s*(y[\d.]+)\s*\)?", s)) !== nothing
+    if (m=match(r"([\w\s]+)=>\s*([><!]{1}=?)\s*\(?\s*([\w\d.]+)\s*\)?", s)) !== nothing
         r1 = String(m.captures[3])
         m.captures[2]==">" && (comp = >(r1))
         m.captures[2]=="<" && (comp = <(r1))
         m.captures[2]==">=" && (comp = >=(r1))
         m.captures[2]=="<=" && (comp = <=(r1))
+        m.captures[2] ∈ ("!", "!=") && (comp = !=(r1))
         return strip(m.captures[1])=>comp
     end
 
     # In the form "genfuel=>[ng,solar,wind]"
-    if (m=match(r"([\w\s]+)=>\s*\[([\w,.\s]*)\]", s)) !== nothing
-        ar = str2array(m.captures[2])
-        return strip(m.captures[1])=>ar
+    if (m=match(r"([\w\s]+)=>\s*(!?\[[\w,.\s]*\])", s)) !== nothing
+        ar_str = m.captures[2]
+        ar_str_clean = replace(ar_str, 
+            r"\s+,"=>",",
+            r",\s+"=>",",
+            r"\[\s+"=>"[",
+            r"\s+\]" => "]"
+        )
+        ar = str2array(ar_str)
+        name = strip(m.captures[1])
+        if contains(s, "![")
+            return name => ArrayComparison(ar, not=true)
+        else
+            return name => ArrayComparison(ar)
+        end
     end
 
-    # In the form "country=>narnia" or "bus_idx=>5"
-    if (m = match(r"([\w\s]+)=>([\w\s]+)", s)) !== nothing
+    # In the form latitude=>-89.01
+    if (m = match(r"([\w\s]+)=>(\s?-?\s?\d+[\d\.\s]*$)", s)) !== nothing
+        n = parse(Float64, strip(m.captures[2]))
+        if isinteger(n)
+            return strip(m.captures[1]) => Int(n)
+        else
+            return strip(m.captures[1]) => n
+        end
+    end
+
+    # In the form "nation=>narnia" or "bus_idx=>5"
+    if (m = match(r"([\w\s]+)=>(.+$)", s)) !== nothing
         return strip(m.captures[1])=>strip(m.captures[2])
     end
 end
@@ -348,31 +423,35 @@ export parse_comparison
     parse_comparisons(row::DataFrameRow) -> pairs
 
 Returns a set of pairs to be used in filtering rows of another table.  Looks for the following properties in the row:
+* `area, subarea` - if the row has a non-empty area and subarea, it will parse the comparison `row.area=>row.subarea`
 * `filter_` - if the row has any non-empty `filter_` (i.e. `filter1`, `filter2`) values, it will parse the comparison via [`parse_comparison`](@ref)
 * `genfuel` - if the row has a non-empty `genfuel`, it will add an comparion that checks that each row's `genfuel` equals this value
 * `gentype` - if the row has a non-empty `gentype`, it will add an comparion that checks that each row's `gentype` equals this value
 * `load_type` - if the row has a non-empty `load_type`, it will add an comparion that checks that each row's `load_type` equals this value
 """
 function parse_comparisons(row::DataFrameRow)
-    pairs = []
+    pairs = []::Vector{Any}
     for i in 1:10000
         name = "filter$i"
         hasproperty(row, name) || break
         s = row[name]
-        isempty(s) && break
+        isempty(s) && continue
         pair = parse_comparison(s)
-        push!(pairs, pair)
+        if pair !== nothing
+            push!(pairs, pair)
+        end
     end
     
     # Check for area/subarea
     if hasproperty(row, :area) && ~isempty(row.area) && hasproperty(row, :subarea) && ~isempty(row.subarea)
-        push!(pairs, row.area=>row.subarea)
+        push!(pairs, parse_comparison("$(row.area)=>$(row.subarea)"))
     end
 
     # Check for genfuel and gentype
     hasproperty(row, :genfuel) && ~isempty(row.genfuel) && push!(pairs, parse_comparison("genfuel=>$(row.genfuel)"))
     hasproperty(row, :gentype) && ~isempty(row.gentype) && push!(pairs, parse_comparison("gentype=>$(row.gentype)"))
     hasproperty(row, :load_type) && ~isempty(row.load_type) && push!(pairs, parse_comparison("load_type=>$(row.load_type)"))
+    hasproperty(row, :build_id) && ~isempty(row.build_id) && push!(pairs, parse_comparison("build_id=>$(row.build_id)"))
     
     return pairs
 end
@@ -385,8 +464,54 @@ Returns a set of pairs to be used in filtering rows of another table, where each
 """
 function parse_comparisons(d::AbstractDict)
     pairs = collect(parse_comparison("$k=>$v") for (k,v) in d if ~isempty(v))
+    filter!(!isnothing, pairs)
+    pairs = convert(Vector{Any}, pairs)
+    return pairs
 end
 
+struct ArrayComparison{T, I, F} <: Function
+    v::Vector{T}
+    not::Bool
+    f::F
+    function ArrayComparison(v::Vector{T}; not=false) where T
+        if not == true
+            f = !in(v)
+        else
+            f = in(v)
+        end
+        return new{T, not, typeof(f)}(v, not, f)
+    end
+end
+
+function (c::ArrayComparison{T})(x::AbstractString) where {T <: AbstractString}
+    f = c.f
+    if startswith(x, r"!?\[")
+        v = str2array(x, T)
+        return all(f, v)
+    else
+        return f(x)
+    end
+end
+
+function (c::ArrayComparison{T})(x::AbstractString) where {T}
+    f = c.f
+    if startswith(x, r"!?\[")
+        v = str2array(x, T)
+        return all(f, v)
+    else
+        x1 = parse(T,x)
+        return f(x1)
+    end
+end
+
+function (c::ArrayComparison{T})(x) where {T}
+    f = c.f
+    return f(x)
+end
+
+function (c::ArrayComparison{T})(x::AbstractVector) where {T}
+    return all(c, x)
+end
 
 """
     parse_year_idxs(s::AbstractString) -> comparisons
@@ -430,15 +555,16 @@ Parse a year comparison.  Could take the following forms:
 function parse_hour_idxs(s::AbstractString)
     isempty(s) && return (:)
     
-    # "1"
-    if (m=match(r"\d+", s)) !== nothing
-        return parse(Int64, m.match)
-    end
-    
     # "season=>winter"
     if (m = match(r"([\w\s]+)=>([\w\s]+)", s)) !== nothing
         return strip(m.captures[1])=>strip(m.captures[2])
     end
+
+    # "1"
+    if (m=match(r"\d+", s)) !== nothing
+        return parse(Int64, m.match)
+    end
+
 
     error("No match found for $s")
 end
@@ -446,12 +572,34 @@ export parse_hour_idxs
 
 function str2array(s::AbstractString)
     v = split(s,',')
-    v = strip.(v)
+    v = strip.(v, Ref([' ', '[', ']', '!']))
     v_int = tryparse.(Int64, v)
     v_int isa Vector{Int64} && return v_int
     v_float = tryparse.(Float64, v)
     v_float isa Vector{Float64} && return v_float
     return String.(v)
+end
+
+function str2array(s::AbstractString, T)
+    # TODO: could make this more efficient by iterating through
+    v = split(s,',')
+    out = Vector{T}(undef, length(v))
+    for (i,ss) in enumerate(v)
+        sss = strip(ss, (' ', '[', ']', '!'))
+        out[i] = parse(T, sss)
+    end
+    return out
+end
+
+function str2array(s::AbstractString, ::Type{<:AbstractString})
+    # TODO: could make this more efficient by iterating through
+    v = split(s,',')
+    out = Vector{String}(undef, length(v))
+    for (i,ss) in enumerate(v)
+        sss = strip(ss, (' ', '[', ']', '!'))
+        out[i] = String(sss)
+    end
+    return out
 end
 
 """
@@ -478,7 +626,7 @@ function scale_hourly!(ar::AbstractArray{Float64}, shape, yr_idxs)
     return nothing
 end
 function scale_hourly!(ar::AbstractArray{Float64}, shape::AbstractVector{Float64}, idxs::Int64...)
-    view(ar, idxs..., :) .+= shape
+    view(ar, idxs..., :) .*= shape
     return nothing
 end
 
@@ -568,6 +716,25 @@ function replace_nans!(v, x)
 end
 export replace_nans!
 
+"""
+    replace_zeros!(v, x) -> v
+
+Replaces all zero values in `v` with `x`
+"""
+function replace_zeros!(v, x)
+    for i in eachindex(v)
+        iszero(v[i]) || continue
+        v[i] = x
+    end
+    return v
+end
+export replace_zeros!
+
+function zeroifnan(x::T) where {T <: Number}
+    isnan(x) ? zero(T) : x
+end
+zeroifnan(v::Vector{T}) where {T<:Number} = replace_nans!(v, zero(T))
+
 
 function table2markdown(df::DataFrame)
     io = IOBuffer()
@@ -606,4 +773,38 @@ function sum0(f, itr)
     return sum(f, itr)
 end
 
+function sum0(itr)
+    isempty(itr) && return 0.0
+    return sum(itr)
+end
 
+"""
+    anyany(f, v::AbstractVector{<:AbstractArray}) -> ::Bool
+
+Returns whether any f(x) holds true for any value of each element of v.
+"""
+function anyany(f, v)
+    any(x->any(f, x), v)
+end
+export anyany
+
+function Base.convert(T::Type{Symbol}, x::String)
+    return Symbol(x)
+end
+
+"""
+    get_past_invest_percentages(g, years) -> ::ByYear
+
+Computes the percentage of past investment costs and/or subsidies to still be paid in each `year`, given the `year_on`, `year_unbuilt` and `econ_life` of `g`.
+"""
+function get_past_invest_percentages(g, years)
+    year_on = g.year_on::AbstractString
+    year_unbuilt = g.year_unbuilt::AbstractString
+    econ_life = g.econ_life::Float64
+    diff = diff_years(year_on, year_unbuilt)
+    v = map(years) do y
+        percent = (diff_years(year_on, y) + econ_life) / diff
+        return min(1.0, max(0.0, percent))
+    end
+    return OriginalContainer(0.0, ByYear(v))
+end

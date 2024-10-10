@@ -3,7 +3,7 @@
 
 A generation standard (also refered to as a portfolio standard) is a constraint on generation where a portion of generation from certain generators must meet the a portion of the load in a specified region.
 This encompasses RPSs, CESs, and technology carveouts.
-To assign the credit (the portion of generation that can contribute) to generators, the [Crediting](@ref) type is used.
+To assign the credit (the portion of generation that can contribute) to generators, the [`Crediting`](@ref) type is used.
 
 * `name` - Name of the policy 
 * `gen_filters` - Filters on which generation qualifies to fulfill the GS. Sometimes qualifying generators may be outside of the GS load region if they supply power to it. 
@@ -95,7 +95,8 @@ function E4ST.modify_model!(pol::GenerationStandard, config, data, model)
     tgt_load_name = Symbol("tgt_load_$(pol.name)")
     hour_weights = get_hour_weights(data)
 
-    pl_gs_bus = model[:pl_gs_bus]
+    pl_gs_bus = model[:pl_gs_bus]::Array{AffExpr, 3}
+    pgen_gen = model[:pgen_gen]::Array{VariableRef, 3}
 
     # Construct expression for target load
     tgt_load_expr = @expression(model,
@@ -131,7 +132,7 @@ function E4ST.modify_model!(pol::GenerationStandard, config, data, model)
             tgt_load_expr[yr_idx] != 0
         ],
         sum(
-            get_egen_gen(data, model, gen_idx, yr_idx, hr_idx) * 
+            pgen_gen[gen_idx, yr_idx, hr_idx] * hour_weights[hr_idx] * 
             get_table_num(data, :gen, pol.name, gen_idx, yr_idx, hr_idx)
             for gen_idx=gen_idxs, hr_idx=1:nhour
         ) >= (
@@ -148,19 +149,39 @@ Modifies the results by adding the following columns to the bus table:
 * `pl_gs` - GS-qualifying load power, in MW
 * `el_gs` - GS-qualifying load energy, in MWh.
 """
-function modify_results!(mod::GenerationStandard, config, data)
+function modify_results!(pol::GenerationStandard, config, data)
     bus = get_table(data, :bus)
+    gen = get_table(data, :gen)
 
-    # TODO: do any other results processing here
+    prc_name = Symbol("$(pol.name)_prc")
+    cost_name = Symbol("$(pol.name)_cost")
 
-    # Add pl_gs and el_gs to the bus
-    hasproperty(bus, :pl_gs) && return
-    pl_gs_bus = get_raw_result(data, :pl_gs_bus)
-    el_gs_bus = weight_hourly(data, pl_gs_bus)
+    # Add pl_gs and el_gs to the bus if they haven't already been added
+    if !hasproperty(bus, :pl_gs) 
+        pl_gs_bus = get_raw_result(data, :pl_gs_bus)
+        el_gs_bus = weight_hourly(data, pl_gs_bus)
 
-    add_table_col!(data, :bus, :pl_gs, pl_gs_bus, MWServed, "Served Load Power that qualifies for generation standards")
-    add_table_col!(data, :bus, :el_gs, el_gs_bus, MWhServed, "Served Load Energy that qualifies for generation standards")
-    return
+        add_table_col!(data, :bus, :pl_gs, pl_gs_bus, MWServed, "Served Load Power that qualifies for generation standards")
+        add_table_col!(data, :bus, :el_gs, el_gs_bus, MWhServed, "Served Load Energy that qualifies for generation standards")
+
+        add_results_formula!(data, :bus, :el_gs_total, "SumHourly(el_gs)", MWhServed, "Total served load energy that qualifies for generation standards")
+    end
+    
+    # create column for per MWh price of the policy in :gen
+    shadow_prc = get_shadow_price_as_ByYear(data, Symbol("cons_$(pol.name)")) #($/MWhGenerated) by year
+    gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
+
+    add_table_col!(data, :gen, prc_name,  Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated, "Policy price based on shadow price of $(pol.name) (converted to DollarsPerMWhGenerated) multiplied by the credit.")
+
+    # set to shadow_prc * crediting
+    for i in gen_idxs
+        gen[i, prc_name] = -(shadow_prc) .* gen[i, pol.name]
+    end
+
+
+    # policy cost, price * credit * generation
+    add_results_formula!(data, :gen, cost_name, "SumHourlyWeighted($(prc_name), pgen)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
+    add_to_results_formula!(data, :gen, :gs_rebate, cost_name)
 end
 export modify_results!
 
@@ -185,7 +206,7 @@ function add_pl_gs_bus!(config, data, model)
     nhour = get_num_hours(data)
 
 
-    plcurt_bus = model[:plcurt_bus]
+    plcurt_bus = model[:plcurt_bus]::Array{VariableRef, 3}
     hour_weights = get_hour_weights(data)
 
     @expression(model, 
@@ -198,12 +219,12 @@ function add_pl_gs_bus!(config, data, model)
     line_loss_type = config[:line_loss_type]
     line_loss_rate = config[:line_loss_rate]
     if line_loss_type == "plserv"
-        loss_scalar = 1/(1-line_loss_rate) - 1
+        loss_scalar = 1/(1-line_loss_rate) - 1 # -1 because we are adding it
         for bus_idx in axes(bus, 1), yr_idx in 1:nyear, hr_idx in 1:nhour
             add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pl_gs_bus[bus_idx, yr_idx, hr_idx], loss_scalar)
         end
     elseif line_loss_type == "pflow"
-        pflow_out_bus = model[:pflow_out_bus]
+        pflow_out_bus = model[:pflow_out_bus]::Array{VariableRef, 3}
         for bus_idx in axes(bus, 1), yr_idx in 1:nyear, hr_idx in 1:nhour
             add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pflow_out_bus[bus_idx, yr_idx, hr_idx], line_loss_rate)
         end
@@ -214,8 +235,8 @@ function add_pl_gs_bus!(config, data, model)
 
     # Add storage to the expression.  Note this must come after line losses so that the generation-side storage doesn't get penalized for line losses.
     if haskey(data, :storage)
-        pdischarge_stor = model[:pdischarge_stor]
-        pcharge_stor = model[:pcharge_stor]
+        pdischarge_stor = model[:pdischarge_stor]::Array{VariableRef, 3}
+        pcharge_stor = model[:pcharge_stor]::Array{VariableRef, 3}
         hour_weights = get_hour_weights(data)
         storage = get_table(data, :storage)
         for (stor_idx, row) in enumerate(eachrow(storage))

@@ -4,12 +4,12 @@
 
     YearlyTable(;name, table_name, groupby=Symbol[], group_hours_by=Symbol[])
 
-This modification creates an agregated table for each year in the simulation.  It includes all of the relevant columns from table `get_table(data, table_name)`, aggregated with [`aggregate_result`](@ref), grouped by column names in `groupby`.  The hours are grouped by columns from the `group_hours_by` field.
+This modification creates an agregated table for each year in the simulation.  It includes all of the result formulas listed in [`get_results_formulas(data, table_name)`](@ref), grouped by column names in `groupby`.  The hours are grouped by columns from the `group_hours_by` field.
 
 # Fields:
 * `name` - the name of the Modification, (don't need to specify this field in config file).  The outputed table will be saved to [`get_out_path(config, "<name>_<year>.csv")`](@ref)
 * `table_name` - the name of the table to export.  I.e. `gen`, `bus`, or `branch`
-* `groupby = Symbol[]` - the name(s) of the columns of the table specified by `table_name` to group by. I.e. `state`, `country`, `genfuel`, `gentype`, etc.  Leave blank to group the whole table together.  To prevent any grouping and show every row, give a `:`
+* `groupby = Symbol[]` - the name(s) of the columns of the table specified by `table_name` to group by. I.e. `state`, `nation`, `genfuel`, `gentype`, etc.  Leave blank to group the whole table together into a single row.  To prevent any grouping and show every row, give a `:`
 * `group_hours_by = Symbol[]` - the name(s) of the columns of the hours table to group by.  I.e. `season`.  Leave blank to group the whole table together. To prevent any grouping and show every hour, give a `:`
 """
 struct YearlyTable{G,H} <: Modification
@@ -20,28 +20,27 @@ struct YearlyTable{G,H} <: Modification
 end
 export YearlyTable
 function YearlyTable(;name, table_name, groupby = Symbol[], group_hours_by = Symbol[])
-    if groupby == ":"
+    if groupby == ":" || groupby == "Colon()"
         groupby = (:)
     end
     return YearlyTable(Symbol(name), Symbol(table_name), groupby, group_hours_by)
 end
 
-mod_rank(::Type{<:YearlyTable}) = 0.0
+mod_rank(::Type{<:YearlyTable}) = 5.0
 
 """
     modify_results!(mod::YearlyTable, config, data) -> nothing
-
-
 """
 function modify_results!(mod::YearlyTable, config, data)
     @info "Starting result processing for YearlyTable $(mod.name)"
 
     # Retrieve the table and group it
-    results = get_results(data)
     table_name = mod.table_name
     table = get_table(data, table_name)
     gdf = groupby(table, mod.groupby)
     idx_sets = [getfield(sdf, :rows) for sdf in gdf]
+
+    filter_results_formulas!(data)
 
     # Retrieve the hours table and group it
     hours_table = get_table(data, :hours)
@@ -49,7 +48,8 @@ function modify_results!(mod::YearlyTable, config, data)
     hour_idx_sets = [getfield(sdf, :rows) for sdf in gdf_hours]
 
     # Compute the columns of the yearly_table.
-    new_cols = get_new_cols_for_yearly_table(data, table_name, gdf, idx_sets, hour_idx_sets) 
+    new_cols = get_new_cols_for_yearly_table(data, table_name, gdf, idx_sets, hour_idx_sets)
+    results_formulas = get_results_formulas(data, table_name)
 
     # Loop over each year in data
     for (yr_idx, yr) in enumerate(get_years(data))
@@ -62,6 +62,10 @@ function modify_results!(mod::YearlyTable, config, data)
             df[!, col_name] = [col_fn(group_idx, yr_idx, hr_group_idx)
                 for group_idx in 1:length(idx_sets) for hr_group_idx in 1:length(hour_idx_sets)
             ]
+        end
+
+        for (_, result_name) in keys(results_formulas)
+            compute_results!(df, data, table_name, result_name, idx_sets, yr_idx, hour_idx_sets)
         end
 
         # Add columns for hours in group_hours_by
@@ -81,8 +85,8 @@ function modify_results!(mod::YearlyTable, config, data)
         add_result!(data, Symbol(out_name), df)
         CSV.write(out_file, df)
 
-        @info "Done with result processing for YearlyTable $(mod.name)"
     end
+    @info "Done with result processing for YearlyTable $(mod.name)"
 end
 export modify_results!
 
@@ -98,7 +102,7 @@ function get_new_cols_for_yearly_table(data, table_name, gdf, group_idx_sets, ho
     table = get_table(data, table_name)
 
     # Begin composing the new_cols OrderedDict by looping through each column in the table
-    new_cols = OrderedDict{String, Function}()
+    new_cols = OrderedDict{Symbol, Function}()
     for name in propertynames(table)
 
         # Pull out the unit and type of the column
@@ -107,28 +111,11 @@ function get_new_cols_for_yearly_table(data, table_name, gdf, group_idx_sets, ho
 
         # Check to see if the column is numeric
         if type <: Float64 || type <: Container || type <: AbstractArray{Float64}
-
-            # Check if total or average has methods for the unit type
-            check = false
-            if hasmethod(total, Tuple{Type{unit}, Any, Any, Any, Any, Any, Any})
-                # Add this to the combine arguments
-                new_cols["$(name)_total"] = (group_idx, yr_idxs, hr_group_idx) -> aggregate_result(total, data, table_name, name, group_idx_sets[group_idx], yr_idxs, hour_idx_sets[hr_group_idx])
-                check = true
-            end
-            if hasmethod(average, Tuple{Type{unit}, Any, Any, Any, Any, Any, Any})
-                # Add this to the combine arguments
-                new_cols["$(name)_average"] = (group_idx, yr_idxs, hr_group_idx) -> aggregate_result(average, data, table_name, name, group_idx_sets[group_idx], yr_idxs, hour_idx_sets[hr_group_idx])
-                check = true
-            end
-
-            # Throw a warning if neither method is implemented.
-            check || @warn "$table_name[:$name] is numeric but has no `total` or `average` method defined for Unit type $unit"
-
         else
             # If not numeric check to see if each group has the same value for this column.
             if all(allequal(sdf[!, name]) for sdf in gdf)
                 push!(new_cols,
-                    string(name) => (group_idx, yr_idx, hr_group_idx) -> gdf[group_idx][1, name]
+                    name => (group_idx, yr_idx, hr_group_idx) -> gdf[group_idx][1, name]
                 )
             end
         end

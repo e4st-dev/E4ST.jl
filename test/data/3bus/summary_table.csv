@@ -1,7 +1,7 @@
 table_name,column_name,data_type,unit,required,description
 build_gen,source,AbstractString,NA,0,"Source file of the generator, if applicable"
 build_gen,emis_co2,Float64,ShortTonsPerMWhGenerated,0,"Emission rate of the generator, in short tons per MWh generated"
-bus,country,AbstractString,NA,0,Country that the bus is in
+bus,nation,AbstractString,NA,0,nation that the bus is in
 bus,buildngcc,Bool,NA,0,Whether or not ngcc can be built in the bus
 bus,buildsolar,Bool,NA,0,Whether or not solar units can be built in the bus
 hours,day,Int64,NA,0,Which representative day the hour is in

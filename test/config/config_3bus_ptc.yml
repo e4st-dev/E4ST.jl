@@ -5,8 +5,15 @@ mods:
     values: 
       y2035: 12
       y2040: 12
-    gen_age_min: 0
-    gen_age_max: 30
+    years_after_ref_min: 0
+    years_after_ref_max: 10
     gen_filters:
       emis_co2: "<= 0.1"
-      country: "narnia"
+      bus_nation: "narnia"
+  example_ptc_no_age_filter:
+    type: "PTC"
+    values: 
+      y2035: 1
+      y2040: 1
+    gen_filters:
+      bus_nation: "archenland"

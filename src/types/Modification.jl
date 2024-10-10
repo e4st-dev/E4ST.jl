@@ -107,7 +107,7 @@ end
 Change the raw data with `mod`.
 """
 function modify_raw_data!(mod::Modification, config, data)
-    @warn "No modify_raw_data! function defined for mod type $(typeof(mod)), doing nothing"
+    @info "No modify_raw_data! function defined for mod type $(typeof(mod)), doing nothing"
 end
 
 """
@@ -116,7 +116,7 @@ end
 Change the setup data with `mod`.
 """
 function modify_setup_data!(mod::Modification, config, data)
-    @warn "No modify_setup_data! function defined for mod type $(typeof(mod)), doing nothing"
+    @info "No modify_setup_data! function defined for mod type $(typeof(mod)), doing nothing"
 end
 
 
@@ -126,7 +126,7 @@ end
 Apply mod to the model, called in `setup_model`
 """
 function modify_model!(mod::Modification, config, data, model)
-    @warn "No modify_model! function defined for mod type $(typeof(mod)), doing nothing"
+    @info "No modify_model! function defined for mod type $(typeof(mod)), doing nothing"
 end
 
 """
@@ -135,7 +135,7 @@ end
 Gather the results from `mod` from the solved model, called in `parse_results!`
 """
 function modify_results!(mod::Modification, config, data)
-    @warn "No modify_results! function defined for mod type $(typeof(mod)), doing nothing"
+    @info "No modify_results! function defined for mod type $(typeof(mod)), doing nothing"
 end
 
 """
@@ -156,7 +156,7 @@ Prints the field determined in fieldnames_for_yaml from the Modification.
 """
 function YAML._print(io::IO, mod::M, level::Int=0, ignore_level::Bool=false) where {M<:Modification}
     println(io)
-    moddict = OrderedDict(:type => string(typeof(mod)), (k=>getproperty(mod, k) for k in fieldnames_for_yaml(M))...)
+    moddict = OrderedDict(:type => clean_type_string(mod), (k=>getproperty(mod, k) for k in fieldnames_for_yaml(M))...)
     YAML._print(io::IO, moddict, level, ignore_level)
 end
 

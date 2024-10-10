@@ -8,28 +8,16 @@ Constraints and expressions can also be defined outside of setup_dcopf!() before
 ```@docs
 setup_dcopf!
 ```
-### Get Model Variable Function
-These functions get or use model variables. To get the value after optimizing the model they must be wrapped in value.(). 
-```@docs
-get_pgen_bus
-get_pflow_bus
-get_pflow_branch
-```
-### Constriant/Expression Info Function
-These functions are used in defining the model constraints. 
-```@docs
-get_pgen_max
-get_egen_gen
-```
 
 ### Model Mutation Functions
-These functions are used to modify the model, specifically creating and adding terms to the objective expression. The Term abstract type is used to determine how the term (cost or benefit) should be added to the objective function.
+These functions are used to modify the model, specifically creating and adding terms to the objective expression. The `Term` abstract type is used to determine how the term (cost or benefit) should be added to the objective function.
 
 ```@docs
 Term
 PerMWhGen
 PerMWCap
 PerMWhCurtailed
+PerMWCapInv
 add_obj_term!
 add_obj_exp!
 ```

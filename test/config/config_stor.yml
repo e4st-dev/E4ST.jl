@@ -6,5 +6,11 @@ mods:
   results_stor:
     type: YearlyTable
     table_name: storage
-    groupby: state
-    
+    groupby: bus_state
+  example_storage_itc:
+    type: "ITCStorage"
+    values:
+      y2035: 0.7
+      y2040: 0.6
+other_config_files:
+  - "config_3bus_emiscap.yml"

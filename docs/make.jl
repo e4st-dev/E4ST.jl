@@ -24,8 +24,10 @@ makedocs(
         ],
         "Results" => Any[
             "Overview" => "results/overview.md",
-            "Aggregation" => "results/aggregation.md",
+            "Formulas" => "results/formulas.md",
+            "Results Modifications" => "results/modifications.md",
             "Plotting" => "results/plotting.md",
+            "Post-Processing" => "results/post-processing.md",
         ],
         "Abstract Types"=>Any[
             "Modication"=>"types/mod.md",
@@ -35,7 +37,9 @@ makedocs(
         ],
         "Modifications"=>Any[
             "Arbitrary Temporal Adjustments" => "types/modifications/adjust.md",
-            "Fuel Prices" => "types/modifications/fuel-price.md",
+            "Endogenous Fuel Prices" => "types/modifications/fuel-price.md",
+            "Reserve Requirements" => "types/modifications/reserve-requirement.md",
+            "Annual Capacity Factor Limit" => "types/modifications/annual-cf-lim.md",
         ],
         "Technologies"=>Any[
             "CO₂ Capture, Utilization & Storage"=>"types/modifications/ccus.md",
@@ -47,10 +51,15 @@ makedocs(
         
     ],
     # TODO: Comment out format line before deploying, this is only for testing locally
-    format = Documenter.HTML(prettyurls = false)
+    format = Documenter.HTML(
+        assets = ["assets/favicon.ico"],
+        prettyurls = false
+    ),
+    warnonly=true,
 )
 
 # TODO: Uncomment below to deploy the docs to the github repo!
-# deploydocs(
-#     repo = "https://github.com/e4st-dev/E4ST.jl"
-# )
+deploydocs(
+    repo = "https://github.com/e4st-dev/E4ST.jl",
+    devbranch = "main"
+)

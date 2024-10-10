@@ -6,9 +6,14 @@ Calls [`modify_results!(mod, config, data)`](@ref) for each `Modification` in `c
 function process_results!(config::OrderedDict, data::OrderedDict)
     log_header("PROCESSING RESULTS")
 
-    for (name, mod) in get_mods(config)
-        modify_results!(mod, config, data)
+    for (name, m) in get_mods(config)
+        @info "Modifying results with Modification $name of type $(typeof(m))"
+        _try_catch(modify_results!, name, m, config, data)
     end
+
+    # Save the summary table and results formulas
+    save_summary_table(config, data)
+    save_results_formulas(config, data)
 
     if get(config, :save_data_processed, true)
         serialize(get_out_path(config,"data_processed.jls"), data)
@@ -58,3 +63,47 @@ function process_results!(mod_file::String, out_path::String; processed=true)
     process_results!(config; processed)
 end
 export process_results!
+
+function save_summary_table(config, data)
+    table = get_table(data, :summary_table)
+
+    st = filter(row->has_table(data, row.table_name) && hasproperty(get_table(data, row.table_name), row.column_name), table)
+
+    for row in eachrow(st)
+        row.data_type = eltype(get_table_col(data, row.table_name, row.column_name))
+    end
+
+    out_file = get_out_path(config, "summary_table.csv")
+    CSV.write(out_file, st)
+end
+
+
+function save_results_formulas(config, data)
+    results_formulas = get_results_formulas(data)
+    table = make_results_formulas_table(results_formulas)
+    out_file = get_out_path(config, "results_formulas.csv")
+    CSV.write(out_file, table)
+end
+
+"""
+    make_results_formulas_table(results_formulas::OrderedDict{Tuple{Symbol, Symbol},ResultsFormula}) -> df
+
+
+"""
+function make_results_formulas_table(results_formulas::OrderedDict{Tuple{Symbol, Symbol},ResultsFormula})
+    table = DataFrame(;
+        table_name=Symbol[],
+        result_name=Symbol[],
+        formula=String[],
+        unit=Type[],
+        description = String[]
+    )
+    for (k,v) in results_formulas
+        (table_name, result_name) = k
+        formula = v.formula
+        unit = v.unit
+        description = v.description
+        push!(table, (;table_name, result_name, formula, unit, description))
+    end
+    return table
+end

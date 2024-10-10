@@ -3,6 +3,7 @@ Iterable
 ```@docs
 Iterable
 init!
+issequential
 should_iterate
 iterate!
 should_reread_data

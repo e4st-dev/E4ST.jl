@@ -21,10 +21,12 @@ function setup_table!(config, data, ::Val{:nominal_load})
     plnom_bus = [LoadContainer() for _ in 1:nrow(bus)]
 
     add_table_col!(data, :bus, :plnom, plnom_bus, MWLoad, "Average MW of power load")
-    for row in eachrow(load)
-        bus_idx = row.bus_idx::Int64
-        c = bus[bus_idx, :plnom]
-        _add_view!(c, row.plnom)
+
+    load_bus_idxs = load.bus_idx::Vector{Int64}
+
+    for (cur_plnom, cur_bus_idx) in zip(plnom, load_bus_idxs)
+        c = plnom_bus[cur_bus_idx]
+        _add_view!(c, cur_plnom)
     end
 
     # Modify the load by shaping, matching, and adding
@@ -41,9 +43,9 @@ Shapes the hourly load to match profiles given in `config[:load_shape_file]`.  S
 Load power often changes on an hourly basis. The `load_shape_table` allows the user to provide hourly load profiles with which to scale the base load power for load regions, types, or even specific load elements.  Each row of the table represents a set of load elements, and the hourly load profile with which to scale them.  For load elements that fall in multiple sets, the hourly load will be scaled by each profile, in order.
 """
 function shape_nominal_load!(config, data)
-    load_shape_table = data[:load_shape]
+    load_shape_table = get_table(data, :load_shape)
     bus_table = get_table(data, :bus)
-    nominal_load = data[:nominal_load]
+    nominal_load = get_table(data, :nominal_load)
     load_arr = get_load_array(data)
     
     # Grab the hour index for later use
@@ -77,9 +79,9 @@ function shape_nominal_load!(config, data)
 
     # Loop through each row in the load_shape_table
     for (i, row) in enumerate(eachrow(load_shape_table))
-        shape = Float64[row[i_hr] for i_hr in hr_idx:(hr_idx + nhr - 1)]
-
         get(row, :status, true) || continue
+
+        shape = Float64[row[i_hr] for i_hr in hr_idx:(hr_idx + nhr - 1)]
 
         if !hasproperty(row, :year) || isempty(row.year)
             yr_idx = 1:get_num_years(data)
@@ -118,9 +120,9 @@ Match the yearly load by area given in `config[:load_match_file]`, updates the `
 Often, we want to force the total energy load for a set of load elements over a year to match load projections from a data source.  The `load_match_table` allows the user to provide yearly energy load targets, in \$MWh\$, to match.  The matching weights each hourly load by the number of hours spent at each of the representative hours, as provided in the `hours` table, converting from \$MW\$ power load over the representative hour, into \$MWh\$.
 """
 function match_nominal_load!(config, data) 
-    load_match_table = data[:load_match]
+    load_match_table = get_table(data, :load_match)
     bus_table = get_table(data, :bus)
-    nominal_load = data[:nominal_load]
+    nominal_load = get_table(data, :nominal_load)
     load_arr = get_load_array(data)
 
     # Pull out year info that will be needed

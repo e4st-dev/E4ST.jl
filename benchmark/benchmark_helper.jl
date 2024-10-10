@@ -14,13 +14,15 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
     bus = DataFrame(
         ref_bus = fill(false, n_bus),
         plnom = rand(n_bus),
-        country = rand(countries(), n_bus)
+        nation = rand(nations(), n_bus),
+        reg_factor = rand(n_bus),
     )
     ref_bus_idx = rand(1:n_bus)
     bus.ref_bus[ref_bus_idx] = true
 
     gen = DataFrame(
         bus_idx = rand(1:n_bus, n_gen),
+        reg_factor = rand(n_gen),
         status = trues(n_gen),
         build_status = rand(build_status_opts(), n_gen),
         build_type = rand(build_type_opts(), n_gen),
@@ -34,11 +36,16 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
         heat_rate = 10*rand(n_gen),
         fom = rand(n_gen),
         capex = rand(n_gen),
+        transmission_capex=rand(n_gen),
+        routine_capex=rand(n_gen),
         year_on = year2str.(rand(2000:2023, n_gen)),
         year_off = fill("y9999", n_gen),
+        year_shutdown = fill("y9999", n_gen),
+        econ_life = fill(30, n_gen),
         hr = rand(n_gen),
         chp_co2_multi = ones(n_gen),
     )
+    gen.pcap_inv = copy(gen.pcap0)
     gt = gentypes()
     gen.gentype = map(gen.genfuel) do gf
         rand(gt[gf])
@@ -119,6 +126,23 @@ function make_random_inputs(;n_bus = 100, n_gen = 100, n_branch=100, n_af=100, n
     return config
 end
 
+function bench_e4st()
+    config_files = [
+        abspath(@__DIR__, "../test/config/config_3bus.yml"),
+        abspath(@__DIR__, "../test/config/config_ccus.yml"),
+        abspath(@__DIR__, "../test/config/config_res.yml"),
+        abspath(@__DIR__, "../test/config/config_3bus_itc.yml"),
+        abspath(@__DIR__, "../test/config/config_3bus_ptc.yml"),
+        abspath(@__DIR__, "../test/config/config_3bus_rps.yml"),
+        abspath(@__DIR__, "../test/config/config_3bus_ces.yml"),
+        abspath(@__DIR__, "../test/config/config_3bus_if.yml"),
+        abspath(@__DIR__, "../test/config/config_3bus_emiscap.yml"),
+        abspath(@__DIR__, "../test/config/config_3bus_emisprc.yml"),
+        abspath(@__DIR__, "../test/config/config_stor.yml"),
+    ]
+    run_e4st(config_files...)
+end
+
 function years()
     ["y$y" for y in 2030:5:2050]
 end
@@ -129,7 +153,7 @@ end
 function load_types()
     ("ev", "residential", "commercial", "industrial", "transportation")
 end
-function countries()
+function nations()
     ("narnia", "calormen", "archenland", "telmar")
 end
 
@@ -179,11 +203,11 @@ function rand_af(;n_hours, n_af)
     gt = gentypes()
     yrs = year_strs()
     while nrow(af) < n_af
-        for country in countries()
+        for nation in nations()
             joint += 1
             for genfuel in genfuels(), gentype in gt[genfuel]
                 year = rand(yrs)
-                push!(af, ("country", country, genfuel, gentype, year, joint, true, rand(n_hours)...))
+                push!(af, ("bus_nation", nation, genfuel, gentype, year, joint, true, rand(n_hours)...))
                 if nrow(af) == n_af
                     break
                 end
@@ -212,11 +236,11 @@ function rand_load_shape(;n_hours, n_load_shape)
     yrs = year_strs()
     lts = load_types()
     while nrow(load_shape) < n_load_shape
-        for country in countries()
+        for nation in nations()
             joint += 1
             for lt in lts
                 year = rand(yrs)
-                push!(load_shape, ("country", country, lt, year, joint, true, rand(n_hours)...))
+                push!(load_shape, ("nation", nation, lt, year, joint, true, rand(n_hours)...))
                 if nrow(load_shape) == n_load_shape
                     break
                 end
@@ -243,10 +267,10 @@ function rand_load_match(;n_years, n_load_match)
     gt = gentypes()
     lts = load_types()
     while nrow(load_match) < n_load_match
-        for country in countries()
+        for nation in nations()
             joint += 1
             for lt in lts
-                push!(load_match, ("country", country, lt, joint, true, rand(n_years)...))
+                push!(load_match, ("nation", nation, lt, joint, true, rand(n_years)...))
                 if nrow(load_match) == n_load_match
                     break
                 end
@@ -275,11 +299,11 @@ function rand_load_add(;n_hours, n_load_add)
     yrs = year_strs()
     lts = load_types()
     while nrow(load_add) < n_load_add
-        for country in countries()
+        for nation in nations()
             joint += 1
             for lt in lts
                 year = rand(yrs)
-                push!(load_add, ("country", country, lt, year, joint, true, rand(n_hours)...))
+                push!(load_add, ("nation", nation, lt, year, joint, true, rand(n_hours)...))
                 if nrow(load_add) == n_load_add
                     break
                 end

@@ -1,7 +1,9 @@
 @testset "Test Optimizing Model" begin
 
     config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
-    config = read_config(config_file)
+    config = read_config(config_file, log_model_summary=true)
+    config[:mods][:adj_yearly] = AdjustYearly(file=joinpath(@__DIR__, "data", "3bus", "adjust_yearly.csv"), name=:adj_yearly) #overwrites previous adj_yearly
+
 
     data = read_data(config)
     model = setup_model(config, data)
@@ -9,22 +11,37 @@
     optimize!(model)
     # solution_summary(model)
 
-    @test check(model)
+    @test check(config, data, model)
 
     parse_results!(config, data, model)
+    process_results!(config, data)
 
     @testset "Test no curtailment" begin
         bus = get_table(data, :bus)
         years = get_years(data)
         rep_hours = get_table(data, :hours)
-        total_elserv = aggregate_result(total, data, :bus, :elserv)
-        total_elnom = aggregate_result(total, data, :bus, :elnom)
+        total_elserv = compute_result(data, :bus, :elserv_total)
+        total_elnom = compute_result(data, :bus, :elnom_total)
         # total_plserv = sum(rep_hours.hours[hour_idx].*value.(model[:plserv_bus][bus_idx, year_idx, hour_idx]) for bus_idx in 1:nrow(bus), year_idx in 1:length(years), hour_idx in 1:nrow(rep_hours))
-        total_elcurt = aggregate_result(total, data, :bus, :elcurt)
+        total_elcurt = compute_result(data, :bus, :elcurt_total)
         @test total_elserv ≈ total_elnom
         @test all(p->abs(p)<1e-6, total_elcurt)
     end
 
+    @testset "Test misc. results computations" begin
+        dam_co2 = data[:dam_co2]::Container
+        @test compute_result(data, :gen, :climate_damages_co2e_total) ≈
+            sum(compute_result(data, :gen, :emis_co2e_total, :, yr_idx) * dam_co2[yr_idx,:] for yr_idx in 1:get_num_years(data))
+
+    end
+
+    @testset "Test pgen calculations" begin
+        pgen_min = compute_result(data, :gen, :pgen_min)
+        pgen_max = compute_result(data, :gen, :pgen_max)
+        pgen_avg = compute_result(data, :gen, :pgen_avg)
+        @test pgen_min < pgen_avg < pgen_max
+    end
+    
     @testset "Test DC lines" begin
         res_raw = get_raw_results(data)
         @test haskey(data, :dc_line)
@@ -36,12 +53,26 @@
     gen = get_table(data, :gen)
 
     for gen_idx in 1:nrow(gen)
-        @test aggregate_result(total, data, :gen, :egen, gen_idx) >= 0
+        @test compute_result(data, :gen, :egen_total, gen_idx) >= 0
     end
 
-    @testset "Test exogenous retirement" begin
+    @testset "Test retirement" begin
         @test count(==("retired_exog"), gen.build_status) == 1
-        @test count(==("retired_endog"), gen.build_status) > 1
+        @test count(==("retired_endog"), gen.build_status) > 0
+        @test compute_result(data, :gen, :pcap_retired_total, [:build_type=>"endog"]) < 0.001 # Shouldn't be retiring endogenously built capacity.
+
+        updated_gen_table = read_table(get_out_path(config, "gen.csv"))
+
+        @test ~any(row->(row.pcap_inv <= 0), eachrow(updated_gen_table))
+
+
+        for row in eachrow(gen)
+            if contains(row.build_status, "retired")
+                @test row.year_off in get_years(data)
+            else
+                @test row.year_off == "y9999"
+            end
+        end
     end
 
     @testset "Test site constraints" begin
@@ -49,34 +80,34 @@
         bus = get_table(data, :bus)
         nyr = get_num_years(data)
         @test all(
-            aggregate_result(total, data, :gen, :pcap, [:build_id=>row.build_id, :bus_idx=>bus_idx], yr_idx) <= row.pcap_max
+            compute_result(data, :gen, :pcap_total, [:build_id=>row.build_id, :bus_idx=>bus_idx], yr_idx) <= row.pcap_max + 1e-9
             for row in eachrow(build_gen), bus_idx in 1:nrow(bus), yr_idx in 1:nyr
         )
         res_raw = get_raw_results(data)
-        @test haskey(res_raw, Symbol("cons_pcap_gen_match_max_build"))
-        @test haskey(res_raw, Symbol("cons_pcap_gen_match_min_build"))
+        @test haskey(res_raw, :cons_pcap_gen_match_max_build)
+        @test haskey(res_raw, :cons_pcap_gen_match_min_build)
     end
 
     @testset "Test Accessor methods" begin
-        @test aggregate_result(total, data, :gen, :egen, :genfuel=>"ng", "y2040", 1:3) ≈ 
-            aggregate_result(total, data, :gen, :egen, :genfuel=>"ng", 3, [1,2,3])
+        @test compute_result(data, :gen, :egen_total, :genfuel=>"ng", "y2040", 1:3) ≈ 
+            compute_result(data, :gen, :egen_total, :genfuel=>"ng", 3, [1,2,3])
 
-        @test aggregate_result(total, data, :gen, :egen, 1:2, ["y2035","y2040"], 1:3) ≈ 
-            aggregate_result(total, data, :gen, :egen, 1, 2:3, [1,2,3]) + 
-            aggregate_result(total, data, :gen, :egen, 2, 2:3, 1) +
-            aggregate_result(total, data, :gen, :egen, 2, 2:3, 2) +
-            aggregate_result(total, data, :gen, :egen, 2, 2:3, 3)
+        @test compute_result(data, :gen, :egen_total, 1:2, ["y2035","y2040"], 1:3) ≈ 
+            compute_result(data, :gen, :egen_total, 1, 2:3, [1,2,3]) + 
+            compute_result(data, :gen, :egen_total, 2, 2:3, 1) +
+            compute_result(data, :gen, :egen_total, 2, 2:3, 2) +
+            compute_result(data, :gen, :egen_total, 2, 2:3, 3)
 
-        @test aggregate_result(total, data, :gen, :egen) ≈ aggregate_result(total, data, :gen, :egen, :)
-        @test aggregate_result(total, data, :gen, :egen, :genfuel=>"ng") ≈
-            aggregate_result(total, data, :gen, :egen, (:genfuel=>"ng", :country=>"narnia")) + 
-            aggregate_result(total, data, :gen, :egen, (:genfuel=>"ng", :country=>"archenland"))
+        @test compute_result(data, :gen, :egen_total) ≈ compute_result(data, :gen, :egen_total, :)
+        @test compute_result(data, :gen, :egen_total, :genfuel=>"ng") ≈
+            compute_result(data, :gen, :egen_total, (:genfuel=>"ng", :bus_nation=>"narnia")) + 
+            compute_result(data, :gen, :egen_total, (:genfuel=>"ng", :bus_nation=>"archenland"))
         
     end
 
     @testset "Test line losses on plserv" begin
-        egen = aggregate_result(total, data, :gen, :egen)
-        elserv = aggregate_result(total, data, :bus, :elserv)
+        egen = compute_result(data, :gen, :egen_total)
+        elserv = compute_result(data, :bus, :elserv_total)
         @test egen ≈ elserv / (1-config[:line_loss_rate]) 
     end
     
@@ -87,9 +118,9 @@
         optimize!(model)
         parse_results!(config, data, model)
 
-        egen = aggregate_result(total, data, :gen, :egen)
-        elserv = aggregate_result(total, data, :bus, :elserv)
-        eflow_in = aggregate_result(total, data, :bus, :eflow_in)
+        egen = compute_result(data, :gen, :egen_total)
+        elserv = compute_result(data, :bus, :elserv_total)
+        eflow_in = compute_result(data, :bus, :eflow_in_total)
         @test egen ≈ (config[:line_loss_rate] * eflow_in) + elserv
     end
 
@@ -115,16 +146,16 @@
         fuel_used = get_raw_result(data, :fuel_used)
 
         @test sum(fuel_sold) ≈ sum(fuel_used)
-        @test aggregate_result(total, data, :gen, :heat_rate, :genfuel=>["ng", "coal"]) ≈ sum(fuel_sold)
+        @test compute_result(data, :gen, :fuel_burned, :genfuel=>["ng", "coal"]) ≈ sum(fuel_sold)
 
         # Test NG specifically
-        @test aggregate_result(total, data, :gen, :heat_rate, (:genfuel=>"ng")) > 1e3 # If this is failing, probably need to redesign test or make fuel cheaper.
+        @test compute_result(data, :gen, :fuel_burned, (:genfuel=>"ng")) > 1e3 # If this is failing, probably need to redesign test or make fuel cheaper.
 
         for yr_idx in 1:nyr
-            ng_used = aggregate_result(total, data, :gen, :heat_rate, (:genfuel=>"ng", :country=>"archenland"), yr_idx)
+            ng_used = compute_result(data, :gen, :fuel_burned, (:genfuel=>"ng", :bus_nation=>"archenland"), yr_idx)
             ng_used == 0 && continue
-            ng_price = aggregate_result(average, data, :fuel_markets, :clearing_price, (:genfuel=>"ng", :subarea=>"archenland"), yr_idx)
-            ng_idxs = get_table_row_idxs(data, :gen, (:genfuel=>"ng", :country=>"archenland"))
+            ng_price = compute_result(data, :fuel_markets, :fuel_clearing_price_per_mmbtu, (:genfuel=>"ng", :subarea=>"archenland"), yr_idx)
+            ng_idxs = get_table_row_idxs(data, :gen, (:genfuel=>"ng", :bus_nation=>"archenland"))
             for ng_idx in ng_idxs
                 for hr_idx in 1:nhr
                     fuel_price = gen.fuel_price[ng_idx][yr_idx, hr_idx]
@@ -153,26 +184,50 @@
 
         
     @testset "Test InterfaceLimit" begin
-        # Test that without InterfaceLimit, branch flow is sometimes less than 0.2
-        @test aggregate_result(minimum, data, :branch, :pflow, (:f_bus_idx=>1, :t_bus_idx=>2)) < 0.2 - 1e-9
+        # Test that without InterfaceLimit, branch flow is sometimes less than 0.4
+        @test compute_result(data, :branch, :pflow_hourly_min, (:f_bus_idx=>1, :t_bus_idx=>2)) < 0.4 - 1e-9
         
-        # Now run with interface limits and test that it is always >= 0.2
+        # Now run with interface limits and test that it is always >= 0.4
         config_file_if = joinpath(@__DIR__, "config", "config_3bus_if.yml")
         config = read_config(config_file, config_file_if)
         data = read_data(config)
         model = setup_model(config, data)
         optimize!(model)
-        @test check(model)
+        @test check(config, data, model)
         parse_results!(config, data, model)
+        process_results!(config, data)
+
+        @test compute_result(data, :bus, :elcurt_total) < 1e-6
 
         # Test that pflow limits were observed
-        @test aggregate_result(minimum, data, :branch, :pflow, (:f_bus_idx=>1, :t_bus_idx=>2)) >= 0.2 - 1e-9
+        @test compute_result(data, :branch, :pflow_hourly_min, (:f_bus_idx=>1, :t_bus_idx=>2)) >= 0.4 - 1e-9
 
         # Test that there was no curtailment
-        @test aggregate_result(total, data, :bus, :elcurt) < 1e-6
+        @test compute_result(data, :bus, :elcurt_total) < 1e-6
 
         # Test that eflow_yearly limits were observed.
-        @test aggregate_result(total, data, :branch, :eflow, (:f_bus_idx=>1, :t_bus_idx=>2)) >= 2000
+        @test compute_result(data, :branch, :eflow_total, (:f_bus_idx=>1, :t_bus_idx=>2)) >= 2000
+
+        @test compute_result(data, :interface_limit, :pflow_if_max, 1) > compute_result(data, :interface_limit, :pflow_if_min, 1)
+        @test compute_result(data, :interface_limit, :pflow_line_max, 1) <= compute_result(data, :interface_limit, :pflow_if_max, 1)
+    end
+
+    @testset "Test AnnualCapacityFactorLimit" begin
+        # Test that the average capacity factor is above 0.9
+        @test compute_result(data, :gen, :cf_avg, :genfuel=>"ng") > 0.9
+
+        # Run the model with the capacity factor limit
+        config_file_cflim = joinpath(@__DIR__, "config", "config_3bus_cflim.yml")
+        config = read_config(config_file, config_file_cflim)
+        data = read_data(config)
+        model = setup_model(config, data)
+        optimize!(model)
+        parse_results!(config, data, model)
+        process_results!(config, data)
+
+        @test compute_result(data, :gen, :cf_avg, :genfuel=>"ng") <= 0.9 + 1e-3 # for tolerance
+        @test compute_result(data, :gen, :cf_hourly_max, :genfuel=>"ng") > 0.9 + 1e-3 # Want to make sure we're not limiting hourly
+
     end
 
 end

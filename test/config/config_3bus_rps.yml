@@ -5,14 +5,14 @@ mods:
     crediting: 
       type: "StandardRPSCrediting"
     gen_filters:
-      country: "archenland"
+      bus_nation: "archenland"
     load_targets:
       stormness_rps:
         filters:
           state: stormness
         targets:
-          y2035: 0.9
-          y2040: 0.95
+          y2035: 0.85
+          y2040: 0.9
   example_rps_gentype:
     type: "RPS"
     crediting: 
@@ -22,7 +22,7 @@ mods:
         wind: 1.0
         oswind: 1.0
     gen_filters:
-      country: "narnia"
+      bus_nation: "narnia"
     load_targets:
       narnia_rps:
         targets:
@@ -30,8 +30,8 @@ mods:
           y2035: 0.8
           y2040: 0.9
         filters:  
-          country: "narnia"
-  storage:
+          nation: "narnia"
+  stor:
     type: Storage
     file: "../data/3bus/storage.csv"
 

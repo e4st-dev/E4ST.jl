@@ -5,9 +5,12 @@ mods:
     type: "CES"
     crediting: 
       type: "CreditByBenchmark"
-      benchmark: 0.5
+      benchmark: 0.8
+      gen_filters: 
+        genfuel: "[solar, wind, water, water, biomass, hydrogen, nuclear, geothermal, other]"
     gen_filters:
-      country: "archenland"
+      bus_nation: "archenland"
+      genfuel: "![coal,ng]"
     load_targets:
       anvard_ces:
         targets:

@@ -1,0 +1,2 @@
+table_name,result_name,filter1,filter_years,filter_hours
+bus,electricity_price,is_narnia=>1,,

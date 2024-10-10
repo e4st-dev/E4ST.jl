@@ -19,6 +19,7 @@ iter:
 
 ## Interfaces
 * [`init!(iter::Iterable, config)`](@ref) - (optional) Initialize `iter` with `config`, making any changes.
+* [`issequential(iter)`](@ref) - (optional) returns whether or not the iterator will move forward in time sequentially.  Defaults to true so that the config can be reused for another simulation.
 * [`should_iterate(iter, config, data)`](@ref) - return whether or not the simulation should continue for another iteration.
 * [`iterate!(iter, config, data)`](@ref) - Makes any changes to any of the structures between iterations. 
 * [`should_reread_data(iter)`](@ref) - Returns whether or not to reread the data when iterating. 
@@ -42,6 +43,14 @@ function init!(iter::Iterable, config)
     return nothing
 end
 export init!
+
+"""
+    issequential(iter) -> ::Bool
+
+Return whether or not the iterator advances in years.  This may be necessary for some Modifications, whether they prepare the config to move forward or not.  Default is `true`.
+"""
+issequential(iter::Iterable) = true
+export issequential
 
 """    
     should_iterate(iter, config, data) -> Bool
@@ -83,6 +92,6 @@ Prints the field determined in fieldnames_for_yaml from the Modification.
 """
 function YAML._print(io::IO, iter::I, level::Int=0, ignore_level::Bool=false) where {I<:Iterable}
     println(io)
-    iter_dict = OrderedDict(:type => string(typeof(iter)), (k=>getproperty(iter, k) for k in fieldnames_for_yaml(I))...)
+    iter_dict = OrderedDict(:type => clean_type_string(iter), (k=>getproperty(iter, k) for k in fieldnames_for_yaml(I))...)
     YAML._print(io::IO, iter_dict, level, ignore_level)
 end

@@ -1,0 +1,6 @@
+mods:
+  state_reserve:
+    type: ReserveRequirement
+    area: state
+    requirements_file: ../data/3bus/reserve_requirements_state.csv
+    flow_limits_file: ../data/3bus/reserve_flow_limits_state.csv

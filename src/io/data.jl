@@ -46,6 +46,10 @@ function read_data!(config, data)
     setup_data!(config, data)  
     modify_setup_data!(config, data)
 
+    promote_cols!(data)
+    setup_results_formulas!(config, data)
+    setup_welfare!(config, data)
+
     # Save the data to file as specified.
     if get(config, :save_data, true)
         serialize(get_out_path(config, "data.jls"), data)
@@ -84,15 +88,65 @@ end
 export read_data_files!
 
 """
+    promote_cols!(data)
+
+promotes columns of every table in data to be `Vector{CT}` for all `Vector{AT}` where `AT` is an abstract type and every element is of concrete type `CT`
+"""
+function promote_cols!(data::OrderedDict)
+    for (k,v) in data
+        promote_cols!(v)
+    end
+end
+function promote_cols!(x)
+end
+function promote_cols!(df::DataFrame)
+    for cn in propertynames(df)
+        col = df[!, cn]
+        col_new = promote_col(col)
+        df[!, cn] = col_new
+    end
+end
+export promote_cols!
+
+function promote_col(col::Vector{AT}) where AT
+    if isabstracttype(AT)
+        ET = typeof(first(col))
+        if all(e->e isa ET, col)
+            return convert(Vector{ET}, col)
+        end
+    end
+    return col
+end
+function promote_col(col)
+    return col
+end
+
+"""
     modify_raw_data!(config, data)
 
 Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_raw_data!(mod, config, data)`](@ref)
 """
-function modify_raw_data!(config, data)    
-    for (sym, mod) in get_mods(config)
-        modify_raw_data!(mod, config, data)
+function modify_raw_data!(config, data)
+    for (sym, m) in get_mods(config)
+        @info "Modifying raw data with Modification $sym of type $(typeof(m))"
+        _try_catch(modify_raw_data!, sym, m, config, data)
     end
     return nothing
+end
+
+"""
+    _try_catch(f, sym, args...)
+
+Try-catch for [`modify_raw_data!`](@ref)
+"""
+function _try_catch(f, sym, args...)
+    try
+        return f(args...)
+    catch e
+        println("Error during function $f for Modification $sym")
+        @error (e, catch_backtrace())
+        rethrow(e)
+    end
 end
 
 """
@@ -101,8 +155,9 @@ end
 Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_setup_data!(mod, config, data)`](@ref)
 """
 function modify_setup_data!(config, data)    
-    for (sym, mod) in get_mods(config)
-        modify_setup_data!(mod, config, data)
+    for (sym, m) in get_mods(config)
+        @info "Modifying setup data with Modification $sym of type $(typeof(m))"
+        _try_catch(modify_setup_data!, sym, m, config, data)
     end
     return nothing
 end
@@ -124,9 +179,6 @@ function setup_data!(config, data)
     setup_table!(config, data, :nominal_load)
     setup_table!(config, data, :gen) # needs to come after build_gen setup for newgens
     setup_table!(config, data, :af_table)
-    setup_table!(config, data, :adjust_yearly)
-    setup_table!(config, data, :adjust_hourly)
-    setup_table!(config, data, :adjust_by_age)
 end
 export setup_data!
 
@@ -181,11 +233,47 @@ function read_table(filenames::AbstractVector)
     for i in 2:length(filenames)
         filename = filenames[i]
         tmp = read_table(filename)
-        append!(table, tmp)
+
+        # Check to see if either table has columns that the other does not.
+        original_table_extra_cols = setdiff(propertynames(table), propertynames(tmp))
+        new_table_extra_cols = setdiff(propertynames(tmp), propertynames(table))
+
+        # Add extra columns to `tmp`
+        for extra_col in original_table_extra_cols
+            if hasmethod(get_default_column_value, Tuple{Val{extra_col}})
+                tmp[!, extra_col] .= get_default_column_value(Val(extra_col))
+            else
+                @warn "No column $(extra_col) defined in file $(filename), removing that column from both tables. Consider defining a default value using get_default_column_value"
+                select!(table, Not(extra_col))
+            end
+        end
+
+        # Add extra columns to `table`
+        for extra_col in new_table_extra_cols
+            if hasmethod(get_default_column_value, Tuple{Val{extra_col}})
+                table[!, extra_col] .= get_default_column_value(Val(extra_col))
+            else
+                @warn "No column $(extra_col) defined in the table that file $(filename) is being added to, removing that column from both tables. Consider defining a default value using get_default_column_value"
+                select!(tmp, Not(extra_col))
+            end
+        end
+
+        append!(table, tmp, promote=true)
     end
     return table
 end
 export read_table
+
+
+"""
+    get_default_column_value(::Val{<custom column name>}) = <default value>
+
+Define this function for your custom column name in order to specify a default value for that column.
+"""
+function get_default_column_value end
+export get_default_column_value
+
+
 
 
 """
@@ -196,7 +284,7 @@ Loads the table from the file in `config[p[1]]` into `data[p[2]]`
 function read_table!(config, data, p::Pair{Symbol, Symbol}; optional=false)
     optional===true && !haskey(config, first(p)) && return
     @info "Loading data[:$(last(p))] from $(config[first(p)])"
-    table_file = config[first(p)]::String
+    table_file = config[first(p)]
     table_name = last(p)
     table = read_table(data, table_file, table_name)
     st = get_table_summary(data, table_name)
@@ -331,7 +419,7 @@ export read_voll!
 """
     read_num_params!(config, data) -> 
 
-Any parameter specified as a numeric in the config will be added to `data`. This is so that parameters with a single value (i.e. VOLL, ng_ch4_fuel_content) can be tracked and accessed easily in data. 
+Any parameter specified as a numeric in the config will be added to `data`. This is so that parameters with a single value (i.e. VOLL, ng_upstream_ch4_leakage) can be tracked and accessed easily in data. 
 """
 function read_num_params!(config, data)
     for (k,v) in config
@@ -368,6 +456,8 @@ function force_table_types!(df::DataFrame, name, pairs...; optional=false)
     end
 end
 export force_table_types!
+
+Base.String(::Missing) = ""
 
 function force_table_types!(df::DataFrame, name, summary::AbstractDataFrame; kwargs...) 
     for row in eachrow(summary)
@@ -407,15 +497,40 @@ end
 
 Sets up the generator table.
 Creates potential new generators and exogenously built generators. 
-Calls [`setup_new_gens!`](@ref)
-Creates capex_obj column which is the capex cost seen in the objective function. It is a ByYear column that is only non zero for year_on.
+Calls [`append_builds!`](@ref)
 Creates age column which is a ByYear column. Unbuilt generators have a negative age before year_on.
 """
 function setup_table!(config, data, ::Val{:gen})
     bus = get_table(data, :bus)
     gen = get_table(data, :gen)
+    years = get_years(data)
 
-    data[:gen_table_original_cols] = propertynames(gen)
+    # Set up year_unbuilt before setting up new gens.  Plus we will want to save the column
+    hasproperty(gen, :year_unbuilt) || (gen.year_unbuilt = map(y->add_to_year(y, -1), gen.year_on))
+    
+    # Set up past capex cost and subsidy to be for built generators only
+    # Make columns as needed
+    hasproperty(gen, :past_invest_cost) || (gen.past_invest_cost = zeros(nrow(gen)))
+    hasproperty(gen, :past_invest_subsidy) || (gen.past_invest_subsidy = zeros(nrow(gen)))
+    z = Container(0.0)
+    to_container!(gen, :past_invest_cost)
+    to_container!(gen, :past_invest_subsidy)
+    for (idx_g, g) in enumerate(eachrow(gen))
+        if g.build_status == "unbuilt"
+            if any(!=(0), g.past_invest_cost) || any(!=(0), g.past_invest_subsidy)
+                @warn "Generator $idx_g is unbuilt yet has past capex cost/subsidy, setting to zero"
+                g.past_invest_cost = z
+                g.past_invest_subsidy = z
+            end
+        else
+            past_invest_percentages = get_past_invest_percentages(g, years)
+            g.past_invest_cost = g.past_invest_cost .* past_invest_percentages
+            g.past_invest_subsidy = g.past_invest_subsidy .* past_invest_percentages
+        end
+    end
+
+    original_cols = propertynames(gen)
+    data[:gen_table_original_cols] = original_cols
 
     #removes capex_obj if read in from previous sim
     :capex_obj in propertynames(data[:gen]) && select!(data[:gen], Not(:capex_obj))
@@ -426,23 +541,13 @@ function setup_table!(config, data, ::Val{:gen})
 
     # Set the pcap_max to be equal to pcap0 for built generators
     gen.pcap_max = map(row->isbuilt(row) ? row.pcap0 : row.pcap_max, eachrow(gen))
+    gen.pcap0 = map(row->isbuilt(row) ? row.pcap0 : 0.0, eachrow(gen))
+
 
     ### Create new gens and add to the gen table
     if haskey(config, :build_gen_file) 
-        setup_new_gens!(config, data)  
-    end  
-
-    ### Create capex_obj (the capex used in the optimization/objective function)
-    # set to capex for unbuilt generators in the year_on
-    # set to 0 for already built capacity because capacity expansion isn't considered for existing generators
-    capex_obj = Container[ByNothing(0.0) for i in 1:nrow(gen)]
-    for idx_g in 1:nrow(gen)
-        g = gen[idx_g,:]
-        g_capex_obj = [(g.build_status=="unbuilt")* g.capex*(g.year_on==year) for year in get_years(data)]
-        capex_obj[idx_g] = ByYear(g_capex_obj) 
+        append_builds!(config, data, :gen, :build_gen)  
     end
-    add_table_col!(data, :gen, :capex_obj, capex_obj, DollarsPerMWBuiltCapacity, "Hourly capital expenditures that is passed into the objective function. 0 for already built capacity")
-
     
     ### Add age column as by ByYear based on year_on
     years = year2float.(get_years(data))
@@ -455,24 +560,45 @@ function setup_table!(config, data, ::Val{:gen})
 
     add_table_col!(data, :gen, :age, gen_age, NumYears, "The age of the generator in each simulation year, given as a byYear container. Negative age is given for gens before their year_on.")
 
-    ### Map bus characteristics to generators
-    names_before = propertynames(gen)
-    leftjoin!(gen, bus, on=:bus_idx)
-    select!(gen, Not(:plnom))
-    disallowmissing!(gen)
-    names_after = propertynames(gen)
-
-    for name in names_after
-        name in names_before && continue
-        add_table_col!(data, :gen, name, gen[!,name], get_table_col_unit(data, :bus, name), get_table_col_description(data, :bus, name), warn_overwrite=false)
-    end
-
+    ### Map bus characteristics to generators   
+    join_bus_columns!(data, :gen)
+    
     # Add necessary columns if they don't exist.
     hasproperty(gen, :af) || (gen.af = fill(ByNothing(1.0), nrow(gen)))
     hasproperty(gen, :fuel_price) || (gen.fuel_price = fill(0.0, nrow(gen)))
+
     return gen
 end
 export setup_table!
+
+"""
+    join_bus_columns!(data, table_name)
+
+Joins relevant columns of the bus table to table `table_name`
+"""
+function join_bus_columns!(data, table_name)
+    table = get_table(data, table_name)
+    bus = get_table(data, :bus)
+
+    names_before = names(table)
+    bus_names_no_join = [:reg_factor, :ref_bus, :plnom, :distribution_cost, :connected_branch_idxs]
+    bus_join = select(bus, Not(bus_names_no_join))
+    bus_names = names(bus_join)
+    for col_name in bus_names
+        col_name == "bus_idx" && continue  
+        rename!(bus_join, col_name => "bus_$col_name")
+    end
+    leftjoin!(table, bus_join, on=:bus_idx)
+    disallowmissing!(table)
+    names_after = names(table)
+
+    for name in names_after
+        name in names_before && continue
+        name_old = name[5:end] # Take off bus_
+        add_table_col!(data, table_name, Symbol(name), table[!,name], get_table_col_unit(data, :bus, name_old), get_table_col_description(data, :bus, name_old), warn_overwrite=false)
+    end
+end
+export join_bus_columns!
 
 """
     setup_table!(config, data, ::Val{:build_gen})
@@ -498,6 +624,10 @@ function setup_table!(config, data, ::Val{:bus})
     bus = get_table(data, :bus)
     bus_idx = collect(1:nrow(bus))
     add_table_col!(data, :bus, :bus_idx, bus_idx, NA, "The bus index of each bus, should correspond to the row number, used for joining.")
+
+    # Add distribution loss as a column
+    dist_cost = config[:distribution_cost] |> Float64
+    add_table_col!(data, :bus, :distribution_cost, fill(dist_cost, nrow(bus)), DollarsPerMWhServed, "The assumed cost per MWh of served power, for the transmission and distribution of the power.")
     return
 end
 export setup_table!
@@ -514,30 +644,14 @@ function setup_table!(config, data, ::Val{:branch})
     hasproperty(branch, :status) && filter!(:status => ==(true), branch)
 
     # Switch f_bus_idx and t_bus_idx if they are out of order
-    for row in eachrow(branch)
-        f_bus_idx = row.f_bus_idx::Int
-        t_bus_idx = row.t_bus_idx::Int
-        f_bus_idx < t_bus_idx && continue
-        row.t_bus_idx = f_bus_idx
-        row.f_bus_idx = t_bus_idx
-    end
-
+    order_f_bus_t_bus!(branch)
+    
     # Handle duplicate lines
-    if ~allunique((row.f_bus_idx,row.t_bus_idx) for row in eachrow(branch))
-        @warn "Handling Duplicate Lines"
-        gdf = groupby(branch, [:f_bus_idx, :t_bus_idx])
-        cols_remaining = setdiff(propertynames(branch), [:f_bus_idx, :t_bus_idx, :x, :pflow_max])
-        res = combine(gdf,
-            [:pflow_max, :x] => ((pflow_max, x)->(minimum(prod, zip(pflow_max, x)))/(inv(sum(inv, x)))) => :pflow_max,
-            :x => (x->(inv(sum(inv, x)))) => :x,
-            (col=>first=>col for col in cols_remaining)...
-        )
-        branch = res
-        data[:branch] = res
-    end
+    combine_parallel_lines!(branch)
 
-
-
+    # Force positive branch limits
+    force_positive_line_limits!(branch)
+    
     bus = get_table(data, :bus)
 
     # Add connected branches, connected buses.
@@ -554,9 +668,163 @@ end
 export setup_table!
 
 """
+    order_f_bus_t_bus!(branch)
+
+Orders each branch's `f_bus_idx` and `t_bus_idx` such that `f_bus_idx < t_bus_idx`.
+"""
+function order_f_bus_t_bus!(branch)
+    for row in eachrow(branch)
+        f_bus_idx = row.f_bus_idx::Int
+        t_bus_idx = row.t_bus_idx::Int
+        f_bus_idx < t_bus_idx && continue
+        row.t_bus_idx = f_bus_idx
+        row.f_bus_idx = t_bus_idx
+    end
+    return branch
+end
+export order_f_bus_t_bus!
+
+"""
+    combine_parallel_lines!(branch)
+
+Combines parallel lines by:
+* x_new = inverse of the sum of the inverses of x
+* pflow_max_new = (minimum of the products of `pflow_max` and `x`) / x_new
+"""
+function combine_parallel_lines!(branch)
+    if ~allunique(zip(branch.f_bus_idx,branch.t_bus_idx))
+        replace!(branch.pflow_max, 0=>Inf)
+
+        @warn "Handling Duplicate Lines"
+        gdf = groupby(branch, [:f_bus_idx, :t_bus_idx])
+        cols_remaining = setdiff(propertynames(branch), [:f_bus_idx, :t_bus_idx, :x, :pflow_max])
+        res = combine(gdf,
+            [:pflow_max, :x] => ((pflow_max, x)->(minimum(prod, zip(pflow_max, x)))/(inv(sum(inv, x)))) => :pflow_max,
+            :x => (x->(inv(sum(inv, x)))) => :x,
+            (col=>first=>col for col in cols_remaining)...
+        )
+        
+        empty!(branch)
+        append!(branch, res)
+
+        replace!(branch.pflow_max, Inf=>0, -Inf=>0)
+    end
+    return branch
+end
+export combine_parallel_lines!
+
+function force_positive_line_limits!(branch)
+    pflow_max = branch.pflow_max::Vector{Float64}
+    for (i, pf) in enumerate(pflow_max)
+        if pf < 0
+            pflow_max[i] = abs(pf)
+        end
+    end
+    return branch
+end
+export force_positive_line_limits!
+
+function check_islands_and_ref_bus!(data)
+    branch = get_table(data, :branch)
+    bus = get_table(data, :bus)
+
+    calc_islands!(branch, bus)
+
+    n_solo = count(==(0), bus.island_idx)
+    n_island = maximum(bus.island_idx)
+
+    if n_solo > 0
+        @warn "There are $n_solo buses not connected to any other buses"
+    end
+    @info "There are $n_island islands"
+
+    gdf = groupby(bus, :island_idx)
+    for i in 1:n_island
+        sdf = gdf[(;island_idx = i)]
+        n_ref_bus = count(==(true), sdf.ref_bus)
+        if n_ref_bus < 1
+            @warn "Island $i has no reference bus!  Setting one arbitrarily"
+            sdf.ref_bus[1] = 1
+        elseif n_ref_bus > 1
+            @warn "Island $i has $n_ref_bus reference buses!"
+            ref_bus_idxs = findall(==(true), sdf.ref_bus)
+            for bus_idx in ref_bus_idxs[2:end]
+                sdf.ref_bus[bus_idx] = 0
+            end
+        end
+    end
+end
+export check_islands_and_ref_bus!
+
+function calc_islands!(branch, bus)
+    f_bus_idxs = branch.f_bus_idx::Vector{Int64}
+    t_bus_idxs = branch.t_bus_idx::Vector{Int64}
+    nbus = nrow(bus)
+
+    
+    branch_island_idxs = Vector{Int64}(undef, nrow(branch))
+    bus_island_idxs = fill(0, nbus)
+
+    connected_bus_idxs = [Int64[] for _ in 1:nbus]
+    for (f_bus_idx, t_bus_idx) in zip(f_bus_idxs, t_bus_idxs)
+        push!(connected_bus_idxs[f_bus_idx], t_bus_idx)
+        push!(connected_bus_idxs[t_bus_idx], f_bus_idx)
+    end
+
+
+    n_island = 0
+    remaining_bus_idxs = collect(1:nbus)
+    bus_idx_disconnected = findall(isempty, connected_bus_idxs)
+    n_disconnected = length(bus_idx_disconnected)
+    if n_disconnected > 0
+        @info "Found $n_disconnected buses that are not connected to any AC branches! $(bus_idx_disconnected)"
+    end
+    filter!(!in(bus_idx_disconnected), remaining_bus_idxs)
+
+    while !isempty(remaining_bus_idxs)
+        n_island += 1
+
+        cur_bus_idx = first(remaining_bus_idxs)
+        island_bus_idxs = _get_connected_bus_idxs(connected_bus_idxs, cur_bus_idx)
+
+        for island_bus_idx in island_bus_idxs
+            bus_island_idxs[island_bus_idx] = n_island
+        end
+        
+        filter!(!in(island_bus_idxs), remaining_bus_idxs)
+    end
+
+    branch_island_idxs = map(i->bus_island_idxs[i], f_bus_idxs)
+
+    branch.island_idx = branch_island_idxs
+    bus.island_idx = bus_island_idxs
+    return nothing
+end
+export calc_islands!
+
+function _get_connected_bus_idxs(connected_bus_idxs, i)
+    island_bus_idxs = Set(i)
+    for connected_bus_idx in connected_bus_idxs[i]
+        _get_connected_bus_idxs!(island_bus_idxs, connected_bus_idxs, connected_bus_idx)
+    end
+    return island_bus_idxs
+end
+
+
+function _get_connected_bus_idxs!(island_bus_idxs, connected_bus_idxs, i)
+    i ∈ island_bus_idxs && return
+    push!(island_bus_idxs, i)
+    for connected_bus_idx in connected_bus_idxs[i]
+        _get_connected_bus_idxs!(island_bus_idxs, connected_bus_idxs, connected_bus_idx)
+    end
+    return
+end
+
+
+"""
     setup_table!(config, data, ::Val{:hours})
 
-Doesn't do anything yet.
+Sets up an `HoursContainer`
 """
 function setup_table!(config, data, ::Val{:hours})
     weights = get_hour_weights(data)
@@ -581,24 +849,35 @@ P_{G_{g,h,y}} \leq f_{\text{avail}_{g,h,y}} \cdot P_{C{g,y}} \qquad \forall \{g 
 """
 function setup_table!(config, data, ::Val{:af_table})
     # Fill in gen table with default af of 1.0 for every hour
-    gens = get_table(data, :gen)
+    gen = get_table(data, :gen)
     default_af = ByNothing(1.0)
-    gens.af = Container[default_af for _ in 1:nrow(gens)]
-    
+    gen_af = Container[default_af for _ in axes(gen,1)]
+    gen.af = gen_af
+    af_threshold = config[:cf_threshold]::Float64
+
     # Return if there is no af_file
     if ~haskey(data, :af_table) 
         return
     end
 
-    af_table = data[:af_table]
+    af_table = get_table(data, :af_table)
 
-    hr_idx = findfirst(s->s=="h1",names(af_table))
+    first_hr_col_idx = findfirst(s->s=="h1",names(af_table))
     all_years = get_years(data)
     nyr = get_num_years(data)
     nhr = get_num_hours(data)
 
-    for i = 1:nrow(af_table)
-        row = af_table[i, :]
+    af_table.gen_idxs .= Ref(Int64[])
+
+    gen_af_table_idxs = [Int64[] for _ in axes(gen,1)]
+
+    af_matrix = zeros(nrow(af_table), nhr)
+    for (hr_idx, hr_col) in enumerate(first_hr_col_idx:(first_hr_col_idx + nhr - 1))
+        af_matrix[:, hr_idx] = af_table[:, hr_col]
+    end
+
+    for af_idx in axes(af_table,1)
+        row = af_table[af_idx, :]
         if get(row, :status, true) == false
             continue
         end
@@ -612,15 +891,26 @@ function setup_table!(config, data, ::Val{:af_table})
         end
         
         pairs = parse_comparisons(row)
-        gens = get_table(data, :gen, pairs)
+        gen_idxs = get_row_idxs(gen, pairs)
 
-        isempty(gens) && continue
+        row.gen_idxs = gen_idxs
+
+        isempty(gen_idxs) && continue
         
-        af = [row[i_hr] for i_hr in hr_idx:(hr_idx + nhr - 1)]
-        foreach(eachrow(gens)) do gen
-            gen.af = set_hourly(gen.af, af, yr_idx, nyr)
+        af = view(af_matrix, af_idx, :)
+        for gen_idx in gen_idxs
+            # Store this af_idx into gen_af_table_idxs.
+            cur_gen_af_table_idxs = gen_af_table_idxs[gen_idx]
+            push!(cur_gen_af_table_idxs, af_idx)
+
+            # Update the af_idx
+            cur_gen_af = gen_af[gen_idx]
+            gen_af[gen_idx] = set_hourly(cur_gen_af, af, yr_idx, nyr)
         end
     end
+    
+    add_table_col!(data, :gen, :af_table_idxs, gen_af_table_idxs, NA, "The indices of the af_table that were used to modify the `af` column of each generator")
+
     return data
 end
 
@@ -645,28 +935,38 @@ function summarize_table(::Val{:gen})
     push!(df, 
         (:bus_idx, Int64, NA, true, "The index of the `bus` table that the generator corresponds to"),
         (:status, Bool, NA, false, "Whether or not the generator is in service"),
-        (:build_status, String15, NA, true, "Whether the generator is `built`, '`new`, or `unbuilt`. All generators marked `new` when the gen file is read in will be changed to `built`.  Can also be changed to `retired_exog` or `retired_endog` after the simulation is run.  See [`update_build_status!`](@ref)"),
+        (:build_status, String15, NA, true, "Whether the generator is `built`, `new`, `unbuilt`, or `unretrofitted`. All generators marked `new` when the gen file is read in will be changed to `built`.  Can also be changed to `retired_exog` or `retired_endog` after the simulation is run. See [`update_build_status!`](@ref).  Note that `unretrofitted` means it is a [`Retrofit`](@ref) option based on a `built` generator."),
         (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
         (:build_id, AbstractString, NA, true, "Identifier of the build row.  For pre-existing generators not specified in the build file, this is usually left empty"),
         (:year_on, YearString, Year, true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
-        (:year_off, YearString, Year, true, "The first year that the generator is no longer operating."),
+        (:year_unbuilt,YearString, Year, false, "The latest year the generator was known not to be built.  Defaults to year_on - 1.  Used for past capex accounting."),
+        (:econ_life, Float64, NumYears, true, "The number of years in the economic lifetime of the generator."),
+        (:year_off, YearString, Year, true, "The first year that the generator is no longer operating in the simulation, computed from the simulation.  Leave as y9999 if an existing generator that has not been retired in the simulation yet."),
+        (:year_shutdown, YearString, Year, true, "The forced (exogenous) shutdown year for the generator.  Often equal to the year_on plus the econ_life"),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses"),
         (:gentype, String, NA, true, "The generation technology type that the generator uses"),
-        (:pcap0, Float64, MWCapacity, true, "Starting nameplate power generation capacity for the generator"),
+        (:pcap_inv, Float64, MWCapacity, true, "Original invested nameplate power generation capacity for the generator.  This is the original invested capacity of exogenously built generators (even if there have been retirements ), and the original invested capacity in year_on for endogenously built generators."),
+        (:pcap0, Float64, MWCapacity, true, "Nameplate power generation capacity for the generator at the start of the simulation"),
         (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power generation capacity of the generator"),
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
         (:fuel_price, Float64, DollarsPerMMBtu, false, "Fuel cost per MMBtu of fuel used.  `heat_rate` column also necessary when supplying `fuel_price`"),
         (:heat_rate, Float64, MMBtuPerMWhGenerated, false, "Heat rate,  or MMBtu of fuel consumed per MWh electricity generated (0 for generators that don't use combustion)"),
-        (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
-        (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
+        (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
+        (:capex, Float64, DollarsPerMWBuiltCapacityPerHour, true, "Hourly capital expenditures for a MW of generation capacity.  For already-built generators, this is not accounted for in the optimization or accounting.  For accounting for investment costs and subsidies in built generators, use `past_invest_cost` and `past_invest_subsidy`"),
+        (:transmission_capex, Float64, DollarsPerMWBuiltCapacityPerHour, true, "Hourly capital expenditures for the transmission supporting a MW of generation capacity"),
+        (:routine_capex, Float64, DollarsPerMWCapacityPerHour, true, "Routine capital expenditures for a MW of discharge capacity"),
+        (:past_invest_cost, Float64, DollarsPerMWCapacityPerHour, false, "Investment costs per MW of initial capacity per hour, for past investments"),
+        (:past_invest_subsidy, Float64, DollarsPerMWCapacityPerHour, false, "Investment subsidies from govt. per MW of initial capacity per hour, for past investments"),
         (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible.  Set to zero by default."),
         (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
+        (:cf_hist, Float64, MWhGeneratedPerMWhCapacity, false, "The historical capacity factor for the generator, or the gentype if no previous data is available. Primarily used to calculate estimate policy value (PTC and EmissionPrice capex_adj)"),
         (:af, Float64, MWhGeneratedPerMWhCapacity, false, "The availability factor, or maximum available ratio of pewer generation to nameplate capacity for the generator."),
         (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The emission rate per MWh of CO2"),
         (:capt_co2_percent, Float64, NA, false, "The percentage of co2 emissions captured, to be sequestered."),
         (:heat_rate, Float64, MMBtuPerMWhGenerated, false, "Heat rate, or MMBtu of fuel consumed per MWh electricity generated (0 for generators that don't use combustion)"),
-        (:chp_co2_multi,Float64,NA,false,"The percentage of CO2 emissions from CHP attributed to the power generation. Used to calculate CO2e")
+        (:chp_co2_multi,Float64,NA,false,"The percentage of CO2 emissions from CHP attributed to the power generation. Used to calculate CO2e"),
+        (:reg_factor, Float64, NA, true, "The percentage of generation that dispatches to a cost-of-service regulated market"),
     )
     return df
 end
@@ -681,6 +981,7 @@ function summarize_table(::Val{:bus})
     df = TableSummary()
     push!(df, 
         (:ref_bus, Bool, NA, true, "Whether or not the bus is a reference bus.  There should be a single reference bus for each island."),
+        (:reg_factor, Float64, NA, true, "The percentage of generation that dispatches to a cost-of-service regulated market"),
     )
     return df
 end
@@ -723,8 +1024,8 @@ $(table2markdown(summarize_table(Val(:af_table))))
 function summarize_table(::Val{:af_table})
     df = TableSummary()
     push!(df, 
-        (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
-        (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:area, AbstractString, NA, false, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
+        (:subarea, AbstractString, NA, false, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
         (:gentype, String, NA, true, "The generation technology type that the generator uses. Leave blank to not filter by gentype."),
         (:year, YearString, Year, false, "The year to apply the AF's to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
@@ -745,7 +1046,7 @@ function summarize_table(::Val{:build_gen})
     push!(df, 
         (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
-        (:build_status, String15, NA, true, "Whether the generator is `built`, '`new`, or `unbuilt`. All generators marked `new` when the gen file is read in will be changed to `built`.  Can also be changed to `retired_exog` or `retired_endog` after the simulation is run.  See [`update_build_status!`](@ref)"),
+        (:build_status, String15, NA, true, "Whether the generator is `built`, `new`, `unbuilt`, or `unretrofitted`. All generators marked `new` when the gen file is read in will be changed to `built`.  Can also be changed to `retired_exog` or `retired_endog` after the simulation is run. See [`update_build_status!`](@ref).  Note that `unretrofitted` means it is a [`Retrofit`](@ref) option based on a `built` generator."),
         (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built). Should either be exog or endog for buil_gen."),
         (:build_id, AbstractString, NA, true, "Identifier of the build row.  Each generator made using this build spec will inherit this `build_id`"),
         (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses. Leave blank to not filter by genfuel."),
@@ -756,12 +1057,16 @@ function summarize_table(::Val{:build_gen})
         (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power generation capacity of the generator"),
         (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
         (:fuel_price, Float64, DollarsPerMMBtu, false, "Fuel cost per MMBtu of fuel used.  `heat_rate` column also necessary when supplying `fuel_price`"),
-        (:fom, Float64, DollarsPerMWCapacity, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
-        (:capex, Float64, DollarsPerMWBuiltCapacity, false, "Hourly capital expenditures for a MW of generation capacity"),
+        (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
+        (:capex, Float64, DollarsPerMWBuiltCapacityPerHour, true, "Hourly capital expenditures for a MW of generation capacity"),
+        (:transmission_capex, Float64, DollarsPerMWBuiltCapacityPerHour, true, "Hourly capital expenditures for the transmission supporting a MW of generation capacity"),
+        (:routine_capex, Float64, DollarsPerMWCapacityPerHour, true, "Routing capital expenditures for a MW of discharge capacity"),
         (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible.  Set to zero by default."),
         (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
+        (:cf_hist, Float64, MWhGeneratedPerMWhCapacity, false, "The historical capacity factor for the generator or the gentype. Primarily used to calculate estimate policy value (PTC and EmissionPrice capex_adj)"),
         (:year_on, YearString, Year, true, "The first year of operation for the generator. (For new gens this is also the year it was built). Endogenous unbuilt generators will be left blank"),
-        (:age_off, Float64, NumYears, true, "The age at which the generator is no longer operating.  I.e. if `year_on` = `y2030` and `age_off` = `20`, then capacity will be 0 in `y2040`."),
+        (:econ_life, Float64, NumYears, true, "The number of years in the economic lifetime of the generator."),
+        (:age_shutdown, Float64, NumYears, true, "The age at which the generator is no longer operating.  I.e. if `year_on` = `y2030` and `age_shutdown` = `20`, then capacity will be 0 in `y2040`."),
         (:year_on_min, YearString, Year, true, "The first year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
         (:year_on_max, YearString, Year, true, "The last year in which a generator can be built/come online (inclusive). Generators with no restriction and exogenously built gens will be left blank"),
         (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The CO2 emission rate of the generator, in short tons per MWh generated.  This is the net emissions. (i.e. not including captured CO2 that gets captured)"),
@@ -854,7 +1159,7 @@ export get_table_col
 
 Adds `col` to `data[table_name][!, col_name]`, also adding the description and unit to the summary table.
 """
-function add_table_col!(data, table_name, column_name, col::AbstractVector, unit, description; warn_overwrite = true)
+function add_table_col!(data, table_name::Symbol, column_name::Symbol, col::AbstractVector, unit, description; warn_overwrite = true)
     # Add col to table
     table = get_table(data, table_name)
     hasproperty(table, column_name) && warn_overwrite == true && @warn "Table data[$table_name] already has column $column_name, overwriting"
@@ -868,14 +1173,17 @@ function add_table_col!(data, table_name, column_name, col::AbstractVector, unit
     data[:unit_lookup][(table_name, column_name)] = unit
     data[:desc_lookup][(table_name, column_name)] = description
 end
-function add_table_col!(data, table_name, column_name, ar::AbstractArray{<:Real, 3}, unit, description; warn_overwrite = true)
-    v = [view(ar, i, :, :) for i in 1:size(ar, 1)]
-    return add_table_col!(data, table_name, column_name, v, unit, description; warn_overwrite)
+function add_table_col!(data, table_name, column_name, col::AbstractVector, unit, description; kwargs...)
+    add_table_col!(data, Symbol(table_name), Symbol(column_name), col::AbstractVector, unit, description; kwargs...)
 end
-function add_table_col!(data, table_name, column_name, ar::AbstractMatrix{<:Real}, unit, description; warn_overwrite = true)
+function add_table_col!(data, table_name, column_name, ar::AbstractArray{<:Real, 3}, unit, description; kwargs...)
+    v = [view(ar, i, :, :) for i in 1:size(ar, 1)]
+    return add_table_col!(data, table_name, column_name, v, unit, description; kwargs...)
+end
+function add_table_col!(data, table_name, column_name, ar::AbstractMatrix{<:Real}, unit, description; kwargs...)
     # Might need to make this into a container.
     v = [view(ar, i, :) for i in 1:size(ar, 1)]
-    return add_table_col!(data, table_name, column_name, v, unit, description; warn_overwrite)
+    return add_table_col!(data, table_name, column_name, v, unit, description; kwargs...)
 end
 export add_table_col!
 
@@ -957,6 +1265,8 @@ export get_table_num
 """
     get_num(data, variable_name, yr_idx, hr_idx) -> num::Float64
 
+    get_num(table, col_name, row_idx, yr_idx, hr_idx) -> num::Float64
+
 Retrieves a `Float64` from `data[variable_name]`, indexing by year and hour.  Works for [`Container`](@ref)s and `Number`s.
 
 Related functions:
@@ -967,6 +1277,10 @@ Related functions:
 function get_num(data, variable_name::Symbol, yr_idx, hr_idx)
     c = data[variable_name]
     return c[yr_idx, hr_idx]::Float64
+end
+function get_num(table::DataFrame, col_name::Symbol, row_idx::Int64, yr_idx::Int64, hr_idx)
+    container = table[row_idx, col_name]
+    return container[yr_idx, hr_idx]::Float64
 end
 export get_num
 
@@ -1130,7 +1444,7 @@ end
 
 Return the energy load by load elements corresponding to `load_idx` or `load_idxs`, for `year_idx` and `hour_idx`.  Note `year_idx` can be the index or the year string (i.e. "y2030").
 
-If pair(s) are given, filters the load elements by pair.  i.e. pairs = ("country"=>"narnia", "read_type"=>"residential").
+If pair(s) are given, filters the load elements by pair.  i.e. pairs = ("nation"=>"narnia", "read_type"=>"residential").
 """
 function get_elnom_load(data, load_idxs::AbstractVector{Int64}, year_idx::Int64, hour_idxs)
     load_arr = get_load_array(data)

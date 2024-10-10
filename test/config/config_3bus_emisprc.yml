@@ -6,7 +6,18 @@ mods:
     prices: 
       y2035: 1.0
       y2040: 1.2
+    years_after_ref_min: 0
+    years_after_ref_max: 10
+    ref_year_col: "year_on"
     gen_filters:
-      country: "narnia"
+      bus_nation: "narnia"
+  summer_co2_price:
+    type: "EmissionPrice"
+    emis_col: "emis_co2"
+    prices: 
+      y2035: 1.0
+      y2040: 1.2
+    hour_filters:
+      season: summer
 
 

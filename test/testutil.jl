@@ -1,5 +1,10 @@
 import E4ST: Container, ByNothing, ByHour, ByYear, ByYearAndHour, OriginalContainer, scale_hourly, scale_yearly, add_hourly, add_yearly, set_hourly, set_yearly, get_original
-
+function Base.:(==)(f1::ComposedFunction, f2::ComposedFunction)
+    return (f1.inner == f2.inner) && (f1.outer == f2.outer)
+end
+function Base.:(==)(f1::Base.Fix2, f2::Base.Fix2)
+    return (f1.f == f2.f) && (f1.x == f2.x)
+end
 function container_compare(c::Container, v::Vector{<:Vector}, nyr, nhr)
     return all(h->(all(y->(c[y,h]==v[y][h]),1:nyr)), 1:nhr)
 end
@@ -37,15 +42,75 @@ end
         @test parse_comparison("emis_rate => >=y2020") == ("emis_rate" => >=("y2020"))
         @test parse_comparison("emis_rate => <=y2020") == ("emis_rate" => <=("y2020"))
 
-        @test parse_comparison("genfuel => [ng ,solar, wind ]") == ("genfuel" => ["ng", "solar", "wind"])
-        @test parse_comparison("region => [northern marsh]") == ("region" => ["northern marsh"])
-        @test parse_comparison("bus_idx => [1, 2 ,3 ]") == ("bus_idx" => [1,2,3])
-        @test parse_comparison("emis_rate => [1.5, 2.5 ,3.5 ] ") == ("emis_rate" => [1.5,2.5,3.5])
+        @test parse_comparison("bus_idx => 1") == ("bus_idx" => 1)
+        @test parse_comparison("latitude => -12.345") == ("latitude" => -12.345)
+
 
         @test parse_comparison("emis_rate => (- Inf, 1)") == ("emis_rate" => (-Inf, 1))
         @test parse_comparison("emis_rate => (-1, 1)") == ("emis_rate" => (-1, 1))
         @test parse_comparison("year_on => (y2020, y2030)") == ("year_on" => ("y2020", "y2030"))
         @test parse_comparison("region => northern marsh") == ("region"=>"northern marsh")
+
+        @testset "Test parsing of vectors" begin
+            
+            _, comp = parse_comparison("genfuel => [ng ,solar, wind ]")
+            @test comp("ng") == true
+            @test comp("solar") == true
+            @test comp("wind") == true
+            @test comp("windd") == false
+            @test comp("[ng,solar,wind]") == true
+            @test comp("[ ng, solar, wind]") == true
+
+            _,comp = parse_comparison("region => [northern marsh]")
+            @test comp("northern marsh") == true
+            @test comp("[northern marsh]") == true
+            
+            _, comp = parse_comparison("bus_idx => [1, 2 ,3 ]")
+            @test comp(1) == true
+            @test comp(2) == true
+            @test comp(3) == true
+            @test comp(4) == false
+            @test comp("[1,2,3]") == true
+            @test comp("[  1, 2,  3 ]") == true
+            @test comp("[  3, 1 ]") == true
+            @test comp("[  4, 1 ]") == false
+            @test comp([ 4, 1 ]) == false
+            @test comp([ 1,3]) == true
+            @test comp([ "1","3"]) == true
+
+            _, comp = parse_comparison("emis_rate => [1.5, 2.5 ,3.5 ] ")
+            @test comp(1.5) == true
+            @test comp(3.5) == true
+            @test comp("3.5") == true
+            @test comp("[1.5, 2.5, 3.5]") == true
+            @test comp("[2.5, 1.5, 3.5 ]") == true
+            @test comp("[2.5, 3.5, 1.5, 4.5]") == false
+
+            _, comp = parse_comparison("genfuel => ![ng ,solar, wind ]")
+            @test comp("wind") == false
+            @test comp("geothermal") == true
+            @test comp("[geothermal, nuclear]") == true
+            @test comp("[geothermal, solar, nuclear]") == false
+
+
+            _, comp = parse_comparison("region => ![northern marsh]")
+            @test comp("northern marsh") == false
+            @test comp("anything else") == true
+            @test comp(["something", "else"]) == true
+            @test comp(["something", "else", "northern marsh"]) == false
+
+            _, comp = parse_comparison("bus_idx => ![1, 2 ,3 ]")
+            @test comp(1) == false
+            @test comp([1,2]) == false
+            @test comp([1.0, 2.0]) == false
+            @test comp(["1", "2"]) == false
+            @test comp("[4,5]") == true
+
+            _, comp = parse_comparison("emis_rate => ![1.5, 2.5 ,3.5 ] ")
+            @test comp(1) == true
+            @test comp(2.5) == false
+            @test comp([1.1, 3.5]) == false
+        end
 
         d = Dict(:emis_co2 => "<= 0.1")
         @test ("emis_co2" => <=(0.1)) in parse_comparisons(d)

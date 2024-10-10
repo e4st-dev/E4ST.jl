@@ -1,6 +1,6 @@
 description,table_name,variable_name,operation,filter1,filter2,status,age_type,age,value
-Coal life extension costs after 20 years,gen,capex_obj,add,gentype=>coal,,1,trigger,20,5
-Wind regular capex,gen,capex_obj,add,gentype=>wind,,1,trigger,10,0.5
+Coal life extension costs after 20 years,gen,routine_capex,add,gentype=>coal,,1,trigger,20,5
+Wind routine capex,gen,routine_capex,add,gentype=>wind,,1,trigger,10,0.5
 Availability factor of solar declines over time,gen,af,scale,genfuel=>solar,,1,exact,1,0.99
 Availability factor of solar declines over time,gen,af,scale,genfuel=>solar,,1,exact,2,0.98
 Availability factor of solar declines over time,gen,af,scale,genfuel=>solar,,1,exact,3,0.97
