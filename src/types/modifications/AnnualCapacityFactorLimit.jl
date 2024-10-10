@@ -71,8 +71,14 @@ function modify_model!(m::AnnualCapacityFactorLimit, config, data, model)
                 gen_idx in axes(gen,1),
                 yr_idx in 1:nyr
             ],
-            sum(hr_idx -> (hour_weights[hr_idx] * pgen[gen_idx, yr_idx, hr_idx]), 1:nhr)
+            AffExpr(0.0)
         )
+        for g in axes(gen, 1), y in 1:nyr
+            cur_egen_gen_annual = egen_gen_annual[g, y]
+            for h in 1:nhr
+                add_to_expression!(cur_egen_gen_annual, pgen[g, y, h], hour_weights[h])
+            end
+        end
     end
 
 

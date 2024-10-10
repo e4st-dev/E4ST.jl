@@ -199,6 +199,7 @@ function combine_results(post_config, post_data)
 
     # Combine results
     for (key, post_mod) in post_mods
+        @info "Combining results with Modification $key of type $(typeof(post_mod))"
         _try_catch(combine_results, key, post_mod, post_config, post_data[key])
     end
 end
@@ -230,7 +231,7 @@ function join_sim_tables(post_mod_data, keep_col; replace_missing = 0.)
 
     for (sim_name, df) in post_mod_data
         sim_name === first_sim_name && continue
-        res = outerjoin(res, df, on=joining_cols, matchmissing=:equal)
+        res = outerjoin(res, df, on=joining_cols, matchmissing=:equal, order=:left)
         rename!(res, keep_col=>sim_name)
     end
 
@@ -240,8 +241,6 @@ function join_sim_tables(post_mod_data, keep_col; replace_missing = 0.)
     end
 
     dropmissing!(res)
-
-    sort!(res)
 
     return res
 end

@@ -28,8 +28,8 @@ function init!(iter::RunSequential, config)
     iter.state = 1
     
     # Set up a new out path for the iteration
-    iter_str_length = ceil(Int, log10(length(iter.years)))
-    out_path_tmp = joinpath(config[:out_path], string("iter", lpad(iter.state, iter_str_length, "0")))
+    iter_string = get_iter_string(iter)
+    out_path_tmp = joinpath(config[:out_path], iter_string)
     mkpath(out_path_tmp)
     @info "Setting config[:out_path] to be $out_path_tmp"
     config[:out_path] = out_path_tmp
@@ -40,6 +40,8 @@ function init!(iter::RunSequential, config)
         @warn "config[:years] different than years specified in RunSequential iterator.\n    config[:years] = $(config[:years])\n    iter.years[1] =  $years"
         config[:years] = years
     end
+
+    save_config(config)
 end
 
 """
@@ -64,21 +66,47 @@ function iterate!(iter::RunSequential, config, data)
     iter.state += 1
     
     # Update config[:out_path]
-    iter_str_length = ceil(Int, log10(length(iter.years)))
-    out_path_tmp = abspath(config[:out_path], "..", string("iter", lpad(iter.state, iter_str_length, "0")))
-    mkpath(out_path_tmp)
-    @info "Setting config[:out_path] to be $out_path_tmp"
-    config[:out_path] = out_path_tmp
+    old_out_path = config[:out_path]
+    iter_string = get_iter_string(iter)
+    new_out_path = abspath(old_out_path, "..", iter_string)
+    mkpath(new_out_path)
+    @info "Setting config[:out_path] to be $new_out_path"
+    config[:out_path] = new_out_path
 
     # Update the years
     config[:year_gen_data] = last(config[:years])
     years = check_years(iter.years[iter.state])
     config[:years] = years
     
+    config[:gen_file] = abspath(old_out_path, "gen.csv")
+    
+    mods = get_mods(config)
 
+    for m in values(mods)
+        m isa Storage || continue
+        m.file = abspath(old_out_path, "storage.csv")
+    end
+    
+    save_config(config)
     return nothing
 end
 
+function get_iter_string(iter::RunSequential)
+    get_iter_string(iter.years, iter.state)
+end
+
+function get_iter_string(years::Vector{<:AbstractString}, state)
+    years[state] |> YearString
+end
+
+function get_iter_string(years::Vector{<:Integer}, state)
+    years[state] |> YearString
+end
+
+function get_iter_string(years, state)
+    iter_str_length = ceil(Int, log10(length(years)))
+    string("iter", lpad(state, iter_str_length, "0"))
+end
 
 """
     should_reread_data(::RunSequential) -> true

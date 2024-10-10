@@ -21,10 +21,12 @@ function setup_table!(config, data, ::Val{:nominal_load})
     plnom_bus = [LoadContainer() for _ in 1:nrow(bus)]
 
     add_table_col!(data, :bus, :plnom, plnom_bus, MWLoad, "Average MW of power load")
-    for row in eachrow(load)
-        bus_idx = row.bus_idx::Int64
-        c = bus[bus_idx, :plnom]
-        _add_view!(c, row.plnom)
+
+    load_bus_idxs = load.bus_idx::Vector{Int64}
+
+    for (cur_plnom, cur_bus_idx) in zip(plnom, load_bus_idxs)
+        c = plnom_bus[cur_bus_idx]
+        _add_view!(c, cur_plnom)
     end
 
     # Modify the load by shaping, matching, and adding
@@ -118,9 +120,9 @@ Match the yearly load by area given in `config[:load_match_file]`, updates the `
 Often, we want to force the total energy load for a set of load elements over a year to match load projections from a data source.  The `load_match_table` allows the user to provide yearly energy load targets, in \$MWh\$, to match.  The matching weights each hourly load by the number of hours spent at each of the representative hours, as provided in the `hours` table, converting from \$MW\$ power load over the representative hour, into \$MWh\$.
 """
 function match_nominal_load!(config, data) 
-    load_match_table = data[:load_match]
+    load_match_table = get_table(data, :load_match)
     bus_table = get_table(data, :bus)
-    nominal_load = data[:nominal_load]
+    nominal_load = get_table(data, :nominal_load)
     load_arr = get_load_array(data)
 
     # Pull out year info that will be needed

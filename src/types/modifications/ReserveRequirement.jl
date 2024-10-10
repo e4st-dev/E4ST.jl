@@ -336,6 +336,13 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
         model[Symbol("pres_flow_$(mod.name)")] = pres_flow
     end
 
+    # Do a feasibility check.  Note that this only checks for empty areas, but not areas lacking capacity.
+    for sa_idx in axes(subareas, 1), yr_idx in 1:nyr, hr_idx in 1:nhr
+        if pres_subarea[sa_idx, yr_idx, hr_idx] == 0 && pres_req_subarea[sa_idx, yr_idx, hr_idx] != 0
+            error("ReserveRequirement $(m.name) has an area $(m.area)=>$(requirements.subarea[sa_idx]) for which the reserve power is zero in year $yr_idx and hour $hr_idx")
+        end
+    end
+
     # Make the reserve requirment constraint
     model[Symbol("cons_pres_$(mod.name)")] = @constraint(
         model,
@@ -496,6 +503,11 @@ function modify_results!(mod::ReserveRequirement, config, data)
             # Find which buses to distribute to and the percentages of the surplus to distribute to each subarea
             f_bus_idxs = requirements.bus_idx_sets[f_subarea_idx]
             t_bus_idxs = requirements.bus_idx_sets[t_subarea_idx]
+
+            if isempty(f_bus_idxs) || isempty(t_bus_idxs)
+                continue
+            end
+
             f_bus_pres_req_total = replace_zeros!(sum(view(pres_req_bus, bus_idx, :, :) for bus_idx in f_bus_idxs), 1e-9)
             t_bus_pres_req_total = replace_zeros!(sum(view(pres_req_bus, bus_idx, :, :) for bus_idx in t_bus_idxs), 1e-9)
 

@@ -127,8 +127,9 @@ end
 Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_raw_data!(mod, config, data)`](@ref)
 """
 function modify_raw_data!(config, data)
-    for (sym, mod) in get_mods(config)
-        _try_catch(modify_raw_data!, sym, mod, config, data)
+    for (sym, m) in get_mods(config)
+        @info "Modifying raw data with Modification $sym of type $(typeof(m))"
+        _try_catch(modify_raw_data!, sym, m, config, data)
     end
     return nothing
 end
@@ -154,8 +155,9 @@ end
 Allows [`Modification`](@ref)s to modify the raw data - calls [`modify_setup_data!(mod, config, data)`](@ref)
 """
 function modify_setup_data!(config, data)    
-    for (sym, mod) in get_mods(config)
-        _try_catch(modify_setup_data!, sym, mod, config, data)
+    for (sym, m) in get_mods(config)
+        @info "Modifying setup data with Modification $sym of type $(typeof(m))"
+        _try_catch(modify_setup_data!, sym, m, config, data)
     end
     return nothing
 end
@@ -455,6 +457,8 @@ function force_table_types!(df::DataFrame, name, pairs...; optional=false)
 end
 export force_table_types!
 
+Base.String(::Missing) = ""
+
 function force_table_types!(df::DataFrame, name, summary::AbstractDataFrame; kwargs...) 
     for row in eachrow(summary)
         force_table_types!(df, name, row; kwargs...)
@@ -640,30 +644,14 @@ function setup_table!(config, data, ::Val{:branch})
     hasproperty(branch, :status) && filter!(:status => ==(true), branch)
 
     # Switch f_bus_idx and t_bus_idx if they are out of order
-    for row in eachrow(branch)
-        f_bus_idx = row.f_bus_idx::Int
-        t_bus_idx = row.t_bus_idx::Int
-        f_bus_idx < t_bus_idx && continue
-        row.t_bus_idx = f_bus_idx
-        row.f_bus_idx = t_bus_idx
-    end
-
+    order_f_bus_t_bus!(branch)
+    
     # Handle duplicate lines
-    if ~allunique((row.f_bus_idx,row.t_bus_idx) for row in eachrow(branch))
-        @warn "Handling Duplicate Lines"
-        gdf = groupby(branch, [:f_bus_idx, :t_bus_idx])
-        cols_remaining = setdiff(propertynames(branch), [:f_bus_idx, :t_bus_idx, :x, :pflow_max])
-        res = combine(gdf,
-            [:pflow_max, :x] => ((pflow_max, x)->(minimum(prod, zip(pflow_max, x)))/(inv(sum(inv, x)))) => :pflow_max,
-            :x => (x->(inv(sum(inv, x)))) => :x,
-            (col=>first=>col for col in cols_remaining)...
-        )
-        branch = res
-        data[:branch] = res
-    end
+    combine_parallel_lines!(branch)
 
-
-
+    # Force positive branch limits
+    force_positive_line_limits!(branch)
+    
     bus = get_table(data, :bus)
 
     # Add connected branches, connected buses.
@@ -680,9 +668,163 @@ end
 export setup_table!
 
 """
+    order_f_bus_t_bus!(branch)
+
+Orders each branch's `f_bus_idx` and `t_bus_idx` such that `f_bus_idx < t_bus_idx`.
+"""
+function order_f_bus_t_bus!(branch)
+    for row in eachrow(branch)
+        f_bus_idx = row.f_bus_idx::Int
+        t_bus_idx = row.t_bus_idx::Int
+        f_bus_idx < t_bus_idx && continue
+        row.t_bus_idx = f_bus_idx
+        row.f_bus_idx = t_bus_idx
+    end
+    return branch
+end
+export order_f_bus_t_bus!
+
+"""
+    combine_parallel_lines!(branch)
+
+Combines parallel lines by:
+* x_new = inverse of the sum of the inverses of x
+* pflow_max_new = (minimum of the products of `pflow_max` and `x`) / x_new
+"""
+function combine_parallel_lines!(branch)
+    if ~allunique(zip(branch.f_bus_idx,branch.t_bus_idx))
+        replace!(branch.pflow_max, 0=>Inf)
+
+        @warn "Handling Duplicate Lines"
+        gdf = groupby(branch, [:f_bus_idx, :t_bus_idx])
+        cols_remaining = setdiff(propertynames(branch), [:f_bus_idx, :t_bus_idx, :x, :pflow_max])
+        res = combine(gdf,
+            [:pflow_max, :x] => ((pflow_max, x)->(minimum(prod, zip(pflow_max, x)))/(inv(sum(inv, x)))) => :pflow_max,
+            :x => (x->(inv(sum(inv, x)))) => :x,
+            (col=>first=>col for col in cols_remaining)...
+        )
+        
+        empty!(branch)
+        append!(branch, res)
+
+        replace!(branch.pflow_max, Inf=>0, -Inf=>0)
+    end
+    return branch
+end
+export combine_parallel_lines!
+
+function force_positive_line_limits!(branch)
+    pflow_max = branch.pflow_max::Vector{Float64}
+    for (i, pf) in enumerate(pflow_max)
+        if pf < 0
+            pflow_max[i] = abs(pf)
+        end
+    end
+    return branch
+end
+export force_positive_line_limits!
+
+function check_islands_and_ref_bus!(data)
+    branch = get_table(data, :branch)
+    bus = get_table(data, :bus)
+
+    calc_islands!(branch, bus)
+
+    n_solo = count(==(0), bus.island_idx)
+    n_island = maximum(bus.island_idx)
+
+    if n_solo > 0
+        @warn "There are $n_solo buses not connected to any other buses"
+    end
+    @info "There are $n_island islands"
+
+    gdf = groupby(bus, :island_idx)
+    for i in 1:n_island
+        sdf = gdf[(;island_idx = i)]
+        n_ref_bus = count(==(true), sdf.ref_bus)
+        if n_ref_bus < 1
+            @warn "Island $i has no reference bus!  Setting one arbitrarily"
+            sdf.ref_bus[1] = 1
+        elseif n_ref_bus > 1
+            @warn "Island $i has $n_ref_bus reference buses!"
+            ref_bus_idxs = findall(==(true), sdf.ref_bus)
+            for bus_idx in ref_bus_idxs[2:end]
+                sdf.ref_bus[bus_idx] = 0
+            end
+        end
+    end
+end
+export check_islands_and_ref_bus!
+
+function calc_islands!(branch, bus)
+    f_bus_idxs = branch.f_bus_idx::Vector{Int64}
+    t_bus_idxs = branch.t_bus_idx::Vector{Int64}
+    nbus = nrow(bus)
+
+    
+    branch_island_idxs = Vector{Int64}(undef, nrow(branch))
+    bus_island_idxs = fill(0, nbus)
+
+    connected_bus_idxs = [Int64[] for _ in 1:nbus]
+    for (f_bus_idx, t_bus_idx) in zip(f_bus_idxs, t_bus_idxs)
+        push!(connected_bus_idxs[f_bus_idx], t_bus_idx)
+        push!(connected_bus_idxs[t_bus_idx], f_bus_idx)
+    end
+
+
+    n_island = 0
+    remaining_bus_idxs = collect(1:nbus)
+    bus_idx_disconnected = findall(isempty, connected_bus_idxs)
+    n_disconnected = length(bus_idx_disconnected)
+    if n_disconnected > 0
+        @info "Found $n_disconnected buses that are not connected to any AC branches! $(bus_idx_disconnected)"
+    end
+    filter!(!in(bus_idx_disconnected), remaining_bus_idxs)
+
+    while !isempty(remaining_bus_idxs)
+        n_island += 1
+
+        cur_bus_idx = first(remaining_bus_idxs)
+        island_bus_idxs = _get_connected_bus_idxs(connected_bus_idxs, cur_bus_idx)
+
+        for island_bus_idx in island_bus_idxs
+            bus_island_idxs[island_bus_idx] = n_island
+        end
+        
+        filter!(!in(island_bus_idxs), remaining_bus_idxs)
+    end
+
+    branch_island_idxs = map(i->bus_island_idxs[i], f_bus_idxs)
+
+    branch.island_idx = branch_island_idxs
+    bus.island_idx = bus_island_idxs
+    return nothing
+end
+export calc_islands!
+
+function _get_connected_bus_idxs(connected_bus_idxs, i)
+    island_bus_idxs = Set(i)
+    for connected_bus_idx in connected_bus_idxs[i]
+        _get_connected_bus_idxs!(island_bus_idxs, connected_bus_idxs, connected_bus_idx)
+    end
+    return island_bus_idxs
+end
+
+
+function _get_connected_bus_idxs!(island_bus_idxs, connected_bus_idxs, i)
+    i ∈ island_bus_idxs && return
+    push!(island_bus_idxs, i)
+    for connected_bus_idx in connected_bus_idxs[i]
+        _get_connected_bus_idxs!(island_bus_idxs, connected_bus_idxs, connected_bus_idx)
+    end
+    return
+end
+
+
+"""
     setup_table!(config, data, ::Val{:hours})
 
-Doesn't do anything yet.
+Sets up an `HoursContainer`
 """
 function setup_table!(config, data, ::Val{:hours})
     weights = get_hour_weights(data)
@@ -707,9 +849,10 @@ P_{G_{g,h,y}} \leq f_{\text{avail}_{g,h,y}} \cdot P_{C{g,y}} \qquad \forall \{g 
 """
 function setup_table!(config, data, ::Val{:af_table})
     # Fill in gen table with default af of 1.0 for every hour
-    gens = get_table(data, :gen)
+    gen = get_table(data, :gen)
     default_af = ByNothing(1.0)
-    gens.af = Container[default_af for _ in 1:nrow(gens)]
+    gen_af = Container[default_af for _ in axes(gen,1)]
+    gen.af = gen_af
     af_threshold = config[:cf_threshold]::Float64
 
     # Return if there is no af_file
@@ -717,15 +860,24 @@ function setup_table!(config, data, ::Val{:af_table})
         return
     end
 
-    af_table = data[:af_table]
+    af_table = get_table(data, :af_table)
 
-    hr_idx = findfirst(s->s=="h1",names(af_table))
+    first_hr_col_idx = findfirst(s->s=="h1",names(af_table))
     all_years = get_years(data)
     nyr = get_num_years(data)
     nhr = get_num_hours(data)
 
-    for i = 1:nrow(af_table)
-        row = af_table[i, :]
+    af_table.gen_idxs .= Ref(Int64[])
+
+    gen_af_table_idxs = [Int64[] for _ in axes(gen,1)]
+
+    af_matrix = zeros(nrow(af_table), nhr)
+    for (hr_idx, hr_col) in enumerate(first_hr_col_idx:(first_hr_col_idx + nhr - 1))
+        af_matrix[:, hr_idx] = af_table[:, hr_col]
+    end
+
+    for af_idx in axes(af_table,1)
+        row = af_table[af_idx, :]
         if get(row, :status, true) == false
             continue
         end
@@ -739,15 +891,25 @@ function setup_table!(config, data, ::Val{:af_table})
         end
         
         pairs = parse_comparisons(row)
-        cur_gens = get_table(data, :gen, pairs)
+        gen_idxs = get_row_idxs(gen, pairs)
 
-        isempty(cur_gens) && continue
+        row.gen_idxs = gen_idxs
+
+        isempty(gen_idxs) && continue
         
-        af = [(row[i_hr] < af_threshold ? 0.0 : row[i_hr]) for i_hr in hr_idx:(hr_idx + nhr - 1)]
-        foreach(eachrow(cur_gens)) do gen
-            gen.af = set_hourly(gen.af, af, yr_idx, nyr)
+        af = view(af_matrix, af_idx, :)
+        for gen_idx in gen_idxs
+            # Store this af_idx into gen_af_table_idxs.
+            cur_gen_af_table_idxs = gen_af_table_idxs[gen_idx]
+            push!(cur_gen_af_table_idxs, af_idx)
+
+            # Update the af_idx
+            cur_gen_af = gen_af[gen_idx]
+            gen_af[gen_idx] = set_hourly(cur_gen_af, af, yr_idx, nyr)
         end
     end
+    
+    add_table_col!(data, :gen, :af_table_idxs, gen_af_table_idxs, NA, "The indices of the af_table that were used to modify the `af` column of each generator")
 
     return data
 end

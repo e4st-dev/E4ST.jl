@@ -56,7 +56,7 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 | $C_{PL_{l,y,h}}^{-}$ | $-P_{F_{l,y,h}} \leq P_{L_{l,y,h}}^{\text{max}}$ | `:cons_branch_pflow_neg` | MW | Constrain the negative branch power flow to be less than or equal to its maximum. |
 | $C_{PCGPB_{g,y}}$ | $P_{C_{g,y}} = 0 \quad \forall \left\{ y<y_{S_g} \right\}$ | `N/A` | MW | Constrain the power generation capacity to be zero before the start year. Implemented by fixing the variable.  |
 | $C_{PCGNA_{g,y}}$ | $P_{C_{g,y+1}} <= P_{C_{g,y}} \quad \forall \left\{ y >= y_{S_g} \right\}$ | `:cons_pcap_gen_noadd` | MW | Constrain the power generation capacity to be non-increasing after the start year. Generation capacity is only added when building new generators in their start year.|
-| $C_{PCGE_{g,y}}$ | $P_{C_{g,y}} == P_{C_{0_{g}}} \quad \forall \left\{ first y >= y_{S_g} \right\}$ | `:cons_pcap_gen_exog` | MW | Constrain unbuilt exogenous generators to be built to `pcap0` in the first year after `year_on`. |
+| $C_{PCGE_{g,y}}$ | $P_{C_{g,y}} == P_{C_{0_{g}}} \quad \forall \left\{ first y >= y_{S_g} \right\}$ | `:cons_pcap_gen_exog` | MW | Constrain unbuilt exogenous generators (with `build_type ∈ (real, exog)`) to be built to `pcap_max` in the first year after `year_on`. |
 
 # Objective
 
@@ -89,12 +89,15 @@ function setup_model(config, data)
         model = JuMP.Model()
 
         # Comment this out for debugging so you can see variable names.  Saves quite a bit of RAM to leave out
-        set_string_names_on_creation(model, false)
+        if config[:model_string_names] == false
+            set_string_names_on_creation(model, false)
+        end
 
         setup_dcopf!(config, data, model)
     
-        for (name, mod) in get_mods(config)
-            _try_catch(modify_model!, name, mod, config, data, model)
+        for (name, m) in get_mods(config)
+            @info "Modifying model with Modification $name of type $(typeof(m))"
+            _try_catch(modify_model!, name, m, config, data, model)
         end
 
         # Set the objective, scaling down for numerical stability.
@@ -162,6 +165,11 @@ function validate(config, data)
         else
             @warn(message)
         end
+    end
+
+    if config[:validate_ref_bus] == true
+        # Check how many islands, and check that each has a reference bus.
+        check_islands_and_ref_bus!(data)
     end
 end
 

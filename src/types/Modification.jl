@@ -156,7 +156,7 @@ Prints the field determined in fieldnames_for_yaml from the Modification.
 """
 function YAML._print(io::IO, mod::M, level::Int=0, ignore_level::Bool=false) where {M<:Modification}
     println(io)
-    moddict = OrderedDict(:type => string(typeof(mod)), (k=>getproperty(mod, k) for k in fieldnames_for_yaml(M))...)
+    moddict = OrderedDict(:type => clean_type_string(mod), (k=>getproperty(mod, k) for k in fieldnames_for_yaml(M))...)
     YAML._print(io::IO, moddict, level, ignore_level)
 end
 

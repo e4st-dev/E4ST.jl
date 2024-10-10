@@ -1,6 +1,6 @@
 mods:
   agg_res:
-    type: AggregationTemplate
+    type: ResultsTemplate
     file: ../data/3bus/aggregate_template.csv
   gen_res_genfuel_nation:
     type: YearlyTable

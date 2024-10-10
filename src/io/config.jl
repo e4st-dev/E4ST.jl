@@ -55,6 +55,8 @@ function summarize_config()
         (:model_presolve_file, false, nothing, "The filepath (relative or absolute) to the unsolved model.  If this is provided, it will use this instead of creating a new model."),
         (:save_data_parsed, false, true, "A boolean specifying whether or not to save the raw results after solving the model.  This could be useful for calling [`process_results!(config)`](@ref) in the future. Defaults to `true`"),
         (:save_data_processed, false, true, "A boolean specifying whether or not to save the processed results after solving the model.  Defaults to `true`."),
+        (:save_data_debug, false, false, "A boolean specifying whether or not to save the data if the model fails to solve.  Defaults to `false`."),
+        (:save_model_debug, false, false, "A boolean specifying whether or not to save the model if the model fails to solve.  Defaults to `false`."),
         (:objective_scalar, false, 1e3, "This is specifies how much to scale the objective by for the sake of the solver.  Does not impact any user-created expressions or shadow prices from the raw results, as they get scaled back.  (Defaults to 1e6)"),
         (:pgen_scalar, false, 1e3, "This specifies how much to scale pgen by in the cons_pgen_max constraint.  Helps with numerical stability if there are small availability factors present.  See also cf_threshold"),
         (:pcap_retirement_threshold, false, 1e-6, "This is the minimum `pcap` threshold (in MW) for new generators to be kept.  Defaults to 1e-6 (i.e. 1W).  See also [`save_updated_gen_table`](@ref)"),
@@ -69,7 +71,12 @@ function summarize_config()
         (:coal_upstream_ch4_leakage, false, 0.000175, "Coal methane fuel content. (Short ton/MMBtu)"),
         (:wacc, false, 0.0544, "Assumed Weighted Average Cost of Capital (used as discount rate), currently only used for calculating ptc capex adjustment but should be the same as the wacc/discount rate used to calculate annualized generator costs. Current value (0.0544) was using in annulaizing ATB 2022 costs."),
         (:error_if_zero_af, false, true, "Whether or not to throw an error if there are generators with zero availability over the entire year.  If set to equal false, it will throw a warning message rather than an error."),
-        (:error_if_zero_cost, false, true, "Whether or not to throw an error if there are generators with zero costs over the entire year.  If set to equal false, it will throw a warning message rather than an error.")
+        (:validate_ref_bus, false, true, "Whether or not to validate whether every island has a reference bus.  True by default"),
+        (:error_if_zero_cost, false, true, "Whether or not to throw an error if there are generators with zero costs over the entire year.  If set to equal false, it will throw a warning message rather than an error."),
+        (:error_if_voltage_angle_at_bound, false, true, "Whether or not to throw an error if there is a voltage angle within 1% of the voltage angle bounds."),
+        (:voltage_angle_bound, false, 1e3, "The magnitude of the bounds to use for the voltage angle, θ, for each bus.  It helps numerical stability to keep tight bounds, but these bounds should never be binding.  The simulation will throw an error if the bounds are too tight."),
+        (:require_optimal, false, true, "Whether or not to require whether or not the model is solved to optimality.  If set to true and the optimizer terminates with a suboptimal termination status, [`run_e4st`](@ref) returns after optimizing, without parsing results, etc."),
+        (:model_string_names, false, false, "Whether or not to allow the model to have string names.  Defaults to `false` for memory savings.  Can be helpful to turn on for debugging, especially if you are encountering an infeasible model"),
 
     )
         
@@ -395,10 +402,10 @@ function check_years(years)
     _vec(_check_years(years))
 end
 function _check_years(y::Int)
-    return "y$y"
+    return YearString(y)
 end
 function _check_years(y::String)
-    return y
+    return YearString(y)
 end
 function _check_years(v::AbstractVector)
     _check_years.(v)

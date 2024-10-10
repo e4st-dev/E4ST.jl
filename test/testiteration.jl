@@ -65,23 +65,51 @@
     end
 
     @testset "Test Sequential Iteration" begin
-        config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
-        iter_file = joinpath(@__DIR__, "config", "iter_seq.yml")
+        @testset "Test Sequential Iteration with different number of years" begin
+            config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
+            config_stor_file = joinpath(@__DIR__, "config", "config_stor.yml")
+            iter_file = joinpath(@__DIR__, "config", "iter_seq.yml")
 
-        config = read_config(config_file, iter_file)
+            config = read_config(config_file, config_stor_file, iter_file)
 
-        @test get_iterator(config) isa RunSequential
+            @test get_iterator(config) isa RunSequential
 
-        run_e4st(config)
+            run_e4st(config)
 
-        op = latest_out_path(config[:base_out_path])
-        
-        @test isdir(joinpath(op, "iter1"))
-        @test isdir(joinpath(op, "iter2"))
-        @test isfile(joinpath(op, "E4ST.log"))
-        @test isfile(joinpath(op, "iter1", "gen.csv"))
-        @test isfile(joinpath(op, "iter2", "gen.csv"))
+            op = latest_out_path(config[:base_out_path])
+            
+            @test isdir(joinpath(op, "iter1"))
+            @test isdir(joinpath(op, "iter2"))
+            @test isfile(joinpath(op, "E4ST.log"))
+            @test isfile(joinpath(op, "iter1", "gen.csv"))
+            @test isfile(joinpath(op, "iter2", "gen.csv"))
+            @test isfile(joinpath(op, "iter1", "storage.csv"))
+            @test isfile(joinpath(op, "iter2", "storage.csv"))
+        end
+        @testset "Test Sequential Iteration with 3 single years" begin
+            config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
+            config_stor_file = joinpath(@__DIR__, "config", "config_stor.yml")
+            iter_file = joinpath(@__DIR__, "config", "iter_seq2.yml")
 
+            config = read_config(config_file, config_stor_file, iter_file)
+
+            @test get_iterator(config) isa RunSequential
+
+            run_e4st(config)
+
+            op = latest_out_path(config[:base_out_path])
+            
+            @test isdir(joinpath(op, "y2025"))
+            @test isdir(joinpath(op, "y2030"))
+            @test isdir(joinpath(op, "y2035"))
+            @test isfile(joinpath(op, "E4ST.log"))
+            @test isfile(joinpath(op, "y2025", "gen.csv"))
+            @test isfile(joinpath(op, "y2030", "gen.csv"))
+            @test isfile(joinpath(op, "y2035", "gen.csv"))
+            @test isfile(joinpath(op, "y2025", "storage.csv"))
+            @test isfile(joinpath(op, "y2030", "storage.csv"))
+            @test isfile(joinpath(op, "y2035", "storage.csv"))
+        end
         # TODO: think of any tests here that would better check the functionality
     end
 
@@ -116,7 +144,7 @@
         data = read_data(config)
         model = setup_model(config, data)
         optimize!(model)
-        @test check(model)
+        @test check(config, data, model)
         parse_results!(config, data, model)
         process_results!(config, data)
         gen = get_table(data, :gen)

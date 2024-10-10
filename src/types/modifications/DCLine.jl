@@ -111,4 +111,7 @@ function modify_results!(mod::DCLine, config, data)
         ms[f_bus_idx] .+= ms_per_bus
         ms[t_bus_idx] .+= ms_per_bus
     end
+
+    add_table_col!(data, :dc_line, :pflow, pflow_dc, MWFlow,"Average Power flowing through line")    
+
 end
