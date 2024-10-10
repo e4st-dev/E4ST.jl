@@ -5,12 +5,31 @@ A generation standard (also refered to as a portfolio standard) is a constraint 
 This encompasses RPSs, CESs, and technology carveouts.
 To assign the credit (the portion of generation that can contribute) to generators, the [`Crediting`](@ref) type is used.
 
+### Keyword Arguments
 * `name` - Name of the policy 
 * `gen_filters` - Filters on which generation qualifies to fulfill the GS. Sometimes qualifying generators may be outside of the GS load region if they supply power to it. 
 * `crediting` - the crediting structure and related fields
 * `load_targets` - OrderedDict containing key-value pairs where each key is the name of a requirement (not currently used), and each value is an OrderedDict with the following keys:
     * `filters` - Filters on which buses fall into the GS load region. The GS will be applied to the load from these buses. 
     * `targets` - The yearly percent targets of the qualifying load that must be covered by the qualifying generation.
+
+### Table Columns Added
+* `(:gen, :<name>_pol)` - credit level for generation standard, set to zero to start 
+* `(:gen, :pl_gs)` - served load power that qualifies for the generation standard.
+* `(:gen, :el_gs)` - served load energy that qualifies for the generation standard. 
+* `(:gen, :<name>_prc)` - The per MWh price of the policy. This is based on the shadow price of the policy. It is converted to DollarsPerMWhGenerated and multiplied by the credit. 
+
+### Model Modification
+* Expressions
+    * `tgt_load_<name>` - the annual target load 
+    * `pl_gs_bus` - the served load power that qualifies for the generation standard of each bus.
+* Constraints
+    * `cons_<name>` - a generation constraint for the generation standard, based on the policy.
+
+### Results Formulas 
+* `(:bus, :el_gs_total)` - total served load energy that qualifies for generation standards. 
+* `(:gen, :<name>_cost)` - cost of the policy based on the shadow price on the constraint and the generator credit level. 
+
 """
 struct GenerationStandard{T} <: Policy 
     name::Symbol

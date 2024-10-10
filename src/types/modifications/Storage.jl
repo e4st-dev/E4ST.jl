@@ -8,25 +8,108 @@ Storage is represented over sets of time-weighted sequential representative hour
 * Total charge of the device cannot exceed its maximum charge, or go below zero.
 * Initial charge over an interval can be anywhere between 0 and the maximum charge, and is the same initial charge for each time interval.
 
-# Arguments
+### Keyword Arguments:
 * `name` - the name of the [`Modification`](@ref).
 * `file` - the filename of the storage table, where each row represents a storage device. See also [`summarize_table(::Val{:storage})`](@ref)
 * `build_file` - the filename of the buildable storage table, where each row represents a specification for buildable storage.  See also [`summarize_table(::Val{:build_storage})`](@ref)
 
-# Variables Introduced
-* `pcap_stor[stor_idx, yr_idx]` - The discharge power capacity, in MW, of the storage device.
-* `pcharge_stor[stor_idx, yr_idx, hr_idx]` - The charge power, in MW, for a given hour.
-* `pdischarge_stor[stor_idx, yr_idx, hr_idx]` - The discharged power, in MW, for a given hour.
-* `e0_stor[stor_idx, yr_idx, int_idx]` - The starting charge energy (in MWh) for each interval.
+### Tables Added:
+* `storage` - this table consists of rows defining the built and economic status of different storage units 
+* `build_storage` - this table specifies the storage that the model can build  
 
-# Constraints Introduced
-* `cons_stor_charge_bal[stor_idx, yr_idx, int_idx]` - the charge balancing equation - net charge in each interval is 0
-* `cons_stor_charge_max[stor_idx, yr_idx, int_idx, _hr_idx]` - constrain the stored energy in each hour of each interval to be less than the maximum (function of `pcap_stor` and the discharge duration column of the storage table).  Note `_hr_idx` is the index within the interval, not the normal `hr_idx`
-* `cons_stor_charge_min[stor_idx, yr_idx, int_idx, _hr_idx]` - constrain the stored energy in each hour of each interval to be greater than zero.  Note `_hr_idx` is the index within the interval, not the normal `hr_idx`
-* `cons_pcap_stor_noadd[stor_idx, yr_idx; years[yr_idx] >= storage.year_on[stor_idx]]` - constrain the capacity to be non-increasing after being built. (only in multi-year simulations)
-* `cons_pcap_stor_prebuild[stor_idx, yr_idx; years[yr_idx] < storage.year_on[stor_idx]]` - fix the capacity to zero before being built. (should only happen in multi-year simulations)
-* `cons_pcap_stor_exog[stor_idx, yr_idx]` - constrain the exogenous, unbuilt capacity to equal pcap0 for the first year >= its build year.
+### Table Columns Added:
+* `(:storage, :capex_obj)` - the hourly capital expenditure that is used in the objective function. Because capacity expansion is not considered for existing storage units, it is set to 0 for already built capacity.
+* `(:storage, :transmission_capex_obj)` - the hourly transmission capacity expenditure that is used in the objective function.
+* `(:storage, :pcap)` - power discharge capacity of the storage device.
+* `(:storage, :pcharge)` - the rate of charging, in MW
+* `(:storage, :pdischarge)` - the rate of discharging, in MW
+* `(:storage, :echarge)` - energy used in the charging of the storage device (includes round-trip storage losses)
+* `(:storage, :edischarge)` - energy that was discharged by the storage device.
+* `(:storage, :pcap_inv_sim)` - the total power discharge capacity invested in the storage unit during the simulation. Represented by a single value and remains the same after retirement.
+* `(:storage, :ecap_inv_sim)` - the total yearly energy discharge capacity invested in the storage unit during the simulation (pcap_inv_sim * hours per year). Represented by a single value and remains the same after retirement.
+* `(:storage, :lmp_e)` - locational marginal price of electricity.
+* `(:storage, :ploss)` - power lost by the battery, counted as served load equal to `pcharge * (1-η)` 
+* `(:storage, :eloss)` - energy lost by the battery, counted as served load.
 
+###Model Modification
+*Variables 
+    * `pcap_stor[stor_idx, yr_idx]` - The discharge power capacity, in MW, of the storage device.
+    * `pcharge_stor[stor_idx, yr_idx, hr_idx]` - The charge power, in MW, for a given hour.
+    * `pdischarge_stor[stor_idx, yr_idx, hr_idx]` - The discharged power, in MW, for a given hour.
+    * `e0_stor[stor_idx, yr_idx, int_idx]` - The starting charge energy (in MWh) for each interval.
+*Expressions
+    * `vom_stor[yr_idx in 1:nyr]` - the addition of fixed operation and maintenance costs to the objective function. 
+    * `fom_stor[yr_idx in 1:nyr]` - the addition of variable operation and maintenance costs to the objective function. 
+    * `routine_capex_stor[yr_idx in 1:nyr]` - the addition of capital expenditure costs associated with storage to the objective function. 
+    * `pcap_stor_inv_sim[stor_idx in axes(storage,1)]` - storage power discharge capacity invested in the sim.
+    * `capex_obj_stor[yr_idx in 1:nyr]` - the objective capital expenditures of storage.
+    * `transmission_capex_obj_stor[yr_idx in 1:nyr]` - the objective capital expenditures of storage transmission. 
+*Constraints
+    * `cons_stor_charge_bal[stor_idx, yr_idx, int_idx]` - the charge balancing equation - net charge in each interval is 0
+    * `cons_stor_charge_max[stor_idx, yr_idx, int_idx, _hr_idx]` - constrain the stored energy in each hour of each interval to be less than the maximum (function of `pcap_stor` and the discharge duration column of the storage table).  Note `_hr_idx` is the index within the interval, not the normal `hr_idx`
+    * `cons_stor_charge_min[stor_idx, yr_idx, int_idx, _hr_idx]` - constrain the stored energy in each hour of each interval to be greater than zero.  Note `_hr_idx` is the index within the interval, not the normal `hr_idx`
+    * `cons_pcap_stor_noadd[stor_idx, yr_idx; years[yr_idx] >= storage.year_on[stor_idx]]` - constrain the capacity to be non-increasing after being built. (only in multi-year simulations)
+    * `cons_pcap_stor_prebuild[stor_idx, yr_idx; years[yr_idx] < storage.year_on[stor_idx]]` - fix the capacity to zero before being built. (should only happen in multi-year simulations)
+    * `cons_pcap_stor_exog[stor_idx, yr_idx]` - constrain the exogenous, unbuilt capacity to equal pcap0 for the first year >= its build year.
+
+### Results Formulas
+*Investment Subsidy 
+    * `(:storage, :invest_subsidy)` - investment subsidies sent to the producers of exogenous or endogenous investments made in the sim
+    * `(:storage, :invest_subsidy_permw_perhr)` - investment subsidies per MW per hour 
+*Power Capacity Investment 
+    * `(:storage, :pcap_total)` - total discharge power capacity (calculates the average if multiple years provided)
+    * `(:storage, :ecap_total)` - total energy capacity in MWh, equal to the power generation capacity multiplied by the number of hours.
+    * `(:storage, :echarge_total)` - total energy charged
+    * `(:storage, :edischarge_total)` - total energy discharged
+    * `(:storage, :eloss_total)` - total energy loss
+    * `(:storage, :ecap_inv_total)` - total invested energy discharge capacity over the given time period.
+*Electricity Costs 
+    * `(:storage, :electricity_revenue)` - revenue from discharging electricity to the grid.
+    * `(:storage, :electricity_cost)` - costs of electricity to charge the storage units.
+*Production Costs 
+    * `(:storage, :vom_cost)` - total variable O&M cost for discharging energy.
+    * `(:storage, :vom_per_mwh)` - average variable O&M cost for discharging 1 MWh of energy (vom_cost / edischarge_total).
+    * `(:storage, :fom_cost)` - total fixed O&M cost paid, in dollars 
+    * `(:storage, :fom_per_mwh)` - average fixed O&M cost for discharging 1 MWh of energy (fom_cost / edischarge_total).
+    * `(:storage, :routine_capex_cost)` - total routine capex cost paid, in dollars.
+    * `(:storage, :routine_capex_per_mwh)` - average routine capex cost for discharging 1 MWh of energy 
+    * `(:storage, :capex_cost)` - total annualized capital expenditures paid including endogenous and exogenous investments incurred in the sim year.
+    * `(:storage, :capex_per_mwh)` - average capital cost of discharging 1 MWh of energy 
+    * `(:storage, :transmission_capex_cost)` - total annualized transmission capital expenditures paid. This is only for transmissions costs related to building a storage unit, beyond what is included in the capex cost of the generator.
+    * `(:storage, :transmission_capex_per_mwh)` - average transmission capital cost of discharging 1 MWh of energy. 
+    * `(:storage, :invest_cost)` - total annualized investment costs, in dollars
+    * `(:storage, :invest_cost_permw_perhr)` - average investment cost per MW of invested capacity per hour.
+    * `(:storage, :production_cost)` - cost of production, includes fixed and variable costs, does not include energy costs, subsidies, and costs from investments prior to the sim.
+    * `(:storage, :production_cost_per_mwh)` - average cost of production for a MWh of energy discharge 
+    * `(:storage, :net_production_cost)` - net cost of production, includes fixed and variable costs and investment and production subsidies, does not include energy costs 
+    * `(:storage, :net_production_cost_per_mwh)` - average net cost of discharging 1 MWh of energy 
+*Variable Costs
+    * `(:storage, :variable_cost)` - total variable costs for operation, including vom. 
+    * `(:storage, :variable_cost_per_mwh)` - average variable costs for operation, for discharging 1 MWh from storage. 
+    * `(:storage, :ptc_subsidy)` - total production subsidy for storage.
+    * `(:storage, :ptc_subsidy_per_mwh)` - average production subsidy for discharging 1 MWh from storage.
+    * `(:storage, :past_invest_cost_total)` - Investment costs from past investments.  This only applies to storage units built prior to the simulation.  This includes the full annualized investment cost times the percentage likelihood that the storage unit would still be within its the economic lifetime for the year calculated, given that endogenously built storage units can be built in a range of years.
+    * `(:storage, :past_invest_subsidy_total)` - Investment subsidies from past investments.  This only applies to storage units built prior to the simulation.  This includes the full annualized investment subsidy times the percentage likelihood that the storage unit would still be within its the economic lifetime for the year calculated, given that endogenously built storage units can be built in a range of years.
+    * `(:storage, :net_variable_cost)` - net variable cost for storage (variable_cost - ptc_subsidy)
+    * `(:storage, :net_variable_cost_per_mwh)` - average net variable costs per MWh of discharged energy 
+*Fixed Costs
+    * `(:storage, :fixed_cost)` - total fixed costs, include capex and fixed O&M costs.
+    * `(:storage, :fixed_cost_permw_perhr_cost)` - fixed costs per MW per hour (fixed_cost / ecap_total)
+    * `(:storage, :net_fixed_cost)` - fixed costs minus investment subsidies
+    * `(:storage, :net_fixed_cost_permw_perhr)` - average net fixed cost per MW per hour (net_fixed_cost / ecap_total)
+*Policy Costs
+    * `(:storage, :net_pol_cost_for_storage)` - costs from all policy types (investment and production subsidies)
+    * `(:storage, :net_pol_cost_for_storage_per_mwh)` - average policy cost per MWh of discharged energy.
+    * `(:storage, :net_government_revenue)` - net gov revenue earned from energy storage.
+    * `(:storage, :going_forward_cost)` - total cost of production and policies.
+    * `(:storage, :total_cost_prelim)` - Total cost of production, including  going_forward_cost, and past investment cost and subsidy for investments still within their economic lifetimes, before adjusting for cost-of-service rebates.
+    * `(:storage, :net_total_revenue_prelim)` - preliminary net total revenue, before adjusting for cost of service rebates (electricity_revenue - electricity_cost - total_cost_prelim)
+    * `(:storage, :cost_of_service_rebate)` - the sum of net_total_revenue_prelim * reg_factor for each generator.
+    * `(:storage, :total_cost)` - total cost after adjusting for the cost of service.
+    * `(:storage, :net_total_revenue)` - net total revenue after adjusting for the cost of service rebate.
+    * `(:storage, :net_going_forward_revenue)` - (electricity_revenue - electricity_cost - net_variable_cost - cost_of_service_rebate)
+
+ 
 # Objective Terms
 * `capex_obj_stor` - the capital expenditures to build the storage device, only non-zero in the build year.  (function of `pcap_stor` and `capex`, and `year_on`)
 * `fom_stor` - the fixed operation and maintenance costs for the storage device (function of `pcap_stor` and `fom` from the storage table)
