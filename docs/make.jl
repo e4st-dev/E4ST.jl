@@ -48,7 +48,7 @@ makedocs(
             "Retrofits" => "types/modifications/retrofits.md",
             "Interface Limits" => "types/modifications/interface-limits.md",
         ],
-        
+        "RFF-E4ST"=>"rff-e4st.md",        
     ],
     # TODO: Comment out format line before deploying, this is only for testing locally
     format = Documenter.HTML(

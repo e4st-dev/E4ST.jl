@@ -1,0 +1,87 @@
+RFF-E4ST
+========
+Resources for the Future (RFF), the main organization responsible for developing and maintaining E4ST.jl, has a carefully curated a set of inputs and assumptions that we use in our analyses.  With the E4ST.jl writing process, we have tried to make our model straight-forward and easy to pick up and use for other modelers.  However, many of the inputs we use for our analyses are proprietary and require a license.  There are also custom Modifications that are still in development, or project-specific that we have chosen not to release in E4ST.jl.  If you are interested in using our inputs (possibly necessitating a licensing fee paid to the data providers), please contact Dan Shawhan at shawhan@rff.org.  This page provides an overview of the inputs and assumptions we use for our analyses.
+
+```@contents
+Pages = ["rff-e4st.md"]
+```
+
+# Grid
+
+The model uses a representation of the U.S. electric grid reduced to roughly five thousand nodes and twenty thousand transmission segments. Power flow through the transmission segments is represented using standard linear approximation of the optimal power flow equations, known as a “DC linear approximation” ([Yang et al., 2017](https://ietresearch.onlinelibrary.wiley.com/doi/10.1049/iet-gtd.2017.1078)). These equations assume that the power flow through a transmission segment is a linear function of factors including the phase angle difference at the two ends of the segment.  E4ST uses a detailed model of the transmission system using data from [Energy Visuals](https://www.energyvisuals.com/), with all of the high-voltage (over 200 kilovolt) transmission lines and a modified “Ward reduction” ([Di Shi, 2012](https://core.ac.uk/download/pdf/79564835.pdf)) representation of the lower-voltage transmission lines.  We use a neutral assumption about the transmission expansion, assuming that the capacity of all transmission lines is expanded in proportion to system-wide electricity consumption growth.
+
+# Load
+
+The load is first distributed to each bus based on <TODO: add explanation here>.  Then hourly shape by region is applied from <TODO>.  Finally, we scale everything to match the annual load forecasted by the Annual Energy Outlook, or other sources depending on the project.
+
+# Hours Representation
+
+RFF-E4ST typically simulates the operation of the electricity system in a set of 52 representative hours of the year. These hours were carefully selected to mimic the frequency distributions of load, solar resource, and wind resource in the historical period 2008-2010, which is the only period for which detailed location-by-location, hour-by-hour wind, and solar data are available for both the U.S. and Canada. The representative hours are grouped into 16 representative days, which allows for the simulation of diurnal energy storage. Five of these days represent non-extreme conditions and are comprised of six evenly spaced representative hours. The remaining 11 days represent periods of potential extreme scarcity (high load, low sun, low wind, or a combination) in some parts of the U.S. and Canada and consist of only two hours (the most and least extreme hour in that day). These 11 extreme days are a carefully selected set that represents every kind of extreme scarcity condition in every NERC region of the U.S. and Canada. Using these representative periods with appropriate weights, E4ST is able to represent well the load and weather conditions expected in future years.
+
+# Generators
+
+## Existing Generation
+
+The set of existing generators, their operational characteristics, grid connection points, and costs come from [S&P Global Market Intelligence Platform](https://www.spglobal.com/marketintelligence/en/campaigns/energy).  Existing wind and solar resource availablity is documented below.
+
+## New Generation
+
+For the costs of new technology, we use future cost estimates from the 2023 NREL Annual Technology Baseline (ATB) (Mirletz et al. 2023). The ATB offers multiple assumptions for cost of capital and economic lifetime. We assume a real weighted average cost of capital of 5.44 percent and technology-specific economic lifetimes. For generators with carbon capture, we assume a 12-year lifetime, corresponding to the length of the IRA 45Q tax credit. For natural gas generation, we assume a 10-year economic lifetime. We assume a 30-year economic lifetime for all other new generators. We do not allow new coal generation to be built. We use the projected costs of projects completed in 2030. The assumed fuel prices for thermal generators come from the Reference Case of the 2023 Annual Energy Outlook (USEIA 2023).
+
+### Coal CCS Retrofits
+
+In the simulations, we allow coal-fueled power plants to be retrofitted with carbon capture, and new natural gas-fueled power plants with carbon capture to be built, each of them with an assumed CO2 capture rate of 90 percent. Like all buildable power plant types, the model builds them where it projects that they will be profitable. 
+
+### Thermal generators
+
+Thermal generators are allowed to be built at the sites of buses which are directly connected to existing or retired thermal generators.  This is because we assume that new thermal generators require certain infrastructure and natural resources which may be costly or uncommon outside of the existing locations.
+
+### Solar
+
+Available solar capacity comes from the [NREL solar supply curve](https://www.nrel.gov/gis/solar-supply-curves.html) reference case.  This contains the available solar capacity of a 11.5x11.5km grid across the continental United States.  We then gather the solar data including the GHI, DHI, DNI, wind speed,air temperature, and zenith angle of the nearest point in the NREL National Solar Radiation Database (NSRDB) for each site during each of our representative hours.  From the site and time specific solar data, we then calculate the availability factor at each representative hour for a single-axis tracking solar farm using NREL's System Advisor Model (SAM).  Finally, we use a k-means clustering algorithm to group the supply curve sites into 3,000 larger farms.  We take the capacity-weighted average of the supply curve site availability factors to get the final hourly availability factors for each cluster.
+
+### Wind
+
+Available wind capacity comes from the [NREL wind supply curve](https://www.nrel.gov/gis/wind-supply-curves.html) reference case.  This contains the available wind capacity of a 11.5x11.5km grid across the continental United States.  We then gather the wind speeds at a variety of heights for the nearest point in the NREL National Solar Radiation Database (NSRDB) for each site during each of our representative hours.  From the site and time specific wind data, we then calculate the availability factor using a power curve provided for the [NREL reference 5.5MW turbine](https://nrel.github.io/turbine-models/2020ATB_NREL_Reference_5.5MW_175.html), with some haircut and wake losses assumed.  Finally, we use a k-means clustering algorithm to group the supply curve sites into 3,000 larger farms.  We take the capacity-weighted average of the supply curve site availability factors to get the final hourly availability factors for each cluster.
+
+## Storage
+
+We assume that storage can be built at any bus.  Storage is assumed to be an 8-hour cycle (4 hours for charging, 4 hours for discharging) with 85% round-trip efficiency.  Each storage unit is constrained to have the same charge at the beginning and end of the day.  For battery energy storage, we assume a 20 year economic lifetime.
+
+## Carbon Sequestration Market
+
+To determine the costs of transporting and sequestering carbon, we use the CO2 transportation and sequestration model from the Integrated Planning Model which is drawn from the National Electric Energy Data System (NEEDS) (USEPA n.d.-c). CO2 can be sequestered in saline aquifers or can be used for enhanced oil recovery (EOR). Use for EOR earns a smaller US government subsidy per ton. We assume that none of the CO2 sequestered in a saline aquifer escapes, but that the net emissions effect of using CO2 for enhanced oil recovery, including all upstream and downstream market effects of doing so, is equivalent to 23 percent leakage of the sequestered CO2 (Heidug et al. 2015). To represent the demand for CO2 storage from other sectors, we remove the cheapest CO2 storage options adding up to 141 million short tons of CO2 stored, the estimated demand for CO2 storage outside the power sector from Jenkins et al. (2023).
+
+# Reserve Requirements
+
+The model represents capacity reserve requirements via constraints that require that, for every representative hour, the “available” generation and storage capacity in each balancing authority area (areas from Sergi and Cole 2021) must be greater than or equal to local load plus the area’s capacity reserve margin requirement. The hourly available capacity of each wind, solar, and hydro generator accounts for hourly wind, sun, or water resource availability at its location. The hourly available capacities of all generators account for average type-specific outage rates. Battery storage capacity is further derated by 10 percent (as is done in New York; Smith 2021) to represent the effect of its limited duration. Capacity can be traded across regional capacity reserves, constrained by the dependable n-minus-one transmission limits between each adjacent pair of areas, which we calculated from simulations using the normal E4ST transmission model. There is a price for reserves in each representative hour, earned by generators and storage according to their available, operable capacity in that hour (after accounting for hourly, location-specific wind and sun and for generator outage rates).
+
+!!! note
+
+    The available capacity for a given generator is equal to the nameplate capacity times of the generator times its availability factor at each hour.
+
+# Policies
+
+The most influential policy in our model is the Inflation Reduction Act of 2022, which provides incentives for clean electricity generation and for electrification of existing nonelectric energy uses. We also have state renewable and clean electricity requirements in our model. We assume that these states will have intermediate requirements, determined linearly, in each year between 2023 and the first announced requirement, and then between that and any later requirements. These are based on the information about requirements in Barbose (2023). We also assume that any requirements that end in current law rather than being continued will be continued at a flat percentage of the state’s electricity consumption. However, in our results, few of these state requirements have an effect, because the incentives in the Inflation Reduction Act induce more renewable and clean energy by 2030 than called for by most of the state requirements by that year.
+
+The Regional Greenhouse Gas Initiative (RGGI) is a cap-and-trade policy that applies to electricity sector CO2 emissions in twelve northeastern states from Maine to Virginia, with Virginia’s governor attempting a contested departure. We assume that the twelve states, except Virginia, are in RGGI in 2030. Every few years, the state governments that manage RGGI have adjusted the number of allowances issued, largely in response to the demand for allowances. This pattern is effectively similar to a policy of trying to achieve a target RGGI emissions allowance price. In addition, the program has a soft price ceiling, a soft price floor (the emissions containment reserve at a medium price), and a hard price floor (the price floor at a low price) that further reduce the range of likely future prices. For both of these reasons, we represent RGGI as a price on power plant emissions within the RGGI states, rather than as an emissions cap or as an emissions allowance supply step function. Specifically, we assume that the allowance price will be at the emissions containment trigger price, which will be $11.77 in 2030. Given our inflation assumptions, we project that this will be equivalent to $8.98 in 2020 dollars. 
+
+There are annual SO2 and NOx emissions caps in the eastern U.S, under the Cross-State Air Pollution Rule, that have been slack for several years. We assume that these annual limits will be slack in 2030 as well, partly because the Inflation Reduction Act contributes to the likelihood that they will continue to be slack.
+
+However, there is also a cap on power plant and industrial NOX from May 1 to September 30 of each year in selected states that produce a disproportionate share of total US electric sector NOX emissions. It has not been slack in recent years; it has had a non-trivial NOX emissions allowance price. It has recently been modified in an EPA policy revision known as the Good Neighbor Plan. Under this plan, the May–September NOX cap will, by 2030, be largely determined by the amount of emitting generation capacity that is still operable at that time. The allowed emissions per MW of existing emitting capacity will be such that most but probably not quite all emitting capacity will need selective catalytic reduction (SCR) as an emissions control type. This is a reason to use an estimate of the long-run marginal cost (or, equivalently, the levelized cost) of SCR as the projected price of the May–September NOX allowance price, in the states that are subject to the May–September power plant NOX cap. Under the Good Neighbor Plan, there are now 22 such states. The price estimate we use is $11,000/short ton (in 2016$, or $5.91/pound in 2020$) (USEPA 2023c).
+
+We do not assume any new US national regulations on power plant CO2 emissions like those proposed recently by the US EPA based on section 111 of the Clean Air Act (USEPA 2023c). It is uncertain how those regulations might change and whether they will survive court challenges. Even if they do survive and are implemented and sustained, their effects on the benefits and costs of these policies in 2030 might be small. In the results of the EPA modeling of the regulations’ effects in 2030, 2035, and 2040, the effects are much larger in 2035 than in 2030 or 2040. 
+
+We do not model the DC solar carveout because we do not allow utility scale solar to be built in areas with high population density such as DC, making this policy unrealistically binding. The actual policy may include small scale solar and may count solar from surrounding regions but we do not include this in our current representation of this policy. We also do not include the Maryland offshore wind carveout although it will likely be met in 2030.
+
+# Air Pollution Model
+
+## PM2.5 Ambient Air Pollution
+
+The Intervention Model for Air Pollution (InMAP) is an air quality model that incorporates long range transport of direct PM2.5 emissions as well as PM2.5 formed from NOx and SOx emissions. The E4ST team has incorporated InMAP’s source receptor matrix (SRM) into the power sector model to model how EGUs will change ambient PM2.5 concentrations. The InMAP SRM is a linearized version of InMAP that estimates the effects of emissions from over 50,000 source grid cells at three stack heights across the United States. The grid cells vary in size based on the population density, with increased detail in urban areas with high population density. As part of this effort, we have developed and released an open-source software package for working with the InMAP SRM in the Julia programming language, which can be found at https://github.com/e4st-dev/InMAPSourceReceptorMatrices.jl.
+
+The E4ST team has mapped the air pollution to each census block group in the United States. Using race/ethnicity and income information from the US Census American Community Survey (ACS) (US Census 2020), we are able to estimate the changes in ambient PM2.5 for population in each race/ethnicity group and income quintile for every block group. Combining that with the race/ethnicity-specific hazard ratios from (Di et al. 2017), and group-specific county-level mortality information from the CDC’s National Vital Statistics System (NVSS) (CDC 2020), we estimate the number of premature deaths in each racial/ethnicity group or income quintile caused by ambient PM2.5 caused by power sector emissions. Finally, we use the Value of Statistical Life (VSL) estimates from the USEPA to compute a dollar value for the health damages resulting from the PM2.5 pollution caused by the power sector (USEPA 2023b). 
+
+## Ground Level Ozone
+
+Aside from fine particulate matter, the other major ambient air pollution of concern is ground-level ozone. NOX is the main power plant emission that contributes to ground-level ozone formation. The effect of emissions on ground-level ozone is more dependent on unpredictable conditions than is the effect of the SO2, NOX, and PM2.5 emissions on ground-level PM2.5, and we are not aware of a reduced-form model of the effect of NOx emissions on ground-level ozone. Consequently, to estimate and value the effects of NOX emissions reductions on ground-level ozone pollution, we use the estimated national average effect of ozone season (May 1–September 30) power plant NOX emissions on illness and mortality, and the estimated value of those health effects, from a USEPA study (USEPA 2023b).  We assume that NOX emissions in the rest of the year do not affect ground-level ozone, since there is little ground-level ozone formation in the rest of the year.
