@@ -148,18 +148,17 @@ end
 function Base.convert(::Type{<:OriginalContainer{N, D, C}}, x::ByNothing) where {N,D,C}
     return OriginalContainer(x.v, convert(C, x))
 end
-function Base.convert(::Type{ByNothing}, c::ByYear)
-    if length(c.v) == 1
-        return ByNothing(c.v[1])
+function Base.convert(::Type{ByNothing}, c::C) where {C<:Container}
+    if all(==(1), size(c))
+        return ByNothing(c[1,1])
     end
-    error("To convert from ByYear to ByNothing, it must have only a single value")
+    error("To convert from $C to ByNothing, it must have only a single value")
 end
 function Base.convert(::Type{Float64}, c::Container)
-    if length(c) == 1
-        return c[1]
-    else
-        error("Cannot convert Container of length $(length(c)) to Float64")
+    if all(==(1), size(c))
+        return c[1,1]
     end
+    error("Cannot convert Container of size $(size(c)) to Float64")
 end
 
 function Base.convert(::Type{<:Container}, c::Float64)
