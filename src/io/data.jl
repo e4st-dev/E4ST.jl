@@ -1582,8 +1582,15 @@ export get_pcap_max
 
 Returns max power flow on a branch at a given time. 
 """
-function get_pflow_branch_max(data, branch_idx, year_idx, hour_idx) 
-    return get_table_num(data, :branch, :pflow_max, branch_idx, year_idx, hour_idx)
+function get_pflow_branch_max(data, branch_idx, year_idx, hour_idx)
+    pflow_branch = get_table_num(data, :branch, :pflow_max, branch_idx, year_idx, hour_idx)
+
+    voltage_angle_diff_max = data[:voltage_angle_diff_max] |> Float64
+
+    if pflow_branch == 0.0 && voltage_angle_diff_max > 0
+        return voltage_angle_diff_max / get_table_num(data, :branch, :x, branch_idx, year_idx, hour_idx)
+    end
+    return pflow_branch
 end
 export get_pflow_branch_max
 
