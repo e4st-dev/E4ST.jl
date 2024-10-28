@@ -39,6 +39,14 @@ function modify_raw_data!(mod::DCLine, config, data)
     return nothing
 end
 
+function modify_setup_data!(mod::DCLine, config, data)
+    dc_line = get_table(data, :dc_line)
+    if !hasproperty(dc_line, :pflow_max_reverse)
+        dc_line.pflow_max_reverse .= 0.0
+    end
+    return nothing
+end
+
 @doc """
     summarize_table(::Val{:dc_line})
 
@@ -50,7 +58,8 @@ function summarize_table(::Val{:dc_line})
         (:f_bus_idx, Int64, NA, true, "The index of the `bus` table that the line originates **f**rom"),
         (:t_bus_idx, Int64, NA, true, "The index of the `bus` table that the line goes **t**o"),
         (:status, Bool, NA, false, "Whether or not the dc line is in service"),
-        (:pflow_max, Float64, MWFlow, true, "Maximum power flowing through the dc line")
+        (:pflow_max, Float64, MWFlow, true, "Maximum power flowing through the dc line in the direction `f_bus_idx` to `t_bus_idx`"),
+        (:pflow_max_reverse, Float64, MWFlow, false, "Maximum power flowing through the dc line in the direction `t_bus_idx` to `f_bus_idx`.  Defaults to 0 if not provided")
     )
     return df
 end
@@ -73,7 +82,7 @@ function modify_model!(mod::DCLine, config, data, model)
     @variable(model,
         pflow_dc[dc_idx in 1:ndc, year_idx in 1:nyear, hour_idx in 1:nhour],
         start=0.0,
-        lower_bound = -get_table_num(data, :dc_line, :pflow_max, dc_idx, year_idx, hour_idx),
+        lower_bound = -get_table_num(data, :dc_line, :pflow_max_reverse, dc_idx, year_idx, hour_idx),
         upper_bound =  get_table_num(data, :dc_line, :pflow_max, dc_idx, year_idx, hour_idx)
     )
 
