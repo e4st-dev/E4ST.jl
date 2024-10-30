@@ -778,46 +778,6 @@ function (f::AverageAverageHourlyWeighted{3})(data, table, idxs, yr_idxs, hr_idx
 end
 
 
-"""
-    PercentWeightedHoursNonZero{N} <: Function
-
-Returns the percent of weighted hours (as a decimal) where the column value is non-zero. 
-This is done by creating a boolean matrix of whether the column value is non zero at that index. Then the average is taken over all of the specified indices. 
-
-This is useful in finding the percent of time that a constraint is binding. To do this, you first need to add a column containing the shadow price of the constraint to the relevant table in data (ie. gen table if it is a constraint on generators)
-
-Important note: Because this is often used with shadow prices, which are almost never exactly 0.0, it uses `isapprox()` to compare values with 0. 
-#TODO: update this!!
-To set the tolerance we take `1.0e-5 * mean(column)`. This has been tuned to pick up on small differences in lmp. 
-If the tolerance is too low then these results will be exactly the same across all scenarios (ie. all branches with a max powerflow will look binding even when some are very near 0 and functionally not binding).
-If the tolerance is too high, then you will see unreasonably low numbers for these results.
-With a different set of inputs, this value may need to be tuned so that should be kept in mind.
-"""
-struct PercentWeightedHoursNonZero{N} <: Function 
-    cols::NTuple{N, Symbol}
-end
-PercentWeightedHoursNonZero(cols::Symbol...) = PercentWeightedHoursNonZero(cols)
-export(PercentWeightedHoursNonZero)
-
-function (f::PercentWeightedHoursNonZero{1})(data, table, idxs, yr_idxs, hr_idxs)
-    col1, = f.cols  
-    
-    _PercentWeightedHoursNonZero(col_or_container(data, table, col1), get_hour_weights(data), idxs, yr_idxs, hr_idxs)
-
-end
-
-function _PercentWeightedHoursNonZero(v1, hour_weights, idxs, yr_idxs, hr_idxs)
-    count = 0.0
-    tolerance = abs(1.0e-5*mean(mean(v1)))
-    for i in idxs, y in yr_idxs, h in hr_idxs
-        isapprox(v1[i][y, h],0.0, atol = tolerance) || (count += hour_weights[h])
-    end
-
-    res = count / (length(idxs)*length(yr_idxs)*sum(hour_weights[hr_idxs]))
-    return res
-end
-
-
 
 """
     CostOfServiceRebate(table_name) <: Function
