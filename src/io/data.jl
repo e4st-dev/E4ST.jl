@@ -656,12 +656,16 @@ function setup_table!(config, data, ::Val{:branch})
 
     # Add connected branches, connected buses.
     connected_branch_idxs = [Int64[] for _ in 1:nrow(bus)]
+    connected_bus_idxs = [Int64[] for _ in 1:nrow(bus)]
     add_table_col!(data, :bus, :connected_branch_idxs, connected_branch_idxs, NA, "A vector containing the indices of the branches connected to this bus")
+    add_table_col!(data, :bus, :connected_bus_idxs, connected_bus_idxs, NA, "A vector containing the indices of the bus connected to this bus")
     for (br_idx, br) in enumerate(eachrow(branch))
         f_bus_idx = br.f_bus_idx::Int64
         t_bus_idx = br.t_bus_idx::Int64
         push!(bus[f_bus_idx, :connected_branch_idxs], br_idx)
         push!(bus[t_bus_idx, :connected_branch_idxs], -br_idx)
+        push!(bus[f_bus_idx, :connected_bus_idxs], t_bus_idx)
+        push!(bus[t_bus_idx, :connected_bus_idxs], f_bus_idx)
     end
     return
 end
@@ -1582,8 +1586,15 @@ export get_pcap_max
 
 Returns max power flow on a branch at a given time. 
 """
-function get_pflow_branch_max(data, branch_idx, year_idx, hour_idx) 
-    return get_table_num(data, :branch, :pflow_max, branch_idx, year_idx, hour_idx)
+function get_pflow_branch_max(data, branch_idx, year_idx, hour_idx)
+    pflow_branch = get_table_num(data, :branch, :pflow_max, branch_idx, year_idx, hour_idx)
+
+    voltage_angle_diff_max = data[:voltage_angle_diff_max] |> Float64
+
+    if pflow_branch == 0.0 && voltage_angle_diff_max > 0
+        return voltage_angle_diff_max / get_table_num(data, :branch, :x, branch_idx, year_idx, hour_idx)
+    end
+    return pflow_branch
 end
 export get_pflow_branch_max
 

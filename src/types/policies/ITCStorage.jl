@@ -4,11 +4,20 @@
 
 Investment Tax Credit - A tax incentive that is a percentage of capital cost given to storage units that meet the qualifications. 
 
-# Keyword Arguments
-
+### Keyword Arguments
 * `name`: policy name
 * `values`: the credit level, stored as an OrderedDict with year and value `(:y2020=>0.3)`.  Credit level refers to the percentage of the capex that will be rebated to the investor
 * `storage_filters`: filters for qualifying storage, stored as an OrderedDict with gen table columns and values
+
+### Table Columns Added 
+* `(:storage, <name>)` - investment tax credit value for the policy 
+
+### Model Modification 
+* Expressions 
+    * `pcap_stor_inv_sim[stor_idx]` - storage power discharge capacity invested in the sim.
+
+### Results Formulas 
+* `(:storage, :<name>_cost_obj)` - the cost of the policy, as seen by the objective, not used for government spending welfare
 """
 Base.@kwdef struct ITCStorage <: Policy
     name::Symbol

@@ -4,6 +4,7 @@
 
 Emission Price - A price on a certain emission for a given set of generators.
 
+### Keyword Arguments:
 * `name`: name of the policy (Symbol)
 * `emis_col`: name of the emission rate column in the gen table (ie. emis_co2) (Symbol)
 * `prices`: OrderedDict of prices by year. Given as price per unit of emissions (ie. \$/short ton)
@@ -12,6 +13,15 @@ Emission Price - A price on a certain emission for a given set of generators.
 * `ref_year_col`: Column name to use as reference year for min and max above. Must be a year column. If this is :year_on, then the years_after_ref filters will filter gen age. If this is :year_retrofit, the the years_after_ref filters will filter by time since retrofit. This is rarely used in real policy, so be careful if changing from default value
 * `gen_filters`: OrderedDict of generator filters
 * `hour_filters`: OrderedDict of hour filters
+
+### Table Column Added:
+* `(:gen, :<name>)` - emissions price per MWh generated for each policy
+* `(:gen, :<name>_capex_adj)` - Adjustment factor added to the obj function as a PerMWCapInv term to account for emisprc payments that do not continue through the entire econ lifetime of a generator
+
+### Results Formulas:
+* `(:gen, :<name>_cost)` - the cost of the policy 
+* `(:gen, :<name>_capex_adj_total)` - The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.
+
 """
 Base.@kwdef struct EmissionPrice <: Policy
     name::Symbol
