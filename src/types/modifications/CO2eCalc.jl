@@ -39,7 +39,7 @@ function modify_setup_data!(mod::CO2eCalc, config, data)
     
     # add column for upstream ch4 rate
     add_upstream_methane_col!(data, ng_upstream_ch4_leakage, coal_upstream_ch4_leakage)
-  
+    
 end
 
 """
