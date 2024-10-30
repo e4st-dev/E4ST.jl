@@ -29,7 +29,7 @@ First, find the adjusted PTC value $x$ if it were a constant cash flow over enti
 Start by setting the NPV of the actual PTC (per MW capacity) $p$ and the adjusted PTC (per MW capacity) $x$. \
 $m$ is the minimum age of the generator to qualify for the PTC. This will be 0 if they generator can recieve the PTC from the start of its life. This is why we use m+1 in the following formula. \
 $n$ is the maximum age of the generator to qualify for the PTC \
-We adjust this calculation to account for the fact that the simulation represents half way through the year. This means adding 0.5 to the year values to adjust the NPV for halg way through the year.
+We adjust this calculation to account for the fact that the simulation represents half way through the year. This means adding 0.5 to the year values to adjust the NPV for half way through the year.
 
 $$\sum_{i=1}^l x / \left(1+r \right)^{i+0.5} = \sum_{j=m+1}^n p / \left(1+r \right)^{j+0.5}$$
 
