@@ -32,9 +32,13 @@ function setup_dcopf!(config, data, model)
     @variable(model, 
         θ_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
         start=0.0,
-        lower_bound = -θ_bound,
-        upper_bound =  θ_bound
     )
+
+    # Set a bound if applicable
+    if θ_bound > 0
+        set_lower_bound.(θ_bus, -θ_bound)
+        set_upper_bound.(θ_bus, θ_bound)
+    end
 
     # Capacity
     @variable(model, 
