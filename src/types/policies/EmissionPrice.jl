@@ -135,12 +135,3 @@ function get_emisprc_capex_adj(pol::EmissionPrice, g::DataFrameRow, config)
     capex_adj = adj_factor .* cf .* emisprc_vals
     return capex_adj
 end
-
-
-# """
-#     modify_results!(config, data, model, results) -> 
-# """
-# function modify_results!(pol::EmissionPrice, config, data)
-#     gen = get_table(data, :gen)
-    
-# end
