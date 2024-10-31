@@ -152,6 +152,8 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
     requirements.subarea = convert(typeof(bus[!, area]), requirements.subarea)
 
     subareas = requirements.subarea
+
+    filter!(:subarea=>in(bus[!, area]), requirements)
     subarea2idx = Dict(subareas[i]=>i for i in axes(subareas,1))
 
     gen_area = hasproperty(gen, area) ? area : "bus_$area"
@@ -296,6 +298,14 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
     # Add variables for reserve capacity flow
     if ~isempty(mod.flow_limits_file)
         flow_limits = get_table(data, "$(mod.name)_flow_limits")
+
+        flow_limits.t_subarea = convert(typeof(bus[!, area]), flow_limits.t_subarea)
+        flow_limits.f_subarea = convert(typeof(bus[!, area]), flow_limits.f_subarea)
+
+
+        filter!(:t_subarea=>in(requirements.subarea), flow_limits)
+        filter!(:f_subarea=>in(requirements.subarea), flow_limits)
+
         pflow_forward_max = flow_limits.pflow_forward_max::Vector{Float64}
         pflow_reverse_max = flow_limits.pflow_reverse_max::Vector{Float64}
 
