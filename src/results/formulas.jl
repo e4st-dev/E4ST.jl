@@ -742,7 +742,7 @@ end
 
 ## AverageAverageHourlyWeighted
 @doc raw"""
-    AverageHourlyWeighted(cols...) <: Function
+    AverageAverageHourlyWeighted(cols...) <: Function
 
 Function used in results formulas.  Computes the sum of the products of the columns for each index in idxs for each year and hour weighted by the number of hours, divided by the total number of hours and the number of indexs.
 
