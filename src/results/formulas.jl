@@ -740,6 +740,43 @@ function (f::AverageHourlyWeighted{3})(data, table, idxs, yr_idxs, hr_idxs)
     _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), hc, idxs, yr_idxs, hr_idxs) / sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)
 end
 
+## AverageAverageHourlyWeighted
+@doc raw"""
+    AverageAverageHourlyWeighted(cols...) <: Function
+
+Function used in results formulas.  Computes the sum of the products of the columns for each index in idxs for each year and hour weighted by the number of hours, divided by the total number of hours and the number of indexs.
+
+```math
+\frac{\sum_{i \in \text{idxs}} \sum_{y \in \text{yr\_idxs}} \sum_{h \in \text{hr\_idxs}} \prod_{c \in \text{cols}} \text{table}[i, c][y]}{\text{num_idxs} \prod{\sum_{y \in \text{yr\_idxs}}\sum{h \in \text{hr\_idxs}} w_{h}}}
+```
+"""
+struct AverageAverageHourlyWeighted{N} <: Function
+    cols::NTuple{N, Symbol}
+end
+AverageAverageHourlyWeighted(cols::Symbol...) = AverageAverageHourlyWeighted(cols)
+export AverageAverageHourlyWeighted
+
+function (f::AverageAverageHourlyWeighted{1})(data, table, idxs, yr_idxs, hr_idxs)
+    col1, = f.cols
+    hour_weights = get_hour_weights(data)
+    hc = get_hours_container(data)::HoursContainer
+    _sum_hourly(col_or_container(data, table, col1), hc, idxs, yr_idxs, hr_idxs) / (sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)*length(idxs))
+end
+
+function (f::AverageAverageHourlyWeighted{2})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2 = f.cols
+    hour_weights = get_hour_weights(data)
+    hc = get_hours_container(data)::HoursContainer
+    _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), hc, idxs, yr_idxs, hr_idxs) / (sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)*length(idxs))
+end
+
+function (f::AverageAverageHourlyWeighted{3})(data, table, idxs, yr_idxs, hr_idxs)
+    col1,col2,col3 = f.cols
+    hour_weights = get_hour_weights(data)
+    hc = get_hours_container(data)::HoursContainer
+    _sum_hourly(col_or_container(data, table, col1), col_or_container(data, table, col2), col_or_container(data, table, col3), hc, idxs, yr_idxs, hr_idxs) / (sum(hour_weights[hr_idx] for hr_idx in hr_idxs, yr_idx in yr_idxs)*length(idxs))
+end
+
 
 
 """
@@ -882,3 +919,6 @@ end
 function _iterator_hourly(v1, idxs, yr_idxs, hr_idxs)
     return (_getindex(v1, i, y, h) for i in idxs, y in yr_idxs, h in hr_idxs)
 end
+
+
+
