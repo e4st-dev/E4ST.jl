@@ -5,14 +5,14 @@
 **Generation Constraint** - A Modification that applies a constraint based on (yearly generation) * (a column from the gen table). 
 
 * `name`: modification name 
-* `col`: gen table column
+* `col`: gen table column, optional. Defaults to multiplying by 1
 * `max_values`: maximum values for a year (defaults as an empty OrderedDict if no maxs)
 * `min_values`: minimum values for a year (defaults as an empty OrderedDict if no mins)
 * `gen_filters`: OrderedDict of the generator filters
 """
 Base.@kwdef struct GenerationConstraint <: Modification
     name::Symbol
-    col::Symbol
+    col::Symbol = Symbol("")
     max_values::OrderedDict = OrderedDict()
     min_values::OrderedDict = OrderedDict()
     gen_filters::OrderedDict = OrderedDict()
@@ -73,6 +73,8 @@ function E4ST.modify_model!(cons::GenerationConstraint, config, data, model)
 
     pgen_gen = model[:pgen_gen]::Array{VariableRef, 3}
     hour_weights = get_hour_weights(data)
+    
+    col_empty = cons.col == Symbol("")
     if ~isempty(max_years)
         @info "Creating a maximum generation constraint based on $(cons.col) for $(length(gen_idxs)) generators. Constraint name is $(max_cons_name)"
         model[Symbol(max_cons_name)] = @constraint(model, 
@@ -83,7 +85,7 @@ function E4ST.modify_model!(cons::GenerationConstraint, config, data, model)
             sum(
                 pgen_gen[gen_idx, yr_idx, hour_idx] * hour_weights[hour_idx] * 
                 get_table_num(data, :gen, cons.name, gen_idx, yr_idx, hour_idx) *
-                get_table_num(data, :gen, cons.col, gen_idx, yr_idx, hour_idx)
+                (col_empty == true ? 1.0 : get_table_num(data, :gen, cons.col, gen_idx, yr_idx, hour_idx))
                 for gen_idx=gen_idxs, hour_idx=1:nhours
             ) <= cons.max_values[years[yr_idx]]
         )
@@ -99,7 +101,7 @@ function E4ST.modify_model!(cons::GenerationConstraint, config, data, model)
             sum(
                 pgen_gen[gen_idx, yr_idx, hour_idx] * hour_weights[hour_idx] * 
                 get_table_num(data, :gen, cons.name, gen_idx, yr_idx, hour_idx) *
-                get_table_num(data, :gen, cons.col, gen_idx, yr_idx, hour_idx)
+                (col_empty == true ? 1.0 : get_table_num(data, :gen, cons.col, gen_idx, yr_idx, hour_idx))
                 for gen_idx=gen_idxs, hour_idx=1:nhours
             ) >= cons.min_values[years[yr_idx]]
         )
