@@ -1,0 +1,37 @@
+mods:
+  ca_stor_fix:
+    type: CostAdder
+    cost_type: fixed
+    table_name: storage
+    values:
+      y2030: 1
+      y2035: 2
+      y2040: 3
+  ca_stor_var:
+    type: CostAdder
+    cost_type: variable
+    table_name: storage
+    values:
+      y2030: -1
+      y2035: -2
+      y2040: -3
+  ca_gen_fix:
+    type: CostAdder
+    cost_type: fixed
+    table_name: gen
+    values:
+      y2030: 1
+      y2035: 2
+      y2040: 3
+    filters:
+      bus_idx: 1
+  ca_gen_var:
+    type: CostAdder
+    cost_type: variable
+    table_name: gen
+    values:
+      y2030: -1
+      y2035: -2
+      y2040: -3
+    filters:
+      bus_idx: 1

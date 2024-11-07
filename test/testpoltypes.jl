@@ -489,6 +489,100 @@
 
     end
 
+    @testset "Test CostAdder" begin
+
+        config_file = joinpath(@__DIR__, "config", "config_cost_adders.yml")
+        config_stor_file = joinpath(@__DIR__, "config", "config_stor.yml")
+        config = read_config(config_file_ref, 
+            config_stor_file, 
+            config_file
+        )
+        data = read_data(config)
+        model = setup_model(config, data)
+
+        
+        config_ref = read_config(config_file_ref,
+            config_stor_file
+        )
+        data_ref = read_data(config_ref)
+        model_ref = setup_model(config_ref, data_ref)
+
+        obj = model[:obj]
+        pcap_gen = model[:pcap_gen]
+        pgen_gen = model[:pgen_gen]
+        pcap_stor = model[:pcap_stor]
+        pdischarge_stor = model[:pdischarge_stor]
+
+        obj_ref = model_ref[:obj]
+        pcap_gen_ref = model_ref[:pcap_gen]
+        pgen_gen_ref = model_ref[:pgen_gen]
+        pcap_stor_ref = model_ref[:pcap_stor]
+        pdischarge_stor_ref = model_ref[:pdischarge_stor]
+        
+        yrs = get_years(data)
+        nhr = get_num_hours(data)
+        hr_weights = get_hour_weights(data)
+        hr_weights_total = sum(hr_weights)
+
+        
+
+        @testset "Test variable generation CostAdder" begin
+            ca = config[:mods][:ca_gen_var]
+            row_idxs = get_table_row_idxs(data, ca.table_name, parse_comparisons(ca.filters))
+            vals = ca.values
+            
+            for (yr_idx, yr) in enumerate(yrs)
+                val = vals[Symbol(yr)]
+                for hr_idx in 1:nhr, row_idx in row_idxs
+                    @test obj[pgen_gen[row_idx, yr_idx, hr_idx]] ≈ 
+                    val * hr_weights[hr_idx] + obj_ref[pgen_gen_ref[row_idx, yr_idx, hr_idx]] 
+                end
+            end
+        end
+
+        @testset "Test variable storage CostAdder" begin
+            ca = config[:mods][:ca_stor_var]
+            row_idxs = get_table_row_idxs(data, ca.table_name, parse_comparisons(ca.filters))
+            vals = ca.values
+            
+            for (yr_idx, yr) in enumerate(yrs)
+                val = vals[Symbol(yr)]
+                for hr_idx in 1:nhr, row_idx in row_idxs
+                    @test obj[pdischarge_stor[row_idx, yr_idx, hr_idx]] ≈
+                    val * hr_weights[hr_idx] + obj_ref[pdischarge_stor_ref[row_idx, yr_idx, hr_idx]] 
+                end
+            end
+        end
+
+        @testset "Test fixed generation CostAdder" begin
+            ca = config[:mods][:ca_gen_fix]
+            row_idxs = get_table_row_idxs(data, ca.table_name, parse_comparisons(ca.filters))
+            vals = ca.values
+            
+            for (yr_idx, yr) in enumerate(yrs)
+                val = vals[Symbol(yr)]
+                for row_idx in row_idxs
+                    @test obj[pcap_gen[row_idx, yr_idx]] ≈ 
+                    val * hr_weights_total + obj_ref[pcap_gen_ref[row_idx, yr_idx]] 
+                end
+            end
+        end
+
+        @testset "Test fixed storage CostAdder" begin
+            ca = config[:mods][:ca_stor_fix]
+            row_idxs = get_table_row_idxs(data, ca.table_name, parse_comparisons(ca.filters))
+            vals = ca.values
+            
+            for (yr_idx, yr) in enumerate(yrs)
+                val = vals[Symbol(yr)]
+                for row_idx in row_idxs
+                    @test obj[pcap_stor[row_idx, yr_idx]] ≈
+                    val * hr_weights_total + obj_ref[pcap_stor_ref[row_idx, yr_idx]] 
+                end
+            end
+        end
+    end
+
     @testset "Test ReserveRequirements" begin
         config_file_ref = joinpath(@__DIR__, "config", "config_3bus.yml")
         config_file = joinpath(@__DIR__, "config", "config_3bus_reserve_req.yml")
