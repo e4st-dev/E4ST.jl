@@ -16,7 +16,6 @@ function modify_setup_data!(mod::CO2eCalc, config, data)
     gen = get_table(data, :gen)
     nyears = get_num_years(data)
 
-
     hasproperty(gen, :emis_co2e) && @warn "The CO2e values specified in the input gen table will be overwritten by the CO2eCalc mod."
     
     if !hasproperty(gen, :chp)
@@ -53,7 +52,11 @@ function calc_co2e!(gen, ch4_gwp, ng_upstream_ch4_leakage, coal_upstream_ch4_lea
         if r.genfuel == "ng"
             r.emis_co2e = Container(r.emis_co2 .+ ng_upstream_ch4_leakage .* r.heat_rate .* ch4_gwp)
         elseif r.genfuel == "coal"
-            r.emis_co2e = Container(r.emis_co2 .+ coal_upstream_ch4_leakage .* r.heat_rate .* ch4_gwp)
+            if r.gentype == "coal_ccus_retrofit" && !hasproperty(gen, :capt_co2) # the capt_co2_percent has not been applied to emis_co2 yet if capt_co2 isn't in the gen table 
+                r.emis_co2e = Container((r.emis_co2 .* (1-r.capt_co2_percent)) .+ (coal_upstream_ch4_leakage .* r.heat_rate .* ch4_gwp))
+            else
+                r.emis_co2e = Container(r.emis_co2 .+ coal_upstream_ch4_leakage .* r.heat_rate .* ch4_gwp)
+            end
         elseif r.genfuel == "biomass"
             r.emis_co2e = Container(r.emis_co2 .* bio_pctco2e)
         end

@@ -143,7 +143,9 @@
     end
 
     @testset "Test CO2e calculation" begin 
+
         config = read_config(config_file)
+
         data = read_data(config)
         gen = get_table(data, :gen)
         nyears = get_num_years(data)
@@ -169,7 +171,6 @@
         chp_gen = get_subtable(gen, :chp => 1)
         @test nrow(chp_gen) > 0
         @test all(g -> all(==(1), g[:emis_co2e] .<= g[:emis_co2]), eachrow(chp_gen))
-
     end
 
 end
