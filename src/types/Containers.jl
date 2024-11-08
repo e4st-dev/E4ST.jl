@@ -745,7 +745,10 @@ function Base.show(io::IO, c::LoadContainer)
     isempty(c.v) && return print(io, "empty LoadContainer")
     l,m = size(c.v[1])
     n = length(c.v)
-    print(io, "$n-element LoadContainer of $(l)×$m Matrix")
+    # print(io, "LoadContainer(")
+    print(io, sum(c.v))
+    # print(io, ")")
+    # print(io, "$n-element LoadContainer of $(l)×$m Matrix")
 end
 
 """

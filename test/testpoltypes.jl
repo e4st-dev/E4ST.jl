@@ -520,6 +520,7 @@
         pdischarge_stor_ref = model_ref[:pdischarge_stor]
         
         yrs = get_years(data)
+        nyr = get_num_years(data)
         nhr = get_num_hours(data)
         hr_weights = get_hour_weights(data)
         hr_weights_total = sum(hr_weights)
@@ -530,12 +531,13 @@
             ca = config[:mods][:ca_gen_var]
             row_idxs = get_table_row_idxs(data, ca.table_name, parse_comparisons(ca.filters))
             vals = ca.values
+            table = get_table(data, ca.table_name)
             
             for (yr_idx, yr) in enumerate(yrs)
                 val = vals[Symbol(yr)]
                 for hr_idx in 1:nhr, row_idx in row_idxs
                     @test obj[pgen_gen[row_idx, yr_idx, hr_idx]] ≈ 
-                    val * hr_weights[hr_idx] + obj_ref[pgen_gen_ref[row_idx, yr_idx, hr_idx]] 
+                    table[row_idx, ca.col_name][yr_idx, hr_idx] * val * hr_weights[hr_idx] + obj_ref[pgen_gen_ref[row_idx, yr_idx, hr_idx]]  
                 end
             end
         end
@@ -580,6 +582,36 @@
                     val * hr_weights_total + obj_ref[pcap_stor_ref[row_idx, yr_idx]] 
                 end
             end
+        end
+
+        @testset "Test ResultsFormulas" begin
+            E4ST.run_optimize!(config, data, model)
+            parse_results!(config, data, model)
+            process_results!(config, data)
+
+            m = config[:mods][:ca_stor_fix]
+            ca_stor_fix_val = hr_weights_total * sum(compute_result(data, :storage, :pcap_total, parse_comparisons(m.filters), yr_idx) * m.values[Symbol(yrs[yr_idx])] for yr_idx in 1:nyr)
+            @test compute_result(data, :storage, :ca_stor_fix_total) ≈ ca_stor_fix_val
+            rf = get_results_formula(data, :storage, :fixed_cost)
+            contains(rf.formula, "ca_stor_fix_total")
+
+            m = config[:mods][:ca_stor_var]
+            ca_stor_var_val = sum(compute_result(data, :storage, :edischarge_total, parse_comparisons(m.filters), yr_idx) * m.values[Symbol(yrs[yr_idx])] for yr_idx in 1:nyr)
+            @test compute_result(data, :storage, :ca_stor_var_total) ≈ ca_stor_var_val
+            rf = get_results_formula(data, :storage, :variable_cost)
+            contains(rf.formula, "ca_stor_var_total")
+
+            m = config[:mods][:ca_gen_fix]
+            ca_gen_fix_val = hr_weights_total * sum(compute_result(data, :gen, :pcap_total, parse_comparisons(m.filters), yr_idx) * m.values[Symbol(yrs[yr_idx])] for yr_idx in 1:nyr)
+            @test compute_result(data, :gen, :ca_gen_fix_total) ≈ ca_gen_fix_val
+            rf = get_results_formula(data, :gen, :fixed_cost)
+            contains(rf.formula, "ca_gen_fix_total")
+
+            m = config[:mods][:ca_gen_var]
+            ca_gen_var_val = sum(compute_result(data, :gen, :emis_co2_total, parse_comparisons(m.filters), yr_idx) * m.values[Symbol(yrs[yr_idx])] for yr_idx in 1:nyr)
+            @test compute_result(data, :gen, :ca_gen_var_total) ≈ ca_gen_var_val
+            rf = get_results_formula(data, :gen, :variable_cost)
+            contains(rf.formula, "ca_gen_var_total")
         end
     end
 
