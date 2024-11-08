@@ -143,7 +143,8 @@
     end
 
     @testset "Test CO2e calculation" begin 
-        config = read_config(config_file)
+        config_ccus_file = joinpath(@__DIR__, "config/config_ccus.yml")
+        config = read_config(config_file, config_ccus_file)
         data = read_data(config)
         gen = get_table(data, :gen)
         nyears = get_num_years(data)
@@ -169,6 +170,10 @@
         chp_gen = get_subtable(gen, :chp => 1)
         @test nrow(chp_gen) > 0
         @test all(g -> all(==(1), g[:emis_co2e] .<= g[:emis_co2]), eachrow(chp_gen))
+
+        # test that coal_ccus_retrofit uses adjusted emis_co2
+        ccs_gen = get_subtable(gen, :gentype => "coal_ccus_retrofit")
+        @test all(g -> g.emis_co2e < (g.emis_co2 .* 1.5), eachrow(ccs_gen))
 
     end
 
