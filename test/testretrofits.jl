@@ -26,6 +26,12 @@
         end
     end
 
+    # test that coal_ccus_retrofit uses adjusted emis_co2
+    ccs_gen = get_subtable(gen, :gentype => "coal_ccus_retrofit")
+    @test nrow(ccs_gen) > 0
+    @test all(g -> all(==(1), g[:emis_co2e] .<= (g[:emis_co2] .* 1.5)), eachrow(ccs_gen))
+
+
     @test haskey(model, :cons_pcap_gen_retro_max)
     @test haskey(model, :cons_pcap_gen_retro_min)
 
