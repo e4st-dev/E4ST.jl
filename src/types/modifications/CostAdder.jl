@@ -7,8 +7,10 @@ This adds to the cost of some subset of generators or storage facilities as seen
 * `name::Symbol` - the name of the Modification
 * `cost_type::Symbol` - the type of cost to add to, either `variable` or `fixed`.
 * `table_name::Symbol` - the name of the table to add costs for, either `gen` or `storage`
-* `values::OrderedDict{Symbol}` - the cost to add, in DollarsPerMWh for `variable` costs, or DollarsPerMWCapacityPerHour for `fixed` costs.
+* `values::OrderedDict{Symbol}` - the cost to add, in DollarsPerMWh for `variable` costs, or DollarsPerMWCapacityPerHour for `fixed` costs.  If `col_name` is provided, that may change the unit of the `values`.  For example, if `col_name` is `"capt_co2"`, which has a unit of ShortTonsPerMWhGenerated, the `values` should have a unit of `DollarsPerShortTonCO2Captured`. 
 * `filters::OrderedDict{Symbol} = OrderedDict()` - filters for qualifying generators / storage, stored as an OrderedDict with gen table columns and values (`:emis_co2=>"<=0.1"` for co2 emission rate less than or equal to 0.1).  Defaults to empty `OrderedDict`, affecting the whole table.
+* `col_name::String = ""` - which column to multiply the cost by, if any.  For example `capt_co2` for an adder for every unit of CO2
+* `add_to_production_cost::Bool = false` - whether or not you want the cost adder to be reflected in the production cost
 """
 struct CostAdder <: Modification
     name::Symbol
@@ -16,13 +18,17 @@ struct CostAdder <: Modification
     table_name::Symbol
     values::OrderedDict{Symbol, Float64}
     filters::OrderedDict{Symbol}
+    col_name::String
+    add_to_production_cost::Bool
 
     function CostAdder(;
             name,
             cost_type,
             table_name,
             values,
-            filters = OrderedDict{Symbol,Any}()
+            filters = OrderedDict{Symbol,Any}(),
+            col_name="",
+            add_to_production_cost = false,
         )
         n = Symbol(name)
         ct = Symbol(cost_type)
@@ -36,7 +42,7 @@ struct CostAdder <: Modification
             error("table_name must be either gen or storage for Modification CostAdder $name, but $tn given")
         end
 
-        return new(n,ct,tn, v, filters)
+        return new(n,ct,tn, v, filters, col_name, convert(Bool, add_to_production_cost))
     end
 end
 export CostAdder
@@ -66,7 +72,11 @@ function E4ST.modify_setup_data!(m::CostAdder, config, data)
     yrs_sym = Symbol.(years)
 
     for row_idx in row_idxs
-        cost = ByYear([get(m.values, yr, 0.0) for yr in yrs_sym])
+        if m.col_name == ""
+            cost = ByYear([get(m.values, yr, 0.0) for yr in yrs_sym])
+        else
+            cost = ByYear([get(m.values, yr, 0.0) for yr in yrs_sym]) .* table[row_idx, m.col_name]
+        end
         costs[row_idx] = cost
     end
 end
@@ -140,4 +150,17 @@ function make_cost_adder_exp!(m, ::Val{:fixed}, ::Val{:storage}, table, data, mo
 end
 
 function E4ST.modify_results!(m::CostAdder, config, data)
+    if m.cost_type == :variable
+        ptype = (m.table_name == :gen ? "pgen" : "pdischarge")
+    else
+        ptype = "pcap"
+    end
+    result_name = Symbol("$(m.name)_total")
+    result_formula = "SumHourlyWeighted($(m.name),$(ptype))"
+    add_results_formula!(data, m.table_name, result_name, result_formula, Dollars, "Total cost for $(m.name)")
+
+    if m.add_to_production_cost == true
+        cost_result_name = (m.cost_type == :variable ? :variable_cost : :fixed_cost)
+        add_to_results_formula!(data, m.table_name, cost_result_name, result_name)
+    end
 end

@@ -3,6 +3,7 @@ mods:
     type: CostAdder
     cost_type: fixed
     table_name: storage
+    add_to_production_cost: true
     values:
       y2030: 1
       y2035: 2
@@ -11,6 +12,7 @@ mods:
     type: CostAdder
     cost_type: variable
     table_name: storage
+    add_to_production_cost: true
     values:
       y2030: -1
       y2035: -2
@@ -19,6 +21,7 @@ mods:
     type: CostAdder
     cost_type: fixed
     table_name: gen
+    add_to_production_cost: true
     values:
       y2030: 1
       y2035: 2
@@ -29,6 +32,8 @@ mods:
     type: CostAdder
     cost_type: variable
     table_name: gen
+    add_to_production_cost: true
+    col_name: emis_co2
     values:
       y2030: -1
       y2035: -2
