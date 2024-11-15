@@ -225,13 +225,13 @@ Joins tables for multiple sims stored in `post_mod_data`, with `keep_col` as the
 """
 function join_sim_tables(post_mod_data, keep_col; replace_missing = 0.)
     first_sim_name = first(keys(post_mod_data))
-    res = deepcopy(post_mod_data[first_sim_name])
+    res = deepcopy(post_mod_data[first_sim_name]) |> unique!
     joining_cols = filter!(!=(string(keep_col)), names(res))
     rename!(res, keep_col=>first_sim_name)
 
     for (sim_name, df) in post_mod_data
         sim_name === first_sim_name && continue
-        res = outerjoin(res, df, on=joining_cols, matchmissing=:equal, order=:left)
+        res = outerjoin(res, unique(df), on=joining_cols, matchmissing=:equal, order=:left)
         rename!(res, keep_col=>sim_name)
     end
 
@@ -241,6 +241,7 @@ function join_sim_tables(post_mod_data, keep_col; replace_missing = 0.)
     end
 
     dropmissing!(res)
+    unique!(res)
 
     return res
 end

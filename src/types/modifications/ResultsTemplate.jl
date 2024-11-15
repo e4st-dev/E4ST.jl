@@ -53,8 +53,8 @@ export AggregationTemplate
 mod_rank(::Type{<:ResultsTemplate}) = 5.0
 
 fieldnames_for_yaml(::Type{ResultsTemplate}) = (:file,)
-function modify_results!(mod::ResultsTemplate, config, data)
-    table = copy(mod.table)
+function modify_results!(m::ResultsTemplate, config, data)
+    table = copy(m.table)
     table.initial_order = 1:nrow(table)
 
     filter_cols = setdiff(propertynames(table), [:table_name, :result_name])
@@ -90,6 +90,7 @@ function modify_results!(mod::ResultsTemplate, config, data)
         not_pair_idx = findfirst(not_a_full_filter, eachrow(table))
     end
 
+    @info "Calculating results for $(nrow(table)) rows in ResultsTemplate $(m.name)"
     results_formulas = get_results_formulas(data)
     table.value = map(eachrow(table)) do row
         table_name = row.table_name
@@ -108,11 +109,11 @@ function modify_results!(mod::ResultsTemplate, config, data)
             end
         end
     end    
-    sort!(table, mod.col_sort)
+    sort!(table, m.col_sort)
     select!(table, Not(:initial_order))
-    CSV.write(get_out_path(config, string(mod.name, ".csv")), table)
+    CSV.write(get_out_path(config, string(m.name, ".csv")), table)
     results = get_results(data)
-    results[mod.name] = table
+    results[m.name] = table
     return
 end
 

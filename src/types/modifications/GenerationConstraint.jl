@@ -20,6 +20,8 @@ Base.@kwdef struct GenerationConstraint <: Modification
 end
 export GenerationConstraint
 
+Base.convert(::Type{Symbol}, ::Nothing) = Symbol("")
+
 mod_rank(::Type{<:GenerationConstraint}) = 1.0
 
 """
