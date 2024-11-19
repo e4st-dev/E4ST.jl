@@ -251,9 +251,9 @@ function parse_power_results!(config, data)
     end
 
     # Calculate value of curtailment
-    voll = config[:voll]::Float64
+    voll = config[:voll]
     plcurt_bus = res_raw[:plcurt_bus]::Array{Float64, 3}
-    valcurt_bus = voll .* plcurt_bus
+    plcurt_cost_bus = voll .* plcurt_bus
 
     # Add things to the bus table
     add_table_col!(data, :bus, :pgen,  pgen_bus,  MWGenerated,"Average Power Generated at this bus")
@@ -263,7 +263,7 @@ function parse_power_results!(config, data)
     add_table_col!(data, :bus, :pflow_in, pflow_in_bus, MWFlow,"Average power flowing into this bus, positive")
     add_table_col!(data, :bus, :plserv, plserv_bus, MWServed,"Average power served at this bus")
     add_table_col!(data, :bus, :plcurt, plcurt_bus, MWCurtailed,"Average power curtailed at this bus")
-    add_table_col!(data, :bus, :val_plcurt, val_plcurt_bus, Dollars, "Value of power curtailed at this bus")
+    add_table_col!(data, :bus, :plcurt_cost, plcurt_cost_bus, Dollars, "Cost of power curtailed at this bus, using VOLL")
     
     # Add things to the gen table
     add_table_col!(data, :gen, :pgen,  pgen_gen,  MWGenerated,"Average power generated at this generator")
