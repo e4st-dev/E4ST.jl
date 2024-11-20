@@ -263,10 +263,7 @@ function parse_power_results!(config, data)
     add_table_col!(data, :bus, :pflow_in, pflow_in_bus, MWFlow,"Average power flowing into this bus, positive")
     add_table_col!(data, :bus, :plserv, plserv_bus, MWServed,"Average power served at this bus")
     add_table_col!(data, :bus, :plcurt, plcurt_bus, MWCurtailed,"Average power curtailed at this bus")
-<<<<<<< HEAD
-=======
     add_table_col!(data, :bus, :plcurt_cost, plcurt_cost_bus, Dollars, "Cost of power curtailed at this bus, using VOLL")
->>>>>>> e5f44ca6758d5928788706729219474de25f2897
     
     # Add things to the gen table
     add_table_col!(data, :gen, :pgen,  pgen_gen,  MWGenerated,"Average power generated at this generator")
