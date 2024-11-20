@@ -265,6 +265,12 @@ end
 function Base.getindex(n::Number, year_idx::Int64, hour_idx::Colon)
     return n
 end
+function Base.getindex(n::Number, idx::Int64, year_idx::Int64, hour_idx::Int64)
+    return n
+end
+function Base.getindex(n::Number, idx::Int64, year_idx::Int64, hour_idx::Colon)
+    return n
+end
 
 function Base.getindex(c::HoursContainer, y::Int64, h::Int64)
     return c.v[h]
