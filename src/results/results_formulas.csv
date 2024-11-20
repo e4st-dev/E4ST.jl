@@ -99,7 +99,7 @@ bus,electricity_cost,"SumHourlyWeighted(plserv,lmp_elserv)",Dollars,Total cost o
 bus,electricity_price,electricity_cost / elserv_total,DollarsPerMWhServed,Average cost of electricity served
 bus,merchandising_surplus_total,SumHourly(merchandising_surplus),Dollars,Total merchandising surplus from selling electricity for a higher price at one end of a line than another.  Lines that are split across the region add half of their merchandising surplus to each region.
 bus,distribution_cost_total,"SumHourlyWeighted(plserv, distribution_cost)",Dollars,Total cost to consumers per MWh of served power for the transmission and distribution of the power.
-bus,unserved_load_cost_total, "SumHourlyWeighted(plcurt, voll)",Dollars,Total cost of unserved load.
+bus,unserved_load_value_total, "SumHourlyWeighted(plcurt_cost)",Dollars,Total value of unserved load.
 branch,eflow_total,SumHourlyWeighted(pflow),MWhFlow,Total energy flowing in this branch
 branch,pflow_hourly_min,MinHourly(pflow),MWFlow,Minimum sum of power flowing in these branches
 branch,pflow_hourly_max,MaxHourly(pflow),MWFlow,Maximum sum of power flowing in these branches
