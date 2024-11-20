@@ -29,6 +29,9 @@ function setup_welfare!(config, data)
     add_welfare_term!(data, :government, :gen, :net_government_revenue, +)
     # Make sure that emissions caps and prices get added to govt. revenue and production cost.
 
+    # Unserved load welfare
+    add_welfare_term!(data, :unserved_load, :bus, :unserved_load_cost_total, -)
+
     # Create welfare check by calculating system cost, change in system cost should equal the change in net non-enviro (this welfare) benefits
     add_welfare_term!(data, :system_cost_check, :gen, :production_cost, +)
     add_welfare_term!(data, :system_cost_check, :bus, :distribution_cost_total, +)
