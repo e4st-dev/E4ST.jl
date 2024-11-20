@@ -65,7 +65,7 @@
 
         # test that unserved load welfare is working, done here because there is curtailment in this
         data = read_processed_results(all_results)
-        @test compute_result(data, :bus, :unserved_load_value_total) > 0.0
+        @test compute_result(data, :bus, :unserved_load_cost_total) > 0.0
         @test compute_welfare(data, :unserved_load) < 0.0
         @test compute_welfare(data, :unserved_load) ≈ -1 * compute_result(data, :bus, :elcurt_total) * config[:voll]
     end
