@@ -231,7 +231,24 @@ function join_sim_tables(post_mod_data, keep_col; replace_missing = 0.)
 
     for (sim_name, df) in post_mod_data
         sim_name === first_sim_name && continue
-        res = outerjoin(res, unique(df), on=joining_cols, matchmissing=:equal, order=:left)
+        res.order_left = 1.0:nrow(res)
+        right = unique(df)
+        right.order_right = 1.0:nrow(right)
+        res = outerjoin(res, right, on=joining_cols, matchmissing=:equal, order=:left)
+        
+        # Now manually change order_left for the rows with missing order_left
+        for r in eachrow(res)
+            ismissing(r.order_left) || continue
+            idx_before = findfirst(n->!ismissing(n) && n==(r.order_right - 1), res.order_right)
+            if idx_before == nothing
+                r.order_left = 0.5
+            else
+                r.order_left = res.order_left[idx_before] + 0.5
+            end
+        end
+
+        sort!(res, :order_left)
+        select!(res, Not([:order_left, :order_right]))
         rename!(res, keep_col=>sim_name)
     end
 

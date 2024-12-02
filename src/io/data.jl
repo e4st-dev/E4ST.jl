@@ -480,6 +480,9 @@ function force_table_types!(df::DataFrame, name, row::DataFrameRow; kwargs...)
     ET = eltype(df[!,col])
     if ET === Missing
         df[!,col] = convert(Vector{T}, df[!,col])
+    elseif T === Missing
+        # Leave as is
+        row["data_type"] = ET
     elseif ~(ET <: T)
         hasmethod(T, Tuple{ET}) || error("Column $name[$col] with eltype $ET cannot be forced into type $T")
         df[!, col] = T.(df[!,col])
