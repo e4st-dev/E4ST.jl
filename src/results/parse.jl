@@ -28,7 +28,7 @@ function parse_results!(config, data, model)
     end
     
     # Gather each of the objective function coefficients
-    obj = model[:obj]::AffExpr
+    obj = sum(model[:obj])::AffExpr
     obj_coef = OrderedDict{Symbol, Any}()
     for (k,v) in od
         if v isa AbstractArray{<:VariableRef}

@@ -312,7 +312,7 @@ function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper)
         [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
         get_table_num(data, :gen, s, gen_idx, year_idx, :) .* 
         pcap_gen[gen_idx, year_idx] *
-        hours_per_year * 0.94^(year_idx-1)
+        hours_per_year
     )
 
     # add or subtract the expression from the objective function
@@ -334,7 +334,7 @@ function add_obj_term!(data, model, ::PerMWCapInv, s::Symbol; oper)
         [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
         get_table_num(data, :gen, s, gen_idx, year_idx, :) .* 
         pcap_gen_inv_sim[gen_idx] *
-        hours_per_year * 0.94^(year_idx-1)
+        hours_per_year
     )
 
     # add or subtract the expression from the objective function

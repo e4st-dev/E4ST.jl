@@ -27,15 +27,15 @@
         @test haskey(data[:obj_vars], :capex_obj)
         @test haskey(data[:obj_vars], :curtailment_cost)
 
-        nyr = get_num_years(data)
-        obj = model[:obj]
-        obj_sum  = AffExpr(0.0)
-        yearly_objective_scalars = config[:yearly_objective_scalars]
-        for yr_idx in 1:nyr
-            obj_yr = obj[yr_idx]
-            obj_scalar = yearly_objective_scalars[yr_idx]
-            obj_sum = obj_sum + (obj_yr * 1/obj_scalar)
-        end
+        # nyr = get_num_years(data)
+        # obj = model[:obj]
+        # obj_sum  = AffExpr(0.0)
+        # yearly_objective_scalars = config[:yearly_objective_scalars]
+        # for yr_idx in 1:nyr
+        #     obj_yr = obj[yr_idx]
+        #     obj_scalar = yearly_objective_scalars[yr_idx]
+        #     obj_sum = obj_sum + (obj_yr * 1/obj_scalar)
+        # end
         
         @test sum(model[:obj]) == 
             sum(model[:curtailment_cost]) + 

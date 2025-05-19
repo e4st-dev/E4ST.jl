@@ -13,6 +13,9 @@ build_gen_file: "../data/3bus/build_gen.csv"
 summary_table_file: 
   - "../data/3bus/summary_table.csv"
   - "../data/3bus/summary_table2.csv"
+test_param1: "RIGHT" # This should not get overwritten by config_other
+other_config_files:
+  - "config_other.yml"
 year_gen_data: y2020
 logging: true
 voll: 5000
@@ -35,4 +38,16 @@ mods:
   adj_yearly:
     type: AdjustYearly
     file: "../data/3bus/adjust_yearly_limited.csv"
-  
+  example_policy:
+    type: "ExamplePolicyType"
+    value: 0
+    some_parameter:
+      - "This makes an "
+      - "array of strings."
+      - "Cool, right?"
+    other_parameter:
+      name: "This makes an OrderedDict"
+  other_mod:
+    type: "OtherModificationType"
+    value: 0
+    custom_parameter: "hello!!!"
