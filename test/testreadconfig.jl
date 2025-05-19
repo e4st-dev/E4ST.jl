@@ -12,7 +12,7 @@
         custom_parameter        # no default, and no type specification
     end
 
-    filename = joinpath(@__DIR__, "config/config_3bus_examplepol.yml")
+    filename = joinpath(@__DIR__, "config/config_3bus.yml")
     
     config=read_config(filename)
 

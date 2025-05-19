@@ -17,6 +17,7 @@ year_gen_data: y2020
 logging: true
 voll: 5000
 objective_scalar: 1
+yearly_objective_scalars: [1,1,1] #[1, 0.7339, 0.5063, 0.371757]
 years:
   - y2030
   - y2035
@@ -34,3 +35,4 @@ mods:
   adj_yearly:
     type: AdjustYearly
     file: "../data/3bus/adjust_yearly_limited.csv"
+  

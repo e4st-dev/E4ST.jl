@@ -100,9 +100,18 @@ function setup_model(config, data)
             _try_catch(modify_model!, name, m, config, data, model)
         end
 
+        discount each year of objective function for perfect foresight
+        nyr = get_num_years(data)
+        yearly_objective_scalars = config[:yearly_objective_scalars]
+        obj = model[:obj]::Vector{AffExpr} # Should be length nyr
+        for yr_idx in 1:nyr
+            obj_yr = obj[yr_idx]
+            obj_scalar = yearly_objective_scalars[yr_idx]
+            add_to_expression!(obj_yr, obj_yr, obj_scalar-1) # obj_yr = obj_yr + (obj_yr)*(obj_scalar - 1) = obj_yr * obj_scalar
+        end
         # Set the objective, scaling down for numerical stability.
         obj_scalar = config[:objective_scalar]
-        obj = model[:obj]::AffExpr
+        obj =  model[:obj]
         @objective(model, Min, obj/obj_scalar)
 
         constrain_pbal!(config, data, model)

@@ -169,7 +169,7 @@ function setup_dcopf!(config, data, model)
     
     ## Objective Function 
     @info "Building Objective"
-    @expression(model, obj, AffExpr(0.0)) 
+    @expression(model, obj[i=1:nyear], AffExpr(0.0))
 
     # This keeps track of the expressions added to the obj and their signs
     data[:obj_vars] = OrderedDict{Symbol, Any}()
@@ -269,7 +269,7 @@ function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper)
     hour_weights = get_hour_weights(data)
     model[s] = @expression(model, 
         [gen_idx in axes(gen,1), yr_idx in 1:nyr],
-        sum(col[gen_idx][yr_idx,hr_idx] * pgen_gen[gen_idx, yr_idx, hr_idx] * hour_weights[hr_idx] for hr_idx in 1:nhr)
+        sum(col[gen_idx][yr_idx,hr_idx] * pgen_gen[gen_idx, yr_idx, hr_idx] * hour_weights[hr_idx] for hr_idx in 1:nhr) * 0.94^(yr_idx-1)
     )
 
     # add or subtract the expression from the objective function
@@ -290,7 +290,7 @@ function add_obj_term!(data, model, ::PerMMBtu, s::Symbol; oper)
     hour_weights = get_hour_weights(data)
     model[s] = @expression(model, 
         [gen_idx in axes(gen,1), yr_idx in 1:nyr],
-        sum(col[gen_idx][yr_idx,hr_idx] * hr[gen_idx][yr_idx, hr_idx] * pgen_gen[gen_idx, yr_idx, hr_idx] * hour_weights[hr_idx] for hr_idx in 1:nhr)
+        sum(col[gen_idx][yr_idx,hr_idx] * hr[gen_idx][yr_idx, hr_idx] * pgen_gen[gen_idx, yr_idx, hr_idx] * hour_weights[hr_idx] for hr_idx in 1:nhr) * 0.94^(yr_idx-1)
     )
 
     # add or subtract the expression from the objective function
@@ -312,7 +312,7 @@ function add_obj_term!(data, model, ::PerMWCap, s::Symbol; oper)
         [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
         get_table_num(data, :gen, s, gen_idx, year_idx, :) .* 
         pcap_gen[gen_idx, year_idx] *
-        hours_per_year
+        hours_per_year * 0.94^(year_idx-1)
     )
 
     # add or subtract the expression from the objective function
@@ -334,7 +334,7 @@ function add_obj_term!(data, model, ::PerMWCapInv, s::Symbol; oper)
         [gen_idx in 1:nrow(gen), year_idx in 1:length(years)],
         get_table_num(data, :gen, s, gen_idx, year_idx, :) .* 
         pcap_gen_inv_sim[gen_idx] *
-        hours_per_year
+        hours_per_year * 0.94^(year_idx-1)
     )
 
     # add or subtract the expression from the objective function
@@ -357,13 +357,13 @@ function add_obj_term!(data, model, ::PerMWhCurtailed, s::Symbol; oper)
 
     # Use this expression for single VOLL
     model[s] = @expression(model, 
-        [bus_idx in 1:nrow(bus)],
+        [bus_idx in 1:nrow(bus), year_idx in 1:length(years)],
         sum(
             get_voll(data, bus_idx, year_idx, hour_idx) * 
             hour_weights[hour_idx] * 
-            plcurt_bus[bus_idx, year_idx, hour_idx] 
+            plcurt_bus[bus_idx, year_idx, hour_idx]
             for year_idx in 1:length(years), hour_idx in 1:nhr
-        )
+        ) 
     )
 
     # add or subtract the expression from the objective function
@@ -378,23 +378,28 @@ Adds the name, oper, and type of the term to data[:obj_vars].
 """
 function add_obj_exp!(data, model, term::Term, s::Symbol; oper)
     expr = model[s]
-    obj = model[:obj]::AffExpr
-    if oper == + 
-        for new_term in expr
-            add_to_expression!(obj, new_term)
+    years = get_years(data)
+    obj = model[:obj]::Vector{AffExpr}
+
+    for yr_idx in 1:length(years)
+        obj_yr = obj[yr_idx]
+        if oper == + 
+            for new_term in expr[:,yr_idx]
+                add_to_expression!(obj_yr, new_term)
+            end
+        elseif oper == -
+            for new_term in expr[:,yr_idx]
+                add_to_expression!(obj_yr, -1, new_term)
+            end
+        else
+            Base.error("The entered operator isn't valid, oper must be + or -")
         end
-    elseif oper == -
-        for new_term in expr
-            add_to_expression!(obj, -1, new_term)
-        end
-    else
-        Base.error("The entered operator isn't valid, oper must be + or -")
-    end
     #Add s to array of variables included obj
     data[:obj_vars][s] = OrderedDict{Symbol, Any}(
         :term_sign => oper,
         :term_type => typeof(term)
     )
+    end 
 end
 
 export add_obj_term!

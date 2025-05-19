@@ -78,6 +78,7 @@ function summarize_config()
         (:voltage_angle_diff_max, false, 0, "The magnitude of the maximum allowable voltage angle diff, to be applied only to the branches with no limit (i.e. pflow_max = 0).  Will be applied in `cons_branch_pflow_pos` and `cons_branch_pflow_neg`, and is reflected in `get_pflow_branch_max`.  Set to 0 to have no effect."),
         (:require_optimal, false, true, "Whether or not to require whether or not the model is solved to optimality.  If set to true and the optimizer terminates with a suboptimal termination status, [`run_e4st`](@ref) returns after optimizing, without parsing results, etc."),
         (:model_string_names, false, false, "Whether or not to allow the model to have string names.  Defaults to `false` for memory savings.  Can be helpful to turn on for debugging, especially if you are encountering an infeasible model"),
+        (:yearly_objective_scalars, false, 1, "The amount to scale the objective by for each year, defaults to 1 for each year."),
 
     )
         
