@@ -317,8 +317,8 @@ function modify_model!(mod::CCUS, config, data, model)
 
     # Setup expressions for each year's total sequestration cost.
     @expression(model, 
-        cost_ccus_obj[yr_idx in 1:nyear],
-        sum(co2_trans[ts_idx, yr_idx] * co2_scalar * ccus_paths.price_total[ts_idx] for ts_idx in 1:nrow(ccus_paths))
+        cost_ccus_obj[ts_idx in 1:nrow(ccus_paths), yr_idx in 1:nyear],
+        sum(co2_trans[ts_idx, yr_idx] * co2_scalar * ccus_paths.price_total[ts_idx])
     )
 
     # Setup expressions for carbon stored for each of the carbon sequesterers as a function of the co2 transported

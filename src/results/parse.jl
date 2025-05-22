@@ -38,6 +38,17 @@ function parse_results!(config, data, model)
     obj_coef[:pcap_gen_inv_sim] = map(x->obj[x], model[:pcap_gen_inv_sim])
     results_raw[:obj_coef] = obj_coef
 
+    # Gather each of the objective function coefficients unscaled for tests
+    obj_unscaled = sum(model[:obj_unscaled])::AffExpr
+    obj_coef_unscaled = OrderedDict{Symbol, Any}()
+    for (k,v) in od
+        if v isa AbstractArray{<:VariableRef}
+            obj_coef_unscaled[k] = map(x->obj_unscaled[x], v)
+        end
+    end
+    obj_coef_unscaled[:pcap_gen_inv_sim] = map(x->obj_unscaled[x], model[:pcap_gen_inv_sim])
+    results_raw[:obj_coef_unscaled] = obj_coef_unscaled
+
     # Empty the model now that we have retrieved all info, to save RAM and prevent the user from accidentally accessing un-scaled data.
     empty!(model)
     
@@ -149,21 +160,22 @@ export value_or_shadow_price
 
 Returns a ByYear Container of the shadow price of a constraint. The shadow price is set to 0 for years where there is no constraint. 
 """
-function get_shadow_price_as_ByYear(data, cons_name::Symbol)
+function get_shadow_price_as_ByYear(data, config, cons_name::Symbol)
     years = Symbol.(get_years(data))
     shadow_prc = get_raw_result(data, cons_name)
+    yearly_objective_scalars = config[:yearly_objective_scalars]
 
     # set the shadow prices in array form with all sim years, set to 0 if no shadow price in that year
     if typeof(shadow_prc) <: JuMP.Containers.DenseAxisArray #DenseAxisArray and SparseAxisArray are container types for JuMP (not E4ST Containers) and need to be accessed in different ways
         # get the years where the shadow price has a value
         cons_years = (axes(shadow_prc)[1])
         # set values 
-        shadow_prc_array  = [year in cons_years ? shadow_prc[year] : 0 for year in years]
+        shadow_prc_array  = [year in cons_years ? shadow_prc[year] / yearly_objective_scalars[year] : 0 for year in years]
     elseif typeof(shadow_prc) <: JuMP.Containers.SparseAxisArray
         shadow_prc_array = []
         for year_idx in 1:length(years)
             # check if shadow_prc has the year and then set value
-            haskey(shadow_prc, year_idx) ? push!(shadow_prc_array, shadow_prc[year_idx]) : push!(shadow_prc_array, 0)
+            haskey(shadow_prc, year_idx) ? push!(shadow_prc_array, shadow_prc[year_idx] / yearly_objective_scalars[year_idx]) : push!(shadow_prc_array, 0)
         end
     else 
         @error "shadow_prc is not a DenseAxisArray or SparseAxisArray and so the sim years are not tied to the shadow price. No way of mapping shadow price to years currently defined"
@@ -221,7 +233,7 @@ function parse_power_results!(config, data)
 
     # Weight things by hour as needed
     egen_bus = weight_hourly(data, pgen_bus)
-    ecap_gen = weight_hourly(data, pcap_gen)
+    ecap_gen = weight_hourly(data, pgen_gen)
 
     pflow_out_bus = map(x-> max(x, 0.), pflow_bus)
     pflow_in_bus = map(x-> max(-x, 0.), pflow_bus)
@@ -231,6 +243,13 @@ function parse_power_results!(config, data)
     obj_pgen_cost_raw = res_raw[:obj_coef][:pgen_gen]::Array{Float64, 3}
     obj_pgen_cost = unweight_hourly(data, obj_pgen_cost_raw)
     obj_pcap_inv_price = res_raw[:obj_coef][:pcap_gen_inv_sim]::Vector{Float64}
+
+    # get unscaled objective values for tests
+    obj_pcap_cost_raw_unscaled = res_raw[:obj_coef_unscaled][:pcap_gen]::Array{Float64, 2}
+    obj_pcap_cost_unscaled = obj_pcap_cost_raw_unscaled ./ hours_per_year
+    obj_pgen_cost_raw_unscaled = res_raw[:obj_coef_unscaled][:pgen_gen]::Array{Float64, 3}
+    obj_pgen_cost_unscaled = unweight_hourly(data, obj_pgen_cost_raw_unscaled)
+    obj_pcap_inv_price_unscaled = res_raw[:obj_coef_unscaled][:pcap_gen_inv_sim]::Vector{Float64}
     
     # Create new things as needed
     cf = pgen_gen ./ pcap_gen
@@ -270,6 +289,8 @@ function parse_power_results!(config, data)
     add_table_col!(data, :gen, :cf,    cf,        MWhGeneratedPerMWhCapacity, "Capacity Factor, or average power generation/power generation capacity, 0 when no generation")
     add_table_col!(data, :gen, :obj_pcap_cost, obj_pcap_cost, DollarsPerMWCapacityPerHour, "Objective function coefficient, in dollars, for one hour of 1MW capacity")
     add_table_col!(data, :gen, :obj_pgen_cost, obj_pgen_cost, DollarsPerMWhGenerated, "Objective function coefficient, in dollars, for one MWh of generation")
+    add_table_col!(data, :gen, :obj_pcap_cost_unscaled, obj_pcap_cost_unscaled, DollarsPerMWCapacityPerHour, "Objective function coefficient, in dollars, for one hour of 1MW capacity")
+    add_table_col!(data, :gen, :obj_pgen_cost_unscaled, obj_pgen_cost_unscaled, DollarsPerMWhGenerated, "Objective function coefficient, in dollars, for one MWh of generation")
     add_table_col!(data, :gen, :obj_pcap_inv_price, obj_pcap_inv_price, DollarsPerMWBuiltCapacityPerHour, "Objective function coefficient, in dollars, for one MW of capacity invested")
 
     # Add things to the branch table

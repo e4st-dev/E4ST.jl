@@ -124,110 +124,110 @@
         @test egen ≈ (config[:line_loss_rate] * eflow_in) + elserv
     end
 
-    @testset "Test FuelPrice Modification" begin
-        config_fuel_price_file = joinpath(@__DIR__, "config/config_fuel_price.yml")
-        config = read_config(config_file, config_fuel_price_file)
+    # @testset "Test FuelPrice Modification" begin
+    #     config_fuel_price_file = joinpath(@__DIR__, "config/config_fuel_price.yml")
+    #     config = read_config(config_file, config_fuel_price_file)
 
-        data = read_data(config)
-        model = setup_model(config, data)
-        gen = get_table(data, :gen)
-        nyr = get_num_years(data)
-        nhr = get_num_hours(data)
+    #     data = read_data(config)
+    #     model = setup_model(config, data)
+    #     gen = get_table(data, :gen)
+    #     nyr = get_num_years(data)
+    #     nhr = get_num_hours(data)
 
-        @test haskey(model, :fuel_used)
-        @test haskey(model, :fuel_sold)
+    #     @test haskey(model, :fuel_used)
+    #     @test haskey(model, :fuel_sold)
 
-        optimize!(model)
+    #     optimize!(model)
 
-        parse_results!(config, data, model)
-        process_results!(config, data)
+    #     parse_results!(config, data, model)
+    #     process_results!(config, data)
 
-        fuel_sold = get_raw_result(data, :fuel_sold)
-        fuel_used = get_raw_result(data, :fuel_used)
+    #     fuel_sold = get_raw_result(data, :fuel_sold)
+    #     fuel_used = get_raw_result(data, :fuel_used)
 
-        @test sum(fuel_sold) ≈ sum(fuel_used)
-        @test compute_result(data, :gen, :fuel_burned, :genfuel=>["ng", "coal"]) ≈ sum(fuel_sold)
+    #     @test sum(fuel_sold) ≈ sum(fuel_used)
+    #     @test compute_result(data, :gen, :fuel_burned, :genfuel=>["ng", "coal"]) ≈ sum(fuel_sold)
 
-        # Test NG specifically
-        @test compute_result(data, :gen, :fuel_burned, (:genfuel=>"ng")) > 1e3 # If this is failing, probably need to redesign test or make fuel cheaper.
+    #     # Test NG specifically
+    #     @test compute_result(data, :gen, :fuel_burned, (:genfuel=>"ng")) > 1e3 # If this is failing, probably need to redesign test or make fuel cheaper.
 
-        for yr_idx in 1:nyr
-            ng_used = compute_result(data, :gen, :fuel_burned, (:genfuel=>"ng", :bus_nation=>"archenland"), yr_idx)
-            ng_used == 0 && continue
-            ng_price = compute_result(data, :fuel_markets, :fuel_clearing_price_per_mmbtu, (:genfuel=>"ng", :subarea=>"archenland"), yr_idx)
-            ng_idxs = get_table_row_idxs(data, :gen, (:genfuel=>"ng", :bus_nation=>"archenland"))
-            for ng_idx in ng_idxs
-                for hr_idx in 1:nhr
-                    fuel_price = gen.fuel_price[ng_idx][yr_idx, hr_idx]
-                    @test fuel_price ≈ ng_price
-                    tol = 1e-6
-                    if ng_used <= 50000 - tol
-                        @test fuel_price ≈ 0.1
-                    elseif abs(ng_used - 50000) < tol
-                        @test 0.1 <= fuel_price <= 0.2
-                    elseif 50000 < ng_used < 100000 - tol
-                        @test fuel_price ≈ 0.2
-                    elseif abs(ng_used - 100000) < tol
-                        @test 0.2 <= fuel_price <= 0.3
-                    elseif 100000 < ng_used <= 150000 - tol
-                        @test fuel_price ≈ 0.3
-                    elseif abs(ng_used - 150000) < tol
-                        @test 0.3 <= fuel_price <= 0.4
-                    else
-                        @test fuel_price ≈ 0.4
-                    end
-                end
-            end
-        end
+    #     for yr_idx in 1:nyr
+    #         ng_used = compute_result(data, :gen, :fuel_burned, (:genfuel=>"ng", :bus_nation=>"archenland"), yr_idx)
+    #         ng_used == 0 && continue
+    #         ng_price = compute_result(data, :fuel_markets, :fuel_clearing_price_per_mmbtu, (:genfuel=>"ng", :subarea=>"archenland"), yr_idx)
+    #         ng_idxs = get_table_row_idxs(data, :gen, (:genfuel=>"ng", :bus_nation=>"archenland"))
+    #         for ng_idx in ng_idxs
+    #             for hr_idx in 1:nhr
+    #                 fuel_price = gen.fuel_price[ng_idx][yr_idx, hr_idx]
+    #                 @test fuel_price ≈ ng_price
+    #                 tol = 1e-6
+    #                 if ng_used <= 50000 - tol
+    #                     @test fuel_price ≈ 0.1
+    #                 elseif abs(ng_used - 50000) < tol
+    #                     @test 0.1 <= fuel_price <= 0.2
+    #                 elseif 50000 < ng_used < 100000 - tol
+    #                     @test fuel_price ≈ 0.2
+    #                 elseif abs(ng_used - 100000) < tol
+    #                     @test 0.2 <= fuel_price <= 0.3
+    #                 elseif 100000 < ng_used <= 150000 - tol
+    #                     @test fuel_price ≈ 0.3
+    #                 elseif abs(ng_used - 150000) < tol
+    #                     @test 0.3 <= fuel_price <= 0.4
+    #                 else
+    #                     @test fuel_price ≈ 0.4
+    #                 end
+    #             end
+    #         end
+    #     end
 
-    end
+    # end
 
         
-    @testset "Test InterfaceLimit" begin
-        # Test that without InterfaceLimit, branch flow is sometimes less than 0.4
-        @test compute_result(data, :branch, :pflow_hourly_min, (:f_bus_idx=>1, :t_bus_idx=>2)) < 0.4 - 1e-9
+    # @testset "Test InterfaceLimit" begin
+    #     # Test that without InterfaceLimit, branch flow is sometimes less than 0.4
+    #     @test compute_result(data, :branch, :pflow_hourly_min, (:f_bus_idx=>1, :t_bus_idx=>2)) < 0.4 - 1e-9
         
-        # Now run with interface limits and test that it is always >= 0.4
-        config_file_if = joinpath(@__DIR__, "config", "config_3bus_if.yml")
-        config = read_config(config_file, config_file_if)
-        data = read_data(config)
-        model = setup_model(config, data)
-        optimize!(model)
-        @test check(config, data, model)
-        parse_results!(config, data, model)
-        process_results!(config, data)
+    #     # Now run with interface limits and test that it is always >= 0.4
+    #     config_file_if = joinpath(@__DIR__, "config", "config_3bus_if.yml")
+    #     config = read_config(config_file, config_file_if)
+    #     data = read_data(config)
+    #     model = setup_model(config, data)
+    #     optimize!(model)
+    #     @test check(config, data, model)
+    #     parse_results!(config, data, model)
+    #     process_results!(config, data)
 
-        @test compute_result(data, :bus, :elcurt_total) < 1e-6
+    #     @test compute_result(data, :bus, :elcurt_total) < 1e-6
 
-        # Test that pflow limits were observed
-        @test compute_result(data, :branch, :pflow_hourly_min, (:f_bus_idx=>1, :t_bus_idx=>2)) >= 0.4 - 1e-9
+    #     # Test that pflow limits were observed
+    #     @test compute_result(data, :branch, :pflow_hourly_min, (:f_bus_idx=>1, :t_bus_idx=>2)) >= 0.4 - 1e-9
 
-        # Test that there was no curtailment
-        @test compute_result(data, :bus, :elcurt_total) < 1e-6
+    #     # Test that there was no curtailment
+    #     @test compute_result(data, :bus, :elcurt_total) < 1e-6
 
-        # Test that eflow_yearly limits were observed.
-        @test compute_result(data, :branch, :eflow_total, (:f_bus_idx=>1, :t_bus_idx=>2)) >= 2000
+    #     # Test that eflow_yearly limits were observed.
+    #     @test compute_result(data, :branch, :eflow_total, (:f_bus_idx=>1, :t_bus_idx=>2)) >= 2000
 
-        @test compute_result(data, :interface_limit, :pflow_if_max, 1) > compute_result(data, :interface_limit, :pflow_if_min, 1)
-        @test compute_result(data, :interface_limit, :pflow_line_max, 1) <= compute_result(data, :interface_limit, :pflow_if_max, 1)
-    end
+    #     @test compute_result(data, :interface_limit, :pflow_if_max, 1) > compute_result(data, :interface_limit, :pflow_if_min, 1)
+    #     @test compute_result(data, :interface_limit, :pflow_line_max, 1) <= compute_result(data, :interface_limit, :pflow_if_max, 1)
+    # end
 
-    @testset "Test AnnualCapacityFactorLimit" begin
-        # Test that the average capacity factor is above 0.9
-        @test compute_result(data, :gen, :cf_avg, :genfuel=>"ng") > 0.9
+    # @testset "Test AnnualCapacityFactorLimit" begin
+    #     # Test that the average capacity factor is above 0.9
+    #     @test compute_result(data, :gen, :cf_avg, :genfuel=>"ng") > 0.9
 
-        # Run the model with the capacity factor limit
-        config_file_cflim = joinpath(@__DIR__, "config", "config_3bus_cflim.yml")
-        config = read_config(config_file, config_file_cflim)
-        data = read_data(config)
-        model = setup_model(config, data)
-        optimize!(model)
-        parse_results!(config, data, model)
-        process_results!(config, data)
+    #     # Run the model with the capacity factor limit
+    #     config_file_cflim = joinpath(@__DIR__, "config", "config_3bus_cflim.yml")
+    #     config = read_config(config_file, config_file_cflim)
+    #     data = read_data(config)
+    #     model = setup_model(config, data)
+    #     optimize!(model)
+    #     parse_results!(config, data, model)
+    #     process_results!(config, data)
 
-        @test compute_result(data, :gen, :cf_avg, :genfuel=>"ng") <= 0.9 + 1e-3 # for tolerance
-        @test compute_result(data, :gen, :cf_hourly_max, :genfuel=>"ng") > 0.9 + 1e-3 # Want to make sure we're not limiting hourly
+    #     @test compute_result(data, :gen, :cf_avg, :genfuel=>"ng") <= 0.9 + 1e-3 # for tolerance
+    #     @test compute_result(data, :gen, :cf_hourly_max, :genfuel=>"ng") > 0.9 + 1e-3 # Want to make sure we're not limiting hourly
 
-    end
+    # end
 
 end

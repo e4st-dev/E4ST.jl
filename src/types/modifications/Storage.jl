@@ -464,23 +464,23 @@ function modify_model!(mod::Storage, config, data, model)
 
     ### Add Costs to objective function terms: vom, fom, capex.
     @expression(model,
-        vom_stor[yr_idx in 1:nyr],
+        vom_stor[stor_idx in axes(storage,1), yr_idx in 1:nyr],
         sum(
             hour_weights[hr_idx] * pdischarge_stor[stor_idx, yr_idx, hr_idx] * get_table_num(data, :storage, :vom, stor_idx, yr_idx, hr_idx)
-            for stor_idx in axes(storage,1), hr_idx in 1:nhr
+            for hr_idx in 1:nhr
         )
     )
 
+
     @expression(model,
-        fom_stor[yr_idx in 1:nyr],
+        fom_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr],
         sum(
             hours_per_year * pcap_stor[stor_idx, yr_idx] * get_table_num(data, :storage, :fom, stor_idx, yr_idx, :)
-            for stor_idx in axes(storage,1)
         )
     )
 
     @expression(model,
-        routine_capex_stor[yr_idx in 1:nyr],
+        routine_capex_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr],
         sum(
             hours_per_year * pcap_stor[stor_idx, yr_idx] * get_table_num(data, :storage, :routine_capex, stor_idx, yr_idx, :)
             for stor_idx in axes(storage,1)
@@ -502,18 +502,16 @@ function modify_model!(mod::Storage, config, data, model)
     
 
     @expression(model,
-        capex_obj_stor[yr_idx in 1:nyr],
+        capex_obj_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr],
         sum(
             hours_per_year * pcap_stor_inv_sim[stor_idx] * get_table_num(data, :storage, :capex_obj, stor_idx, yr_idx, :)
-            for stor_idx in axes(storage,1)
         )
     )
 
     @expression(model,
-        transmission_capex_obj_stor[yr_idx in 1:nyr],
+        transmission_capex_obj_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr],
         sum(
             hours_per_year * pcap_stor_inv_sim[stor_idx] * get_table_num(data, :storage, :transmission_capex_obj, stor_idx, yr_idx, :)
-            for stor_idx in axes(storage,1)
         )
     )
 

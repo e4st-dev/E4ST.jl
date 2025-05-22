@@ -206,8 +206,8 @@ function modify_model!(mod::InterfaceLimit, config, data, model)
     # Add to objective function
     if hasproperty(table, :price)
         @expression(model, 
-            interface_flow_cost_obj[if_idx in axes(table,1), yr_idx in 1:nyr, hr_idx in 1:nhr],
-            pflow_if[if_idx, yr_idx, hr_idx] * hour_weights[hr_idx] * table.price[if_idx][yr_idx, hr_idx]
+            interface_flow_cost_obj[if_idx in axes(table,1), yr_idx in 1:nyr],
+            sum(pflow_if[if_idx, yr_idx, hr_idx] * hour_weights[hr_idx] * table.price[if_idx][yr_idx, hr_idx] for hr_idx in 1:nhr)
         )
         add_obj_exp!(data, model, PerMWhFlow(), :interface_flow_cost_obj, oper=+)
     end

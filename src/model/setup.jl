@@ -100,8 +100,11 @@ function setup_model(config, data)
             _try_catch(modify_model!, name, m, config, data, model)
         end
 
-        # discount each year of objective function for perfect foresight
+        # create unscaled model expression for tests
         nyr = get_num_years(data)
+        model[:obj_unscaled] =@expression(model, [yr_idx in 1:nyr], model[:obj][yr_idx])
+
+        # discount each year of objective function for perfect foresight
         yearly_objective_scalars = config[:yearly_objective_scalars]
         obj = model[:obj]::Vector{AffExpr} # Should be length nyr
         for yr_idx in 1:nyr

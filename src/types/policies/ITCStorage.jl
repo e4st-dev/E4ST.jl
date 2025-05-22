@@ -85,10 +85,9 @@ function E4ST.modify_model!(pol::ITCStorage, config, data, model)
     name = pol.name
     pcap_stor_inv_sim = model[:pcap_stor_inv_sim]::Vector{AffExpr}
     model[name] = @expression(model,
-        [yr_idx in 1:nyr],
+        [stor_idx in axes(storage, 1), yr_idx in 1:nyr],
         sum(
             pcap_stor_inv_sim[stor_idx] * get_table_num(data, :storage, pol.name, stor_idx, yr_idx, :)
-            for stor_idx in axes(storage,1)
         )
     )
 

@@ -269,7 +269,7 @@ function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper)
     hour_weights = get_hour_weights(data)
     model[s] = @expression(model, 
         [gen_idx in axes(gen,1), yr_idx in 1:nyr],
-        sum(col[gen_idx][yr_idx,hr_idx] * pgen_gen[gen_idx, yr_idx, hr_idx] * hour_weights[hr_idx] for hr_idx in 1:nhr) * 0.94^(yr_idx-1)
+        sum(col[gen_idx][yr_idx,hr_idx] * pgen_gen[gen_idx, yr_idx, hr_idx] * hour_weights[hr_idx] for hr_idx in 1:nhr)
     )
 
     # add or subtract the expression from the objective function
@@ -290,7 +290,7 @@ function add_obj_term!(data, model, ::PerMMBtu, s::Symbol; oper)
     hour_weights = get_hour_weights(data)
     model[s] = @expression(model, 
         [gen_idx in axes(gen,1), yr_idx in 1:nyr],
-        sum(col[gen_idx][yr_idx,hr_idx] * hr[gen_idx][yr_idx, hr_idx] * pgen_gen[gen_idx, yr_idx, hr_idx] * hour_weights[hr_idx] for hr_idx in 1:nhr) * 0.94^(yr_idx-1)
+        sum(col[gen_idx][yr_idx,hr_idx] * hr[gen_idx][yr_idx, hr_idx] * pgen_gen[gen_idx, yr_idx, hr_idx] * hour_weights[hr_idx] for hr_idx in 1:nhr)
     )
 
     # add or subtract the expression from the objective function
