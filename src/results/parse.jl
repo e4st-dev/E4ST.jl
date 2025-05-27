@@ -189,7 +189,6 @@ Adds power-based results.  See also [`get_table_summary`](@ref) for the below su
 | :bus | :plcurt | MWCurtailed | Average power curtailed at this bus |
 | :gen | :pgen | MWGenerated | Average power generated at this generator |
 | :gen | :pcap | MWCapacity | Power generation capacity of this generator generated at this generator for the weighted representative hour |
-| :gen | :ecap | MWhCapacity | Total energy generation capacity of this generator generated at this generator for the weighted representative hour |
 | :gen | :pcap_retired | MWCapacity | Power generation capacity that was retired in each year |
 | :gen | :pcap_built | MWCapacity | Power generation capacity that was built in each year |
 | :gen | :pcap_inv_sim | MWCapacity | Total power generation capacity that was invested for the generator during the sim.  (single value).  Still the same even after retirement |
@@ -221,7 +220,6 @@ function parse_power_results!(config, data)
 
     # Weight things by hour as needed
     egen_bus = weight_hourly(data, pgen_bus)
-    ecap_gen = weight_hourly(data, pcap_gen)
 
     pflow_out_bus = map(x-> max(x, 0.), pflow_bus)
     pflow_in_bus = map(x-> max(-x, 0.), pflow_bus)
@@ -262,7 +260,6 @@ function parse_power_results!(config, data)
     # Add things to the gen table
     add_table_col!(data, :gen, :pgen,  pgen_gen,  MWGenerated,"Average power generated at this generator")
     add_table_col!(data, :gen, :pcap,  pcap_gen,  MWCapacity,"Power capacity of this generator generated at this generator for the weighted representative hour")
-    add_table_col!(data, :gen, :ecap,  ecap_gen,  MWhCapacity,"Electricity generation capacity of this generator generated at this generator for the weighted representative hour")
     add_table_col!(data, :gen, :pcap_retired, pcap_retired, MWCapacity, "Power generation capacity that was retired in each year")
     add_table_col!(data, :gen, :pcap_built,   pcap_built,   MWCapacity, "Power generation capacity that was built in each year")
     add_table_col!(data, :gen, :pcap_inv_sim, pcap_gen_inv_sim, MWCapacity, "Total power generation capacity that was invested for the generator during the sim.  (single value).  Still the same even after retirement")
