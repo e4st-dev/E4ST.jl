@@ -130,12 +130,14 @@ is_equality_constraint(cons::AbstractArray) = isempty(cons) ? false : is_equalit
 Returns a value or shadow price depending on what is passed in.  Used in [`results_raw!`](@ref).  Scales shadow prices by `obj_scalar` to restore to units of dollars (per applicable unit).
 """
 function value_or_shadow_price(ar::AbstractArray{<:ConstraintRef}, obj_scalar, yearly_obj_scalars) 
-    @assert !(ar isa JuMP.Containers.SparseAxisArray) "SparseAxisArray is not supported"
     n_dims = ndims(ar)
-    
-    if ndims == 2 && size(ar,2) == length(yearly_obj_scalars)
+    nyr =  length(yearly_obj_scalars)
+
+    if n_dims == 1 && size(ar,1) == nyr
+        [value_or_shadow_price(ar[i], obj_scalar, yearly_obj_scalars[i]) for i in axes(ar, 1)]
+    elseif n_dims == 2 && size(ar,2) == nyr
         [value_or_shadow_price(ar[i, j], obj_scalar, yearly_obj_scalars[j]) for i in axes(ar, 1), j in axes(ar, 2)]
-    elseif n_dims == 3 && size(ar,2) == length(yearly_obj_scalars)
+    elseif n_dims == 3 && size(ar,2) == nyr
         [value_or_shadow_price(ar[i, j, k], obj_scalar, yearly_obj_scalars[j]) for i in axes(ar, 1), j in axes(ar, 2), k in axes(ar, 3)]
     else
         @warn "Year is not in expected dimension, shadow price has not been unscaled."
@@ -143,19 +145,34 @@ function value_or_shadow_price(ar::AbstractArray{<:ConstraintRef}, obj_scalar, y
     end
 end
 function value_or_shadow_price(ar::JuMP.Containers.SparseAxisArray{<:ConstraintRef}, obj_scalar, yearly_obj_scalars)
-    index_list  =collect(keys(ar.data))
-    n_dims = map(i -> maximum(k[i] for k in index_list), 1:length(first(index_list)))
-   
-    if length(n_dims) == 2 && n_dims[2] == length(yearly_obj_scalars)
-        [value_or_shadow_price(ar[i, j], obj_scalar, yearly_obj_scalars[j]) for i in 1:n_dims[1], j in 1:n_dims[2]]
-    elseif length(n_dims) == 3 && n_dims[2] == length(yearly_obj_scalars)
-        [value_or_shadow_price(ar[i, j, k], obj_scalar, yearly_obj_scalars[j]) for i in 1:n_dims[1], j in 1:n_dims[2], k in 1:n_dims[3]]
+    n_dims = length(first(eachindex(ar)))
+    nyr = length(yearly_obj_scalars)
+
+    sp = shadow_price.(ar) * obj_scalar
+    if n_dims ==1 
+        for yr_idx in 1:nyr
+            yr_scalar = yearly_obj_scalars[yr_idx]
+            for idx in eachindex(sp)
+                if idx[2] == yr_idx
+                    sp[idx] = sp[idx]/yr_scalar
+                end
+            end
+        end
+    elseif n_dims == 2 || n_dims ==3
+        for yr_idx in 1:nyr
+            yr_scalar = yearly_obj_scalars[yr_idx]
+            for idx in eachindex(sp)
+                if idx[2] == yr_idx
+                    sp[idx] = sp[idx]/yr_scalar
+                end
+            end
+        end
     else
         @warn "Year is not in expected dimension, shadow price has not been unscaled."
-        value_or_shadow_price.(ar, obj_scalar)
     end
+    return sp
 end
-function value_or_shadow_price(ar::AbstractArray{<:AbstractJuMPScalar}, obj_scalar, yearly_obj_scalars)
+function value_or_shadow_price(ar::AbstractArray{<:AbstractJuMPScalar}, obj_scalar)
     value.(ar)
 end
 function value_or_shadow_price(cons::ConstraintRef{M, CI}, obj_scalar) where {F, M <: AbstractModel, CI<:MOI.ConstraintIndex{F, MOI.EqualTo{Float64}}}
@@ -165,10 +182,6 @@ end
 function value_or_shadow_price(cons::ConstraintRef{M, CI}, obj_scalar, yr_scalar) where {F, M <: AbstractModel, CI<:MOI.ConstraintIndex{F, MOI.EqualTo{Float64}}}
     @warn "Shadow price is misleading for equality constraints!"
     shadow_price(cons) * obj_scalar / yr_scalar
-end
-function value_or_shadow_price(cons::ConstraintRef{M, CI}, obj_scalar) where {F, M <: AbstractModel, CI<:MOI.ConstraintIndex{F, MOI.EqualTo{Float64}}}
-    @warn "Shadow price is misleading for equality constraints!"
-    shadow_price(cons) * obj_scalar
 end
 function value_or_shadow_price(cons::ConstraintRef, obj_scalar)
     shadow_price(cons) * obj_scalar

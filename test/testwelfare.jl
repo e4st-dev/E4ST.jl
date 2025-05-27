@@ -2,7 +2,7 @@
     @testset "Without Storage" begin
         config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
         config = read_config(config_file, log_model_summary=true)
-        delete!(config, :build_gen_file)
+        delete!(config, :build_gen_file) # to maximize power flow across a line so there is merchandising surplus
 
         data = read_data(config)
         model = setup_model(config, data)
