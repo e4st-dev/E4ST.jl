@@ -32,6 +32,9 @@ function setup_welfare!(config, data)
     # Unserved load welfare
     add_welfare_term!(data, :unserved_load, :bus, :unserved_load_cost_total, -)
 
+    # Transmission investments
+    add_welfare_term!(data, :transmission_investment, :bus, :transmission_investment, -)
+
     # Create welfare check by calculating system cost, change in system cost should equal the change in net non-enviro (this welfare) benefits
     add_welfare_term!(data, :system_cost_check, :gen, :production_cost, +)
     add_welfare_term!(data, :system_cost_check, :bus, :distribution_cost_total, +)
