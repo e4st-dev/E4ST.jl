@@ -187,7 +187,7 @@ function modify_results!(pol::GenerationStandard, config, data)
     end
     
     # create column for per MWh price of the policy in :gen
-    shadow_prc = get_shadow_price_as_ByYear(data, config, Symbol("cons_$(pol.name)")) #($/MWhGenerated) by year
+    shadow_prc = get_shadow_price_as_ByYear(data, Symbol("cons_$(pol.name)")) #($/MWhGenerated) by year
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
 
     add_table_col!(data, :gen, prc_name,  Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated, "Policy price based on shadow price of $(pol.name) (converted to DollarsPerMWhGenerated) multiplied by the credit.")

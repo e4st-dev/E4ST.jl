@@ -10,6 +10,7 @@ function parse_results!(config, data, model)
     log_header("PARSING RESULTS")
 
     obj_scalar = config[:objective_scalar]
+    yearly_obj_scalars = config[:yearly_objective_scalars]
 
     model_keys_not_parsed = data[:do_not_parse_model_keys]::Set{Symbol}
     should_parse = !in(model_keys_not_parsed)
@@ -18,7 +19,7 @@ function parse_results!(config, data, model)
     results_raw = Dict{Symbol, Any}()
     od = object_dictionary(model)
     for (k,v) in od
-        should_parse(k) && store_value_or_shadow_price!(results_raw, k, v, obj_scalar)
+        should_parse(k) && store_value_or_shadow_price!(results_raw, k, v, obj_scalar, yearly_obj_scalars)
     end
 
     # Scale cons_pgen_max if it has been parsed
@@ -101,14 +102,14 @@ export check_voltage_angle_bounds
 
 Stores the value or shadow price if it is reasonable to do so.  Will not store shadow price for equality constraints
 """
-function store_value_or_shadow_price!(results_raw, k, v, obj_scalar)
+function store_value_or_shadow_price!(results_raw, k, v, obj_scalar, yearly_obj_scalars)
     if is_equality_constraint(v)
         @warn "Cannot compute shadow price for equality constraint $k, because its value is ambiguous.  Consider seperating into two inequality constraints"
         return
     end
 
     @info "Parsing results for $k"
-    results_raw[k] = value_or_shadow_price(v, obj_scalar)
+    results_raw[k] = value_or_shadow_price(v, obj_scalar, yearly_obj_scalars)
     return
 end
 export store_value_or_shadow_price!
@@ -128,11 +129,42 @@ is_equality_constraint(cons::AbstractArray) = isempty(cons) ? false : is_equalit
 
 Returns a value or shadow price depending on what is passed in.  Used in [`results_raw!`](@ref).  Scales shadow prices by `obj_scalar` to restore to units of dollars (per applicable unit).
 """
-function value_or_shadow_price(ar::AbstractArray{<:ConstraintRef}, obj_scalar)
-    value_or_shadow_price.(ar, obj_scalar)
+function value_or_shadow_price(ar::AbstractArray{<:ConstraintRef}, obj_scalar, yearly_obj_scalars) 
+    @assert !(ar isa JuMP.Containers.SparseAxisArray) "SparseAxisArray is not supported"
+    n_dims = ndims(ar)
+    
+    if ndims == 2 && size(ar,2) == length(yearly_obj_scalars)
+        [value_or_shadow_price(ar[i, j], obj_scalar, yearly_obj_scalars[j]) for i in axes(ar, 1), j in axes(ar, 2)]
+    elseif n_dims == 3 && size(ar,2) == length(yearly_obj_scalars)
+        [value_or_shadow_price(ar[i, j, k], obj_scalar, yearly_obj_scalars[j]) for i in axes(ar, 1), j in axes(ar, 2), k in axes(ar, 3)]
+    else
+        @warn "Year is not in expected dimension, shadow price has not been unscaled."
+        value_or_shadow_price.(ar, obj_scalar)
+    end
 end
-function value_or_shadow_price(ar::AbstractArray{<:AbstractJuMPScalar}, obj_scalar)
+function value_or_shadow_price(ar::JuMP.Containers.SparseAxisArray{<:ConstraintRef}, obj_scalar, yearly_obj_scalars)
+    index_list  =collect(keys(ar.data))
+    n_dims = map(i -> maximum(k[i] for k in index_list), 1:length(first(index_list)))
+   
+    if length(n_dims) == 2 && n_dims[2] == length(yearly_obj_scalars)
+        [value_or_shadow_price(ar[i, j], obj_scalar, yearly_obj_scalars[j]) for i in 1:n_dims[1], j in 1:n_dims[2]]
+    elseif length(n_dims) == 3 && n_dims[2] == length(yearly_obj_scalars)
+        [value_or_shadow_price(ar[i, j, k], obj_scalar, yearly_obj_scalars[j]) for i in 1:n_dims[1], j in 1:n_dims[2], k in 1:n_dims[3]]
+    else
+        @warn "Year is not in expected dimension, shadow price has not been unscaled."
+        value_or_shadow_price.(ar, obj_scalar)
+    end
+end
+function value_or_shadow_price(ar::AbstractArray{<:AbstractJuMPScalar}, obj_scalar, yearly_obj_scalars)
     value.(ar)
+end
+function value_or_shadow_price(cons::ConstraintRef{M, CI}, obj_scalar) where {F, M <: AbstractModel, CI<:MOI.ConstraintIndex{F, MOI.EqualTo{Float64}}}
+    @warn "Shadow price is misleading for equality constraints!"
+    shadow_price(cons) * obj_scalar
+end
+function value_or_shadow_price(cons::ConstraintRef{M, CI}, obj_scalar, yr_scalar) where {F, M <: AbstractModel, CI<:MOI.ConstraintIndex{F, MOI.EqualTo{Float64}}}
+    @warn "Shadow price is misleading for equality constraints!"
+    shadow_price(cons) * obj_scalar / yr_scalar
 end
 function value_or_shadow_price(cons::ConstraintRef{M, CI}, obj_scalar) where {F, M <: AbstractModel, CI<:MOI.ConstraintIndex{F, MOI.EqualTo{Float64}}}
     @warn "Shadow price is misleading for equality constraints!"
@@ -141,13 +173,16 @@ end
 function value_or_shadow_price(cons::ConstraintRef, obj_scalar)
     shadow_price(cons) * obj_scalar
 end
+function value_or_shadow_price(cons::ConstraintRef, obj_scalar, yr_scalar)
+    shadow_price(cons) * obj_scalar / yr_scalar
+end
 function value_or_shadow_price(x::AbstractJuMPScalar, obj_scalar)
     value(x)
 end
 function value_or_shadow_price(x::Float64, obj_scalar)
     return x
 end
-function value_or_shadow_price(ar::AbstractArray, obj_scalar)
+function value_or_shadow_price(ar::AbstractArray, obj_scalar, yearly_obj_scalars)
     value_or_shadow_price.(ar, obj_scalar)
 end
 function value_or_shadow_price(v::Number, obj_scalar)
@@ -160,22 +195,21 @@ export value_or_shadow_price
 
 Returns a ByYear Container of the shadow price of a constraint. The shadow price is set to 0 for years where there is no constraint. 
 """
-function get_shadow_price_as_ByYear(data, config, cons_name::Symbol)
+function get_shadow_price_as_ByYear(data, cons_name::Symbol)
     years = Symbol.(get_years(data))
     shadow_prc = get_raw_result(data, cons_name)
-    yearly_objective_scalars = config[:yearly_objective_scalars]
 
     # set the shadow prices in array form with all sim years, set to 0 if no shadow price in that year
     if typeof(shadow_prc) <: JuMP.Containers.DenseAxisArray #DenseAxisArray and SparseAxisArray are container types for JuMP (not E4ST Containers) and need to be accessed in different ways
         # get the years where the shadow price has a value
         cons_years = (axes(shadow_prc)[1])
         # set values 
-        shadow_prc_array  = [year in cons_years ? shadow_prc[year] / yearly_objective_scalars[year] : 0 for year in years]
+        shadow_prc_array  = [year in cons_years ? shadow_prc[year] : 0 for year in years]
     elseif typeof(shadow_prc) <: JuMP.Containers.SparseAxisArray
         shadow_prc_array = []
         for year_idx in 1:length(years)
             # check if shadow_prc has the year and then set value
-            haskey(shadow_prc, year_idx) ? push!(shadow_prc_array, shadow_prc[year_idx] / yearly_objective_scalars[year_idx]) : push!(shadow_prc_array, 0)
+            haskey(shadow_prc, year_idx) ? push!(shadow_prc_array, shadow_prc[year_idx]) : push!(shadow_prc_array, 0)
         end
     else 
         @error "shadow_prc is not a DenseAxisArray or SparseAxisArray and so the sim years are not tied to the shadow price. No way of mapping shadow price to years currently defined"
