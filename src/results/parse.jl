@@ -153,7 +153,7 @@ function value_or_shadow_price(ar::JuMP.Containers.SparseAxisArray{<:ConstraintR
         for yr_idx in 1:nyr
             yr_scalar = yearly_obj_scalars[yr_idx]
             for idx in eachindex(sp)
-                if idx[2] == yr_idx
+                if idx[1] == yr_idx
                     sp[idx] = sp[idx]/yr_scalar
                 end
             end
