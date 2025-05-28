@@ -106,6 +106,7 @@ function setup_model(config, data)
 
         # discount each year of objective function for perfect foresight
         yearly_objective_scalars = config[:yearly_objective_scalars]
+        @assert length(yearly_objective_scalars) == nyr "Length of perfect foresight discount vector does not match the number of years"
         obj = model[:obj]::Vector{AffExpr} # Should be length nyr
         for yr_idx in 1:nyr
             obj_yr = obj[yr_idx]
