@@ -278,7 +278,8 @@ function parse_power_results!(config, data)
     pflow_bus = res_raw[:pflow_bus]::Array{Float64, 3}
 
     # Weight things by hour as needed
-    egen_bus = weight_hourly(data, p
+    egen_bus = weight_hourly(data, p)
+    
     pflow_out_bus = map(x-> max(x, 0.), pflow_bus)
     pflow_in_bus = map(x-> max(-x, 0.), pflow_bus)
 
