@@ -2,9 +2,9 @@
 """
     struct PerfectForesight <: Modification
 
-    Perfect Foresight(;name, rate)
+    PerfectForesight(;name, rate)
 
-Discounts future model years so that model runs with perfect foresight.
+Calculates discount value for future model years so that model runs with perfect foresight.
 
 ## Keyword Arguments
 * `name` - the name of the mod, do not need to specify in a config file
@@ -19,6 +19,8 @@ struct PerfectForesight <: Modification
     )
         if rate > 1
             error("Discount rate can not be greater than 1")
+        elseif rate < 0
+            error("Discount rate can not be negative")
         end
         new(name, rate)
     end 
@@ -30,8 +32,10 @@ export PerfectForesight
 E4ST.mod_rank(::Type{PerfectForesight}) = -2 
 
 function E4ST.modify_raw_data!(m::PerfectForesight, config, data)
+    nyrs = get_num_years(data)
     years = [parse(Int, replace(y, "y" => "")) for y in get_years(data)]
     y0 = years[1]
     discount_rates = (1 - m.rate) .^ (years .- y0)
     config[:yearly_objective_scalars] = discount_rates
+    @assert length(config[:yearly_objective_scalars]) == nyrs "Length of perfect foresight discount vector does not match the number of years"
 end

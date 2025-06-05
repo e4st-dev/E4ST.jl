@@ -464,10 +464,10 @@ function modify_model!(mod::Storage, config, data, model)
 
     ### Add Costs to objective function terms: vom, fom, capex.
     @expression(model,
-        vom_stor[stor_idx in axes(storage,1), yr_idx in 1:nyr],
+        vom_stor[yr_idx in 1:nyr],
         sum(
             hour_weights[hr_idx] * pdischarge_stor[stor_idx, yr_idx, hr_idx] * get_table_num(data, :storage, :vom, stor_idx, yr_idx, hr_idx)
-            for hr_idx in 1:nhr
+            for stor_idx in axes(storage,1), hr_idx in 1:nhr
         )
     )
 
