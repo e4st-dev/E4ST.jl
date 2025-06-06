@@ -4,7 +4,7 @@
 
     PerfectForesight(;name, rate)
 
-Calculates discount value for future model years so that model runs with perfect foresight.
+Calculates discount value for future model years so that model runs with perfect foresight, and overwrites `config[:yearly_objective_scalars]`
 
 ## Keyword Arguments
 * `name` - the name of the mod, do not need to specify in a config file
