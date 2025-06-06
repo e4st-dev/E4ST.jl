@@ -84,6 +84,8 @@ gen,net_variable_revenue,electricity_revenue - net_variable_cost - cost_of_servi
 gen,net_going_forward_revenue,electricity_revenue - going_forward_cost - cost_of_service_rebate,Dollars,"Net going forward revenue, including electricity revenue minus going forward cost"
 gen,obj_pcap_cost_total,"SumHourlyWeighted(pcap, obj_pcap_cost)",Dollars,"Cost for pcap in the objective, including investment"
 gen,obj_pgen_cost_total,"SumHourlyWeighted(pgen, obj_pgen_cost)",Dollars,Cost for pgen in the objective
+gen,obj_pcap_cost_total_unscaled,"SumHourlyWeighted(pcap, obj_pcap_cost_unscaled)",Dollars,"Cost for pcap in the objective, including investment"
+gen,obj_pgen_cost_total_unscaled,"SumHourlyWeighted(pgen, obj_pgen_cost_unscaled)",Dollars,Cost for pgen in the objective
 bus,elnom_total,SumHourlyWeighted(plnom),MWhLoad,Nominal load energy
 bus,elserv_total,SumHourlyWeighted(plserv),MWhServed,Total load energy served
 bus,eflow_in_total,SumHourlyWeighted(pflow_in),MWhFlow,Total energy flowing into all the buses in this region (not necessarily net flow into the region)

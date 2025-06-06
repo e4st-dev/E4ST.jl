@@ -72,6 +72,7 @@ include("types/modifications/ReserveRequirement.jl")
 include("types/modifications/GenHashID.jl")
 include("types/modifications/LeftJoinCols.jl")
 include("types/modifications/CapacityConstraint.jl")
+include("types/modifications/PerfectForesight.jl")
 
 # Include Policies
 include("types/policies/ITC.jl")

@@ -31,8 +31,8 @@
         parse_results!(config, data, model)
 
         # Test that the objective values are the same as the accounting values, at least for this simplified example
-        @test compute_result(data, :gen, :obj_pgen_cost_total) ≈ compute_result(data, :gen, :variable_cost)
-        @test compute_result(data, :gen, :obj_pcap_cost_total) ≈ compute_result(data, :gen, :fixed_cost)
+        @test compute_result(data, :gen, :obj_pgen_cost_total_unscaled) ≈ compute_result(data, :gen, :variable_cost)
+        @test compute_result(data, :gen, :obj_pcap_cost_total_unscaled) ≈ compute_result(data, :gen, :fixed_cost)
     end
 
     @testset "Test reading/saving model from .jls file" begin

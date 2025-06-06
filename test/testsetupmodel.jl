@@ -26,7 +26,8 @@
         @test haskey(data[:obj_vars], :vom)
         @test haskey(data[:obj_vars], :capex_obj)
         @test haskey(data[:obj_vars], :curtailment_cost)
-        @test model[:obj] == 
+
+        @test sum(model[:obj_unscaled]) == 
             sum(model[:curtailment_cost]) + 
             sum(model[:fom]) + 
             sum(model[:fuel_price]) + 

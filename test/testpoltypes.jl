@@ -73,7 +73,7 @@
             process_results!(config, data)
 
             #make sure obj was lowered
-            @test get_raw_result(data, :obj) < get_raw_result(data_ref, :obj) #if this isn't working, check that it isn't due to differences between the config files
+            @test sum(get_raw_result(data, :obj)) < sum(get_raw_result(data_ref, :obj)) #if this isn't working, check that it isn't due to differences between the config files
         
             #test that results are getting calculated
             @test compute_result(data, :gen, :example_ptc_cost) > 0.0
@@ -117,7 +117,7 @@
         process_results!(config, data)
 
         #make sure obj was lowered
-        @test get_raw_result(data, :obj) < get_raw_result(data_ref, :obj) #if this isn't working, check that it isn't due to differences between the config files
+        @test sum(get_raw_result(data, :obj)) < sum(get_raw_result(data_ref, :obj)) #if this isn't working, check that it isn't due to differences between the config files
         
         #test that results are getting calculated
         @test compute_result(data, :gen, :example_ptc_cost) > 0.0
@@ -160,7 +160,7 @@
             process_results!(config, data)
 
             #make sure obj was lowered
-            @test get_raw_result(data, :obj) < get_raw_result(data_ref, :obj) #if this isn't working, check that it isn't due to differences between the config files
+            @test sum(get_raw_result(data, :obj)) < sum(get_raw_result(data_ref, :obj)) #if this isn't working, check that it isn't due to differences between the config files
 
             #test _cost_obj result is calculated
             cost_obj = compute_result(data, :gen, :example_itc_cost_obj)
@@ -490,7 +490,7 @@
     end
 
     @testset "Test CostAdder" begin
-
+        # test with unscaled obj function because perfect foresight model might behave differently when cost adders are introduced
         config_file = joinpath(@__DIR__, "config", "config_cost_adders.yml")
         config_stor_file = joinpath(@__DIR__, "config", "config_stor.yml")
         config = read_config(config_file_ref, 
@@ -507,13 +507,13 @@
         data_ref = read_data(config_ref)
         model_ref = setup_model(config_ref, data_ref)
 
-        obj = model[:obj]
+        obj = model[:obj_unscaled]
         pcap_gen = model[:pcap_gen]
         pgen_gen = model[:pgen_gen]
         pcap_stor = model[:pcap_stor]
         pdischarge_stor = model[:pdischarge_stor]
 
-        obj_ref = model_ref[:obj]
+        obj_ref = model_ref[:obj_unscaled]
         pcap_gen_ref = model_ref[:pcap_gen]
         pgen_gen_ref = model_ref[:pgen_gen]
         pcap_stor_ref = model_ref[:pcap_stor]
@@ -536,8 +536,8 @@
             for (yr_idx, yr) in enumerate(yrs)
                 val = vals[Symbol(yr)]
                 for hr_idx in 1:nhr, row_idx in row_idxs
-                    @test obj[pgen_gen[row_idx, yr_idx, hr_idx]] ≈ 
-                    table[row_idx, ca.col_name][yr_idx, hr_idx] * val * hr_weights[hr_idx] + obj_ref[pgen_gen_ref[row_idx, yr_idx, hr_idx]]  
+                    @test obj[yr_idx][pgen_gen[row_idx, yr_idx, hr_idx]] ≈ 
+                    table[row_idx, ca.col_name][yr_idx, hr_idx] * val * hr_weights[hr_idx] + obj_ref[yr_idx][pgen_gen_ref[row_idx, yr_idx, hr_idx]]  
                 end
             end
         end
@@ -550,8 +550,8 @@
             for (yr_idx, yr) in enumerate(yrs)
                 val = vals[Symbol(yr)]
                 for hr_idx in 1:nhr, row_idx in row_idxs
-                    @test obj[pdischarge_stor[row_idx, yr_idx, hr_idx]] ≈
-                    val * hr_weights[hr_idx] + obj_ref[pdischarge_stor_ref[row_idx, yr_idx, hr_idx]] 
+                    @test obj[yr_idx][pdischarge_stor[row_idx, yr_idx, hr_idx]] ≈
+                    val * hr_weights[hr_idx] + obj_ref[yr_idx][pdischarge_stor_ref[row_idx, yr_idx, hr_idx]] 
                 end
             end
         end
@@ -564,8 +564,8 @@
             for (yr_idx, yr) in enumerate(yrs)
                 val = vals[Symbol(yr)]
                 for row_idx in row_idxs
-                    @test obj[pcap_gen[row_idx, yr_idx]] ≈ 
-                    val * hr_weights_total + obj_ref[pcap_gen_ref[row_idx, yr_idx]] 
+                    @test obj[yr_idx][pcap_gen[row_idx, yr_idx]] ≈ 
+                    val * hr_weights_total + obj_ref[yr_idx][pcap_gen_ref[row_idx, yr_idx]] 
                 end
             end
         end
@@ -578,8 +578,8 @@
             for (yr_idx, yr) in enumerate(yrs)
                 val = vals[Symbol(yr)]
                 for row_idx in row_idxs
-                    @test obj[pcap_stor[row_idx, yr_idx]] ≈
-                    val * hr_weights_total + obj_ref[pcap_stor_ref[row_idx, yr_idx]] 
+                    @test obj[yr_idx][pcap_stor[row_idx, yr_idx]] ≈
+                    val * hr_weights_total + obj_ref[yr_idx][pcap_stor_ref[row_idx, yr_idx]] 
                 end
             end
         end

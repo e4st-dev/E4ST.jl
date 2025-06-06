@@ -31,7 +31,7 @@ These are the decision variables to be optimized over.  Can be accessed by `mode
 
 # Expressions
 
-Expressions are calculated as linear combinations of variables.  Can be accessed by `model[symbol]`
+Expressions are calculated as linear combinations of variables. Expressions can be 1D, 2D, or 3D arrays or sparse arrays where 1D is Y, 2D is NxY, and 3D is NxYxH. Can be accessed by `model[symbol]`
 
 | Name | Symbol | Unit | Description |
 | :--- | :--- | :--- | :--- |
@@ -41,6 +41,8 @@ Expressions are calculated as linear combinations of variables.  Can be accessed
 | $P_{G_{b,y,h}}$ | `:pgen_bus` | MW | Hourly avg. power generated at each bus |
 
 # Constraints
+
+Expressions can be 1D, 2D, or 3D arrays or sparse arrays where 1D is Y, 2D is NxY, and 3D is NxYxH
 
 | Name | Constraint | Symbol |  Unit | Description |
 | :--- | :--- | :--- | :--- | :--- |
@@ -100,10 +102,21 @@ function setup_model(config, data)
             _try_catch(modify_model!, name, m, config, data, model)
         end
 
+        # create unscaled model expression for tests
+        nyr = get_num_years(data)
+        
+        # discount each year of objective function for perfect foresight
+        yearly_objective_scalars = config[:yearly_objective_scalars]::Vector{Float64}
+        obj = model[:obj]::Vector{AffExpr} # Should be length nyr
+        model[:obj_unscaled] =@expression(model, [yr_idx in 1:nyr], obj[yr_idx]) #track unscaled objective
+        for yr_idx in 1:nyr
+            obj_yr = obj[yr_idx]
+            obj_scalar = yearly_objective_scalars[yr_idx]
+            add_to_expression!(obj_yr, obj_yr, obj_scalar-1) # obj_yr = obj_yr + (obj_yr)*(obj_scalar - 1) = obj_yr * obj_scalar
+        end
         # Set the objective, scaling down for numerical stability.
         obj_scalar = config[:objective_scalar]
-        obj = model[:obj]::AffExpr
-        @objective(model, Min, obj/obj_scalar)
+        @objective(model, Min, sum(obj)/obj_scalar)
 
         constrain_pbal!(config, data, model)
 
