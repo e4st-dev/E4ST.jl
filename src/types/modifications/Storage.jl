@@ -471,7 +471,6 @@ function modify_model!(mod::Storage, config, data, model)
         )
     )
 
-
     @expression(model,
         fom_stor[yr_idx in 1:nyr],
         sum(
