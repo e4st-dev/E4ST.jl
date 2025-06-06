@@ -10,7 +10,7 @@ function parse_results!(config, data, model)
     log_header("PARSING RESULTS")
 
     obj_scalar = config[:objective_scalar]
-    yearly_obj_scalars = config[:yearly_objective_scalars]::Vector{<:Real}
+    yearly_obj_scalars = config[:yearly_objective_scalars]::Vector{<:Float64}
 
     model_keys_not_parsed = data[:do_not_parse_model_keys]::Set{Symbol}
     should_parse = !in(model_keys_not_parsed)
