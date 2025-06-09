@@ -446,7 +446,7 @@ function _check_config!(config, summary)
         yearly_obj_scalars = ones(nyrs)
         config[:yearly_objective_scalars] = convert(Vector{Float64}, yearly_obj_scalars)
     end
-    @assert length(config[:yearly_objective_scalars]) == nyrs "Length of perfect foresight discount vector does not match the number of years"
+    @assert length(config[:yearly_objective_scalars]) == nyrs "Length of config[:yearly_objective_scalars] vector does not match the number of years, should be of length $nyr."
     return nothing
 end
 

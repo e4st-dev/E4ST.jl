@@ -471,7 +471,6 @@ function modify_model!(mod::Storage, config, data, model)
         )
     )
 
-
     @expression(model,
         fom_stor[yr_idx in 1:nyr],
         sum(
@@ -506,11 +505,7 @@ function modify_model!(mod::Storage, config, data, model)
         capex_obj_stor[yr_idx in 1:nyr],
         sum(
             hours_per_year * pcap_stor_inv_sim[stor_idx] * get_table_num(data, :storage, :capex_obj, stor_idx, yr_idx, :)
-<<<<<<< HEAD
             for stor_idx in axes(storage,1)
-=======
-            for stor_idx in axes(storage, 1)
->>>>>>> 6866cabea2deeb6869970af1d4874e5214094dcf
         )
     )
 
@@ -518,11 +513,7 @@ function modify_model!(mod::Storage, config, data, model)
         transmission_capex_obj_stor[yr_idx in 1:nyr],
         sum(
             hours_per_year * pcap_stor_inv_sim[stor_idx] * get_table_num(data, :storage, :transmission_capex_obj, stor_idx, yr_idx, :)
-<<<<<<< HEAD
             for stor_idx in axes(storage,1)
-=======
-            for stor_idx in axes(storage, 1)
->>>>>>> 6866cabea2deeb6869970af1d4874e5214094dcf
         )
     )
 

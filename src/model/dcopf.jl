@@ -376,8 +376,8 @@ end
 Adds expression s (already defined in model) to the objective expression model[:obj]. 
 Adds the name, oper, and type of the term to data[:obj_vars].
 The function accepts accepts 1D, 2D, and 3D arrays and sparse arrays where
-    * 1d is assumed to be y
-    * 2d is assuemd to be Nxy
+    * 1d is assumed to be Y
+    * 2d is assumed to be NxY
     * 3D is assumed to be NxYxH
 """
 function add_obj_exp!(data, model, term::Term, s::Symbol; oper)
