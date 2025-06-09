@@ -39,7 +39,7 @@ Ensures that `post_config` has required fields listed in [`summarize_post_config
 """
 function check_post_config!(post_config)
     summary = summarize_post_config()
-    _check_config!(post_config, summary)
+    _check_post_config!(post_config, summary)
 
     # Set up `sim_names` as needed
     if isnothing(post_config[:sim_names])

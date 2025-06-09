@@ -450,6 +450,21 @@ function _check_config!(config, summary)
     return nothing
 end
 
+function _check_post_config!(config, summary) 
+    for row in eachrow(summary)
+        name = row.name
+        default = row.default
+        if row.required === true
+            @assert haskey(config, name) "config must have property $(name)"
+        end
+        if default !== nothing
+            get!(config, name, default)
+        end
+    end
+
+    return nothing
+end
+
 """
     make_paths_absolute!(config, filename)
 
