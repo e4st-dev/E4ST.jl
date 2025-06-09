@@ -28,7 +28,7 @@
 
     @testset "Test objective scalars" begin
         @test haskey(config, :yearly_objective_scalars)
-        yearly_obj_scalars = config[:yearly_objective_scalars
+        yearly_obj_scalars = config[:yearly_objective_scalars]
         
         #test that number of scalars is equal to number of years
         @test length(yearly_obj_scalars) == nyr
