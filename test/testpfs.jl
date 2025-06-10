@@ -26,15 +26,23 @@
     # Perfect foresight tests
     #####################################################################
 
-    @testset "Test objective scalars" begin
+    @testset "Test objective scalar setup" begin
         @test haskey(config, :yearly_objective_scalars)
-        yearly_obj_scalars = config[:yearly_objective_scalars
+        yearly_obj_scalars = config[:yearly_objective_scalars]
         
         #test that number of scalars is equal to number of years
         @test length(yearly_obj_scalars) == nyr
         
         #test that discount reduces each year
         @test all(yr_idx->(yearly_obj_scalars[yr_idx] > yearly_obj_scalars[yr_idx+1]) , 1:nyr-1)
+
+        # test  invalid discount rates
+        config_pfs_invalid = joinpath(@__DIR__, "config", "config_3bus_pfs_invalid_greater_than.yml")
+        @test_throws ErrorException("Discount rate can not be greater than 1") read_config(config_file_ref, config_pfs_invalid)
+        
+        config_pfs_invalid = joinpath(@__DIR__, "config", "config_3bus_pfs_invalid_less_than.yml")
+        @test_throws ErrorException("Discount rate can not be negative") read_config(config_file_ref, config_pfs_invalid)
+
     end
 
     @testset "Test terminal conditions" begin

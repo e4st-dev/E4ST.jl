@@ -25,8 +25,8 @@ struct PerfectForesight <: Modification
         new(name, rate)
     end 
 end
-PerfectForesight(name::Symbol, rate::Float64) = PerfectForesight(; name=name, rate=rate)
-PerfectForesight(name::Symbol) = PerfectForesight(; name=name)
+# PerfectForesight(name::Symbol, rate::Float64) = PerfectForesight(; name=name, rate=rate)
+# PerfectForesight(name::Symbol) = PerfectForesight(; name=name)
 export PerfectForesight
 
 E4ST.mod_rank(::Type{PerfectForesight}) = -2 

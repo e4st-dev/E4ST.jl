@@ -470,7 +470,13 @@ function add_obj_exp!(data, model, term::Term, s::Symbol, expr::JuMP.Containers.
             obj_yr = obj[yr_idx]
             for idx in eachindex(expr)
                 if idx[1] == yr_idx
-                    add_to_expression!(obj_yr, expr[idx])
+                    if oper == +
+                        add_to_expression!(obj_yr, expr[idx])
+                    elseif oper == -
+                        add_to_expression!(obj_yr, -1, expr[idx])
+                    else
+                        Base.error("The entered operator isn't valid, oper must be + or -")
+                    end
                 end
             end
         end
@@ -479,7 +485,13 @@ function add_obj_exp!(data, model, term::Term, s::Symbol, expr::JuMP.Containers.
             obj_yr = obj[yr_idx]
             for idx in eachindex(expr)
                 if idx[2] == yr_idx
-                    add_to_expression!(obj_yr, expr[idx])
+                    if oper == +
+                        add_to_expression!(obj_yr, expr[idx])
+                    elseif  oper == -
+                        add_to_expression!(obj_yr, -1, expr[idx])
+                    else
+                        Base.error("The entered operator isn't valid, oper must be + or -")
+                    end
                 end
             end
         end

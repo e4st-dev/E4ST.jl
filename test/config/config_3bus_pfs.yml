@@ -69,4 +69,3 @@ mods:
     custom_parameter: "hello!!!"
   perf_foresight:
     type: PerfectForesight
-    rate: 0.06
