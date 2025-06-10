@@ -53,7 +53,7 @@
                 e
             end
 
-            @test isa(errs, ErrorException)
+            @test isa(err, ErrorException)
             @test occursin("The entered operator isn't valid, oper must be + or -", err.msg)
 
             # test 2d case
@@ -71,7 +71,7 @@
                 e
             end
 
-            @test isa(errs, ErrorException)
+            @test isa(err, ErrorException)
             @test occursin("The entered operator isn't valid, oper must be + or -", err.msg)
 
             # test 3d case
@@ -89,7 +89,7 @@
                 e
             end
 
-            @test isa(errs, ErrorException)
+            @test isa(err, ErrorException)
             @test occursin("The entered operator isn't valid, oper must be + or -", err.msg)
 
         end
@@ -113,7 +113,7 @@
             catch e
                 e
             end
-            @test isa(errs, ErrorException)
+            @test isa(err, ErrorException)
             @test occursin("The entered operator isn't valid, oper must be + or -", err.msg)
 
             # 2d array
@@ -134,7 +134,7 @@
             catch e
                 e
             end
-            @test isa(errs, ErrorException)
+            @test isa(err, ErrorException)
             @test occursin("The entered operator isn't valid, oper must be + or -", err.msg)
             
             # 3d array
@@ -155,7 +155,7 @@
             catch e
                 e
             end
-            @test isa(errs, ErrorException)
+            @test isa(err, ErrorException)
             @test occursin("The entered operator isn't valid, oper must be + or -", err.msg)
         end
 
