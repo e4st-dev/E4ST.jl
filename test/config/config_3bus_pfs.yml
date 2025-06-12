@@ -13,30 +13,10 @@ build_gen_file: "../data/3bus/build_gen.csv"
 summary_table_file: 
   - "../data/3bus/summary_table.csv"
   - "../data/3bus/summary_table2.csv"
-test_param1: "RIGHT" # This should not get overwritten by config_other
-other_config_files:
-  - "config_other.yml"
 year_gen_data: y2020
 logging: true
 voll: 5000
 objective_scalar: 1
-# yearly_objective_scalars: [1,0.733904022,0.538615114,0.506298207,0.475920315,0.447365096,0.42052319,0.395291799,0.371574291,0.349279833,0.328323043,0.308623661,0.290106241,0.226500146,0.212910137] #[1,0.94,0.8836,0.830584,0.78074896,0.733904022,0.689869781,0.648477594,0.609568939,0.572994802,0.538615114,0.506298207,0.475920315,0.447365096,0.42052319,0.395291799,0.371574291,0.349279833,0.328323043,0.308623661,0.290106241,0.272699867,0.256337875,0.240957602,0.226500146,0.212910137]
-# years:
-#   - y2030
-#   - y2035
-#   - y2040
-#   - y2041
-#   - y2042
-#   - y2043
-#   - y2044
-#   - y2045
-#   - y2046
-#   - y2047
-#   - y2048
-#   - y2049
-#   - y2050
-#   - y2060
-#   - y2070
 years:
   - y2030
   - y2035
@@ -53,19 +33,6 @@ mods:
     type: CO2eCalc
   adj_yearly:
     type: AdjustYearly
-    file: "../data/3bus/adjust_yearly_allyears_limited.csv"
-  example_policy:
-    type: "ExamplePolicyType"
-    value: 0
-    some_parameter:
-      - "This makes an "
-      - "array of strings."
-      - "Cool, right?"
-    other_parameter:
-      name: "This makes an OrderedDict"
-  other_mod:
-    type: "OtherModificationType"
-    value: 0
-    custom_parameter: "hello!!!"
+    file: "../data/3bus/adjust_yearly_limited.csv"
   perf_foresight:
     type: PerfectForesight
