@@ -1,0 +1,4 @@
+mods:
+  perf_foresight:
+    type: PerfectForesight
+    rate: 1.5

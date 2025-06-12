@@ -6,7 +6,7 @@ hours_file:  "../data/3bus/hours.csv"
 af_file:     "../data/3bus/af.csv"
 nominal_load_file: "../data/3bus/load.csv"
 load_shape_file: "../data/3bus/load_shape.csv"
-load_match_file: "../data/3bus/load_match.csv"
+load_match_file: "../data/3bus/load_match_allyears.csv"
 load_add_file: "../data/3bus/load_add.csv"
 gentype_genfuel_file: "../data/3bus/gentype_genfuel.csv"
 build_gen_file: "../data/3bus/build_gen.csv"
@@ -34,3 +34,5 @@ mods:
   adj_yearly:
     type: AdjustYearly
     file: "../data/3bus/adjust_yearly_limited.csv"
+  perf_foresight:
+    type: PerfectForesight

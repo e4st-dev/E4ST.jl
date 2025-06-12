@@ -1,7 +1,7 @@
 """
     parse_results!(config, data, model) -> nothing
     
-* Gathers the values and shadow prices of each variable, expression, and constraint stored in the model and dumps them into `data[:results][:raw]` (see [`get_raw_results`](@ref) and [`get_results`](@ref)).  
+* Gathers the values and shadow prices of each variable, expression, and constraint stored in the model, unscales the shadow prices, and dumps them into `data[:results][:raw]` (see [`get_raw_results`](@ref) and [`get_results`](@ref)).
 * Adds relevant info to `gen`, `bus`, and `branch` tables.  See [`parse_lmp_results!`](@ref) and [`parse_power_results!`](@ref) for more information.
 * Saves updated `gen` table via [`save_updated_gen_table`](@ref)
 * Saves `data` to `get_out_path(config,"data_parsed.jls")` unless `config[:save_data_parsed]` is `false` (true by default).
@@ -10,6 +10,7 @@ function parse_results!(config, data, model)
     log_header("PARSING RESULTS")
 
     obj_scalar = config[:objective_scalar]
+    yearly_obj_scalars = config[:yearly_objective_scalars]::Vector{<:Float64}
 
     model_keys_not_parsed = data[:do_not_parse_model_keys]::Set{Symbol}
     should_parse = !in(model_keys_not_parsed)
@@ -18,7 +19,7 @@ function parse_results!(config, data, model)
     results_raw = Dict{Symbol, Any}()
     od = object_dictionary(model)
     for (k,v) in od
-        should_parse(k) && store_value_or_shadow_price!(results_raw, k, v, obj_scalar)
+        should_parse(k) && store_value_or_shadow_price!(results_raw, k, v, obj_scalar, yearly_obj_scalars)
     end
 
     # Scale cons_pgen_max if it has been parsed
@@ -28,7 +29,7 @@ function parse_results!(config, data, model)
     end
     
     # Gather each of the objective function coefficients
-    obj = model[:obj]::AffExpr
+    obj = sum(model[:obj])::AffExpr
     obj_coef = OrderedDict{Symbol, Any}()
     for (k,v) in od
         if v isa AbstractArray{<:VariableRef}
@@ -37,6 +38,17 @@ function parse_results!(config, data, model)
     end
     obj_coef[:pcap_gen_inv_sim] = map(x->obj[x], model[:pcap_gen_inv_sim])
     results_raw[:obj_coef] = obj_coef
+
+    # Gather each of the objective function coefficients unscaled for tests
+    obj_unscaled = sum(model[:obj_unscaled])::AffExpr
+    obj_coef_unscaled = OrderedDict{Symbol, Any}()
+    for (k,v) in od
+        if v isa AbstractArray{<:VariableRef}
+            obj_coef_unscaled[k] = map(x->obj_unscaled[x], v)
+        end
+    end
+    obj_coef_unscaled[:pcap_gen_inv_sim] = map(x->obj_unscaled[x], model[:pcap_gen_inv_sim])
+    results_raw[:obj_coef_unscaled] = obj_coef_unscaled
 
     # Empty the model now that we have retrieved all info, to save RAM and prevent the user from accidentally accessing un-scaled data.
     empty!(model)
@@ -90,14 +102,14 @@ export check_voltage_angle_bounds
 
 Stores the value or shadow price if it is reasonable to do so.  Will not store shadow price for equality constraints
 """
-function store_value_or_shadow_price!(results_raw, k, v, obj_scalar)
+function store_value_or_shadow_price!(results_raw, k, v, obj_scalar, yearly_obj_scalars)
     if is_equality_constraint(v)
         @warn "Cannot compute shadow price for equality constraint $k, because its value is ambiguous.  Consider seperating into two inequality constraints"
         return
     end
 
     @info "Parsing results for $k"
-    results_raw[k] = value_or_shadow_price(v, obj_scalar)
+    results_raw[k] = value_or_shadow_price(v, obj_scalar, yearly_obj_scalars)
     return
 end
 export store_value_or_shadow_price!
@@ -117,8 +129,58 @@ is_equality_constraint(cons::AbstractArray) = isempty(cons) ? false : is_equalit
 
 Returns a value or shadow price depending on what is passed in.  Used in [`results_raw!`](@ref).  Scales shadow prices by `obj_scalar` to restore to units of dollars (per applicable unit).
 """
-function value_or_shadow_price(ar::AbstractArray{<:ConstraintRef}, obj_scalar)
-    value_or_shadow_price.(ar, obj_scalar)
+function value_or_shadow_price(ar::AbstractArray{<:ConstraintRef}, obj_scalar, yearly_obj_scalars) 
+    if isempty(ar)
+        @warn "Array is empty; returning empty shadow price array."
+        value_or_shadow_price.(ar)
+    else
+        n_dims = ndims(ar)
+        nyr =  length(yearly_obj_scalars)
+        
+        if n_dims == 1 && size(ar,1) == nyr
+            [value_or_shadow_price(ar[i], obj_scalar, yearly_obj_scalars[i]) for i in axes(ar, 1)]
+        elseif n_dims == 2 && size(ar,2) == nyr
+            [value_or_shadow_price(ar[i, j], obj_scalar, yearly_obj_scalars[j]) for i in axes(ar, 1), j in axes(ar, 2)]
+        elseif n_dims == 3 && size(ar,2) == nyr
+            [value_or_shadow_price(ar[i, j, k], obj_scalar, yearly_obj_scalars[j]) for i in axes(ar, 1), j in axes(ar, 2), k in axes(ar, 3)]
+        else
+            @warn "Year is not in expected dimension, shadow price has not been unscaled."
+            value_or_shadow_price.(ar, obj_scalar)
+        end
+    end
+end
+function value_or_shadow_price(ar::JuMP.Containers.SparseAxisArray{<:ConstraintRef}, obj_scalar, yearly_obj_scalars)
+    if isempty(ar)
+        @warn "Array is empty; returning empty shadow price array."
+        return shadow_price.(ar)
+    else
+        n_dims = length(first(eachindex(ar)))
+        nyr = length(yearly_obj_scalars)
+
+        sp = shadow_price.(ar) * obj_scalar
+        if n_dims ==1 
+            for yr_idx in 1:nyr
+                yr_scalar = yearly_obj_scalars[yr_idx]
+                for idx in eachindex(sp)
+                    if idx[1] == yr_idx
+                        sp[idx] = sp[idx]/yr_scalar
+                    end
+                end
+            end
+        elseif n_dims == 2 || n_dims ==3
+            for yr_idx in 1:nyr
+                yr_scalar = yearly_obj_scalars[yr_idx]
+                for idx in eachindex(sp)
+                    if idx[2] == yr_idx
+                        sp[idx] = sp[idx]/yr_scalar
+                    end
+                end
+            end
+        else
+            @warn "Year is not in expected dimension, shadow price has not been unscaled."
+        end
+        return sp
+    end
 end
 function value_or_shadow_price(ar::AbstractArray{<:AbstractJuMPScalar}, obj_scalar)
     value.(ar)
@@ -127,8 +189,15 @@ function value_or_shadow_price(cons::ConstraintRef{M, CI}, obj_scalar) where {F,
     @warn "Shadow price is misleading for equality constraints!"
     shadow_price(cons) * obj_scalar
 end
+function value_or_shadow_price(cons::ConstraintRef{M, CI}, obj_scalar, yr_scalar) where {F, M <: AbstractModel, CI<:MOI.ConstraintIndex{F, MOI.EqualTo{Float64}}}
+    @warn "Shadow price is misleading for equality constraints!"
+    shadow_price(cons) * obj_scalar / yr_scalar
+end
 function value_or_shadow_price(cons::ConstraintRef, obj_scalar)
     shadow_price(cons) * obj_scalar
+end
+function value_or_shadow_price(cons::ConstraintRef, obj_scalar, yr_scalar)
+    shadow_price(cons) * obj_scalar / yr_scalar
 end
 function value_or_shadow_price(x::AbstractJuMPScalar, obj_scalar)
     value(x)
@@ -136,7 +205,7 @@ end
 function value_or_shadow_price(x::Float64, obj_scalar)
     return x
 end
-function value_or_shadow_price(ar::AbstractArray, obj_scalar)
+function value_or_shadow_price(ar::AbstractArray, obj_scalar, yearly_obj_scalars)
     value_or_shadow_price.(ar, obj_scalar)
 end
 function value_or_shadow_price(v::Number, obj_scalar)
@@ -220,7 +289,7 @@ function parse_power_results!(config, data)
 
     # Weight things by hour as needed
     egen_bus = weight_hourly(data, pgen_bus)
-
+    
     pflow_out_bus = map(x-> max(x, 0.), pflow_bus)
     pflow_in_bus = map(x-> max(-x, 0.), pflow_bus)
 
@@ -229,6 +298,13 @@ function parse_power_results!(config, data)
     obj_pgen_cost_raw = res_raw[:obj_coef][:pgen_gen]::Array{Float64, 3}
     obj_pgen_cost = unweight_hourly(data, obj_pgen_cost_raw)
     obj_pcap_inv_price = res_raw[:obj_coef][:pcap_gen_inv_sim]::Vector{Float64}
+
+    # get unscaled objective values for tests
+    obj_pcap_cost_raw_unscaled = res_raw[:obj_coef_unscaled][:pcap_gen]::Array{Float64, 2}
+    obj_pcap_cost_unscaled = obj_pcap_cost_raw_unscaled ./ hours_per_year
+    obj_pgen_cost_raw_unscaled = res_raw[:obj_coef_unscaled][:pgen_gen]::Array{Float64, 3}
+    obj_pgen_cost_unscaled = unweight_hourly(data, obj_pgen_cost_raw_unscaled)
+    obj_pcap_inv_price_unscaled = res_raw[:obj_coef_unscaled][:pcap_gen_inv_sim]::Vector{Float64}
     
     # Create new things as needed
     cf = pgen_gen ./ pcap_gen
@@ -267,6 +343,8 @@ function parse_power_results!(config, data)
     add_table_col!(data, :gen, :cf,    cf,        MWhGeneratedPerMWhCapacity, "Capacity Factor, or average power generation/power generation capacity, 0 when no generation")
     add_table_col!(data, :gen, :obj_pcap_cost, obj_pcap_cost, DollarsPerMWCapacityPerHour, "Objective function coefficient, in dollars, for one hour of 1MW capacity")
     add_table_col!(data, :gen, :obj_pgen_cost, obj_pgen_cost, DollarsPerMWhGenerated, "Objective function coefficient, in dollars, for one MWh of generation")
+    add_table_col!(data, :gen, :obj_pcap_cost_unscaled, obj_pcap_cost_unscaled, DollarsPerMWCapacityPerHour, "Objective function coefficient, in dollars, for one hour of 1MW capacity")
+    add_table_col!(data, :gen, :obj_pgen_cost_unscaled, obj_pgen_cost_unscaled, DollarsPerMWhGenerated, "Objective function coefficient, in dollars, for one MWh of generation")
     add_table_col!(data, :gen, :obj_pcap_inv_price, obj_pcap_inv_price, DollarsPerMWBuiltCapacityPerHour, "Objective function coefficient, in dollars, for one MW of capacity invested")
 
     # Add things to the branch table

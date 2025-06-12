@@ -169,7 +169,7 @@ function setup_dcopf!(config, data, model)
     
     ## Objective Function 
     @info "Building Objective"
-    @expression(model, obj, AffExpr(0.0)) 
+    @expression(model, obj[i=1:nyear], AffExpr(0.0))
 
     # This keeps track of the expressions added to the obj and their signs
     data[:obj_vars] = OrderedDict{Symbol, Any}()
@@ -357,13 +357,13 @@ function add_obj_term!(data, model, ::PerMWhCurtailed, s::Symbol; oper)
 
     # Use this expression for single VOLL
     model[s] = @expression(model, 
-        [bus_idx in 1:nrow(bus)],
+        [bus_idx in 1:nrow(bus), year_idx in 1:length(years)],
         sum(
             get_voll(data, bus_idx, year_idx, hour_idx) * 
             hour_weights[hour_idx] * 
-            plcurt_bus[bus_idx, year_idx, hour_idx] 
-            for year_idx in 1:length(years), hour_idx in 1:nhr
-        )
+            plcurt_bus[bus_idx, year_idx, hour_idx]
+            for hour_idx in 1:nhr
+        ) 
     )
 
     # add or subtract the expression from the objective function
@@ -375,22 +375,102 @@ end
 
 Adds expression s (already defined in model) to the objective expression model[:obj]. 
 Adds the name, oper, and type of the term to data[:obj_vars].
+The function accepts accepts 1D, 2D, and 3D arrays and sparse arrays where
+    * 1d is assumed to be Y
+    * 2d is assumed to be NxY
+    * 3D is assumed to be NxYxH
 """
 function add_obj_exp!(data, model, term::Term, s::Symbol; oper)
     expr = model[s]
-    obj = model[:obj]::AffExpr
-    if oper == + 
-        for new_term in expr
-            add_to_expression!(obj, new_term)
+    add_obj_exp!(data, model, term, s, expr; oper)
+end
+
+function add_obj_exp!(data, model, term::Term, s::Symbol, expr::AbstractArray{<:JuMP.AbstractJuMPScalar,1}; oper)
+    years = get_years(data)
+    obj = model[:obj]::Vector{AffExpr}
+
+    scalar = get_scalar_from_operator(oper)
+
+    for yr_idx in 1:length(years)
+        obj_yr = obj[yr_idx]
+        new_term = expr[yr_idx]
+        add_to_expression!(obj_yr, scalar, new_term)
+    end
+
+    # Add s to array of variables included obj
+    data[:obj_vars][s] = OrderedDict{Symbol, Any}(
+        :term_sign => oper,
+        :term_type => typeof(term)
+    )
+end
+
+function add_obj_exp!(data, model, term::Term, s::Symbol, expr::AbstractArray{<:JuMP.AbstractJuMPScalar,2}; oper)
+    years = get_years(data)
+    obj = model[:obj]::Vector{AffExpr}
+    scalar = get_scalar_from_operator(oper)
+
+    for yr_idx in 1:length(years)
+        obj_yr = obj[yr_idx]
+        for new_term in view(expr, :, yr_idx)
+            add_to_expression!(obj_yr, scalar, new_term)
         end
-    elseif oper == -
-        for new_term in expr
-            add_to_expression!(obj, -1, new_term)
+    end
+
+    # Add s to array of variables included obj
+    data[:obj_vars][s] = OrderedDict{Symbol, Any}(
+        :term_sign => oper,
+        :term_type => typeof(term)
+    )
+end
+
+function add_obj_exp!(data, model, term::Term, s::Symbol, expr::AbstractArray{<:JuMP.AbstractJuMPScalar,3}; oper)
+    years = get_years(data)
+    obj = model[:obj]::Vector{AffExpr}
+    scalar = get_scalar_from_operator(oper)
+
+    for yr_idx in 1:length(years)
+        obj_yr = obj[yr_idx]
+        for new_term in view(expr, :, yr_idx, :)
+            add_to_expression!(obj_yr, scalar, new_term)
+        end
+    end 
+
+    # Add s to array of variables included obj
+    data[:obj_vars][s] = OrderedDict{Symbol, Any}(
+        :term_sign => oper,
+        :term_type => typeof(term)
+    )
+end
+
+function add_obj_exp!(data, model, term::Term, s::Symbol, expr::JuMP.Containers.SparseAxisArray; oper)
+    n_dims = length(first(eachindex(expr)))
+    nyr = get_num_years(data)
+    obj = model[:obj]::Vector{AffExpr}
+    scalar = get_scalar_from_operator(oper)
+
+    if n_dims == 1 
+        for yr_idx in 1:nyr
+            obj_yr = obj[yr_idx]
+            for idx in eachindex(expr)
+                if idx[1] == yr_idx
+                    add_to_expression!(obj_yr, scalar, expr[idx])
+                end
+            end
+        end
+    elseif n_dims == 2 || n_dims == 3
+        for yr_idx in 1:nyr
+            obj_yr = obj[yr_idx]
+            for idx in eachindex(expr)
+                if idx[2] == yr_idx
+                    add_to_expression!(obj_yr, scalar, expr[idx])
+                end
+            end
         end
     else
-        Base.error("The entered operator isn't valid, oper must be + or -")
+        error("Year is not in expected dimension, term cannot be added to the objective function.")
     end
-    #Add s to array of variables included obj
+
+    # Add s to array of variables included obj
     data[:obj_vars][s] = OrderedDict{Symbol, Any}(
         :term_sign => oper,
         :term_type => typeof(term)
@@ -399,3 +479,12 @@ end
 
 export add_obj_term!
 export add_obj_exp!
+
+"""
+    get_scalar_from_operator(oper) -> scalar::Float64
+"""
+function get_scalar_from_operator(oper)
+    Base.error("The entered operator isn't valid, oper must be + or -")
+end
+get_scalar_from_operator(::typeof(+)) = 1.0
+get_scalar_from_operator(::typeof(-)) = -1.0
