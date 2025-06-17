@@ -42,7 +42,7 @@ Expressions are calculated as linear combinations of variables. Expressions can 
 
 # Constraints
 
-Expressions can be 1D, 2D, or 3D arrays or sparse arrays where 1D is Y, 2D is NxY, and 3D is NxYxH
+Constraints can be 1D, 2D, 3D, or 4D arrays or sparse arrays where 1D is Y, 2D is NxY, 3D is NxYxH, 4D is NxYxIxH
 
 | Name | Constraint | Symbol |  Unit | Description |
 | :--- | :--- | :--- | :--- | :--- |
