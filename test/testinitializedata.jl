@@ -106,7 +106,7 @@
 
         @test get_elnom_load(data, :, "y2030", :) ≈ 16000
         @test get_elnom_load(data, :, "y2035", :) ≈ 18000
-        @test get_elnom_load(data, :, "y2040", :) ≈ 19800 + 0.00001*8760
+        @test get_elnom_load(data, :, "y2040", :) ≈ 19800 + 0.00001*8760 + (19800 + 0.00001*8760)*1.05
     end
 
     @testset "Test Adding New Gens" begin

@@ -232,6 +232,12 @@ function add_nominal_load!(config, data)
             continue # This row is for a year that we aren't simulating now
         end
 
+        if !hasproperty(row,:addtype) || isempty(row.addtype)
+            addtype = "add"
+        else
+            addtype = row[:addtype]::AbstractString
+        end
+
         filters = parse_comparisons(row)
 
         sdf = get_table(data, :nominal_load, filters)
@@ -247,7 +253,7 @@ function add_nominal_load!(config, data)
         for (i,row_idx) in enumerate(row_idxs)
             plnom0 = sdf[i, :plnom0]::Float64
             s = plnom0/plnom0_total
-            add_hourly_scaled!(load_arr, shape, s, row_idx, yr_idx)
+            add_hourly_scaled!(load_arr, shape, s, row_idx, yr_idx, addtype)
         end
     end
     return data
