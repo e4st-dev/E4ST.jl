@@ -143,6 +143,8 @@ function value_or_shadow_price(ar::AbstractArray{<:ConstraintRef}, obj_scalar, y
             [value_or_shadow_price(ar[i, j], obj_scalar, yearly_obj_scalars[j]) for i in axes(ar, 1), j in axes(ar, 2)]
         elseif n_dims == 3 && size(ar,2) == nyr
             [value_or_shadow_price(ar[i, j, k], obj_scalar, yearly_obj_scalars[j]) for i in axes(ar, 1), j in axes(ar, 2), k in axes(ar, 3)]
+        elseif n_dims == 4 && size(ar,2) == nyr
+            [value_or_shadow_price(ar[i, j, k, l], obj_scalar, yearly_obj_scalars[j]) for i in axes(ar, 1), j in axes(ar, 2), k in axes(ar, 3), l in axes(ar, 4)]
         else
             @warn "Year is not in expected dimension, shadow price has not been unscaled."
             value_or_shadow_price.(ar, obj_scalar)
@@ -167,7 +169,7 @@ function value_or_shadow_price(ar::JuMP.Containers.SparseAxisArray{<:ConstraintR
                     end
                 end
             end
-        elseif n_dims == 2 || n_dims ==3
+        elseif n_dims == 2 || n_dims ==3 || n_dims ==4
             for yr_idx in 1:nyr
                 yr_scalar = yearly_obj_scalars[yr_idx]
                 for idx in eachindex(sp)
