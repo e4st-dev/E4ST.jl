@@ -665,17 +665,17 @@ end
 
 Adds `v.*s` to `ar[idx1, idx2, :]`, without allocating.
 """
-function add_hourly_scaled!(ar::AbstractArray{Float64}, shape::AbstractVector{Float64}, s::Float64, idx1::Int64, idx2::Int64, scale::Bool) 
-    if scale == false
+function add_hourly_scaled!(ar::AbstractArray{Float64}, shape::AbstractVector{Float64}, s::Float64, idx1::Int64, idx2::Int64, percent::Bool) 
+    if percent == false
         view(ar, idx1, idx2, :) .+= shape .* s
-    elseif scale == true
-        view(ar, idx1, idx2, :) .*= shape
+    elseif percent == true
+        view(ar, idx1, idx2, :) .*= (shape .+ 1)
     end
     return nothing
 end
-function add_hourly_scaled!(ar, shape, s, idxs1, idxs2, scale::Bool)
+function add_hourly_scaled!(ar, shape, s, idxs1, idxs2, percent)
     for idx1 in idxs1, idx2 in idxs2
-        add_hourly_scaled!(ar, shape, s, idx1, idx2, scale)
+        add_hourly_scaled!(ar, shape, s, idx1, idx2, percent)
     end
     return nothing
 end

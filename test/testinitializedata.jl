@@ -115,13 +115,13 @@
         # config[:load_match_file] = abspath(@__DIR__, "data", "3bus","load_match.csv")
         # config[:load_add_file]   = abspath(@__DIR__, "data", "3bus","load_add.csv")
         delete!(config, :load_add_file)
-        config[:load_add_file]   = abspath(@__DIR__, "data", "3bus","load_scale.csv")
+        config[:load_add_file]   = abspath(@__DIR__, "data", "3bus","load_add_percent.csv")
         data = read_data(config)
         config = read_config(config_file)
 
-        @test get_elnom_load(data, :, "y2030", :) ≈ 16000
-        @test get_elnom_load(data, :, "y2035", :) ≈ 18000 
-        @test get_elnom_load(data, :, "y2040", :) ≈ 19800 * 1.05
+        @test get_elnom_load(data, :, "y2030", :) ≈ 16000 * 1.05
+        @test get_elnom_load(data, :, "y2035", :) ≈ 18000 * 1.05
+        @test get_elnom_load(data, :, "y2040", :) ≈ 18000 + 1800 * 1.05
     end
 
     @testset "Test Adding New Gens" begin
