@@ -181,7 +181,7 @@ export match_nominal_load!
 """
     add_nominal_load!(config, data)
 
-Add load power in `config[:load_add_file]` to load elements after the annual match in [`match_nominal_load!`](@ref). Option to add a quantity of load or scale the load.
+Add load power in `config[:load_add_file]` to load elements after the annual match in [`match_nominal_load!`](@ref). Option scale the load instead of add a load quantity.
 
 We may wish to provide additional load after the match so that we can compare the difference.
 """
@@ -232,10 +232,10 @@ function add_nominal_load!(config, data)
             continue # This row is for a year that we aren't simulating now
         end
 
-        if !hasproperty(row,:add_type) || isempty(row.add_type)
-            addtype = "add"
+        if !hasproperty(row,:scale) || isempty(row.scale)
+            scale = false
         else
-            addtype = row[:add_type]::AbstractString
+            scale = Bool(row[:scale])
         end
 
         filters = parse_comparisons(row)
@@ -253,7 +253,7 @@ function add_nominal_load!(config, data)
         for (i,row_idx) in enumerate(row_idxs)
             plnom0 = sdf[i, :plnom0]::Float64
             s = plnom0/plnom0_total
-            add_hourly_scaled!(load_arr, shape, s, row_idx, yr_idx, add_type)
+            add_hourly_scaled!(load_arr, shape, s, row_idx, yr_idx, scale)
         end
     end
     return data
@@ -327,7 +327,7 @@ function summarize_table(::Val{:load_add})
         (:subarea, String, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:load_type, String, NA, false, "The type of load represented for this load add.  Leave blank to not filter by type."),
         (:year, String, Year, false, "The year to apply the load profile to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\""),
-        (:add_type, String, NA, false, "The type of load add. Use \"add\" to add a quantity of load and \"scale\" to scale the load by a percent. Defaults to \"add\" if left empty."),
+        (:scale, Bool, NA, false, "Whether to scale the load instead of add to. Defaults to add the load if left empty."),
         (:status, Bool, NA, false, "Whether or not to use this addition"),
         (:h_, Float64, MWLoad, true, "Amount of load power to add in hour _.  Include a column for each hour in the hours table.  I.e. `:h1`, `:h2`, ... `:hn`"),
     )
