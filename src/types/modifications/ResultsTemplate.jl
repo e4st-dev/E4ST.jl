@@ -70,6 +70,9 @@ function modify_results!(m::ResultsTemplate, config, data)
             area = row.filter_hours
             hours_table_col = get_table_col(data, :hours, area)
             subareas = Base.sort!(String.(string.(unique(hours_table_col))), by=hours_sortby)
+        elseif col_to_expand == :filter_years &&  row[col_to_expand] == ":"
+            area = :years
+            subareas = data[area]
         else
             area = row[col_to_expand]
             data_table_col = get_table_col(data, row.table_name, area)
