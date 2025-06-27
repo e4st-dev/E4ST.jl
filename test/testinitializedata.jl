@@ -109,6 +109,21 @@
         @test get_elnom_load(data, :, "y2040", :) ≈ 19800 + 0.00001*8760
     end
 
+    @testset "Test load with shaping, matching and scaling" begin
+        config = read_config(config_file)
+        # config[:load_shape_file] = abspath(@__DIR__, "data", "3bus","load_shape.csv")
+        # config[:load_match_file] = abspath(@__DIR__, "data", "3bus","load_match.csv")
+        # config[:load_add_file]   = abspath(@__DIR__, "data", "3bus","load_add.csv")
+        delete!(config, :load_add_file)
+        config[:load_add_file]   = abspath(@__DIR__, "data", "3bus","load_add_percent.csv")
+        data = read_data(config)
+        config = read_config(config_file)
+
+        @test get_elnom_load(data, :, "y2030", :) ≈ 16000 * 1.05
+        @test get_elnom_load(data, :, "y2035", :) ≈ 18000 * 1.05
+        @test get_elnom_load(data, :, "y2040", :) ≈ 18000 + 1800 * 1.05
+    end
+
     @testset "Test Adding New Gens" begin
         config = read_config(config_file)
         data = read_data(config)
