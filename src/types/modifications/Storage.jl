@@ -31,42 +31,42 @@ Storage is represented over sets of time-weighted sequential representative hour
 * `(:storage, :ploss)` - power lost by the battery, counted as served load equal to `pcharge * (1-η)` 
 * `(:storage, :eloss)` - energy lost by the battery, counted as served load.
 
-###Model Modification
-*Variables 
+### Model Modification
+* Variables 
     * `pcap_stor[stor_idx, yr_idx]` - The discharge power capacity, in MW, of the storage device.
     * `pcharge_stor[stor_idx, yr_idx, hr_idx]` - The charge power, in MW, for a given hour.
     * `pdischarge_stor[stor_idx, yr_idx, hr_idx]` - The discharged power, in MW, for a given hour.
     * `e0_stor[stor_idx, yr_idx, int_idx]` - The starting charge energy (in MWh) for each interval.
-*Expressions
+* Expressions
     * `vom_stor[yr_idx in 1:nyr]` - the addition of fixed operation and maintenance costs to the objective function. 
     * `fom_stor[yr_idx in 1:nyr]` - the addition of variable operation and maintenance costs to the objective function. 
     * `routine_capex_stor[yr_idx in 1:nyr]` - the addition of capital expenditure costs associated with storage to the objective function. 
     * `pcap_stor_inv_sim[stor_idx in axes(storage,1)]` - storage power discharge capacity invested in the sim.
     * `capex_obj_stor[yr_idx in 1:nyr]` - the objective capital expenditures of storage.
     * `transmission_capex_obj_stor[yr_idx in 1:nyr]` - the objective capital expenditures of storage transmission. 
-*Constraints
+* Constraints
     * `cons_stor_charge_bal[stor_idx, yr_idx, int_idx]` - the charge balancing equation - net charge in each interval is 0
     * `cons_stor_charge_max[stor_idx, yr_idx, int_idx, _hr_idx]` - constrain the stored energy in each hour of each interval to be less than the maximum (function of `pcap_stor` and the discharge duration column of the storage table).  Note `_hr_idx` is the index within the interval, not the normal `hr_idx`
     * `cons_stor_charge_min[stor_idx, yr_idx, int_idx, _hr_idx]` - constrain the stored energy in each hour of each interval to be greater than zero.  Note `_hr_idx` is the index within the interval, not the normal `hr_idx`
     * `cons_pcap_stor_noadd[stor_idx, yr_idx; years[yr_idx] >= storage.year_on[stor_idx]]` - constrain the capacity to be non-increasing after being built. (only in multi-year simulations)
-    * `cons_pcap_stor_prebuild[stor_idx, yr_idx; years[yr_idx] < storage.year_on[stor_idx]]` - fix the capacity to zero before being built. (should only happen in multi-year simulations)
-    * `cons_pcap_stor_exog[stor_idx, yr_idx]` - constrain the exogenous, unbuilt capacity to equal pcap0 for the first year >= its build year.
+    * fix the capacity to zero before being built. (should only happen in multi-year simulations)
+    * fix the exogenous, unbuilt capacity to equal pcap0 for the first year >= its build year.
 
 ### Results Formulas
-*Investment Subsidy 
+* Investment Subsidy 
     * `(:storage, :invest_subsidy)` - investment subsidies sent to the producers of exogenous or endogenous investments made in the sim
     * `(:storage, :invest_subsidy_permw_perhr)` - investment subsidies per MW per hour 
-*Power Capacity Investment 
+* Power Capacity Investment 
     * `(:storage, :pcap_total)` - total discharge power capacity (calculates the average if multiple years provided)
     * `(:storage, :ecap_total)` - total energy capacity in MWh, equal to the power generation capacity multiplied by the number of hours.
     * `(:storage, :echarge_total)` - total energy charged
     * `(:storage, :edischarge_total)` - total energy discharged
     * `(:storage, :eloss_total)` - total energy loss
     * `(:storage, :ecap_inv_total)` - total invested energy discharge capacity over the given time period.
-*Electricity Costs 
+* Electricity Costs 
     * `(:storage, :electricity_revenue)` - revenue from discharging electricity to the grid.
     * `(:storage, :electricity_cost)` - costs of electricity to charge the storage units.
-*Production Costs 
+* Production Costs 
     * `(:storage, :vom_cost)` - total variable O&M cost for discharging energy.
     * `(:storage, :vom_per_mwh)` - average variable O&M cost for discharging 1 MWh of energy (vom_cost / edischarge_total).
     * `(:storage, :fom_cost)` - total fixed O&M cost paid, in dollars 
@@ -83,7 +83,7 @@ Storage is represented over sets of time-weighted sequential representative hour
     * `(:storage, :production_cost_per_mwh)` - average cost of production for a MWh of energy discharge 
     * `(:storage, :net_production_cost)` - net cost of production, includes fixed and variable costs and investment and production subsidies, does not include energy costs 
     * `(:storage, :net_production_cost_per_mwh)` - average net cost of discharging 1 MWh of energy 
-*Variable Costs
+* Variable Costs
     * `(:storage, :variable_cost)` - total variable costs for operation, including vom. 
     * `(:storage, :variable_cost_per_mwh)` - average variable costs for operation, for discharging 1 MWh from storage. 
     * `(:storage, :ptc_subsidy)` - total production subsidy for storage.
@@ -92,12 +92,12 @@ Storage is represented over sets of time-weighted sequential representative hour
     * `(:storage, :past_invest_subsidy_total)` - Investment subsidies from past investments.  This only applies to storage units built prior to the simulation.  This includes the full annualized investment subsidy times the percentage likelihood that the storage unit would still be within its the economic lifetime for the year calculated, given that endogenously built storage units can be built in a range of years.
     * `(:storage, :net_variable_cost)` - net variable cost for storage (variable_cost - ptc_subsidy)
     * `(:storage, :net_variable_cost_per_mwh)` - average net variable costs per MWh of discharged energy 
-*Fixed Costs
+* Fixed Costs
     * `(:storage, :fixed_cost)` - total fixed costs, include capex and fixed O&M costs.
     * `(:storage, :fixed_cost_permw_perhr_cost)` - fixed costs per MW per hour (fixed_cost / ecap_total)
     * `(:storage, :net_fixed_cost)` - fixed costs minus investment subsidies
     * `(:storage, :net_fixed_cost_permw_perhr)` - average net fixed cost per MW per hour (net_fixed_cost / ecap_total)
-*Policy Costs
+* Policy Costs
     * `(:storage, :net_pol_cost_for_storage)` - costs from all policy types (investment and production subsidies)
     * `(:storage, :net_pol_cost_for_storage_per_mwh)` - average policy cost per MWh of discharged energy.
     * `(:storage, :net_government_revenue)` - net gov revenue earned from energy storage.
