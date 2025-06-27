@@ -1,12 +1,10 @@
 table_name,result_name,filter1,filter_years,filter_hours
+gen,egen_total,genfuel=>ng,,
 gen,egen_total,genfuel=>ng,:,
 gen,egen_total,genfuel=>solar,:,
 gen,egen_total,genfuel=>wind,:,
 gen,egen_total,genfuel=>coal,:,
 gen,egen_total,genfuel=>nuclear,:,
-gen,egen_total,genfuel=>ng,y2030,
-gen,egen_total,genfuel=>ng,y2034,
-gen,egen_total,genfuel=>ng,y2040,
 gen,pcap_total,genfuel=>ng,,
 gen,pcap_total,genfuel=>solar,,
 gen,pcap_total,genfuel=>wind,,

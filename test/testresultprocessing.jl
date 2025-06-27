@@ -221,8 +221,8 @@
             welfare_idx = findfirst(==(Symbol("")), table.table_name)
             @test table.value[welfare_idx] == compute_welfare(data, :user, :nation=>"narnia")
 
-            @test sum(filter(row -> row.result_name == "egen_total" && row.filter_years == ":" && row.filter1 == "genfuel=>ng", table).value) == 
-            sum(filter(row -> row.result_name == "egen_total" && row.filter_years != ":" && row.filter1 == "genfuel=>ng", table).value)
+            @test sum(filter(row -> row.result_name == :egen_total && isempty(row.filter_years) == true && row.filter1 == "genfuel=>ng", table).value) ≈ 
+            sum(filter(row -> row.result_name == :egen_total && isempty(row.filter_years) == false && row.filter1 == "genfuel=>ng", table).value)
 
         end
 
