@@ -35,7 +35,7 @@ function E4ST.modify_raw_data!(m::PerfectForesight, config, data)
     nyrs = get_num_years(data)
     years = [parse(Int, replace(y, "y" => "")) for y in get_years(data)]
     y0 = years[1]
-    discount_rates = (1 - m.rate) .^ (years .- y0)
-    config[:yearly_objective_scalars] = discount_rates
+    discount_factors = (1 + m.rate) .^ (y0 .- years)
+    config[:yearly_objective_scalars] = discount_factors
     @assert length(config[:yearly_objective_scalars]) == nyrs "Length of perfect foresight discount vector does not match the number of years"
 end
