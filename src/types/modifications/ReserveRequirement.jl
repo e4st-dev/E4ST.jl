@@ -149,7 +149,9 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
     requirements = get_table(data, "$(mod.name)_requirements")
 
     # Convert to make sure they are the same type.
-    requirements.subarea = convert(typeof(bus[!, area]), requirements.subarea)
+
+    #requirements.subarea = convert(typeof(bus[!, area]), requirements.subarea)
+    requirements.subarea .= convert.(eltype(bus[!, area]), requirements.subarea) # only convert the element type, not the column's container type
 
     subareas = requirements.subarea
 
@@ -299,8 +301,11 @@ function modify_model!(mod::ReserveRequirement, config, data, model)
     if ~isempty(mod.flow_limits_file)
         flow_limits = get_table(data, "$(mod.name)_flow_limits")
 
-        flow_limits.t_subarea = convert(typeof(bus[!, area]), flow_limits.t_subarea)
-        flow_limits.f_subarea = convert(typeof(bus[!, area]), flow_limits.f_subarea)
+        #flow_limits.t_subarea = convert(typeof(bus[!, area]), flow_limits.t_subarea)
+        #flow_limits.f_subarea = convert(typeof(bus[!, area]), flow_limits.f_subarea)
+
+        flow_limits.t_subarea .= convert.(eltype(bus[!, area]), flow_limits.t_subarea) # only convert the element type, not the column's container type
+        flow_limits.f_subarea .= convert.(eltype(bus[!, area]), flow_limits.f_subarea)
 
 
         filter!(:t_subarea=>in(requirements.subarea), flow_limits)
