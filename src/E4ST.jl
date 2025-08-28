@@ -166,12 +166,34 @@ function run_e4st(config::OrderedDict)
             return get_out_path(config) # all_results
         end
 
+        
+        
+        # save out model coefficients
+        if config[:model_string_names] == true
+            # write model to file
+            out_file = get_out_path(config, "model.lp")
+            write_to_file(model, out_file)
+
+            # write objective vars to csv
+            obj_vars = data[:obj_vars]
+            out_file = get_out_path(config, "obj_vars.csv")
+            CSV.write(out_file, obj_vars)
+
+            # save out model coefficients
+            obj_expr = JuMP.objective_function(model)
+            vars = [term.first for term in obj_expr.terms]
+            coefs = [term.second for term in obj_expr.terms]
+            coef_df = DataFrame(variable=vars,coefficient=coefs)
+            out_file = get_out_path(config, "coeff.csv")
+            CSV.write(out_file,coef_df)
+        end
+
         ### Results
         parse_results!(config, data, model)
         process_results!(config, data)
         results = get_results(data)
         push!(all_results, results)
-
+        
         # Clean up memory by calling the garbage collector
         GC.gc()
 
