@@ -58,7 +58,7 @@ function E4ST.modify_setup_data!(pol::PTC, config, data)
     end
     #update column for gen_idx 
     credit_yearly = [get(pol.values, Symbol(year), 0.0) for year in years] #values for the years in the sim
-
+    count = 0
     for gen_idx in gen_idxs
         # update pol.name column with PTC credit value 
         g = gen[gen_idx, :]
@@ -67,13 +67,24 @@ function E4ST.modify_setup_data!(pol::PTC, config, data)
         year_max = ref_year + pol.years_after_ref_max
         g_qual_year_idxs = findall(y -> year_min <= y <= year_max, years_int)
         vals_tmp = [(i in g_qual_year_idxs) ? credit_yearly[i] : 0.0  for i in 1:length(years)]
-        g[pol.name] = ByYear(vals_tmp)
 
-        # add capex adjustment term to the the pol.name _capex_adj column
-        if should_adjust_invest_cost(pol)
-            adj_term = get_ptc_capex_adj(pol, g, config)
-            g[Symbol("$(pol.name)_capex_adj")] = adj_term
+         # edge effect adjustment
+        if any(vals_tmp .> 0)
+            subs_len = pol.years_after_ref_max - pol.years_after_ref_min
+            invest_life = g.econ_life
+            years_left_capex = min(years_int[end] - ref_year + 1, invest_life)
+            years_left_subs = min(years_int[end] - ref_year + 1, subs_len)
+            adjs = [(years_left_capex/invest_life)/(years_left_subs/subs_len) for i in 1:length(years)]
+            vals_tmp = vals_tmp .* adjs
         end
+
+        g[pol.name] = ByYear(vals_tmp)
+        count= count+1
+        # add capex adjustment term to the the pol.name _capex_adj column
+        # if should_adjust_invest_cost(pol)
+        #     adj_term = get_ptc_capex_adj(pol, g, config)
+        #     g[Symbol("$(pol.name)_capex_adj")] = adj_term
+        # end
     end
 end
 
@@ -88,7 +99,7 @@ function E4ST.modify_model!(pol::PTC, config, data, model)
     add_obj_term!(data, model, PerMWhGen(), pol.name, oper = -)
 
     # add the capex adjustment term 
-    should_adjust_invest_cost(pol) && add_obj_term!(data, model, PerMWCapInv(), Symbol("$(pol.name)_capex_adj"), oper = +)
+    # should_adjust_invest_cost(pol) && add_obj_term!(data, model, PerMWCapInv(), Symbol("$(pol.name)_capex_adj"), oper = +)
 end
 
 
