@@ -46,6 +46,8 @@ function E4ST.modify_setup_data!(pol::PTC, config, data)
     #create column of PTC values
     add_table_col!(data, :gen, pol.name, Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated,
         "Production tax credit value for $(pol.name)")
+    add_table_col!(data, :gen, "$(pol.name)_capex_adj", Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated,
+        "Production tax credit value adj for $(pol.name)")
 
     # if year_after_ref_min or max isn't set to default, then create capex_adj
     if should_adjust_invest_cost(pol)
@@ -67,19 +69,29 @@ function E4ST.modify_setup_data!(pol::PTC, config, data)
         year_max = ref_year + pol.years_after_ref_max
         g_qual_year_idxs = findall(y -> year_min <= y <= year_max, years_int)
         vals_tmp = [(i in g_qual_year_idxs) ? credit_yearly[i] : 0.0  for i in 1:length(years)]
-
+        adjs = [0.0  for i in 1:length(years)]
+     
          # edge effect adjustment
-        if any(vals_tmp .> 0)
-            subs_len = pol.years_after_ref_max - pol.years_after_ref_min
-            invest_life = g.econ_life
-            years_left_capex = min(years_int[end] - ref_year + 1, invest_life)
-            years_left_subs = min(years_int[end] - ref_year + 1, subs_len)
-            adjs = [(years_left_capex/invest_life)/(years_left_subs/subs_len) for i in 1:length(years)]
-            vals_tmp = vals_tmp .* adjs
+        if config[:adjust_ptc] == true
+            
+            if any(vals_tmp .> 0)
+                println(gen_idx)
+                #subs_len = pol.years_after_ref_max - pol.years_after_ref_min
+                subs_len = 11
+                invest_life = g.econ_life + 1
+                years_left_capex = min(years_int[end] - ref_year + 1, invest_life)
+                years_left_subs = min(years_int[end] - ref_year + 1, subs_len)
+                adjs = [(years_left_capex/invest_life)/(years_left_subs/subs_len) for i in 1:length(years)]
+                vals_tmp = vals_tmp .* adjs
+            end
         end
 
+        # println(eltype(vals_tmp))
+        # println(eltype(adjs))
+ 
         g[pol.name] = ByYear(vals_tmp)
-        count= count+1
+        g["$(pol.name)_capex_adj"] = ByYear(adjs)
+    
         # add capex adjustment term to the the pol.name _capex_adj column
         # if should_adjust_invest_cost(pol)
         #     adj_term = get_ptc_capex_adj(pol, g, config)
