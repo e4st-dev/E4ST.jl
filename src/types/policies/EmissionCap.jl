@@ -3,7 +3,8 @@
 @doc raw"""
     struct EmissionCap <: Policy
 
-Emission Cap - A limit on a certain emission for a given set of generators.
+Emission Cap - A limit on a certain emission for a given set of generators. The mod caps emissions by setting up a generation constraint, which uses the given emissions rate column to determine the generation limit. The shadow price
+of the generation constraint is used to evalaute the cost of the policy.
 
 ### Keyword Arguments:
 * `name`: name of the policy (Symbol)
