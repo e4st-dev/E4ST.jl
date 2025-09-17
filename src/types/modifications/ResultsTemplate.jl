@@ -101,8 +101,13 @@ function modify_results!(m::ResultsTemplate, config, data)
         idxs = parse_comparisons(row)
         yr_idxs = parse_year_idxs(row.filter_years)
         hr_idxs = parse_hour_idxs(row.filter_hours)
-        if table_name == Symbol("")
+        if table_name == Symbol("welfare")
             return compute_welfare(data, result_name, idxs, yr_idxs, hr_idxs)
+        elseif table_name == Symbol("retail_price")
+            if hr_idxs !== Colon()
+                error("Hourly retail prices are not available.")
+            end
+            return compute_retail_price(data, result_name, idxs, yr_idxs, hr_idxs)
         else
             try
                 return compute_result(data, table_name, result_name, idxs, yr_idxs, hr_idxs)

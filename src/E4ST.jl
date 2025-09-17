@@ -106,6 +106,7 @@ include("results/process.jl")
 include("results/aggregate.jl")
 include("results/welfare.jl")
 include("results/util.jl")
+include("results/retail_price.jl")
 
 # Include postprocessing
 include("post/post.jl")
