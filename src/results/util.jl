@@ -155,3 +155,8 @@ function unweight_hourly(data, v::Vector{<:Container}, s=+)
     return [s(v[i][y,h]) / w[h] for i in 1:length(v), y in 1:ny, h in 1:nh]
 end
 export unweight_hourly
+
+function get_cross_table(data, table_name)
+    return data[table_name]::OrderedDict{Symbol, OrderedDict{Symbol,OrderedDict{Symbol,Function}}}
+end
+export get_cross_table
