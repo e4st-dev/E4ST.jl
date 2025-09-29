@@ -5,7 +5,7 @@ Reserve Requirements
 ReserveRequirement
 ```
 
-** Expressions for Reserve Requirement **
+**Expressions for Reserve Requirement**
 
 The reserve requirement mod includes an input file that indicates how much reserves each region (e.g. baa, state, nerc) needs by year. Simply, the modification sets up a constraint that says the amount of reservers avaialble in each region, year, and hour combination must be greater than what is specified by the the reserve margin.
 
@@ -53,7 +53,7 @@ $$
 $$
 
 
-** Reserve Requirement Constraint **
+**Reserve Requirement Constraint**
 The reserve requirement consraint requires that the available reserve power for each region, year, and hour is greater than the calculation reserve requirement.
 
 $$
