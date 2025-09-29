@@ -35,7 +35,7 @@ $$
 \text{Res}_{b,y,h} = \sum_{g \in g_b} \text{PCap}_{g,y} \times \text{Credit}_{g,y,h}
 $$
 
-Additionally, there is an option to allow the reserve requirement to be met with imports from neighboring regions.If that is allowed, the net imports are added to the reserve power equation.
+Additionally, there is an option to allow the reserve requirement to be met with imports from neighboring regions. A variable is created that represents power flow between the regions, and its upper and lower bounds are set based on the reserve mods input requirements. Then, the net imports are added to the reserve power equation.
 
 $$
 \
