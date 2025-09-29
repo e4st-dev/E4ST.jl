@@ -7,9 +7,9 @@ ReserveRequirement
 
 **Expressions for Reserve Requirement**
 
-The reserve requirement mod includes an input file that indicates how much reserves each region (e.g. baa, state, nerc) needs by year. Simply, the modification sets up a constraint that says the amount of reservers avaialble in each region, year, and hour combination must be greater than what is specified by the the reserve margin.
+The reserve requirement mod includes requirements file that indicates how much reserves each region (e.g. baa, state, nerc) needs in each year. Simply, the modification sets up a constraint that says available generating capacity in each region, year, and hour combination must be greater than what is specified by the the reserve margin.
 
-To set up this equation, we use the reserve margin to calculate how much power needs to be available. First, find the maximum hourly load at each bus. 
+To set up this equation, we use the reserve margins from the requirements file to calculate how much power needs to be available. First, find the maximum hourly load at each bus. 
 
 $$
 \
@@ -17,7 +17,7 @@ $$
 \
 $$
 
-In every bus, year, hour, the reserve requirement is equal to the nominal load at the bus in that year, hour plus the maximum load multiplied by the region's specified reserve margin. The reserve margins are grabbed from the mods requirements file.
+In every bus, year, hour combination, the reserve requirement is equal to the nominal load at the bus in that year, hour plus the maximum load multiplied by the region's specified reserve margin. The reserve margins are grabbed from the mods requirements file.
 
 $$
 \text{ResReq}_{b,y,h} = \text{Load}_{b,y,h} + \text{MaxLoad}_{b,y} \times \text{ReserveMargin}_{r}
@@ -29,7 +29,7 @@ $$
 \text{ResReq}_{r,y,h} = \sum_{b \in b_r} \text{ResReq}_{b,y,h}
 $$
 
-Next, we set up the power reserve expression. At each bus, the reserve power for a year, hour is the sum of the capacity of all generators at that bus multiplied by each generators crediting in that year, hour. For reserve requirements, the crediting is equivalent to the availability factor in that hour. 
+Next, we set up the power reserve expression. At each bus, the reserve power for a year, hour is the sum of the capacity of all generators at that bus multiplied by each generators credit value in that year, hour. For reserve requirements, the crediting is equivalent to the availability factor in that hour. 
 
 $$
 \text{Res}_{b,y,h} = \sum_{g \in g_b} \text{PCap}_{g,y} \times \text{Credit}_{g,y,h}
@@ -60,7 +60,7 @@ $$
 
 **Reserve Requirement Constraint**
 
-The reserve requirement consraint requires that the available reserve power for each region, year, and hour is greater than the calculated reserve requirement.
+The reserve requirement constraint requires that the available reserve power for each region, year, and hour is greater than the calculated reserve requirement.
 
 $$
 \text{Res}_{r,y,h} \ge \text{ResReq}_{r,y,h}
