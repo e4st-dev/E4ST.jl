@@ -12,9 +12,9 @@ The reserve requirement mod includes an input file that indicates how much reser
 To set up this equation, we use the reserve margin to calculate how much power needs to be available. First, mind the maximum hourly load at each bus. 
 
 $$
-\[
+\
 \text{MaxLoad}_{b,y} = \max_{h} \text{Load}_{b,y,h}
-\]
+\
 $$
 
 In every bus, year, hour, the reserve requirement (ResReq) is equal to the nominal load at the bus in that year, hour plus the maximum load multiplied by the reserve margin:
@@ -38,12 +38,12 @@ $$
 Additionally, there is an option to allow the reserve requirement to be met with imports from neighboring regions.If that is allowed, the net imports are added to the reserve power equation.
 
 $$
-\[
+\
 \text{Res}_{r,y,h} =
 \sum_{b \in b_r} \text{Res}_{b,y,h}
 + 
 \sum_{b \in b_r} \text{NetImports}_{b,y,h}
-\]
+\
 $$
 
 Then, the available reserve power across each busses in a region is summed to find the regions available reserve power.
