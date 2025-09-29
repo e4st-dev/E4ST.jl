@@ -35,6 +35,11 @@ $$
 \text{Res}_{b,y,h} = \sum_{g \in g_b} \text{PCap}_{g,y} \times \text{Credit}_{g,y,h}
 $$
 
+Storage is added to the power reserve expression, as well.
+
+$$
+\text{Res}_{b,y,h} = \text{Res}_{b,y,h} + \sum_{s \in s_b} \text{PCap}_{s,y} \times \text{Credit}_{g,y,h}
+$$
 
 Then, the available reserve power across each busses in a region is summed to find the regions available reserve power.
 
