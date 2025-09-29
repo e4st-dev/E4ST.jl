@@ -54,6 +54,7 @@ $$
 
 
 **Reserve Requirement Constraint**
+
 The reserve requirement consraint requires that the available reserve power for each region, year, and hour is greater than the calculation reserve requirement.
 
 $$
