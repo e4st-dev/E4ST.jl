@@ -22,12 +22,16 @@ function setup_retail_price!(config, data)
 
     # price terms for average electricity rate
     add_price_term!(data, :avg_elec_rate, :bus, :electricity_cost, +)
+    # per MW cost adder for distribution costs
     add_price_term!(data, :avg_elec_rate, :bus, :distribution_cost_total, +)
+    # merchandising suplus is from selling electricity for higher price at one end of line than another
     add_price_term!(data, :avg_elec_rate, :bus, :merchandising_surplus_total, -)
+    # if the difference between revenue and total costs is positive, customers in COS regions get a rebate
+    # total cost includes production costs, net policy costs, gs_rebate, and the net of past investment costs and subsidies 
     add_price_term!(data, :avg_elec_rate, :gen, :cost_of_service_rebate, -)
     add_price_term!(data, :avg_elec_rate, :storage, :cost_of_service_rebate, -)
-    add_price_term!(data, :avg_elec_rate, :gen, :net_production_cost, +)
-    add_price_term!(data, :avg_elec_rate, :storage, :net_production_cost, +)
+    add_price_term!(data, :avg_elec_rate, :bus, :gs_payment, +)
+
     if haskey(config, :mods) && haskey(config[:mods], :baa_reserve_requirement)
         add_price_term!(data, :avg_elec_rate, :bus, :baa_reserve_requirement_cost, +)
         add_price_term!(data, :avg_elec_rate, :bus, :baa_reserve_requirement_merchandising_surplus_total, -)
@@ -74,8 +78,8 @@ function compute_retail_price(data, price_type::Symbol, idxs...)
         end
     end
     # divide by total generation to get dollars per MWh
-    egen_total = compute_result(data, :gen, :egen_total, idxs...)
-    return value/egen_total
+    elserv_total = compute_result(data, :bus, :elserv_total, idxs...)
+    return value/elserv_total
 end
 
 export compute_retail_price
