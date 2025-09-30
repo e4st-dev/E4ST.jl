@@ -26,9 +26,9 @@ end
 export PTC
 
 function should_adjust_ptc(pol::PTC, config)
-    # only adjust PTC if it is a multi-year sim and the length of the subisdy is less than the number of sim years
-    # if length of subsidy is greater than sim years, there won't be an edge effect anyway
-    return (length(config[:years])>1 && pol.years_after_ref_max - pol.years_after_ref_min >= length(config[:years]))
+    # only adjust PTC if the length of the subsidy is less than the number of sim years
+    # if length of subsidy is greater than or equal to number of sim years,if  there won't be an edge effect anyway
+    return (pol.years_after_ref_max - pol.years_after_ref_min >= length(config[:years]))
 end
 """
     E4ST.modify_setup_data!(pol::PTC, config, data)
@@ -78,8 +78,8 @@ function E4ST.modify_setup_data!(pol::PTC, config, data)
                 c_yrs = length(capex_year_idxs)
 
                 # adjust the ptc to avoid edge effects https://github.com/e4st-dev/E4ST.jl/issues/340
-                if haskey(config[:mods],:perfect_foresight)
-                    r = config[:mods][:perfect_foresight].rate::Float64 #pfs discount rate
+                if haskey(config, :discount_factor)
+                    r = config[:discount_factor]::Float64 #pfs discount rate
                     adjs = [((1-(1-r)^c_yrs)/(1-(1-r)^e))/((1-(1-r)^s_yrs)/(1-(1-r)^s)) for i in 1:length(years)]
                 else
                     r = 1 
