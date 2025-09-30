@@ -11,57 +11,37 @@ The reserve requirement mod includes requirements file that indicates how much r
 
 To set up this equation, we use the reserve margins from the requirements file to calculate how much power needs to be available. First, find the maximum hourly load at each bus. 
 
-$$
-\
 \text{MaxLoad}_{b,y} = \max_{h} \text{Load}_{b,y,h}
-\
-$$
 
 In every bus, year, hour combination, the reserve requirement is equal to the nominal load at the bus in that year, hour plus the maximum load multiplied by the region's specified reserve margin. The reserve margins are grabbed from the mods requirements file.
 
-$$
 \text{ResReq}_{b,y,h} = \text{Load}_{b,y,h} + \text{MaxLoad}_{b,y} \times \text{ReserveMargin}_{r}
-$$
 
 Then, we find the reserve requirement for each region in every year, hour combination by summing the reserve requirement across all the busses in the region:
 
-$$
 \text{ResReq}_{r,y,h} = \sum_{b \in b_r} \text{ResReq}_{b,y,h}
-$$
 
 Next, we set up the power reserve expression. At each bus, the reserve power for a year, hour is the sum of the capacity of all generators at that bus multiplied by each generators credit value in that year, hour. For reserve requirements, the crediting is equivalent to the availability factor in that hour. 
 
-$$
 \text{Res}_{b,y,h} = \sum_{g \in g_b} \text{PCap}_{g,y} \times \text{Credit}_{g,y,h}
-$$
 
 Storage is added to the power reserve expression, as well.
 
-$$
 \text{Res}_{b,y,h} = \text{Res}_{b,y,h} + \sum_{s \in s_b} \text{PCap}_{s,y} \times \text{Credit}_{g,y,h}
-$$
 
 Then, the available reserve power across each busses in a region is summed to find the regions available reserve power.
 
-$$
 \text{Res}_{r,y,h} = \sum_{b \in b_r} \text{Res}_{b,y,h}
-$$
 
 Additionally, there is an option to allow the reserve requirement to be met with imports from neighboring regions using an optional flow_limits_file. If the flow_limits_file is not provided, the reserve requirements must be met with instate generation. If a flow_limits_file is provided, a variable is created that represents power flow between the regions, and its upper and lower bounds are set using the values in the optional flow_limits_file. The regions' net imports are then added to the power reserve expression.
 
-$$
-\
 \text{Res}_{r,y,h} =
 \sum_{b \in b_r} \text{Res}_{b,y,h}
 + 
 \sum_{b \in b_r} \text{NetImports}_{b,y,h}
-\
-$$
 
 **Reserve Requirement Constraint**
 
 The reserve requirement constraint requires that the available reserve power for each region, year, and hour is greater than the calculated reserve requirement.
 
-$$
 \text{Res}_{r,y,h} \ge \text{ResReq}_{r,y,h}
-$$
