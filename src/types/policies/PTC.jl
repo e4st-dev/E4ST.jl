@@ -12,6 +12,8 @@ Production Tax Credit - A \$/MWh tax incentive for the generation of specific te
 * `ref_year_col`: Column name to use as reference year for min and max above. Must be a year column. If this is :year_on, then the years_after_ref filters will filter gen age. If this is :year_retrofit, the the years_after_ref filters will filter by time since retrofit. 
 
 * `gen_filters`: filters for qualifying generators, stored as an OrderedDict with gen table columns and values (`:emis_co2=>"<=0.1"` for co2 emission rate less than or equal to 0.1)
+
+In a multi-year sim, the PTC is multiplied by an adjustment factor to prevent edge effects. https://github.com/e4st-dev/E4ST.jl/issues/340
 """
 Base.@kwdef struct PTC <: Policy
     name::Symbol
@@ -77,7 +79,7 @@ function E4ST.modify_setup_data!(pol::PTC, config, data)
                 s_yrs = length(g_qual_year_idxs)
                 c_yrs = length(capex_year_idxs)
 
-                # adjust the ptc to avoid edge effects https://github.com/e4st-dev/E4ST.jl/issues/340
+                # adjust the ptc to avoid edge effects
                 if haskey(config, :discount_factor)
                     r = config[:discount_factor]::Float64 #pfs discount rate
                     adjs = [((1-(1-r)^c_yrs)/(1-(1-r)^e))/((1-(1-r)^s_yrs)/(1-(1-r)^s)) for i in 1:length(years)]
