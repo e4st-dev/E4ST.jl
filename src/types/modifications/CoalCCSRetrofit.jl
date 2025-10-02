@@ -40,7 +40,6 @@ function init!(ret::CoalCCSRetrofit, config, data)
         add_table_col!(data, :gen, :pcap_plant_avg, copy(gen.pcap_max), MWCapacity, "Average MW capacity of each plant in a representative generator.")
     elseif any(x -> x == -Inf, gen.pcap_plant_avg)
         @warn "gen table has some default pcap_plant_avg values (-inf), representing the average nameplate plant capacity of a generator, in MW.  \nFor these values, assuming that the average plant capacity is the same as the max capacity."
-        println("there are some-inf values")
         gen.pcap_plant_avg = ifelse.(gen.pcap_plant_avg .== -Inf, gen.pcap_max, gen.pcap_plant_avg)  
     end
     return
@@ -83,14 +82,13 @@ function retrofit!(ret::CoalCCSRetrofit, newgen)
     haskey(newgen, :emis_so2)  && (newgen[:emis_so2]  *= ((1 - ret.reduce_so2_percent)  * (1 + hr_pen)))
     haskey(newgen, :emis_pm25) && (newgen[:emis_pm25] *= ((1 - ret.reduce_pm25_percent) * (1 + hr_pen)))
     newgen[:pcap_max] *= (1 - pcap_pen)
-    if newgen[:pcap_max] <0 
-        println("negative pcapmax")
-        println(pcap_pen)
-        println(pcap_avg)
-        println(hr)
-    end
-
+    
     newgen[:gentype] = "coal_ccus_retrofit"
+    
+    # adjust plant id column tso that retrofits are disctinct from non-retrofits
+    if !hasproperty(newgen, :pcap_plant_avg)
+        newgen[:plant_id] = string(newgen[:plant_id], " retrofit")
+    end
 
     newgen[:econ_life] = ret.econ_life
     # if year_shutdown is within new econ_life, extend to the end of the new econ life
