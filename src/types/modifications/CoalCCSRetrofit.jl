@@ -86,14 +86,12 @@ function retrofit!(ret::CoalCCSRetrofit, newgen)
     haskey(newgen, :emis_pm25) && (newgen[:emis_pm25] *= ((1 - ret.reduce_pm25_percent) * (1 + hr_pen)))
 
     # works with a multi-year of single year pcap-max
-    scale!(newgen[:pcap_max], 1-pcap_pen)
+    newgen[:pcap_max] = scale!(newgen[:pcap_max], 1-pcap_pen)
     
     newgen[:gentype] = "coal_ccus_retrofit"
     
     # adjust plant id column so that retrofits are distinct from non-retrofits
-    if !hasproperty(newgen, :pcap_plant_avg)
-        newgen[:plant_id] = string(newgen[:plant_id], " retrofit")
-    end
+    newgen[:plant_id] = get(newgen, :plant_id, nothing) === nothing ? nothing : string(newgen[:plant_id], " retrofit")
 
     newgen[:econ_life] = ret.econ_life
     # if year_shutdown is within new econ_life, extend to the end of the new econ life
