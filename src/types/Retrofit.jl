@@ -135,14 +135,7 @@ function modify_model!(ret::Retrofit, config, data, model)
 
     # Make constraint on the sum of the retrofit capacities
     # retrofit capacity is scaled by the ratio of original pcap_max over retrofit pcap_max so that penalty losses are included in max constraint
-    # e.g. if pcap_max for a gen is 500 MW, its retrofit pcap_max might only be 450 MW because of penalties - need to scale up so that penalty is considered in constraint
-    # @constraint(model, 
-    #     cons_pcap_gen_retro_max[
-    #         gen_idx in keys(retrofits),
-    #         yr_idx in 1:nyr
-    #     ],
-    #     sum(ret_idx-> pcap_gen[ret_idx, yr_idx] * (pcap_max[gen_idx, yr_idx] / pcap_max[ret_idx, yr_idx]), retrofits[gen_idx]) + pcap_gen[gen_idx, yr_idx] <= pcap_max[gen_idx, yr_idx]
-    # ) 
+    # e.g. if pcap_max for a gen is 500 MW, its retrofit pcap_max might only be 450 MW because of penalties - need to scale up so that penalty is considered in constraint 
     @constraint(model,
     cons_pcap_gen_retro_max[
         gen_idx in keys(retrofits),
