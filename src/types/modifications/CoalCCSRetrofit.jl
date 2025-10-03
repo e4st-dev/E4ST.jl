@@ -91,7 +91,7 @@ function retrofit!(ret::CoalCCSRetrofit, newgen)
     newgen[:gentype] = "coal_ccus_retrofit"
     
     # adjust plant id column so that retrofits are distinct from non-retrofits
-    newgen[:plant_id] = get(newgen, :plant_id, nothing) === nothing ? nothing : string(newgen[:plant_id], " retrofit")
+    haskey(newgen, :plant_id) && (newgen[:plant_id] = string(newgen[:plant_id], " retrofit"))
 
     newgen[:econ_life] = ret.econ_life
     # if year_shutdown is within new econ_life, extend to the end of the new econ life
