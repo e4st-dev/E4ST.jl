@@ -30,7 +30,7 @@ export PTC
 function should_adjust_ptc(pol::PTC, config)
     # only adjust PTC if the length of the subsidy is less than the number of sim years
     # if length of subsidy is greater than or equal to number of sim years,if  there won't be an edge effect anyway
-    return (pol.years_after_ref_max - pol.years_after_ref_min >= length(config[:years]))
+    return (pol.years_after_ref_max - pol.years_after_ref_min <= length(config[:years]))
 end
 """
     E4ST.modify_setup_data!(pol::PTC, config, data)
