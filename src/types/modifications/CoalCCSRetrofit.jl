@@ -17,6 +17,9 @@ Other Requirements:
 * The `gen` table must either have a `pcap_plant_avg` column, or it will be assumed that each generator represents a single plant.  This value is used with the cost curves.
 
 Cost adjustment values come from a regression in EPA Schedule 6 data.
+
+
+Note: If simulation includes capacity adjustments (e.g. yearly retirements via Adjust mod) make sure the adjusment comes before Retrofits so that the penalty is applied to the adjusted capacity value.
 """
 Base.@kwdef struct CoalCCSRetrofit <: Retrofit 
     crf::Float64 = 0.115642438 # 12 year economic lifetime
@@ -81,11 +84,13 @@ function retrofit!(ret::CoalCCSRetrofit, newgen)
     haskey(newgen, :emis_nox)  && (newgen[:emis_nox]  *= ((1 - ret.reduce_nox_percent)  * (1 + hr_pen)))
     haskey(newgen, :emis_so2)  && (newgen[:emis_so2]  *= ((1 - ret.reduce_so2_percent)  * (1 + hr_pen)))
     haskey(newgen, :emis_pm25) && (newgen[:emis_pm25] *= ((1 - ret.reduce_pm25_percent) * (1 + hr_pen)))
-    newgen[:pcap_max] *= (1 - pcap_pen)
+
+    # works with a multi-year of single year pcap-max
+    scale!(newgen[:pcap_max], 1-pcap_pen)
     
     newgen[:gentype] = "coal_ccus_retrofit"
     
-    # adjust plant id column tso that retrofits are disctinct from non-retrofits
+    # adjust plant id column so that retrofits are distinct from non-retrofits
     if !hasproperty(newgen, :pcap_plant_avg)
         newgen[:plant_id] = string(newgen[:plant_id], " retrofit")
     end
