@@ -32,6 +32,8 @@ $m$ is the minimum age of the generator to qualify for the PTC. This will be 0 i
 $n$ is the maximum age of the generator to qualify for the PTC \
 We adjust this calculation to account for the fact that the simulation represents half way through the year. This means adding 0.5 to the year values to adjust the NPV for half way through the year.
 
+Note (10/5/2025): The  PTC capex adjustment is no longer used, but leaving this documentation for reference.
+
 $$\sum_{i=1}^l x / \left(1+r \right)^{i+0.5} = \sum_{j=m+1}^n p / \left(1+r \right)^{j+0.5}$$
 
 $$x \left( \frac{1- \left(\frac{1}{1+r}\right)^{l+0.5}}{1 - \left(\frac{1}{1+r}\right)^{1.5}}\right) = p \left( \frac{1- \left(\frac{1}{1+r}\right)^{n+0.5}}{1 - \left(\frac{1}{1+r}\right)^{m+1.5}}\right)$$
@@ -58,6 +60,27 @@ GenerationStandard
 modify_setup_data!(pol::GenerationStandard, config, data)
 modify_model!(pol::GenerationStandard, config, data, model)
 ```
+**Generation Standard Expressions**
+First, find the qualifying load in a region with a RPS/CES. This is equal to the nominal load plus curtailed load plos line losses plus the net battery dispatch. 
+
+$$\text{QualLoad}_{y,b,h} = 
+\text{load}_{\text{nom}(y,b,h)} 
+- \text{load}_{\text{curt}(y,b,h)} 
++ \text{losses}_{y,b,h} 
++ pcharge_{y,b,h} 
+- pdischarge_{y,b,h}$$
+
+Then, find the target load for a region, which is the qualifying load muliplied by the policy's target value.
+
+$$\text{TargetLoad}_{y,r} =
+\sum_{b \in b_r}^{8} \sum_{h=1}^{24 \cdot 52} 
+\Big( \text{QualLoad}_{y,b,h} \cdot \text{target}_{y,b} \cdot w_h \Big)$$
+
+**Generation Standard Constraints**
+The generation standard constraints requires that the sum of generation for all generators in the poliy's region multiplied by their credit value is greater than or equal to the target load. The credit value will depend on the policy (e.g. for a RPS wind and solar have a credit value of 1 and fossil resources have a credit value of 0)
+$$\sum_{g \in g_r}^{8} \sum_{h=1}^{H} 
+\Big( pgen_{y,g,h} \cdot credit_g \Big)
+\;\;\geq\;\; \text{TargetLoad}_{y,r}$$
 
 ## Crediting
 ```@docs
