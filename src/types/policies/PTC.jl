@@ -137,3 +137,36 @@ function E4ST.modify_results!(pol::PTC, config, data)
     add_results_formula!(data, :gen, result_name_sym, "SumHourlyWeighted($(pol.name), pgen)", Dollars, "The cost of $(pol.name)")
     add_to_results_formula!(data, :gen, :ptc_subsidy, result_name)
 end
+
+# no longer use the capex adjustment but keeping functions below for reference 
+
+# function should_adjust_invest_cost(pol::PTC)
+#     return (pol.years_after_ref_min != 0.0 || pol.years_after_ref_max != 9999.0)
+# end
+"""
+    get_ptc_capex_adj(pol::PTC, g::DataFrameRow) -> 
+"""
+# function get_ptc_capex_adj(pol::PTC, g::DataFrameRow, config)
+#     r = config[:wacc]::Float64 #discount rate, using wacc to match generator cost calculations
+#     e = g.econ_life::Float64
+#     age_max = pol.years_after_ref_max
+#     age_min = pol.years_after_ref_min
+
+#     # determine whether capex needs to be adjusted, basically determining whether the span of age_min to age_max happens in the econ life
+#     age_min >= e && return ByNothing(0.0) # will receive no PTC naturally because gen will be shutdown before qualifying so no need to adjust capex
+#     (year2int(g.year_on) + age_max > year2int(g.year_shutdown)) && (age_max = year2int(g.year_shutdown) - year2int(g.year_on)) # if plant will shutdown before reaching age_max, change age_max to last age before shutdowns so only accounting for PTC received in lifetime
+#     (age_max - age_min >= e) && return ByNothing(0.0) # no need to adjust capex if reveiving PTC for entire econ life
+
+#     #hasproperty(g, :cf_hist) ? (cf = g.cf_hist) : @error "The gen and build_gen tables must have the column cf_hist in order to model PTCs with age filters."
+#     cf = get(g, :cf_hist) do
+#         get_gentype_cf_hist(g.gentype)
+#     end
+#     ptc_vals = g[pol.name]
+
+#     # This adjustment factor is the geometric formula for the difference between the actual PTC value per MW capacity and a PTC represented as a constant cash flow over the entire economic life. 
+#     # The derivation of this adj_factor can be found in the PTC documentation
+#     adj_factor = 1 - ((1-(1/(1+r))^(age_max+0.5))*(1-(1/(1+r))^(1.5)))/((1-(1/(1+r))^(e+0.5))*(1-(1/(1+r))^(age_min+1.5)))
+
+#     capex_adj = adj_factor .* cf .* ptc_vals
+#     return capex_adj
+# end
