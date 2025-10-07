@@ -59,6 +59,8 @@ function E4ST.modify_setup_data!(pol::PTC, config, data)
     credit_yearly = [get(pol.values, Symbol(year), 0.0) for year in years] #values for the years in the sim
 
     if should_adjust_ptc(pol, config)
+        add_table_col!(data, :gen, Symbol("$(pol.name)_ptc_adj"), Container[ByNothing(0.0) for i in 1:nrow(gen)], NA, 
+        "Adjustment factor multiplied by the PTC value to prevent edge effect.")
 
         for gen_idx in gen_idxs
             # update pol.name column with PTC credit value 
@@ -86,13 +88,15 @@ function E4ST.modify_setup_data!(pol::PTC, config, data)
                 else
                     r = 1 
                     # if model doesn't have pfs, the adjustment does not need to consider a discount rate
-                    adjs = (c_yrs/e)/(s_yrs/s) && @warn "Running a multi-year model without perfect foresight"
+                    adjs = [(c_yrs/e)/(s_yrs/s) for i in 1:length(years)]
+                    @warn "Running a multi-year model without perfect foresight"
                 end
-            
+
                 vals_tmp = vals_tmp .* adjs
             end
 
             g[pol.name] = ByYear(vals_tmp)
+            g[Symbol("$(pol.name)_ptc_adj")] = ByYear(adjs)
 
         end
     

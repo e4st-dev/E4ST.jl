@@ -17,3 +17,13 @@ mods:
       y2040: 1
     gen_filters:
       bus_nation: "archenland"
+  example_ptc_short:
+    type: "PTC"
+    values: 
+      y2030: 12
+      y2035: 12
+    years_after_ref_min: 0
+    years_after_ref_max: 1
+    gen_filters:
+      emis_co2: "<= 0.1"
+      bus_nation: "narnia"  
