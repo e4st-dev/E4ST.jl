@@ -79,6 +79,7 @@ function summarize_config()
         (:require_optimal, false, true, "Whether or not to require whether or not the model is solved to optimality.  If set to true and the optimizer terminates with a suboptimal termination status, [`run_e4st`](@ref) returns after optimizing, without parsing results, etc."),
         (:model_string_names, false, false, "Whether or not to allow the model to have string names.  Defaults to `false` for memory savings.  Can be helpful to turn on for debugging, especially if you are encountering an infeasible model"),
         (:yearly_objective_scalars, false, 1, "The amount to scale the objective by for each year, defaults to 1 for each year."),
+        (:past_invest_file, false, 1, "Gen file used to calculate past investment costs. Only necessary when an aggregated gen table is used.")
 
     )
         
