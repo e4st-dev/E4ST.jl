@@ -32,6 +32,11 @@ function setup_retail_price!(config, data)
     add_price_term!(data, :avg_elec_rate, :storage, :cost_of_service_rebate, -)
     add_price_term!(data, :avg_elec_rate, :bus, :gs_payment, +)
 
+    # ToDo: include past subsidies, but these may be hard to track down 
+    if haskey(config, :past_invest_file)
+        add_price_term!(data, :avg_elec_rate, :past_invest, :cost_of_service_past_costs, +)
+    end
+
     if haskey(config, :mods) && haskey(config[:mods], :baa_reserve_requirement)
         add_price_term!(data, :avg_elec_rate, :bus, :baa_reserve_requirement_cost, +)
         add_price_term!(data, :avg_elec_rate, :bus, :baa_reserve_requirement_merchandising_surplus_total, -)

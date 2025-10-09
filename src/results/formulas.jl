@@ -801,6 +801,22 @@ function (f::CostOfServiceRebate)(data, table, idxs, yr_idxs, hr_idxs)
 end
 export CostOfServiceRebate
 
+struct CostOfServicePastCost <: Function
+    table_name::Symbol
+end
+function (f::CostOfServicePastCost)(data, table, idxs, yr_idxs, hr_idxs)
+    reg_factor = table.reg_factor::Vector{Float64}
+    res = 0.0
+    for i in idxs
+        rf = reg_factor[i]
+        rev_prelim = compute_result(data, f.table_name, :past_invest_cost_total, i, yr_idxs, hr_idxs)
+        prod = rf * rev_prelim
+        res += prod
+    end
+    return res
+    # return sum0(reg_factor[i] * compute_result(data, f.table_name, :net_total_revenue_prelim, i, yr_idxs, hr_idxs) for i in idxs)
+end
+export CostOfServicePastCost
 
 function _sum(v1, idxs)
     res = 0.0

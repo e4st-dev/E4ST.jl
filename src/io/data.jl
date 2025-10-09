@@ -518,10 +518,10 @@ function setup_table!(config, data, ::Val{:gen})
     # Make columns as needed
     hasproperty(gen, :past_invest_cost) || (gen.past_invest_cost = zeros(nrow(gen)))
     hasproperty(gen, :past_invest_subsidy) || (gen.past_invest_subsidy = zeros(nrow(gen)))
+    z = Container(0.0)
+    to_container!(gen, :past_invest_cost)
+    to_container!(gen, :past_invest_subsidy)
     if !haskey(config,:past_invest_file)
-        z = Container(0.0)
-        to_container!(gen, :past_invest_cost)
-        to_container!(gen, :past_invest_subsidy)
         for (idx_g, g) in enumerate(eachrow(gen))
             if g.build_status == "unbuilt"
                 if any(!=(0), g.past_invest_cost) || any(!=(0), g.past_invest_subsidy)
