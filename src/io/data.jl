@@ -1246,6 +1246,11 @@ end
 export get_table
 export get_table
 
+function get_cross_table(data, table_name)
+    return data[table_name]::OrderedDict{Symbol, OrderedDict{Symbol,OrderedDict{Symbol,Function}}}
+end
+export get_cross_table
+
 """
     get_subtable(table::DataFrame, conditions...)
 
