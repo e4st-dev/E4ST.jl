@@ -24,8 +24,9 @@ struct ResultsTemplate <: Modification
     name::Symbol
     table::DataFrame
     cross_table::Bool
+    calibrator_file::String
     col_sort
-    function ResultsTemplate(;file, name, cross_table=false, col_sort=:initial_order)
+    function ResultsTemplate(;file, name, cross_table=false, calibrator_file="", col_sort=:initial_order)
         table = read_table(file)
         force_table_types!(table, name, 
             :table_name=>Symbol,
@@ -38,7 +39,7 @@ struct ResultsTemplate <: Modification
             hasproperty(table, col_name) || continue
             force_table_types!(table, name, col_name=>String)
         end
-        return new(file, name, table, cross_table, col_sort)
+        return new(file, name, table, cross_table, calibrator_file, col_sort)
     end
 end
 
@@ -196,7 +197,11 @@ function modify_results!(m::ResultsTemplate, ::Val{:true}, config, data)
                 @warn "Hourly retail price calculations are not set up."
                 return 0.0
             else
-                return compute_retail_price(data, result_name, idxs, yr_idxs, hr_idxs)
+                if isempty(m.calibrator_file)
+                    return compute_retail_price(data, result_name, idxs, yr_idxs, hr_idxs)
+                else
+                    return compute_retail_price(data, result_name, m.calibrator_file, idxs, yr_idxs, hr_idxs)
+                end
             end
         else
             @warn "No cross-table results formula found for table $table_name and result $result_name"
