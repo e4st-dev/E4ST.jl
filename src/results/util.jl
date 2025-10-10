@@ -156,7 +156,3 @@ function unweight_hourly(data, v::Vector{<:Container}, s=+)
 end
 export unweight_hourly
 
-function get_cross_table(data, table_name)
-    return data[table_name]::OrderedDict{Symbol, OrderedDict{Symbol,OrderedDict{Symbol,Function}}}
-end
-export get_cross_table
