@@ -24,11 +24,10 @@ struct RetailPrice <: Modification
     file::String
     name::Symbol
     table::DataFrame
+    cal_mode:: String
     calibrator_file::String
-    cal_table:: Bool
-    cal:: Bool
     col_sort
-    function RetailPrice(;file, name, calibrator_file="", cal_table=false, cal=true, col_sort=:initial_order)
+    function RetailPrice(;file, name, calibrator_file="", cal_mode="none", col_sort=:initial_order)
         table = read_table(file)
         force_table_types!(table, name, 
             :table_name=>Symbol,
@@ -41,7 +40,10 @@ struct RetailPrice <: Modification
             hasproperty(table, col_name) || continue
             force_table_types!(table, name, col_name=>String)
         end
-        return new(file, name, table, calibrator_file, cal_table, cal, col_sort)
+        if cal_mode != "none"
+            isempty(calibrator_file) && error("Calibrator file required when cal_mode is set to $(cal_mode).")
+        end
+        return new(file, name, table,  cal_mode, calibrator_file, col_sort)
     end
 end
 
@@ -96,43 +98,44 @@ function modify_results!(m::RetailPrice, config, data)
         not_pair_idx = findfirst(not_a_full_filter, eachrow(table))
     end
 
-    @info "Calculating results for $(nrow(table)) rows in RetailPrice $(m.name)"
-    results_formulas = get_results_formulas(data)
-    cal_table = DataFrame(area = String[], subarea = [], year=[],  value = [])
-    #to do: check that the each ref price has a corresponding retail rate or else provide warning
-    # table.value = map(eachrow(table)) do row
-    if !hasproperty(table, :value)
-        table.value = Vector{Union{Missing, Float64}}(missing, nrow(table))
-    end
-    for i in 1:nrow(table)
-        table_name = table[i, :table_name]
-        result_name = table[i,:result_name]
-        idxs = parse_comparisons(table[i,:])
-        yr_idxs = parse_year_idxs(table[i,:filter_years])
-        hr_idxs = parse_hour_idxs(table[i,:filter_hours])
-        
-        if hr_idxs !== Colon()
-            @warn "Hourly retail price calculations are not set up."
-            return 0.0
-        else
-            if m.cal_table == true 
-                val, cal_row = compute_retail_price(data, result_name, m.calibrator_file, idxs, yr_idxs, hr_idxs)
-                push!(cal_table, cal_row)
-            elseif m.cal == true
-                val = compute_retail_price(data, result_name, m.cal, m.calibrator_file, idxs, yr_idxs, hr_idxs)
-            else
-                val =  compute_retail_price(data, result_name, idxs, yr_idxs, hr_idxs)
-            end
-        end
-        table.value[i]= val 
-    end    
-    sort!(table, m.col_sort)
-    select!(table, Not(:initial_order))
-    CSV.write(get_out_path(config, string(m.name, ".csv")), table)
-    results = get_results(data)
-    results[m.name] = table
+    get_retail_price(m, config, data, table)
 
-    CSV.write(get_out_path(config, string(m.name, "_cals.csv")), cal_table)
+    # # what should go in the function
+    # cal_table = DataFrame(area = String[], subarea = [], year=[],  value = [])
+    
+    # if !hasproperty(table, :value)
+    #     table.value = Vector{Union{Missing, Float64}}(missing, nrow(table))
+    # end
+    
+    # for i in 1:nrow(table)
+    #     table_name = table[i, :table_name]
+    #     result_name = table[i,:result_name]
+    #     idxs = parse_comparisons(table[i,:])
+    #     yr_idxs = parse_year_idxs(table[i,:filter_years])
+    #     hr_idxs = parse_hour_idxs(table[i,:filter_hours])
+        
+    #     if hr_idxs !== Colon()
+    #         @warn "Hourly retail price calculations are not set up."
+    #         return 0.0
+    #     else
+    #         if m.cal_table == true 
+    #             val, cal_row = compute_retail_price(data, result_name, m.calibrator_file, idxs, yr_idxs, hr_idxs)
+    #             push!(cal_table, cal_row)
+    #         elseif m.cal == true
+    #             val = compute_retail_price(data, result_name, m.cal, m.calibrator_file, idxs, yr_idxs, hr_idxs)
+    #         else
+    #             val =  compute_retail_price(data, result_name, idxs, yr_idxs, hr_idxs)
+    #         end
+    #     end
+    #     table.value[i]= val 
+    # end    
+    # sort!(table, m.col_sort)
+    # select!(table, Not(:initial_order))
+    # CSV.write(get_out_path(config, string(m.name, ".csv")), table)
+    # results = get_results(data)
+    # results[m.name] = table
+
+    # CSV.write(get_out_path(config, string(m.name, "_cals.csv")), cal_table)
     return
 end
 
@@ -151,3 +154,95 @@ end
 #     CSV.write(get_out_path(post_config, "$(m.name)_combined.csv"), res)
 # end
 
+function get_retail_price(m::RetailPrice, config, data, table)
+    @info "Calculating results for $(nrow(table)) rows in RetailPrice $(m.name)"
+    get_retail_price((Val(Symbol(m.cal_mode))), m, config, data, table)
+end
+
+function get_retail_price(::Val{:none}, m, config, data, table)
+
+    if !hasproperty(table, :value)
+        table.value = Vector{Union{Missing, Float64}}(missing, nrow(table))
+    end
+    
+    for i in 1:nrow(table)
+        table_name = table[i, :table_name]
+        result_name = table[i,:result_name]
+        idxs = parse_comparisons(table[i,:])
+        yr_idxs = parse_year_idxs(table[i,:filter_years])
+        hr_idxs = parse_hour_idxs(table[i,:filter_hours])
+        
+        if hr_idxs !== Colon()
+            @warn "Hourly retail price calculations are not set up."
+            return 0.0
+        else
+            val =  compute_retail_price(m, data, result_name, idxs, yr_idxs, hr_idxs)
+        end
+        table.value[i]= val 
+    end    
+    sort!(table, m.col_sort)
+    select!(table, Not(:initial_order))
+    CSV.write(get_out_path(config, string(m.name, ".csv")), table)
+    results = get_results(data)
+    results[m.name] = table
+end
+
+function get_retail_price(::Val{:get_cal_values}, m::RetailPrice, config, data, table)
+    cal_table = DataFrame(area = String[], subarea = [], year=[],  value = [])
+
+    if !hasproperty(table, :value)
+        table.value = Vector{Union{Missing, Float64}}(missing, nrow(table))
+    end
+    
+    for i in 1:nrow(table)
+        table_name = table[i, :table_name]
+        result_name = table[i,:result_name]
+        idxs = parse_comparisons(table[i,:])
+        yr_idxs = parse_year_idxs(table[i,:filter_years])
+        hr_idxs = parse_hour_idxs(table[i,:filter_hours])
+        
+        if hr_idxs !== Colon()
+            @warn "Hourly retail price calculations are not set up."
+            return 0.0
+        else     
+            val, cal_row = compute_retail_price(m, data, result_name, idxs, yr_idxs, hr_idxs)
+            push!(cal_table, cal_row)
+        end
+        table.value[i]= val 
+    end    
+    sort!(table, m.col_sort)
+    select!(table, Not(:initial_order))
+    CSV.write(get_out_path(config, string(m.name, ".csv")), table)
+    results = get_results(data)
+    results[m.name] = table
+
+    CSV.write(get_out_path(config, string(m.name, "_cals.csv")), cal_table)
+
+end
+
+function get_retail_price(::Val{:calibrate}, m, config, data, table)
+    if !hasproperty(table, :value)
+        table.value = Vector{Union{Missing, Float64}}(missing, nrow(table))
+    end
+    
+    for i in 1:nrow(table)
+        table_name = table[i, :table_name]
+        result_name = table[i,:result_name]
+        idxs = parse_comparisons(table[i,:])
+        yr_idxs = parse_year_idxs(table[i,:filter_years])
+        hr_idxs = parse_hour_idxs(table[i,:filter_hours])
+        
+        if hr_idxs !== Colon()
+            @warn "Hourly retail price calculations are not set up."
+            return 0.0
+        else
+            val = compute_retail_price(m, data, result_name, idxs, yr_idxs, hr_idxs)
+        end
+        table.value[i]= val 
+    end    
+    sort!(table, m.col_sort)
+    select!(table, Not(:initial_order))
+    CSV.write(get_out_path(config, string(m.name, ".csv")), table)
+    results = get_results(data)
+    results[m.name] = table    
+end

@@ -80,7 +80,11 @@ function add_price_term!(data, price_type::Symbol, table_name::Symbol, result_na
 end
 export add_price_term!
 
-function compute_retail_price(data, price_type::Symbol, idxs...)
+function compute_retail_price(m, data, price_type::Symbol, idxs, yr_idxs, hr_idxs)
+    compute_retail_price((Val(Symbol(m.cal_mode))), m, data, price_type, idxs, yr_idxs, hr_idxs)
+end
+
+function compute_retail_price(::Val{:none}, m, data, price_type::Symbol, idxs...)
     value = 0.0
     retail_price = get_retail_price(data)
     table_names = retail_price[price_type]
@@ -95,7 +99,7 @@ function compute_retail_price(data, price_type::Symbol, idxs...)
     return value/elserv_total
 end
 
-function compute_retail_price(data, price_type::Symbol, ref_price_file::String, idxs, yr_idxs, hr_idxs)
+function compute_retail_price(::Val{:get_cal_values}, m, data, price_type::Symbol, idxs, yr_idxs, hr_idxs)
     value = 0.0
     retail_price = get_retail_price(data)
     table_names = retail_price[price_type]
@@ -109,11 +113,11 @@ function compute_retail_price(data, price_type::Symbol, ref_price_file::String, 
     elserv_total = compute_result(data, :bus, :elserv_total, idxs, yr_idxs, hr_idxs)
     retail_price =  value/elserv_total
 
-    ref_value, area, subarea, year = get_ref_price(ref_price_file, idxs, yr_idxs, hr_idxs, retail_price)
+    ref_value, area, subarea, year = get_ref_price(m.calibrator_file, idxs, yr_idxs, hr_idxs, retail_price)
     return retail_price, [area, subarea, year, retail_price - ref_value]
 end
 
-function compute_retail_price(data, price_type::Symbol, cal::Bool, calibrator_file::String, idxs, yr_idxs, hr_idxs)
+function compute_retail_price(::Val{:calibrate}, m, data, price_type::Symbol,  idxs, yr_idxs, hr_idxs)
     value = 0.0
     retail_price = get_retail_price(data)
     table_names = retail_price[price_type]
@@ -127,7 +131,7 @@ function compute_retail_price(data, price_type::Symbol, cal::Bool, calibrator_fi
     elserv_total = compute_result(data, :bus, :elserv_total, idxs, yr_idxs, hr_idxs)
     retail_price =  value/elserv_total
    
-    cal = get_calibrator_value(calibrator_file, idxs, yr_idxs, hr_idxs)
+    cal = get_calibrator_value(m.calibrator_file, idxs, yr_idxs, hr_idxs)
     retail_price = retail_price + cal
     return retail_price
    
