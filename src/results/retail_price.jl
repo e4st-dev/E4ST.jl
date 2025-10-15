@@ -160,8 +160,10 @@ function get_ref_price(ref_price_file, idxs, yr_idxs, hr_idxs, retail_price)
 
     ref_values = []
     for (i, row) in enumerate(eachrow(ref_price_table))
-        if row.area == area && row.subarea ==subarea
-            push!(ref_values, row[year])
+        if row.area == area && row.subarea ==subarea && row.year == year
+            push!(ref_values, row["ref_price"])
+        elseif row.area == area && row.subarea ==subarea && isempty(row.year) # if no year provided, ref price is used for all years 
+            push!(ref_values, row["ref_price"])
         end
     end 
     
