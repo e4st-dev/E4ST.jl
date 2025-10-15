@@ -20,42 +20,15 @@ The `file` should represent a csv table with the following columns:
 Note that, for the `filter_` or `filter_hours` columns, if a column name of the data table (or hours table) is given, new rows will be created for each unique value of that column.  I.e. if a value of `gentype` is given, there will be made a new row for `gentype=>coal`, `gentype=>ng`, etc.
 """
 
-# struct RetailPrice <: Modification
-#     base::Union{ResultsTemplate, Nothing}   # will hold ResultsTemplate after init
-#     params::Dict{Symbol,Any}               # store file, name, col_sort
-#     calibrator_file::String
-# end
-
-# # Constructor: store parameters only, no table built yet
-# function RetailPrice(; file, name=nothing, calibrator_file="", col_sort=:initial_order)
-#     params = Dict(:file => file, :name => name, :col_sort => col_sort)
-#     return RetailPrice(nothing, params, calibrator_file)
-# end
-
-# # Lazy initializer: builds ResultsTemplate and forces types
-# function init_base!(m::RetailPrice)
-#     println("init here")
-#     if m.base === nothing
-#         m.base = ResultsTemplate(
-#             file = m.params[:file],
-#             name = m.params[:name],
-#             cross_table = false,
-#             calibrator_file = m.calibrator_file,
-#             col_sort = m.params[:col_sort]
-#         )
-#     end
-# end
-
-
-# export RetailPrice
-
 struct RetailPrice <: Modification
     file::String
     name::Symbol
     table::DataFrame
     calibrator_file::String
+    cal_table:: Bool
+    cal:: Bool
     col_sort
-    function RetailPrice(;file, name, calibrator_file="", col_sort=:initial_order)
+    function RetailPrice(;file, name, calibrator_file="", cal_table=false, cal=true, col_sort=:initial_order)
         table = read_table(file)
         force_table_types!(table, name, 
             :table_name=>Symbol,
@@ -68,7 +41,7 @@ struct RetailPrice <: Modification
             hasproperty(table, col_name) || continue
             force_table_types!(table, name, col_name=>String)
         end
-        return new(file, name, table, calibrator_file, col_sort)
+        return new(file, name, table, calibrator_file, cal_table, cal, col_sort)
     end
 end
 
@@ -142,13 +115,13 @@ function modify_results!(m::RetailPrice, config, data)
             @warn "Hourly retail price calculations are not set up."
             return 0.0
         else
-            if isempty(m.calibrator_file)
-                println(idxs)
-                val =  compute_retail_price(data, result_name, idxs, yr_idxs, hr_idxs)
-            else
-                # val =  compute_retail_price(data, result_name, m.calibrator_file, idxs, yr_idxs, hr_idxs)
+            if m.cal_table == true 
                 val, cal_row = compute_retail_price(data, result_name, m.calibrator_file, idxs, yr_idxs, hr_idxs)
                 push!(cal_table, cal_row)
+            elseif m.cal == true
+                val = compute_retail_price(data, result_name, m.cal, m.calibrator_file, idxs, yr_idxs, hr_idxs)
+            else
+                val =  compute_retail_price(data, result_name, idxs, yr_idxs, hr_idxs)
             end
         end
         table.value[i]= val 

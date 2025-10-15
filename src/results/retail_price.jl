@@ -105,28 +105,25 @@ function compute_retail_price(data, price_type::Symbol, ref_price_file::String, 
     return retail_price, [area, subarea, year, retail_price - ref_value]
 end
 
-# function compute_retail_price(data, price_type::Symbol, calibrator_file::String, idxs, yr_idxs, hr_idxs)
-#     value = 0.0
-#     retail_price = get_retail_price(data)
-#     table_names = retail_price[price_type]
-#     for (table_name, result_names) in table_names
-#         for (result_name, result_sign) in result_names
-#             res = compute_result(data, table_name, result_name, idxs, yr_idxs, hr_idxs) |> result_sign
-#             value += res
-#         end
-#     end
-#     # divide by total generation to get dollars per MWh
-#     elserv_total = compute_result(data, :bus, :elserv_total, idxs, yr_idxs, hr_idxs)
-#     retail_price =  value/elserv_total
-#     if calibrator_file == "calibrator_file"
-#         cal = get_calibrator_value(calibrator_file, idxs, yr_idxs, hr_idxs)
-#         retail_price = retail_price + cal
-#         return retail_price
-#     elseif calibrator_file == "retail_price_file"
-#         ref_value, area, subarea = compute_calibrator_value(ref_price_file, retail_price, idxs, yr_idxs, hr_idxs)
-#         return retail_price, [area, subarea, retail_price - ref_value]
-#     end
-# end
+function compute_retail_price(data, price_type::Symbol, cal::Bool, calibrator_file::String, idxs, yr_idxs, hr_idxs)
+    value = 0.0
+    retail_price = get_retail_price(data)
+    table_names = retail_price[price_type]
+    for (table_name, result_names) in table_names
+        for (result_name, result_sign) in result_names
+            res = compute_result(data, table_name, result_name, idxs, yr_idxs, hr_idxs) |> result_sign
+            value += res
+        end
+    end
+    # divide by total generation to get dollars per MWh
+    elserv_total = compute_result(data, :bus, :elserv_total, idxs, yr_idxs, hr_idxs)
+    retail_price =  value/elserv_total
+   
+    cal = get_calibrator_value(calibrator_file, idxs, yr_idxs, hr_idxs)
+    retail_price = retail_price + cal
+    return retail_price
+   
+end
 
 export compute_retail_price
 
@@ -144,6 +141,7 @@ function compute_calibrator_value(ref_price_file, idxs, yr_idxs, hr_idxs, retail
         error("Retail price calibrator is not set up to handle multiple filters.")
     end
 
+    @assert yr_idxs != Any[] "Retail price calibrator is not set up to handle average retail rate across years."
     year = yr_idxs
 
     @assert hr_idxs == Colon() "Retail price calibrator is not set up to handle hourly retail rates."
