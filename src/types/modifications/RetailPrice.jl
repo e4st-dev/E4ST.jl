@@ -100,42 +100,6 @@ function modify_results!(m::RetailPrice, config, data)
 
     get_retail_price(m, config, data, table)
 
-    # # what should go in the function
-    # cal_table = DataFrame(area = String[], subarea = [], year=[],  value = [])
-    
-    # if !hasproperty(table, :value)
-    #     table.value = Vector{Union{Missing, Float64}}(missing, nrow(table))
-    # end
-    
-    # for i in 1:nrow(table)
-    #     table_name = table[i, :table_name]
-    #     result_name = table[i,:result_name]
-    #     idxs = parse_comparisons(table[i,:])
-    #     yr_idxs = parse_year_idxs(table[i,:filter_years])
-    #     hr_idxs = parse_hour_idxs(table[i,:filter_hours])
-        
-    #     if hr_idxs !== Colon()
-    #         @warn "Hourly retail price calculations are not set up."
-    #         return 0.0
-    #     else
-    #         if m.cal_table == true 
-    #             val, cal_row = compute_retail_price(data, result_name, m.calibrator_file, idxs, yr_idxs, hr_idxs)
-    #             push!(cal_table, cal_row)
-    #         elseif m.cal == true
-    #             val = compute_retail_price(data, result_name, m.cal, m.calibrator_file, idxs, yr_idxs, hr_idxs)
-    #         else
-    #             val =  compute_retail_price(data, result_name, idxs, yr_idxs, hr_idxs)
-    #         end
-    #     end
-    #     table.value[i]= val 
-    # end    
-    # sort!(table, m.col_sort)
-    # select!(table, Not(:initial_order))
-    # CSV.write(get_out_path(config, string(m.name, ".csv")), table)
-    # results = get_results(data)
-    # results[m.name] = table
-
-    # CSV.write(get_out_path(config, string(m.name, "_cals.csv")), cal_table)
     return
 end
 
@@ -188,7 +152,7 @@ function get_retail_price(::Val{:none}, m, config, data, table)
 end
 
 function get_retail_price(::Val{:get_cal_values}, m::RetailPrice, config, data, table)
-    cal_table = DataFrame(area = String[], subarea = [], year=[],  value = [])
+    cal_table = DataFrame(area = String[], subarea = [], year=[], ref_price =[], retail_price = [], cal_value = [], elserv_total = [], elserv_ratio=[])
 
     if !hasproperty(table, :value)
         table.value = Vector{Union{Missing, Float64}}(missing, nrow(table))
@@ -216,6 +180,7 @@ function get_retail_price(::Val{:get_cal_values}, m::RetailPrice, config, data, 
     results = get_results(data)
     results[m.name] = table
 
+    full_cal!(m, data, table, cal_table)
     CSV.write(get_out_path(config, string(m.name, "_cals.csv")), cal_table)
 
 end
@@ -245,4 +210,30 @@ function get_retail_price(::Val{:calibrate}, m, config, data, table)
     CSV.write(get_out_path(config, string(m.name, ".csv")), table)
     results = get_results(data)
     results[m.name] = table    
+end
+
+function full_cal!(m, data, table, cal_table)
+    ref_price_table = read_table(m.calibrator_file)
+    subset = filter(row -> row.area == "" && row.subarea == "", ref_price_table)
+
+    if nrow(subset) == 0
+        @warn "No full model reference price row. Outputting calibration values without a full adjustment."
+    elseif nrow(subset) > 1
+        error("Multiple full model reference price rows.")
+    else
+        avg_price_ref = subset[1, :ref_price]
+    end
+
+    avg_price = sum(cal_table.ref_price .* cal_table.elserv_ratio)
+    
+    for row in eachrow(cal_table[(cal_table.area .!= "") .& (cal_table.subarea .!= ""), :])
+        println(row[:subarea])
+        cal = (avg_price_ref - avg_price) * row[:elserv_ratio]
+        println(row[:cal_value])
+        println(row[:retail_price])
+        println(row[:ref_price])
+        row[:cal_value] += cal
+    end
+
+    return cal_table
 end

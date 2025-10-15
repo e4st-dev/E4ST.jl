@@ -15,13 +15,15 @@ The relevant price terms are:
 Reference the results formulas for more detailed descriptions of each of these terms.
 
 The results template can calculate annual rates by specified region, but is not set up for hourly rates. 
+
+
+There are three specialized methods for calculating the retail rate that depend on the cal_mode argument in the RetailPrice mod. If cal_mode is set to `none`
+there will be no calibration steps. If it is set to `get_cal_values`, the function will find the difference between the estimated retail rates
+and the true retail rate to use as a calibrator value. If cal_mode is set to `calibrate`, the corresponding calibrator vaulue will be added to the retail price.
 """
 
-# to do: option for 1 year or all years
-# to do: divide revenue by consumption?
-# to do: state and national calibration
+
 # to do: update docstrings
-# to do: improve dispatch for cal table vs cal
 # adjust calibrator table to be read in with right format, or change function to read in correctly
 
 function setup_retail_price!(config, data)
@@ -50,8 +52,6 @@ function setup_retail_price!(config, data)
         add_price_term!(data, :avg_elec_rate, :bus, :baa_reserve_requirement_merchandising_surplus_total, -)
     end
 
-    # future work: calculate electricity rates by end-use sector
-    
 end
 export setup_retail_price!
 
@@ -113,8 +113,23 @@ function compute_retail_price(::Val{:get_cal_values}, m, data, price_type::Symbo
     elserv_total = compute_result(data, :bus, :elserv_total, idxs, yr_idxs, hr_idxs)
     retail_price =  value/elserv_total
 
-    ref_value, area, subarea, year = get_ref_price(m.calibrator_file, idxs, yr_idxs, hr_idxs, retail_price)
-    return retail_price, [area, subarea, year, retail_price - ref_value]
+    ref_price_table = read_table(m.calibrator_file)
+
+    ref_value, area, subarea, year = get_ref_price(ref_price_table, idxs, yr_idxs, hr_idxs, retail_price)
+
+    subset = filter(row -> row.area == "" && row.subarea == "", ref_price_table)
+   
+    if nrow(subset) == 0
+        @warn "No full model reference price row. Outputting calibration values without a full adjustment."
+        elserv_ratio = 0
+    elseif nrow(subset) > 1
+        error("Multiple full model reference price rows.")
+    else
+        elserv_total_all = compute_result(data, :bus, :elserv_total, :, yr_idxs, hr_idxs)
+        elserv_ratio = elserv_total/elserv_total_all
+    end
+
+    return retail_price, [area, subarea, year, ref_value, retail_price, ref_value - retail_price, elserv_total, elserv_ratio]
 end
 
 function compute_retail_price(::Val{:calibrate}, m, data, price_type::Symbol,  idxs, yr_idxs, hr_idxs)
@@ -139,9 +154,8 @@ end
 
 export compute_retail_price
 
-function get_ref_price(ref_price_file, idxs, yr_idxs, hr_idxs, retail_price)
+function get_ref_price(ref_price_table, idxs, yr_idxs, hr_idxs, retail_price)
     # get corresponding price values
-    ref_price_table = read_table(ref_price_file)
 
     if isempty(idxs)
         area = ""
