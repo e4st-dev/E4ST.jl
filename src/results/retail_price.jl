@@ -16,6 +16,14 @@ Reference the results formulas for more detailed descriptions of each of these t
 
 The results template can calculate annual rates by specified region, but is not set up for hourly rates. 
 """
+
+# to do: option for 1 year or all years
+# to do: divide revenue by consumption?
+# to do: state and national calibration
+# to do: update docstrings
+# to do: improve dispatch for cal table vs cal
+# adjust calibrator table to be read in with right format, or change function to read in correctly
+
 function setup_retail_price!(config, data)
     retail_price = OrderedDict{Symbol, OrderedDict{Symbol,OrderedDict{Symbol,Function}}}()
     data[:retail_price] = retail_price
@@ -101,7 +109,7 @@ function compute_retail_price(data, price_type::Symbol, ref_price_file::String, 
     elserv_total = compute_result(data, :bus, :elserv_total, idxs, yr_idxs, hr_idxs)
     retail_price =  value/elserv_total
 
-    ref_value, area, subarea, year = compute_calibrator_value(ref_price_file, idxs, yr_idxs, hr_idxs, retail_price)
+    ref_value, area, subarea, year = get_ref_price(ref_price_file, idxs, yr_idxs, hr_idxs, retail_price)
     return retail_price, [area, subarea, year, retail_price - ref_value]
 end
 
@@ -127,7 +135,7 @@ end
 
 export compute_retail_price
 
-function compute_calibrator_value(ref_price_file, idxs, yr_idxs, hr_idxs, retail_price)
+function get_ref_price(ref_price_file, idxs, yr_idxs, hr_idxs, retail_price)
     # get corresponding price values
     ref_price_table = read_table(ref_price_file)
 
@@ -156,6 +164,7 @@ function compute_calibrator_value(ref_price_file, idxs, yr_idxs, hr_idxs, retail
     if length(ref_values) > 1
         error("Retail price calibator is not set up to handle multiple referenc prices")
     elseif isempty(ref_values)
+        @warn "There is no reference retail price for area $(area) and subarea $(subarea). This region will not be calibrated."
         push!(ref_values, retail_price)
     end
    
@@ -189,6 +198,13 @@ function get_calibrator_value(calibrator_file, idxs, yr_idxs, hr_idxs)
             push!(cal_values, row[year])
         end
     end 
+
+    if length(cal_values) > 1
+        error("Retail price calibator is not set up to handle multiple referenc prices")
+    elseif isempty(cal_values)
+        @warn "There is no calibrator value for area $(area) and subarea $(subarea). This region will not be calibrated."
+        push!(cal_values, 0)
+    end
    
     return sum(cal_values)
 end
