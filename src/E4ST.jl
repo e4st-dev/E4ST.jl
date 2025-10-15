@@ -74,6 +74,7 @@ include("types/modifications/LeftJoinCols.jl")
 include("types/modifications/CapacityConstraint.jl")
 include("types/modifications/PerfectForesight.jl")
 include("types/modifications/RetailPriceCalibration.jl")
+include("types/modifications/RetailPrice.jl")
 
 # Include Policies
 include("types/policies/ITC.jl")
