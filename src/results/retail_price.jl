@@ -24,6 +24,8 @@ and the true retail rate to use as a calibrator value. If cal_mode is set to `ca
 
 
 # to do: update docstrings
+# double check that get_cal_values will error if looking for national price and there isn't a ref
+# double check that cal_mode calibration will error (or warn?) if looking for retail price that doesn't have a calibrator
 # adjust calibrator table to be read in with right format, or change function to read in correctly
 
 function setup_retail_price!(config, data)
@@ -62,6 +64,7 @@ function get_retail_price(data)
     return data[:retail_price]::OrderedDict{Symbol, OrderedDict{Symbol,OrderedDict{Symbol,Function}}}
 end
 export get_retail_price
+
 """
     add_price_term!(data, price_type::Symbol, table_name::Symbol, result_name::Symbol, oper)
 """
@@ -80,10 +83,12 @@ function add_price_term!(data, price_type::Symbol, table_name::Symbol, result_na
 end
 export add_price_term!
 
+# wrapper function that dispatches different methods based on cal_mod arg
 function compute_retail_price(m, data, price_type::Symbol, idxs, yr_idxs, hr_idxs)
     compute_retail_price((Val(Symbol(m.cal_mode))), m, data, price_type, idxs, yr_idxs, hr_idxs)
 end
 
+# specialized method to calculate retail price for cal_mode none
 function compute_retail_price(::Val{:none}, m, data, price_type::Symbol, idxs...)
     value = 0.0
     retail_price = get_retail_price(data)
@@ -94,11 +99,13 @@ function compute_retail_price(::Val{:none}, m, data, price_type::Symbol, idxs...
             value += res
         end
     end
+
     # divide by total generation to get dollars per MWh
     elserv_total = compute_result(data, :bus, :elserv_total, idxs...)
     return value/elserv_total
 end
 
+# specialized method to calculate retail price for cal_mode get_cal_values
 function compute_retail_price(::Val{:get_cal_values}, m, data, price_type::Symbol, idxs, yr_idxs, hr_idxs)
     value = 0.0
     retail_price = get_retail_price(data)
@@ -113,12 +120,11 @@ function compute_retail_price(::Val{:get_cal_values}, m, data, price_type::Symbo
     elserv_total = compute_result(data, :bus, :elserv_total, idxs, yr_idxs, hr_idxs)
     retail_price =  value/elserv_total
 
-    ref_price_table = read_table(m.calibrator_file)
-
-    ref_value, area, subarea, year = get_ref_price(ref_price_table, idxs, yr_idxs, hr_idxs, retail_price)
+    ref_value, area, subarea, year = get_ref_price(m.calibrator_file, idxs, yr_idxs, hr_idxs, retail_price)
 
     subset = filter(row -> row.area == "" && row.subarea == "", ref_price_table)
-   
+
+    # warn if there is no average reference price, error if more than 1
     if nrow(subset) == 0
         @warn "No full model reference price row. Outputting calibration values without a full adjustment."
         elserv_ratio = 0
@@ -154,9 +160,12 @@ end
 
 export compute_retail_price
 
+  # get corresponding price values
 function get_ref_price(ref_price_table, idxs, yr_idxs, hr_idxs, retail_price)
-    # get corresponding price values
+    # read in the reference prices
+    ref_price_table = read_table(m.calibrator_file)
 
+    # checks that there is only one filter, outside of hour and year filters
     if isempty(idxs)
         area = ""
         subarea = ""
@@ -167,34 +176,34 @@ function get_ref_price(ref_price_table, idxs, yr_idxs, hr_idxs, retail_price)
         error("Retail price calibrator is not set up to handle multiple filters.")
     end
 
-    @assert yr_idxs != Any[] "Retail price calibrator is not set up to handle average retail rate across years."
-    year = yr_idxs
-
-    @assert hr_idxs == Colon() "Retail price calibrator is not set up to handle hourly retail rates."
-
+    # for each result row, get the corresponding reference price
     ref_values = []
     for (i, row) in enumerate(eachrow(ref_price_table))
-        if row.area == area && row.subarea ==subarea && row.year == year
+        if row.area == area && row.subarea == subarea && row.year == yr_idxs
             push!(ref_values, row["ref_price"])
         elseif row.area == area && row.subarea ==subarea && isempty(row.year) # if no year provided, ref price is used for all years 
             push!(ref_values, row["ref_price"])
         end
     end 
     
+    # error if there are multiple corresponding ref prices, and warn if there is none
     if length(ref_values) > 1
-        error("Retail price calibator is not set up to handle multiple referenc prices")
+        error("Retail price calibator is not set up to handle multiple reference prices.")
     elseif isempty(ref_values)
-        @warn "There is no reference retail price for area $(area) and subarea $(subarea). This region will not be calibrated."
+        @warn "There is no reference retail price for area `$(area)` and subarea `$(subarea)`. This region will not get a calibration value."
         push!(ref_values, retail_price)
     end
-   
-    return sum(ref_values), area, subarea, year
+    
+    return sum(ref_values), area, subarea, yr_idxs
 end
 
+# get the corresponding calibrator values
 function get_calibrator_value(calibrator_file, idxs, yr_idxs, hr_idxs)
-    # adjust retail price with calibrator values
+    
+    # read in table with cal values
     cal_table = read_table(calibrator_file)
 
+    # checks that there is only one filter, outside of hour and year filters
     if isempty(idxs)
         area = ""
         subarea = ""
@@ -205,24 +214,19 @@ function get_calibrator_value(calibrator_file, idxs, yr_idxs, hr_idxs)
         error("Retail price calibrator is not set up to handle multiple filters.")
     end
 
-    @assert yr_idxs != Any[] "Retail price calibrator is not set up to handle average retail rate across years."
-    year = yr_idxs
-
-    @assert hr_idxs == Colon() "Retail price calibrator is not set up to handle hourly retail rates."
-
+    # for each result row, get the corresponding calibrator value
     cal_values =[]
     for (i, row) in enumerate(eachrow(cal_table))
-        if row.area == "" && row.subarea == "" && !isempty(idxs)
-            push!(cal_values, row[year])
-        elseif row.area == area && row.subarea ==subarea
-            push!(cal_values, row[year])
+        if row.area == area && row.subarea == area
+            push!(cal_values, row[yr_idxs])
         end
     end 
 
+    # error if there are multiple corresponding calibrator values, and warn if there is none
     if length(cal_values) > 1
-        error("Retail price calibator is not set up to handle multiple referenc prices")
+        error("Retail price calibator is not set up to handle multiple calibrator values for the same region.")
     elseif isempty(cal_values)
-        @warn "There is no calibrator value for area $(area) and subarea $(subarea). This region will not be calibrated."
+        @warn "There is no calibrator value for area `$(area)` and subarea `$(subarea)`. This region will not be calibrated."
         push!(cal_values, 0)
     end
    

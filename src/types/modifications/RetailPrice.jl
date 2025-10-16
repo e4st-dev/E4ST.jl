@@ -2,22 +2,28 @@
 """
     RetailPrice(;file, name, col_sort=:initial_order) <: Modification
 
-This is a mod that outputs computed results, given a `file` representing the template of the things to be aggregated.  `name` is simply the name of the modification, and will be used as the root for the filename that the aggregated information is saved to.  This can be used for computing results or welfare.
+This is a mod that outputs retail prices, given a `file` that indicates for which regions and years the retail price should be calculated.  `name` is simply the name of the modification, and will be used as the root for the filename that the retail rates are saved to. 
+The mod pulls values across different tables to calculate one retail rate. The specific terms that go into this cross-table calculation can be found in retail_price.jl. 
+
+The mod will also adjust the retail price values through calibration based on the `cal_mode` argument. If `cal_mode` is set to `none`, the retail prices will be unadjusted. If `cal_mode` is `get_val_values` the mod will use the reference price values to get calibration
+values. If `cal_mod` is set to `calibrate`, the calibrator values will be read in from the `calibrator_file` and used to adjust the calculated retail rates.
 
 ## Keyword Arguments
-* `file` - the file pointing to a table specifying which results to calculate
+* `file` - the file pointing to a table specifying which retail prices to calculate
 * `name` - the name of the mod, do not need to specify in a config file
+* `cal_mode` - a string that indicates the calibration mode. Options are `none`, `get_cal_values`, and `calibrate`. Defaults to `none`.
+* `calibrator_file` - the file pointing to a table that contains reference price values or calibration values, depending on `cal_mode`.
 * `col_sort` - the column(s) to sort by.  Defaults to the order in which they were originally specified.
-* `cross_table` - indicates that the result is pulling results from multiple tables. Defaults to false.
 
 The `file` should represent a csv table with the following columns:
 * `table_name` - the name of the table being aggregated.  i.e. `gen`, `bus`, etc.  If you leave it empty, it will call `compute_welfare` instead of `compute_result`
 * `result_name` - the name of the column in the table being aggregated.  Note that the column must have a Unit accessible via [`get_table_col_unit`](@ref).
 * `filter_` - the filtering conditions for the rows of the table. I.e. `filter1`.  See [`parse_comparisons`](@ref) for information on what types of filters could be provided.
 * `filter_years` - the filtering conditions for the years to be aggregated.  See [`parse_year_idxs`](@ref) for information on the year filters.
-* `filter_hours` - the filtering conditions for the hours to be aggregated.  See [`parse_hour_idxs`](@ref) for information on the hour filters.
+* `filter_hours` - the filtering conditions for the hours to be aggregated.  See [`parse_hour_idxs`](@ref) for information on the hour filters. the retail rate mod is not set up to calculate hourly values.
 
 Note that, for the `filter_` or `filter_hours` columns, if a column name of the data table (or hours table) is given, new rows will be created for each unique value of that column.  I.e. if a value of `gentype` is given, there will be made a new row for `gentype=>coal`, `gentype=>ng`, etc.
+The calibration feature can only handle one filter_ column beyond filter_hours and filter_years.
 """
 
 struct RetailPrice <: Modification
@@ -40,6 +46,7 @@ struct RetailPrice <: Modification
             hasproperty(table, col_name) || continue
             force_table_types!(table, name, col_name=>String)
         end
+        # errors if no calibrator file is provided
         if cal_mode != "none"
             isempty(calibrator_file) && error("Calibrator file required when cal_mode is set to $(cal_mode).")
         end
@@ -54,7 +61,8 @@ mod_rank(::Type{<:RetailPrice}) = 5.0
 
 fieldnames_for_yaml(::Type{RetailPrice}) = (:file,)
 
-
+# function takes the table from file and expands the filter columns so there is a row for each calculated result
+# eg if file has a filter_ with the value "state", the table will be expanded so that there is a row for each state
 function modify_results!(m::RetailPrice, config, data)
     table = copy(m.table)
     table.initial_order = 1:nrow(table)
@@ -98,52 +106,54 @@ function modify_results!(m::RetailPrice, config, data)
         not_pair_idx = findfirst(not_a_full_filter, eachrow(table))
     end
 
+    # function that calculates retail price for each row in table
     get_retail_price(m, config, data, table)
 
     return
 end
 
+function extract_results(m::RetailPrice, config, data)
+    results = get_results(data)
+    # haskey(results, m.name) || modify_results!(m, config, data)
+    modify_results!(m, config, data)
+    return get_result(data, m.name)
+end
 
-# function extract_results(m::RetailPrice, config, data)
-#     results = get_results(data)
-#     # haskey(results, m.name) || modify_results!(m, config, data)
-#     modify_results!(m, config, data)
-#     return get_result(data, m.name)
-# end
-
-# function combine_results(m::RetailPrice, post_config, post_data)
+function combine_results(m::RetailPrice, post_config, post_data)
     
-#     res = join_sim_tables(post_data, :value)
+    res = join_sim_tables(post_data, :value)
 
-#     CSV.write(get_out_path(post_config, "$(m.name)_combined.csv"), res)
-# end
+    CSV.write(get_out_path(post_config, "$(m.name)_combined.csv"), res)
+end
 
+# wrapper function that will dispatch a different get_retail_price method based on cal_mode arg
 function get_retail_price(m::RetailPrice, config, data, table)
     @info "Calculating results for $(nrow(table)) rows in RetailPrice $(m.name)"
     get_retail_price((Val(Symbol(m.cal_mode))), m, config, data, table)
 end
 
+# specialized method for retail rates with no cal_mode none
 function get_retail_price(::Val{:none}, m, config, data, table)
 
     if !hasproperty(table, :value)
         table.value = Vector{Union{Missing, Float64}}(missing, nrow(table))
     end
     
-    for i in 1:nrow(table)
-        table_name = table[i, :table_name]
-        result_name = table[i,:result_name]
-        idxs = parse_comparisons(table[i,:])
-        yr_idxs = parse_year_idxs(table[i,:filter_years])
-        hr_idxs = parse_hour_idxs(table[i,:filter_hours])
-        
-        if hr_idxs !== Colon()
-            @warn "Hourly retail price calculations are not set up."
-            return 0.0
-        else
-            val =  compute_retail_price(m, data, result_name, idxs, yr_idxs, hr_idxs)
-        end
-        table.value[i]= val 
-    end    
+    
+    for row in eachrow(table)
+        table_name = row[:table_name]
+        result_name = row[:result_name]
+
+        idxs = parse_comparisons(row)
+        yr_idxs = parse_year_idxs(row[:filter_years])
+        hr_idxs = parse_hour_idxs(row[:filter_hours])
+
+        @assert hr_idxs == Colon() "Retail price mod is not set up to handle hourly retail rates."
+
+        val =  compute_retail_price(m, data, result_name, idxs, yr_idxs, hr_idxs)
+
+        row[:value] = val
+    end
     sort!(table, m.col_sort)
     select!(table, Not(:initial_order))
     CSV.write(get_out_path(config, string(m.name, ".csv")), table)
@@ -151,60 +161,79 @@ function get_retail_price(::Val{:none}, m, config, data, table)
     results[m.name] = table
 end
 
+# specialized method for retail rates with no cal_mode get_cal_values
 function get_retail_price(::Val{:get_cal_values}, m::RetailPrice, config, data, table)
-    cal_table = DataFrame(area = String[], subarea = [], year=[], ref_price =[], retail_price = [], cal_value = [], elserv_total = [], elserv_ratio=[])
 
+    # set up table that will contain calibrator values
+    cal_table = DataFrame(
+    area         = String[],
+    subarea      = String[],
+    year         = String[],
+    ref_price    = Float64[],
+    retail_price = Float64[],
+    cal_value    = Float64[],
+    elserv_total = Float64[],
+    elserv_ratio = Float64[]
+    )
+
+    # add value column to results table if it doesn't exist
     if !hasproperty(table, :value)
         table.value = Vector{Union{Missing, Float64}}(missing, nrow(table))
     end
     
-    for i in 1:nrow(table)
-        table_name = table[i, :table_name]
-        result_name = table[i,:result_name]
-        idxs = parse_comparisons(table[i,:])
-        yr_idxs = parse_year_idxs(table[i,:filter_years])
-        hr_idxs = parse_hour_idxs(table[i,:filter_hours])
-        
-        if hr_idxs !== Colon()
-            @warn "Hourly retail price calculations are not set up."
-            return 0.0
-        else     
-            val, cal_row = compute_retail_price(m, data, result_name, idxs, yr_idxs, hr_idxs)
-            push!(cal_table, cal_row)
-        end
-        table.value[i]= val 
-    end    
+    for row in eachrow(table)
+        table_name = row[:table_name]
+        result_name = row[:result_name]
+
+        idxs = parse_comparisons(row)
+        yr_idxs = parse_year_idxs(row[:filter_years])
+        hr_idxs = parse_hour_idxs(row[:filter_hours])
+
+        @assert yr_idxs != Any[] "Retail price calibrator is not set up to handle average retail rate across years."
+        @assert hr_idxs == Colon() "Retail price mod is not set up to handle hourly retail rates."
+
+        val, cal_row = compute_retail_price(m, data, result_name, idxs, yr_idxs, hr_idxs)
+
+        push!(cal_table, cal_row)
+        row[:value] = val
+    end
+
     sort!(table, m.col_sort)
     select!(table, Not(:initial_order))
     CSV.write(get_out_path(config, string(m.name, ".csv")), table)
     results = get_results(data)
     results[m.name] = table
 
+    # second calibrator adjustment to calibrate with full region
     full_cal!(m, data, table, cal_table)
     CSV.write(get_out_path(config, string(m.name, "_cals.csv")), cal_table)
 
 end
 
 function get_retail_price(::Val{:calibrate}, m, config, data, table)
+
+    # add value column to results table if it doesn't exist
     if !hasproperty(table, :value)
         table.value = Vector{Union{Missing, Float64}}(missing, nrow(table))
     end
     
-    for i in 1:nrow(table)
-        table_name = table[i, :table_name]
-        result_name = table[i,:result_name]
-        idxs = parse_comparisons(table[i,:])
-        yr_idxs = parse_year_idxs(table[i,:filter_years])
-        hr_idxs = parse_hour_idxs(table[i,:filter_hours])
-        
-        if hr_idxs !== Colon()
-            @warn "Hourly retail price calculations are not set up."
-            return 0.0
-        else
-            val = compute_retail_price(m, data, result_name, idxs, yr_idxs, hr_idxs)
-        end
-        table.value[i]= val 
-    end    
+      
+     for row in eachrow(table)
+        table_name = row[:table_name]
+        result_name = row[:result_name]
+
+        idxs = parse_comparisons(row)
+        yr_idxs = parse_year_idxs(row[:filter_years])
+        hr_idxs = parse_hour_idxs(row[:filter_hours])
+
+        @assert yr_idxs != Any[] "Retail price calibrator is not set up to handle average retail rate across years."
+        @assert hr_idxs == Colon() "Retail price mod is not set up to handle hourly retail rates."
+
+        val = compute_retail_price(m, data, result_name, idxs, yr_idxs, hr_idxs)
+
+        row[:value] = val
+    end
+
     sort!(table, m.col_sort)
     select!(table, Not(:initial_order))
     CSV.write(get_out_path(config, string(m.name, ".csv")), table)
@@ -212,20 +241,25 @@ function get_retail_price(::Val{:calibrate}, m, config, data, table)
     results[m.name] = table    
 end
 
+# final calibration value for full model
+# example: for a state level model, ensure that the weighted average prices of all states are calibrated to the national average price
 function full_cal!(m, data, table, cal_table)
-    ref_price_table = read_table(m.calibrator_file)
-    subset = filter(row -> row.area == "" && row.subarea == "", ref_price_table)
 
+    ref_price_table = read_table(m.calibrator_file)
+
+    # get the weighted average retail price acorss all areas
+    avg_price = sum(cal_table.ref_price .* cal_table.elserv_ratio)
+    
+    subset = filter(row -> row.area == "" && row.subarea == "", ref_price_table)
+    
+    # get the average reference price
     if nrow(subset) == 0
-        @warn "No full model reference price row. Outputting calibration values without a full adjustment."
-    elseif nrow(subset) > 1
-        error("Multiple full model reference price rows.")
+        avg_price_ref = avg_price # set refrence price to the calculated average price so that the calibrator value will be 0
     else
         avg_price_ref = subset[1, :ref_price]
     end
-
-    avg_price = sum(cal_table.ref_price .* cal_table.elserv_ratio)
     
+    # calculate and add the final cal value to existing cal values
     for row in eachrow(cal_table[(cal_table.area .!= "") .& (cal_table.subarea .!= ""), :])
         println(row[:subarea])
         cal = (avg_price_ref - avg_price) * row[:elserv_ratio]
