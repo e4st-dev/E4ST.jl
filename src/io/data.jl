@@ -1660,7 +1660,17 @@ Returns the number of years in this simulation
 function get_num_years(data)
     return length(get_years(data))
 end
-export get_num_years, get_years
+
+"""
+    get_first_sim_year(data) -> year
+
+Returns the first year as a string (i.e. "y2022") of the years being represented in the sim.
+"""
+function get_first_sim_year(data)
+    return data[:years][1]::String
+end
+
+export get_num_years, get_years, get_first_sim_year
 
 """
     get_bus_gens(data, bus_idx)

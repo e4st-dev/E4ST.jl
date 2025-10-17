@@ -194,7 +194,7 @@ function get_retail_price(::Val{:get_cal_values}, m::RetailPrice, config, data, 
 
         val, cal_row = compute_retail_price(m, data, result_name, idxs, yr_idxs, hr_idxs)
 
-        push!(cal_table, cal_row)
+        !isempty(cal_row) && push!(cal_table, cal_row)
         row[:value] = val
     end
 
@@ -206,6 +206,8 @@ function get_retail_price(::Val{:get_cal_values}, m::RetailPrice, config, data, 
 
     # second calibrator adjustment to calibrate with full region
     full_cal!(m, data, table, cal_table)
+    select!(cal_table, 
+    [c for c in (:area, :subarea, :year, :cal_value) if any(!ismissing, cal_table[!, c]) && any(x -> x != "" && !ismissing(x), cal_table[!, c])])
     CSV.write(get_out_path(config, string(m.name, "_cals.csv")), cal_table)
 
 end
@@ -217,8 +219,7 @@ function get_retail_price(::Val{:calibrate}, m, config, data, table)
         table.value = Vector{Union{Missing, Float64}}(missing, nrow(table))
     end
     
-      
-     for row in eachrow(table)
+    for row in eachrow(table)
         table_name = row[:table_name]
         result_name = row[:result_name]
 
@@ -251,7 +252,7 @@ function full_cal!(m, data, table, cal_table)
     avg_price = sum(cal_table.ref_price .* cal_table.elserv_ratio)
     
     subset = filter(row -> row.area == "" && row.subarea == "", ref_price_table)
-    
+
     # get the average reference price
     if nrow(subset) == 0
         avg_price_ref = avg_price # set refrence price to the calculated average price so that the calibrator value will be 0
@@ -261,11 +262,8 @@ function full_cal!(m, data, table, cal_table)
     
     # calculate and add the final cal value to existing cal values
     for row in eachrow(cal_table[(cal_table.area .!= "") .& (cal_table.subarea .!= ""), :])
-        println(row[:subarea])
+        # average calibrator value is the differnce between the reference price minus the calculated price weighted by load
         cal = (avg_price_ref - avg_price) * row[:elserv_ratio]
-        println(row[:cal_value])
-        println(row[:retail_price])
-        println(row[:ref_price])
         row[:cal_value] += cal
     end
 
