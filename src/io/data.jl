@@ -585,9 +585,11 @@ Sets up the invest cost gen table. This is necessary when gens are aggregated so
 Creates age column which is a ByYear column. Unbuilt generators have a negative age before year_on.
 """
 function setup_table!(config, data, ::Val{:past_invest})
-    if !haskey(config, :past_invest)
+ 
+    if !haskey(config, :past_invest_file)
         return
     end
+
     bus = get_table(data, :bus)
     past_invest = get_table(data, :past_invest)
     years = get_years(data)

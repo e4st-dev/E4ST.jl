@@ -12,8 +12,10 @@ function setup_results_formulas!(config, data)
         
     results_formulas_table = read_table(data, results_formulas_file, :results_formulas)
 
-    for row in eachrow(results_formulas_table)
-        add_results_formula!(data, row.table_name, row.result_name, row.formula, row.unit, row.description)
+    foreach(eachrow(results_formulas_table)) do row
+        haskey(data, row.table_name) ?
+            add_results_formula!(data, row.table_name, row.result_name, row.formula, row.unit, row.description) :
+            @warn "There is no table $(row.table_name) in data. $(row.result_name) will not be added to formulas."
     end
 end
 export setup_results_formulas!
@@ -809,8 +811,8 @@ function (f::CostOfServicePastCost)(data, table, idxs, yr_idxs, hr_idxs)
     res = 0.0
     for i in idxs
         rf = reg_factor[i]
-        rev_prelim = compute_result(data, f.table_name, :past_invest_cost_total, i, yr_idxs, hr_idxs)
-        prod = rf * rev_prelim
+        past_invest = compute_result(data, f.table_name, :past_invest_cost_total, i, yr_idxs, hr_idxs) 
+        prod = rf * past_invest
         res += prod
     end
     return res
