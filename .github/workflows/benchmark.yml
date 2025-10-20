@@ -24,5 +24,7 @@ jobs:
         run: julia -e 'using BenchmarkCI; BenchmarkCI.judge(baseline="origin/main")'
       - name: Post results
         run: julia -e 'using BenchmarkCI; BenchmarkCI.postjudge()'
+      - name: Show Julia environment info
+        run: julia -e 'println("Julia version: ", VERSION); using Pkg; Pkg.status()'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
