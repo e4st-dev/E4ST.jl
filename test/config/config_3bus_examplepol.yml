@@ -12,9 +12,9 @@ year_gen_data: y2020
 other_config_files:
   - "config_other.yml"
 years:
-  - y2030
-  - y2035
-  - y2040
+  - 2030
+  - 2035
+  - 2040
 optimizer:
   type: "HiGHS" # See available options here: https://docs.juliahub.com/HiGHS/WFic5/0.3.1/
   dual_feasibility_tolerance: 1e-5

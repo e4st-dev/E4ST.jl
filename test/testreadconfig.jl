@@ -28,6 +28,7 @@
 
     @test config[:test_param1] == "RIGHT"
     @test config[:test_param2] == "RIGHT"
+    @test config[:years] == ["y2030", "y2035", "y2040"]
 
     @testset "Test Loading Optimizer from Config" begin
         attrib = E4ST.optimizer_attributes(config)
