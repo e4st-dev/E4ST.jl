@@ -813,10 +813,10 @@ function get_past_invest_percentages(g, years)
     return OriginalContainer(0.0, ByYear(v))
 end
 
-function scale!(x::Float64, factor::Float64)
+function scale!(x::Number, factor::Number)
     return x * factor
 end
-function scale!(x::AbstractArray, factor::Float64)
+function scale!(x::AbstractArray, factor::Number)
     x .*= factor
     return x
 end
