@@ -335,6 +335,15 @@ end
         int_years = [2020, 2025]
         @test year2str(int_year) isa AbstractString
         @test year2str.(int_years) isa Vector{String}
+
+        @test scale!(1,2) == 2
+        @test scale!([1,1,1],2) == [2,2,2]
+
+        cmp = comparison("23", Int)
+        @test cmp(23) == true
+        cmp = comparison(("dd", "zz"), Union{Missing, String})
+        @test cmp("aa") == false
+        @test cmp("mm") == true
     end
 
 end
