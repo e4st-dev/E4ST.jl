@@ -1,4 +1,4 @@
-import E4ST: Container, ByNothing, ByHour, ByYear, ByYearAndHour, OriginalContainer, scale_hourly, scale_yearly, add_hourly, add_yearly, set_hourly, set_yearly, get_original
+import E4ST: Container, ByNothing, ByHour, ByYear, ByYearAndHour, OriginalContainer, scale_hourly, scale_yearly, add_hourly, add_yearly, set_hourly, set_yearly, get_original, scale!, comparison
 function Base.:(==)(f1::ComposedFunction, f2::ComposedFunction)
     return (f1.inner == f2.inner) && (f1.outer == f2.outer)
 end
