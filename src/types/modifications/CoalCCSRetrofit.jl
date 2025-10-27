@@ -17,6 +17,9 @@ Other Requirements:
 * The `gen` table must either have a `pcap_plant_avg` column, or it will be assumed that each generator represents a single plant.  This value is used with the cost curves.
 
 Cost adjustment values come from a regression in EPA Schedule 6 data.
+
+
+Note: If simulation includes capacity adjustments (e.g. yearly retirements via Adjust mod) make sure the adjusment comes before Retrofits so that the penalty is applied to the adjusted capacity value.
 """
 Base.@kwdef struct CoalCCSRetrofit <: Retrofit 
     crf::Float64 = 0.115642438 # 12 year economic lifetime
@@ -38,6 +41,9 @@ function init!(ret::CoalCCSRetrofit, config, data)
     if !hasproperty(gen, :pcap_plant_avg)
         @warn "gen table does not have column pcap_plant_avg, representing the average nameplate plant capacity of a generator, in MW.  \nAssuming that the average plant capacity is the same as the max capacity."
         add_table_col!(data, :gen, :pcap_plant_avg, copy(gen.pcap_max), MWCapacity, "Average MW capacity of each plant in a representative generator.")
+    elseif any(x -> x == -Inf, gen.pcap_plant_avg)
+        @warn "gen table has some default pcap_plant_avg values (-inf), representing the average nameplate plant capacity of a generator, in MW.  \nFor these values, assuming that the average plant capacity is the same as the max capacity."
+        gen.pcap_plant_avg = ifelse.(gen.pcap_plant_avg .== -Inf, gen.pcap_max, gen.pcap_plant_avg)  
     end
     return
 end
@@ -62,7 +68,7 @@ function retrofit!(ret::CoalCCSRetrofit, newgen)
     if pcap_pen < 0
         @warn "Pcap penalty is less than zero for CoalCCSRetrofit with heat_rate = $hr, and pcap_plant_avg=$pcap_avg"
     end
-
+    
     # Adjust the costs.  These costs come from a regression in EPA
     # Schedule 6 data. For more information, see the folder:
     # L:\Project-Gurobi\Workspace3\E4ST_InputDev\02_gen\03_NewGenerators\CCS\EPA
@@ -78,9 +84,14 @@ function retrofit!(ret::CoalCCSRetrofit, newgen)
     haskey(newgen, :emis_nox)  && (newgen[:emis_nox]  *= ((1 - ret.reduce_nox_percent)  * (1 + hr_pen)))
     haskey(newgen, :emis_so2)  && (newgen[:emis_so2]  *= ((1 - ret.reduce_so2_percent)  * (1 + hr_pen)))
     haskey(newgen, :emis_pm25) && (newgen[:emis_pm25] *= ((1 - ret.reduce_pm25_percent) * (1 + hr_pen)))
-    newgen[:pcap_max] *= (1 - pcap_pen)
 
+    # works with a multi-year of single year pcap-max
+    newgen[:pcap_max] = scale!(newgen[:pcap_max], 1-pcap_pen)
+    
     newgen[:gentype] = "coal_ccus_retrofit"
+    
+    # adjust plant id column so that retrofits are distinct from non-retrofits
+    haskey(newgen, :plant_id) && (newgen[:plant_id] = string(newgen[:plant_id], " retrofit"))
 
     newgen[:econ_life] = ret.econ_life
     # if year_shutdown is within new econ_life, extend to the end of the new econ life
