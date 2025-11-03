@@ -31,9 +31,10 @@ struct RetailPrice <: Modification
     name::Symbol
     table::DataFrame
     cal_mode:: String
+    ref_price_file::String
     calibrator_file::String
     col_sort
-    function RetailPrice(;file, name, calibrator_file="", cal_mode="none", col_sort=:initial_order)
+    function RetailPrice(;file, name, ref_price_file="", calibrator_file="", cal_mode="none", col_sort=:initial_order)
         table = read_table(file)
         force_table_types!(table, name, 
             :table_name=>Symbol,
@@ -47,10 +48,12 @@ struct RetailPrice <: Modification
             force_table_types!(table, name, col_name=>String)
         end
         # errors if no calibrator file is provided
-        if cal_mode != "none"
+        if cal_mode == "get_cal_values"
+            isempty(ref_price_file) && error("Ref price file required when cal_mode is set to $(cal_mode).")
+        elseif cal_mode == "calibrate"
             isempty(calibrator_file) && error("Calibrator file required when cal_mode is set to $(cal_mode).")
         end
-        return new(file, name, table,  cal_mode, calibrator_file, col_sort)
+        return new(file, name, table,  cal_mode, ref_price_file, calibrator_file, col_sort)
     end
 end
 
@@ -60,6 +63,31 @@ export RetailPrice
 mod_rank(::Type{<:RetailPrice}) = 5.0
 
 fieldnames_for_yaml(::Type{RetailPrice}) = (:file,)
+
+
+function summarize_table(::Val{:ref_price})
+    df = TableSummary()
+    push!(df,
+        (:area, String, NA, true, "The area that the price applies for i.e. `nation`.  Leave blank if grid-wide"),
+        (:subarea, String, NA, true, "The subarea that the price applies for i.e. `narnia`.  Leave blank if grid-wide"),
+        (:year, String, NA, false, "Year of corresponding reference price. If no column, them same calibrator value will be applied in each year."),
+        (:ref_price, Float64, DollarsPerMWhServed, true, "Reference price for retail rate in \$/MWh."),
+    )
+    return df
+end
+
+
+ function summarize_table(::Val{:retail_calibrator})
+    df = TableSummary()
+    push!(df,
+        (:area, String, NA, true, "The area that the price applies for i.e. `nation`.  Leave blank if grid-wide"),
+        (:subarea, String, NA, true, "The subarea that the price applies for i.e. `narnia`.  Leave blank if grid-wide"),
+        (:year, String, NA, false, "Year of corresponding reference price. If no column, the same calibrator value is used in every year."),
+        (:cal_value, Float64, DollarsPerMWhServed, true, "Calibrator value for retail rate in \$/MWh."),
+    )
+    return df
+end
+
 
 # function takes the table from file and expands the filter columns so there is a row for each calculated result
 # eg if file has a filter_ with the value "state", the table will be expanded so that there is a row for each state
@@ -246,7 +274,7 @@ end
 # example: for a state level model, ensure that the weighted average prices of all states are calibrated to the national average price
 function full_cal!(m, data, table, cal_table)
 
-    ref_price_table = read_table(m.calibrator_file)
+    ref_price_table = read_table(m.ref_price_file)
 
     # get the weighted average retail price acorss all areas
     avg_price = sum(cal_table.ref_price .* cal_table.elserv_ratio)

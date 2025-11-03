@@ -42,7 +42,7 @@ function setup_retail_price!(config, data)
     add_price_term!(data, :avg_elec_rate, :gen, :cost_of_service_rebate, -)
     add_price_term!(data, :avg_elec_rate, :storage, :cost_of_service_rebate, -)
 
-    # add_price_term!(data, :avg_elec_rate, :bus, :gs_payment, +)
+    add_price_term!(data, :avg_elec_rate, :bus, :gs_payment, +)
 
     if haskey(config, :past_invest_file)
         add_price_term!(data, :avg_elec_rate, :past_invest, :cost_of_service_past_costs, +)
@@ -121,7 +121,7 @@ function compute_retail_price(::Val{:get_cal_values}, m, data, price_type::Symbo
 
     fsy = get_first_sim_year(data)
 
-    ref_price_table = read_table(m.calibrator_file)
+    ref_price_table = read_table(m.ref_price_file)
    
     if !hasproperty(ref_price_table, :year) 
         if yr_idxs != fsy
