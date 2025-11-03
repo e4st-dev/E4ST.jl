@@ -173,6 +173,7 @@ Modifies the results by adding the following columns to the bus table:
 function modify_results!(pol::GenerationStandard, config, data)
     bus = get_table(data, :bus)
     gen = get_table(data, :gen)
+    nyr = get_num_years(data)
 
     prc_name = Symbol("$(pol.name)_prc")
     cost_name = Symbol("$(pol.name)_cost")
@@ -201,19 +202,19 @@ function modify_results!(pol::GenerationStandard, config, data)
     end
 
     for (k,d) in pol.load_targets
-        targets = d[:targets]
+        targets = collect(values(d[:targets]))[1:nyr]
         filters = d[:filters]
         bus_idxs = get_row_idxs(bus, parse_comparisons(d[:filters]))
         # set to shadow_prc for bus
         for i in bus_idxs
-            bus[i, prc_name] = -(shadow_prc)
+            bus[i, prc_name] = -(shadow_prc) .* targets
         end
     end
 
     # policy cost, price * credit * generation
     add_results_formula!(data, :gen, cost_name, "SumHourlyWeighted($(prc_name), pgen)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
     add_to_results_formula!(data, :gen, :gs_rebate, cost_name)
-    add_results_formula!(data, :bus, cost_name, "SumHourlyWeighted($(prc_name), plserv)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
+    add_results_formula!(data, :bus, cost_name, "SumHourlyWeighted($(prc_name), pl_gs)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
     add_to_results_formula!(data, :bus, :gs_payment, cost_name)
 end
 export modify_results!
