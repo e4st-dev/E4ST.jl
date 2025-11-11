@@ -5,6 +5,8 @@ using JuMP
 using DataFrames
 using Logging
 using BasicInterpolators
+using Statistics
+using CSV
 import OrderedCollections: OrderedDict
 import YAML
 
@@ -27,6 +29,7 @@ rm(joinpath(@__DIR__, "out"), force=true, recursive=true)
     include("testpoltypes.jl")
     include("testoptimizemodel.jl")
     include("testwelfare.jl")
+    include("testretailprice.jl")
     include("testresultprocessing.jl")
     include("testiteration.jl")
     include("teststorage.jl")
@@ -35,6 +38,7 @@ rm(joinpath(@__DIR__, "out"), force=true, recursive=true)
     include("testadjust.jl")
     include("testutil.jl")
     include("testpost.jl")
+    include("testretailprice.jl")
 end
 
 global_logger(original_logger)
