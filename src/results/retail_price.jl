@@ -115,23 +115,23 @@ function compute_retail_price(::Val{:get_cal_values}, m, data, price_type::Symbo
             value += res
         end
     end
+    
     # divide by total generation to get dollars per MWh
     elserv_total = compute_result(data, :bus, :elserv_total, idxs, yr_idxs, hr_idxs)
     retail_price =  value/elserv_total
 
-    fsy = get_first_sim_year(data)
-
+    _yr_idxs = get_year_idxs(data, yr_idxs)
     ref_price_table = read_table(m.ref_price_file)
    
     if !hasproperty(ref_price_table, :year) 
-        if yr_idxs != fsy
+        if _yr_idxs != 1
             return retail_price, []
         else 
             year = ""
             ref_value, area, subarea = get_ref_price(ref_price_table, idxs, hr_idxs, retail_price)
         end
     else
-        ref_value, area, subarea, year = get_ref_price(ref_price_table, idxs, yr_idxs, hr_idxs, retail_price, first_sim_year)
+        ref_value, area, subarea, year = get_ref_price(ref_price_table, idxs, yr_idxs, hr_idxs, retail_price)
     end
     
     subset = filter(row -> row.area == "" && row.subarea == "", ref_price_table)
@@ -164,8 +164,15 @@ function compute_retail_price(::Val{:calibrate}, m, data, price_type::Symbol,  i
     # divide by total generation to get dollars per MWh
     elserv_total = compute_result(data, :bus, :elserv_total, idxs, yr_idxs, hr_idxs)
     retail_price =  value/elserv_total
-   
-    cal = get_calibrator_value(m.calibrator_file, idxs, yr_idxs, hr_idxs)
+
+    cal_table = read_table(m.calibrator_file)
+    cal = get_calibrator_value(data,
+    cal_table,
+    idxs,
+    (hasproperty(cal_table, :year) ? (yr_idxs,) : ())...,  # include yr_idxs only if present
+    hr_idxs
+    )
+    
     retail_price = retail_price + cal
     return retail_price
    
@@ -175,17 +182,18 @@ export compute_retail_price
 
 # get corresponding price values
 function get_ref_price(ref_price_table, idxs, yr_idxs, hr_idxs, retail_price)
-    
     # checks that there is only one filter, outside of hour and year filters
-    area, subarea = 
+    area, subarea =
     isempty(idxs) ? ("", "") :
-    length(idxs) == 1 && idxs[1] isa Pair ? (idxs[1].first, idxs[1].second) :
+    isa(idxs, Pair) ? (string(first(idxs)), string(last(idxs))) :
+    length(idxs) == 1 && isa(idxs[1], Pair) ?
+        (string(first(idxs[1])), string(last(idxs[1]))) :
     throw(ErrorException("Retail price calibrator is not set up to handle multiple filters."))
 
     # for each result row, get the corresponding reference price
     ref_values = []
     for (i, row) in enumerate(eachrow(ref_price_table))
-        if row.area == area && row.subarea == subarea && row.year == yr_idxs
+        if string(row.area) == area && string(row.subarea) == subarea && row.year == yr_idxs
             push!(ref_values, row["ref_price"])
         end
     end 
@@ -195,7 +203,7 @@ function get_ref_price(ref_price_table, idxs, yr_idxs, hr_idxs, retail_price)
 
     isempty(ref_values) && begin
         @warn "There is no reference retail price for area `$(area)` and subarea `$(subarea)`. This region will not get a calibration value."
-        push!(cal_values, 0)
+        push!(ref_values, 0)
     end
     
     return sum(ref_values), area, subarea, yr_idxs
@@ -203,17 +211,18 @@ end
 
 # one ref price for all years
 function get_ref_price(ref_price_table, idxs, hr_idxs, retail_price)
-    
     # checks that there is only one filter, outside of hour and year filters
-    area, subarea = 
+    area, subarea =
     isempty(idxs) ? ("", "") :
-    length(idxs) == 1 && idxs[1] isa Pair ? (idxs[1].first, idxs[1].second) :
+    isa(idxs, Pair) ? (string(first(idxs)), string(last(idxs))) :
+    length(idxs) == 1 && isa(idxs[1], Pair) ?
+        (string(first(idxs[1])), string(last(idxs[1]))) :
     throw(ErrorException("Retail price calibrator is not set up to handle multiple filters."))
 
     # for each result row, get the corresponding reference price
     ref_values = []
     for (i, row) in enumerate(eachrow(ref_price_table))
-        if row.area == area && row.subarea == subarea
+        if string(row.area) == area && string(row.subarea) == subarea
             push!(ref_values, row["ref_price"])
         end
     end 
@@ -223,28 +232,61 @@ function get_ref_price(ref_price_table, idxs, hr_idxs, retail_price)
 
     isempty(ref_values) && begin
         @warn "There is no reference retail price for area `$(area)` and subarea `$(subarea)`. This region will not get a calibration value."
-        push!(cal_values, 0)
+        push!(ref_values, 0)
     end
 
     return sum(ref_values), area, subarea
 end
 
 # get the corresponding calibrator values
-function get_calibrator_value(calibrator_file, idxs, yr_idxs, hr_idxs)
-    
+function get_calibrator_value(data, cal_table, idxs, yr_idxs, hr_idxs)
+   
     # read in table with cal values
-    cal_table = read_table(calibrator_file)
+    yr_idxs = get_year_idxs(data, yr_idxs)
+    cal_table.year .= get_year_idxs(data, cal_table.year)
 
     # checks that there is only one filter, outside of hour and year filters
-    area, subarea = 
+    area, subarea =
     isempty(idxs) ? ("", "") :
-    length(idxs) == 1 && idxs[1] isa Pair ? (idxs[1].first, idxs[1].second) :
+    isa(idxs, Pair) ? (string(first(idxs)), string(last(idxs))) :
+    length(idxs) == 1 && isa(idxs[1], Pair) ?
+        (string(first(idxs[1])), string(last(idxs[1]))) :
     throw(ErrorException("Retail price calibrator is not set up to handle multiple filters."))
-
+    
     # for each result row, get the corresponding calibrator value for area, subarea, year
     cal_values =[]
     for row in eachrow(cal_table)
-        if row.area == area && row.subarea == subarea && (!hasproperty(calibrator_file, :year) || row.year == yr_idxs) # if there is no year column only check that area, subarea match
+        if string(row.area) == area && string(row.subarea) == subarea && row.year == yr_idxs # if there is no year column only check that area, subarea match
+            push!(cal_values, row.cal_value)
+        end
+    end
+
+    # error if there are multiple corresponding calibrator values, and warn if there is none
+    length(cal_values) > 1 && error("Retail price calibrator is not set up to handle multiple calibrator values for the same region.")
+
+    isempty(cal_values) && begin
+        @warn "There is no calibrator value for area `$(area)` and subarea `$(subarea)`. This region will not be calibrated."
+        push!(cal_values, 0)
+    end
+   
+    return sum(cal_values)
+end
+
+
+function get_calibrator_value(data, cal_table, idxs, hr_idxs)
+  
+    # checks that there is only one filter, outside of hour and year filters
+    area, subarea =
+    isempty(idxs) ? ("", "") :
+    isa(idxs, Pair) ? (string(first(idxs)), string(last(idxs))) :
+    length(idxs) == 1 && isa(idxs[1], Pair) ?
+        (string(first(idxs[1])), string(last(idxs[1]))) :
+    throw(ErrorException("Retail price calibrator is not set up to handle multiple filters."))
+    
+    # for each result row, get the corresponding calibrator value for area, subarea, year
+    cal_values =[]
+    for row in eachrow(cal_table)
+        if string(row.area) == area && string(row.subarea) == subarea 
             push!(cal_values, row.cal_value)
         end
     end

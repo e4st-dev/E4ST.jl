@@ -148,9 +148,7 @@ function extract_results(m::RetailPrice, config, data)
 end
 
 function combine_results(m::RetailPrice, post_config, post_data)
-    
     res = join_sim_tables(post_data, :value)
-
     CSV.write(get_out_path(post_config, "$(m.name)_combined.csv"), res)
 end
 
@@ -191,11 +189,10 @@ end
 
 # specialized method for retail rates with no cal_mode get_cal_values
 function get_retail_price(::Val{:get_cal_values}, m::RetailPrice, config, data, table)
-
     # set up table that will contain calibrator values
     cal_table = DataFrame(
     area         = String[],
-    subarea      = String[],
+    subarea      = Union{String, Int}[],
     year         = String[],
     ref_price    = Float64[],
     retail_price = Float64[],
@@ -237,6 +234,7 @@ function get_retail_price(::Val{:get_cal_values}, m::RetailPrice, config, data, 
     select!(cal_table, 
     [c for c in (:area, :subarea, :year, :cal_value) if any(!ismissing, cal_table[!, c]) && any(x -> x != "" && !ismissing(x), cal_table[!, c])])
     CSV.write(get_out_path(config, string(m.name, "_cals.csv")), cal_table)
+    results[:calibrator_values] = cal_table
 
 end
 
