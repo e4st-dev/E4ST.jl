@@ -71,6 +71,7 @@ gen,emission_cost,0,Dollars,Cost for paying all emissions prices.
 gen,emission_cost_per_mwh,emission_cost / egen_total,DollarsPerMWhGenerated,"Average cost, per MWh, for paying emission prices"
 gen,net_pol_cost_for_egus,emission_cap_cost + emission_cost - gs_rebate - invest_subsidy - ptc_subsidy,Dollars,Net cost for all generators from all policy types.
 gen,net_pol_cost_for_egus_per_mwh,net_pol_cost_for_egus / egen_total,DollarsPerMWhGenerated,"Average cost for all generators from all policy types, per MWh."
+gen,net_pol_prod_cost_for_egus,emission_cost - invest_subsidy - ptc_subsidy,Dollars,Net cost for all generators from policy types that impact the production cost.
 gen,net_government_revenue,emission_cap_cost + emission_cost - invest_subsidy - ptc_subsidy - past_invest_subsidy_total,Dollars,Net government revenue earned from generators
 gen,going_forward_cost,production_cost + net_pol_cost_for_egus,Dollars,Total going forward cost
 gen,total_cost_prelim,going_forward_cost + past_invest_cost_total - past_invest_subsidy_total,Dollars,"Total cost of production, including past investment costs and subsidies for investments still within their economic lifetimes, before adjusting for cost-of-service rebates"
@@ -100,8 +101,13 @@ bus,plcurt_min,MinHourly(plcurt),MWCurtailed,Minimum hourly load power curtailed
 bus,electricity_cost,"SumHourlyWeighted(plserv,lmp_elserv)",Dollars,Total cost of electricity served
 bus,electricity_price,electricity_cost / elserv_total,DollarsPerMWhServed,Average cost of electricity served
 bus,merchandising_surplus_total,SumHourly(merchandising_surplus),Dollars,Total merchandising surplus from selling electricity for a higher price at one end of a line than another.  Lines that are split across the region add half of their merchandising surplus to each region.
-bus,distribution_cost_total,"SumHourlyWeighted(plserv, distribution_cost)",Dollars,Total cost to consumers per MWh of served power for the transmission and distribution of the power.
+bus,merchandising_surplus_comp_total,SumHourly(merchandising_surplus),Dollars,Total merchandising surplus from selling electricity for a higher price at one end of a line than another.  Lines that are split across the region add half of their merchandising surplus to each region. Calculated only for competitive regions.
+bus,distribution_cost_total,"SumHourlyWeighted(plserv, distribution_cost)",Dollars,Total cost to consumers for the transmission and distribution of power.
 bus,unserved_load_cost_total, "SumHourlyWeighted(plcurt, voll)",Dollars,Total cost of unserved load.
+bus,gs_payment,0,Dollars,Cost of required credits for clean/renewable generation for all generation standards (RPS's and CES's) for the qualifying demand at each given bus.
 branch,eflow_total,SumHourlyWeighted(pflow),MWhFlow,Total energy flowing in this branch
 branch,pflow_hourly_min,MinHourly(pflow),MWFlow,Minimum sum of power flowing in these branches
 branch,pflow_hourly_max,MaxHourly(pflow),MWFlow,Maximum sum of power flowing in these branches
+past_invest,past_invest_cost_total,"SumHourlyWeighted(past_invest_cost, pcap_inv)",Dollars,"Investment costs from past investments.  This only applies to generators built prior to the simulation.  This includes the full annualized investment cost (""invest_cost""), times the percentage likelihood that the generator would still be within its the economic lifetime for the year calculated, given that endogenously built generators can be built in a range of years"
+past_invest,past_invest_subsidy_total,"SumHourlyWeighted(past_invest_subsidy, pcap_inv)",Dollars,"Investment subsidies from past investments.  This only applies to generators built prior to the simulation.  This includes the full annualized investment subsidy (""invest_subsidy""), times the percentage likelihood that the generator would still be within its the economic lifetime for the year calculated, given that endogenously built generators can be built in a range of years"
+past_invest,cost_of_service_past_costs,CostOfServicePastCost(past_invest),Dollars,"This is a specially calculated result, which is the sum of past_invest_cost_total * reg_factor for each generator"
