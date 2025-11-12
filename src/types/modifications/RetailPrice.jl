@@ -23,7 +23,7 @@ The `file` should represent a csv table with the following columns:
 * `filter_hours` - the filtering conditions for the hours to be aggregated.  See [`parse_hour_idxs`](@ref) for information on the hour filters. the retail rate mod is not set up to calculate hourly values.
 
 Note that, for the `filter_` or `filter_hours` columns, if a column name of the data table (or hours table) is given, new rows will be created for each unique value of that column.  I.e. if a value of `gentype` is given, there will be made a new row for `gentype=>coal`, `gentype=>ng`, etc.
-The calibration feature can only handle one filter_ column beyond filter_hours and filter_years.
+However, the filter must be present in each of tables in the cross-table calculation for retail price or it will error. Further, the calibration feature can only handle one filter_ column beyond filter_hours and filter_years (which will most likely designate the region of interest for the retail price calcualation).
 """
 
 struct RetailPrice <: Modification
