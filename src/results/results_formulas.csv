@@ -101,6 +101,7 @@ bus,plcurt_min,MinHourly(plcurt),MWCurtailed,Minimum hourly load power curtailed
 bus,electricity_cost,"SumHourlyWeighted(plserv,lmp_elserv)",Dollars,Total cost of electricity served
 bus,electricity_price,electricity_cost / elserv_total,DollarsPerMWhServed,Average cost of electricity served
 bus,merchandising_surplus_total,SumHourly(merchandising_surplus),Dollars,Total merchandising surplus from selling electricity for a higher price at one end of a line than another.  Lines that are split across the region add half of their merchandising surplus to each region.
+bus,merchandising_surplus_comp_total,SumHourly(merchandising_surplus),Dollars,Total merchandising surplus from selling electricity for a higher price at one end of a line than another.  Lines that are split across the region add half of their merchandising surplus to each region. Calculated only for competitive regions.
 bus,distribution_cost_total,"SumHourlyWeighted(plserv, distribution_cost)",Dollars,Total cost to consumers for the transmission and distribution of power.
 bus,unserved_load_cost_total, "SumHourlyWeighted(plcurt, voll)",Dollars,Total cost of unserved load.
 bus,gs_payment,0,Dollars,Cost of required credits for clean/renewable generation for all generation standards (RPS's and CES's) for the qualifying demand at each given bus.
