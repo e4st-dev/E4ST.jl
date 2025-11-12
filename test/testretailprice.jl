@@ -26,8 +26,7 @@
             #check retail price terms
             @test all(k -> haskey(retail_price, k), [:bus, :gen, :storage, :past_invest])
             bus_terms =  retail_price[:bus]
-            @test all(k -> haskey(bus_terms, k), [:electricity_cost, :distribution_cost_total, :merchandising_surplus_total, :gs_payment])
-            @test !haskey(bus_terms, :baa_reserve_requirement_cost)
+            @test all(k -> haskey(bus_terms, k), [:electricity_cost, :distribution_cost_total, :merchandising_surplus_total, :gs_payment, :state_reserve_cost])
             gen_terms =  retail_price[:gen]
             @test haskey(gen_terms, :cost_of_service_rebate)
             storage_terms =  retail_price[:storage]
@@ -53,7 +52,7 @@
             retail_price = data[:retail_price][:avg_elec_rate]
 
             bus_terms =  retail_price[:bus]
-            @test !haskey(bus_terms, :state_reserve)
+            @test !haskey(bus_terms, :state_reserve_cost)
         end
 
     end
@@ -65,6 +64,7 @@
             config_file = joinpath(@__DIR__, "config", "config_3bus.yml")
             storage_config_file = joinpath(@__DIR__, "config", "config_stor.yml")
             config = read_config(config_file, storage_config_file)
+            config[:past_invest_file] = "data/3bus/past_invest_costs.csv"
             data = read_data(config)
             model = setup_model(config, data)
             optimize!(model)

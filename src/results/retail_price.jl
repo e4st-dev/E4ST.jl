@@ -48,9 +48,14 @@ function setup_retail_price!(config, data)
         add_price_term!(data, :avg_elec_rate, :past_invest, :cost_of_service_past_costs, +)
     end
 
-    if haskey(config, :mods) && haskey(config[:mods], :baa_reserve_requirement)
-        add_price_term!(data, :avg_elec_rate, :bus, :baa_reserve_requirement_cost, +)
-        add_price_term!(data, :avg_elec_rate, :bus, :baa_reserve_requirement_merchandising_surplus_total, -)
+    if haskey(config, :mods) && any(v -> v isa ReserveRequirement, values(config[:mods]))
+        reserve_mods = collect(k for (k, v) in config[:mods] if v isa ReserveRequirement)
+        length(reserve_mods) > 1 && @warn "Multiple ReserveRequirement mods found; using the first." reserve_mods
+        reserve_name = isempty(reserve_mods) ? nothing : first(reserve_mods)
+        reserve_cost = Symbol(string(reserve_name, "_cost"))
+        reserve_ms = Symbol(string(reserve_name, "_merchandising_surplus_total"))
+        add_price_term!(data, :avg_elec_rate, :bus, reserve_cost, +)
+        add_price_term!(data, :avg_elec_rate, :bus, reserve_ms, -)
     end
 
 end
