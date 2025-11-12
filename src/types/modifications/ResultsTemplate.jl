@@ -8,7 +8,6 @@ This is a mod that outputs computed results, given a `file` representing the tem
 * `file` - the file pointing to a table specifying which results to calculate
 * `name` - the name of the mod, do not need to specify in a config file
 * `col_sort` - the column(s) to sort by.  Defaults to the order in which they were originally specified.
-* `cross_table` - indicates that the result is pulling results from multiple tables. Defaults to false.
 
 The `file` should represent a csv table with the following columns:
 * `table_name` - the name of the table being aggregated.  i.e. `gen`, `bus`, etc.  If you leave it empty, it will call `compute_welfare` instead of `compute_result`
@@ -23,10 +22,8 @@ struct ResultsTemplate <: Modification
     file::String
     name::Symbol
     table::DataFrame
-    cross_table::Bool
-    calibrator_file::String
     col_sort
-    function ResultsTemplate(;file, name, cross_table=false, calibrator_file="", col_sort=:initial_order)
+    function ResultsTemplate(;file, name, col_sort=:initial_order)
         table = read_table(file)
         force_table_types!(table, name, 
             :table_name=>Symbol,
@@ -39,15 +36,11 @@ struct ResultsTemplate <: Modification
             hasproperty(table, col_name) || continue
             force_table_types!(table, name, col_name=>String)
         end
-        return new(file, name, table, cross_table, calibrator_file, col_sort)
+        return new(file, name, table, col_sort)
     end
 end
 
 export ResultsTemplate
-
-# Outer constructor to allow positional arguments if needed
-ResultsTemplate(file::String, name::Symbol, table::DataFrame, cross_table::Bool, calibrator_file::String, col_sort) =
-    ResultsTemplate(file=file, name=name, cross_table=cross_table, calibrator_file=calibrator_file, col_sort=col_sort)
 
 # Deal with backwards compatibility
 const AggregationTemplate = ResultsTemplate
@@ -60,17 +53,7 @@ export AggregationTemplate
 mod_rank(::Type{<:ResultsTemplate}) = 5.0
 
 fieldnames_for_yaml(::Type{ResultsTemplate}) = (:file,)
-# dispatches the single or cross-table results method based on cross_table argument
 function modify_results!(m::ResultsTemplate, config, data)
-    if m.cross_table == true
-        modify_results!(m::ResultsTemplate, Val(:true), config, data)
-    elseif m.cross_table == false
-        modify_results!(m::ResultsTemplate, Val(:false), config, data)
-    end
-end
-
-# method for single-table result
-function modify_results!(m::ResultsTemplate, ::Val{:false}, config, data)
     table = copy(m.table)
     table.initial_order = 1:nrow(table)
 
@@ -78,7 +61,6 @@ function modify_results!(m::ResultsTemplate, ::Val{:false}, config, data)
 
     # for any rows that are not a pair, separate into multiple rows
     not_pair_idx = findfirst(not_a_full_filter, eachrow(table))
-   
     while not_pair_idx !== nothing
         row = table[not_pair_idx, :]
         filter_col_idx = findfirst(filter_col->not_a_full_filter(row[filter_col]), filter_cols)
@@ -119,14 +101,16 @@ function modify_results!(m::ResultsTemplate, ::Val{:false}, config, data)
         idxs = parse_comparisons(row)
         yr_idxs = parse_year_idxs(row.filter_years)
         hr_idxs = parse_hour_idxs(row.filter_hours)
-        
-        try
-            return compute_result(data, table_name, result_name, idxs, yr_idxs, hr_idxs)
-        catch e
-            @warn "No single-table results formula found for table $table_name and result $result_name"
-            return 0.0
+        if table_name == Symbol("")
+            return compute_welfare(data, result_name, idxs, yr_idxs, hr_idxs)
+        else
+            try
+                return compute_result(data, table_name, result_name, idxs, yr_idxs, hr_idxs)
+            catch e
+                @warn "No results formula found for table $table_name and result $result_name"
+                return 0.0
+            end
         end
-        
     end    
     sort!(table, m.col_sort)
     select!(table, Not(:initial_order))
@@ -136,98 +120,14 @@ function modify_results!(m::ResultsTemplate, ::Val{:false}, config, data)
     return
 end
 
-# cross-table results
-function modify_results!(m::ResultsTemplate, ::Val{:true}, config, data)
-    table = copy(m.table)
-    table.initial_order = 1:nrow(table)
-
-    filter_cols = setdiff(propertynames(table), [:table_name, :result_name])
-
-    # for any rows that are not a pair, separate into multiple rows
-    not_pair_idx = findfirst(not_a_full_filter, eachrow(table))
-    while not_pair_idx !== nothing
-        row = table[not_pair_idx, :]
-        filter_col_idx = findfirst(filter_col->not_a_full_filter(row[filter_col]), filter_cols)
-        col_to_expand = filter_cols[filter_col_idx]
-        table_name = row[:table_name]
-        result_name = row[:result_name]
-
-        if col_to_expand == :filter_hours
-            area = row.filter_hours
-            hours_table_col = get_table_col(data, :hours, area)
-            subareas = Base.sort!(String.(string.(unique(hours_table_col))), by=hours_sortby)
-        elseif col_to_expand == :filter_years &&  row[col_to_expand] == ":"
-            area = :years
-            subareas = data[area]
-        else
-            area = row[col_to_expand]
-            table_names = get_cross_table(data, table_name)[result_name]
-            all(hasproperty(get_table(data, t), area) for (t, _) in table_names) || error("Some tables are missing property $(area)")
-            data_table_col = get_table_col(data, first(keys(table_names)), area)
-            subareas = sort!(unique(data_table_col))
-        end
-        
-        row_dict = Dict(pairs(row))
-        for subarea in subareas
-            # Add a row right after the original row
-            row_dict[col_to_expand] = "$area=>$subarea"
-            insert!(table, not_pair_idx+1, row_dict)
-        end
-
-        deleteat!(table, not_pair_idx)
-
-        # Find the next index that is not a pair, to be expanded
-        not_pair_idx = findfirst(not_a_full_filter, eachrow(table))
+function hours_sortby(s::T) where T
+    if endswith(s, r"h\d+")
+        m = match(r"h(\d+)", s)
+        return lpad(m.captures[1], 4, '0') |> T
+    else
+        return s |> T
     end
-
-    @info "Calculating results for $(nrow(table)) rows in ResultsTemplate $(m.name)"
-    results_formulas = get_results_formulas(data)
-    table.value = map(eachrow(table)) do row
-        table_name = row.table_name
-        result_name = row.result_name
-        idxs = parse_comparisons(row)
-        yr_idxs = parse_year_idxs(row.filter_years)
-        hr_idxs = parse_hour_idxs(row.filter_hours)
-        
-        if table_name == Symbol("welfare")
-            if hr_idxs !== Colon()
-                @warn "Hourly welfare calculations are not set up."
-                return 0.0
-            else
-                return compute_welfare(data, result_name, idxs, yr_idxs, hr_idxs)
-            end
-        elseif table_name == Symbol("retail_price")
-            if hr_idxs !== Colon()
-                @warn "Hourly retail price calculations are not set up."
-                return 0.0
-            else
-                if isempty(m.calibrator_file)
-                    return compute_retail_price(data, result_name, idxs, yr_idxs, hr_idxs)
-                else
-                    return compute_retail_price(data, result_name, m.calibrator_file, idxs, yr_idxs, hr_idxs)
-                end
-            end
-        else
-            @warn "No cross-table results formula found for table $table_name and result $result_name"
-            return 0.0
-        end
-    end    
-    sort!(table, m.col_sort)
-    select!(table, Not(:initial_order))
-    CSV.write(get_out_path(config, string(m.name, ".csv")), table)
-    results = get_results(data)
-    results[m.name] = table
-    return
 end
-
-# function hours_sortby(s::T) where T
-#     if endswith(s, r"h\d+")
-#         m = match(r"h(\d+)", s)
-#         return lpad(m.captures[1], 4, '0') |> T
-#     else
-#         return s |> T
-#     end
-# end
 
 function extract_results(m::ResultsTemplate, config, data)
     results = get_results(data)
@@ -243,22 +143,22 @@ function combine_results(m::ResultsTemplate, post_config, post_data)
     CSV.write(get_out_path(post_config, "$(m.name)_combined.csv"), res)
 end
 
-# function not_a_full_filter(row::DataFrameRow)
-#     not_a_full_filter(row.filter_years) && return true
-#     not_a_full_filter(row.filter_hours) && return true
-#     for i in 1:1000
-#         col_name = "filter$i"
-#         hasproperty(row, col_name) || break
-#         not_a_full_filter(row[col_name]) && return true
-#     end
-#     return false
-# end
+function not_a_full_filter(row::DataFrameRow)
+    not_a_full_filter(row.filter_years) && return true
+    not_a_full_filter(row.filter_hours) && return true
+    for i in 1:1000
+        col_name = "filter$i"
+        hasproperty(row, col_name) || break
+        not_a_full_filter(row[col_name]) && return true
+    end
+    return false
+end
 
-# function not_a_full_filter(s::AbstractString)
-#     isempty(s) && return false
-#     all(isnumeric, s) && return false
-#     contains(s, "=>") && return false
-#     startswith(s, "[") && return false
-#     startswith(s, "y2") && return false
-#     return true
-# end
+function not_a_full_filter(s::AbstractString)
+    isempty(s) && return false
+    all(isnumeric, s) && return false
+    contains(s, "=>") && return false
+    startswith(s, "[") && return false
+    startswith(s, "y2") && return false
+    return true
+end

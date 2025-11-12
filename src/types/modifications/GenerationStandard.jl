@@ -174,6 +174,7 @@ function modify_results!(pol::GenerationStandard, config, data)
     bus = get_table(data, :bus)
     gen = get_table(data, :gen)
     nyr = get_num_years(data)
+    years = Symbol.(get_years(data))
 
     prc_name = Symbol("$(pol.name)_prc")
     cost_name = Symbol("$(pol.name)_cost")
@@ -202,7 +203,7 @@ function modify_results!(pol::GenerationStandard, config, data)
     end
 
     for (k,d) in pol.load_targets
-        targets = collect(values(d[:targets]))[1:nyr]
+        targets = collect(values(OrderedDict(y => get(d[:targets], y, 0.0) for y in years)))[1:nyr] # target set to 0 if missing
         filters = d[:filters]
         bus_idxs = get_row_idxs(bus, parse_comparisons(d[:filters]))
         # set to shadow_prc for bus
