@@ -26,7 +26,7 @@
             #check retail price terms
             @test all(k -> haskey(retail_price, k), [:bus, :gen, :storage, :past_invest])
             bus_terms =  retail_price[:bus]
-            @test all(k -> haskey(bus_terms, k), [:electricity_cost, :distribution_cost_total, :merchandising_surplus_total, :gs_payment, :state_reserve_cost])
+            @test all(k -> haskey(bus_terms, k), [:electricity_cost, :distribution_cost_total, :merchandising_surplus_comp_total, :gs_payment, :state_reserve_cost])
             gen_terms =  retail_price[:gen]
             @test haskey(gen_terms, :cost_of_service_rebate)
             storage_terms =  retail_price[:storage]
