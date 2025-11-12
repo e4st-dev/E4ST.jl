@@ -7,9 +7,10 @@ Add in retail price terms to calculate retail electricity rates in \$/MWh.
 The relevant price terms are:
 * `electricity_cost`
 * `distribution_cost_total`
-* `merchandising_surplus_total`
+* `merchandising_surplus_comp_total`
 * `cost_of_service_rebate`
 * `net_production_cost`
+* `cost_of_service_past_costs`
 * `baa_reserve_requirement_cost`
 * `baa_reserve_requiremetn_merchandising_surplus_total`
 Reference the results formulas for more detailed descriptions of each of these terms.
@@ -35,19 +36,23 @@ function setup_retail_price!(config, data)
     add_price_term!(data, :avg_elec_rate, :bus, :distribution_cost_total, +)
 
     # merchandising suplus is from selling electricity for higher price at one end of line than another
-    add_price_term!(data, :avg_elec_rate, :bus, :merchandising_surplus_total, -)
+    add_price_term!(data, :avg_elec_rate, :bus, :merchandising_surplus_comp_total, -)
 
     # if the difference between revenue and total costs is positive, customers in COS regions get a rebate
-    # total cost includes production costs, net policy costs, gs_rebate, and the net of past investment costs and subsidies 
+    # total cost includes production costs, net policy costs, gs_rebate, and the net of past investment costs and subsidies
+    # past investment costs may be handled separately when not included in the generator file
     add_price_term!(data, :avg_elec_rate, :gen, :cost_of_service_rebate, -)
     add_price_term!(data, :avg_elec_rate, :storage, :cost_of_service_rebate, -)
 
+    # payments for RPS and CES policies
     add_price_term!(data, :avg_elec_rate, :bus, :gs_payment, +)
 
+    # past invest file will overwrite the past invest column of the gen table
     if haskey(config, :past_invest_file)
         add_price_term!(data, :avg_elec_rate, :past_invest, :cost_of_service_past_costs, +)
     end
 
+    # capacity market costs in competitive regions (cost of service rebate subtracts out the capacity costs)
     if haskey(config, :mods) && any(v -> v isa ReserveRequirement, values(config[:mods]))
         reserve_mods = collect(k for (k, v) in config[:mods] if v isa ReserveRequirement)
         length(reserve_mods) > 1 && @warn "Multiple ReserveRequirement mods found; using the first." reserve_mods
