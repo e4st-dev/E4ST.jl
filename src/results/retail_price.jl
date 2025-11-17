@@ -86,7 +86,6 @@ function add_price_term!(data, price_type::Symbol, table_name::Symbol, result_na
         OrderedDict{Symbol, Function}()
     end
 
-
     get(subretail_price, result_name, oper) == oper || @warn "Changing price sign for price[$price_type][$table_name][$result_name] to $oper"
     subretail_price[result_name] = oper
 end
@@ -145,13 +144,16 @@ function compute_retail_price(::Val{:get_cal_values}, m, data, price_type::Symbo
     end
     
     subset = filter(row -> row.area == "" && row.subarea == "", ref_price_table)
+    n = nrow(subset)
 
-    # warn if there is no average reference price, error if more than 1
-    if nrow(subset) == 0
+    # ratio between load for region and full grid, used to adjust the calibration value
+    if n == 0
         @warn "No full model reference price row. Outputting calibration values without a full adjustment."
         elserv_ratio = 0
-    elseif nrow(subset) > 1
-        error("Multiple full model reference price rows.")
+    elseif !hasproperty(ref_price_table, :year) && n > 1
+        error("Multiple full model reference price rows for single reference price file.")
+    elseif hasproperty(ref_price_table, :year)&& n > length(unique((ref_price_table.year)))
+        error("Number of full model reference price rows is greater than number of years.")
     else
         elserv_total_all = compute_result(data, :bus, :elserv_total, :, yr_idxs, hr_idxs)
         elserv_ratio = elserv_total/elserv_total_all
@@ -161,6 +163,7 @@ function compute_retail_price(::Val{:get_cal_values}, m, data, price_type::Symbo
     
 end
 
+# specialized method to calculate retail price for cal_mode calibrate
 function compute_retail_price(::Val{:calibrate}, m, data, price_type::Symbol,  idxs, yr_idxs, hr_idxs)
     value = 0.0
     retail_price = get_retail_price(data)
@@ -183,6 +186,7 @@ function compute_retail_price(::Val{:calibrate}, m, data, price_type::Symbol,  i
     hr_idxs
     )
     
+    # add corresponding cal value to retail price calculation
     retail_price = retail_price + cal
     return retail_price
    
@@ -190,7 +194,7 @@ end
 
 export compute_retail_price
 
-# get corresponding price values
+# get corresponding ref price values by year
 function get_ref_price(ref_price_table, idxs, yr_idxs, hr_idxs, retail_price)
     # checks that there is only one filter, outside of hour and year filters
     area, subarea =
@@ -219,7 +223,7 @@ function get_ref_price(ref_price_table, idxs, yr_idxs, hr_idxs, retail_price)
     return sum(ref_values), area, subarea, yr_idxs
 end
 
-# one ref price for all years
+# get corresponding ref price value for region (single value for all years)
 function get_ref_price(ref_price_table, idxs, hr_idxs, retail_price)
     # checks that there is only one filter, outside of hour and year filters
     area, subarea =
