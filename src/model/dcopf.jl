@@ -276,6 +276,26 @@ function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper)
     add_obj_exp!(data, model, PerMWhGen(), s; oper = oper)  
 end
 
+function add_obj_term!(data, model, ::PerMWhImport, s::Symbol; oper) 
+    #Check if s has already been added to obj
+    Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
+
+    #write expression for the term
+    pflow_bus = model[:pflow_bus]::Array{VariableRef, 3}
+    bus = get_table(data, :bus)
+    col = gen[!,s]
+    nhr = get_num_hours(data)
+    nyr = get_num_years(data)
+    hour_weights = get_hour_weights(data)
+    model[s] = @expression(model, 
+        [bus_idx in axes(bus,1), yr_idx in 1:nyr],
+        sum(col[bus_idx][yr_idx,hr_idx] * max(-pflow_bus[bus_idx, yr_idx, hr_idx], 0)  * hour_weights[hr_idx] for hr_idx in 1:nhr) # invert becase pflow_bus is net flow out, only sum imports
+    )
+
+    # add or subtract the expression from the objective function
+    add_obj_exp!(data, model, PerMWhImport(), s; oper = oper)  
+end
+
 function add_obj_term!(data, model, ::PerMMBtu, s::Symbol; oper) 
     #Check if s has already been added to obj
     Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"

@@ -13,6 +13,8 @@ Emission Price - A price on a certain emission for a given set of generators.
 * `ref_year_col`: Column name to use as reference year for min and max above. Must be a year column. If this is :year_on, then the years_after_ref filters will filter gen age. If this is :year_retrofit, the the years_after_ref filters will filter by time since retrofit. This is rarely used in real policy, so be careful if changing from default value
 * `gen_filters`: OrderedDict of generator filters
 * `hour_filters`: OrderedDict of hour filters
+* `bus_filters`: OrderedDict of bus filters
+* `import_emis`: Assumption for emissions intensity of imported electricity. Optional value. If not included, there will be no emissions price placed on imports.
 
 ### Table Column Added:
 * `(:gen, :<name>)` - emissions price per MWh generated for each policy
@@ -32,6 +34,8 @@ Base.@kwdef struct EmissionPrice <: Policy
     ref_year_col::String = "year_on"
     gen_filters::OrderedDict = OrderedDict()
     hour_filters::OrderedDict = OrderedDict()
+    bus_filters::OrderedDict = OrderedDict()
+    import_emis::Union{Float64,Nothing} = nothing
 end
 export EmissionPrice
 
@@ -103,6 +107,45 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
 
     # add the capex adjustment term 
     should_adjust_invest_cost(pol) && add_obj_term!(data, model, PerMWCapInv(), Symbol("$(pol.name)_capex_adj"), oper = -)
+
+    # apply emissions prices to imports
+    if !isnothing(pol.import_emis)
+        bus = get_table(data, :bus)
+        bus_idxs = get_row_idxs(bus, parse_comparisons(pol.bus_filters))
+        bus[!,:pol.emis_col] .= pol.import_emis
+
+
+        if length(hour_idxs) < nhr
+            hour_multiplier = ByHour([i in hour_idxs ? 1.0 : 0.0 for i in 1:nhr])
+        else
+            hour_multiplier = 1.0
+        end
+
+        @info "Applying Emission Price $(pol.name) to imports into $(length(bus_idxs)) busses."
+
+        #create column of Emission prices
+        add_table_col!(data, :bus, pol.name, Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated,
+            "Emission price per MWh imported for $(pol.name)")
+
+        #update column for bus_idx 
+        price_yearly = [get(pol.prices, Symbol(year), 0.0) for year in years] #prices for the years in the sim
+        for bus_idx in bus_idxs
+            b = bus[bus_idx, :]
+
+            # Get the years that qualify
+            ref_year = year2float(g[pol.ref_year_col])
+            year_min = ref_year + pol.years_after_ref_min
+            year_max = ref_year + pol.years_after_ref_max
+            b_qual_year_idxs = findall(y -> year_min <= y <= year_max, years_int)
+            qual_price_yearly = ByYear([(i in b_qual_year_idxs) ? price_yearly[i] : 0.0  for i in 1:length(years)])
+            bus[bus_idx, pol.name] = qual_price_yearly .* bus[bus_idx, pol.emis_col] .* hour_multiplier #emission rate [st/MWh] * price [$/st] 
+
+        end
+
+    
+        add_obj_term!(data, model, PerMWhImport(), pol.name, oper = +)
+    end
+    
 end
 
 
