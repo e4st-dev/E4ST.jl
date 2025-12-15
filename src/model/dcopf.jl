@@ -105,12 +105,12 @@ function setup_dcopf!(config, data, model)
     end
 
 
-    # Power flowing in/out of buses, only necessary if modeling line losses from pflow.
-    if config[:line_loss_type] == "pflow"
-        # Make variables for positive and negative power flowing out of the bus.
-        @variable(model, pflow_out_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], lower_bound = 0)
-        @variable(model, pflow_in_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], lower_bound = 0)
-    end
+    # Power flowing in/out of buses (previously only necessary when modeling line losses from pflow).
+    
+    # Make variables for positive and negative power flowing out of the bus.
+    @variable(model, pflow_out_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], lower_bound = 0)
+    @variable(model, pflow_in_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], lower_bound = 0)
+   
 
     # Served power of a given bus
     @expression(model, plserv_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], get_plnom(data, bus_idx, year_idx, hour_idx) - plcurt_bus[bus_idx, year_idx, hour_idx])
@@ -173,8 +173,12 @@ function setup_dcopf!(config, data, model)
         -pflow_branch[branch_idx, year_idx, hour_idx] <= get_pflow_branch_max(data, branch_idx, year_idx, hour_idx)
     )
 
-    # Constrain imported flow value using pflow_bus var
-    @constraint(model, import_flow .>= -pflow_bus)
+    @constraint(model,
+        [bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour],
+        pflow_bus[bus_idx, year_idx, hour_idx] ==
+        pflow_out_bus[bus_idx, year_idx, hour_idx] -
+        pflow_in_bus[bus_idx, year_idx, hour_idx]
+    )
 
     add_build_constraints!(data, model, :gen, :pcap_gen, :pgen_gen)
     
@@ -292,7 +296,7 @@ function add_obj_term!(data, model, ::PerMWhImport, s::Symbol; oper)
     Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
 
     #write expression for the term
-    pflow_bus = model[:import_flow]::Array{VariableRef, 3}
+    pflow_bus = model[:pflow_in_bus]::Array{VariableRef, 3}
     bus = get_table(data, :bus)
     col = bus[!,s]
     nhr = get_num_hours(data)
