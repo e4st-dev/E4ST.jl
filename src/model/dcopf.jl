@@ -64,6 +64,13 @@ function setup_dcopf!(config, data, model)
         upper_bound = get_plnom(data, bus_idx, year_idx, hour_idx),
     )
 
+    # Power Imported
+    @variable(model,
+        import_flow[bus_idx in axes(bus,1),
+        yr_idx in 1:nyear,
+        hr_idx in 1:nhour] >= 0   
+    )
+
     ## Expressions to be used later
     @info "Creating Expressions"
 
@@ -80,6 +87,7 @@ function setup_dcopf!(config, data, model)
         pflow_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], 
         AffExpr(0.0)
     )
+
 
     # Loop through each branch and add to the corresponding bus expression.
     for branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour
@@ -164,6 +172,9 @@ function setup_dcopf!(config, data, model)
         ], 
         -pflow_branch[branch_idx, year_idx, hour_idx] <= get_pflow_branch_max(data, branch_idx, year_idx, hour_idx)
     )
+
+    # Constrain imported flow value using pflow_bus var
+    @constraint(model, import_flow .>= -pflow_bus)
 
     add_build_constraints!(data, model, :gen, :pcap_gen, :pgen_gen)
     
@@ -281,15 +292,15 @@ function add_obj_term!(data, model, ::PerMWhImport, s::Symbol; oper)
     Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
 
     #write expression for the term
-    pflow_bus = model[:pflow_bus]::Array{VariableRef, 3}
+    pflow_bus = model[:import_flow]::Array{VariableRef, 3}
     bus = get_table(data, :bus)
-    col = gen[!,s]
+    col = bus[!,s]
     nhr = get_num_hours(data)
     nyr = get_num_years(data)
     hour_weights = get_hour_weights(data)
     model[s] = @expression(model, 
         [bus_idx in axes(bus,1), yr_idx in 1:nyr],
-        sum(col[bus_idx][yr_idx,hr_idx] * max(-pflow_bus[bus_idx, yr_idx, hr_idx], 0)  * hour_weights[hr_idx] for hr_idx in 1:nhr) # invert becase pflow_bus is net flow out, only sum imports
+        sum(col[bus_idx][yr_idx,hr_idx] * pflow_bus[bus_idx, yr_idx, hr_idx]  * hour_weights[hr_idx] for hr_idx in 1:nhr) # invert becase pflow_bus is net flow out, only sum imports
     )
 
     # add or subtract the expression from the objective function
