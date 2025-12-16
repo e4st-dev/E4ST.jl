@@ -152,7 +152,10 @@ function E4ST.modify_results!(pol::EmissionPrice, config, data)
     cost_name = Symbol("$(pol.name)_cost")
     add_results_formula!(data, :gen, cost_name, "SumHourlyWeighted($(pol.name), pgen)", Dollars, "The cost of $(pol.name)")
     add_to_results_formula!(data, :gen, :emission_cost, cost_name)
-
+    cost_name = Symbol("$(pol.name)_imports_cost")
+    add_results_formula!(data, :bus, cost_name, "SumHourlyWeighted($(pol.name)_imports, pflow_in)", Dollars, "The cost of $(pol.name) associated with imported emissions.")
+    add_to_results_formula!(data, :bus, :emission_cost, cost_name)
+    
     should_adjust_invest_cost(pol) && add_results_formula!(data, :gen, Symbol("$(pol.name)_capex_adj_total"), "SumYearly(ecap_inv_sim, $(pol.name)_capex_adj)", Dollars, "The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.")
 end
 
