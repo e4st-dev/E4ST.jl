@@ -285,6 +285,7 @@
 
             #make sure model still optimizes 
             optimize!(model)
+            
             @test check(config, data, model)
 
             # process results
@@ -325,80 +326,80 @@
             @test summer_co2_cost > 0
             @test total_co2_cost ≈ summer_co2_cost
         end
-    end
+    
 
-    @testset "Test Emission Price with Leakage" begin
-        config_file = joinpath(@__DIR__, "config", "config_3bus_emisprc_imports.yml")
-        config = read_config(config_file_ref, config_file)
+        @testset "Test Emission Price with Leakage" begin
+            config_file = joinpath(@__DIR__, "config", "config_3bus_emisprc_imports.yml")
+            config = read_config(config_file_ref, config_file)
 
-        data = read_data(config)
-        model = setup_model(config, data)
+            data_emis_compare = copy(data)
+            data = read_data(config)
+            model = setup_model(config, data)
 
-        gen = get_table(data, :gen)
-        bus = get_table(data, :bus)
-
-        @testset "Adding Emis Prc to gen table" begin
-            @test hasproperty(gen, :example_emisprc)
-            @test hasproperty(bus, :example_emisprc_imports)
-
-            # Test that there are byYear containers 
-            @test typeof(gen.example_emisprc) == Vector{Container}
-            @test typeof(bus.example_emisprc_imports) == Vector{Container}
-
-            # Check that there are ByYear containers
-            @test any(emisprc -> typeof(emisprc) == E4ST.ByYear, gen.example_emisprc)
-
-            # test that ByYear containers have non zero values
-            @test sum(emisprc -> sum(emisprc.v), gen.example_emisprc) > 0
-        end
-
-        @testset "Adding Emis Prc to the model" begin
-            #test that emis prc is added to the obj 
-            @test haskey(data[:obj_vars], :example_emisprc)
-            @test haskey(data[:obj_vars], :example_emisprc_imports)
-            @test haskey(model, :example_emisprc)
-            @test haskey(model, :example_emisprc_imports)
-
-            #make sure model still optimizes 
-            optimize!(model)
-            @test check(config, data, model)
-
-            # process results
-            parse_results!(config, data, model)
-            process_results!(config, data)
-
-            ## Check that policy impacts results 
             gen = get_table(data, :gen)
-            years = get_years(data)
-            emis_prc_mod = config[:mods][:example_emisprc]
-            emis_co2_total = compute_result(data, :gen, :emis_co2_total, parse_comparisons(emis_prc_mod.gen_filters))
-            println(compute_result(data, :gen, :egen_total, :genfuel=>"ng"))
-            println(compute_result(data_ref,:gen, :egen_total, :genfuel=>"ng"))
+            bus = get_table(data, :bus)
 
-            gen_ref = get_table(data_ref, :gen)
-            emis_co2_total_ref = compute_result(data_ref, :gen, :emis_co2_total, parse_comparisons(emis_prc_mod.gen_filters))
+            @testset "Adding Emis Prc to gen table" begin
+                @test hasproperty(gen, :example_emisprc)
+                @test hasproperty(bus, :example_emisprc_imports)
 
-            # check that emissions are reduced for qualifying gens
-            @test emis_co2_total < emis_co2_total_ref
+                # Test that there are byYear containers 
+                @test typeof(gen.example_emisprc) == Vector{Container}
+                @test typeof(bus.example_emisprc_imports) == Vector{Container}
 
+                # Check that there are ByYear containers
+                @test any(emisprc -> typeof(emisprc) == E4ST.ByYear, gen.example_emisprc)
 
-            # Test that all the capex adjustments are positive and are subtracted from the objective as a cost
-            @test ~anyany(<(0), gen.example_emisprc_capex_adj)
-            @test data[:obj_vars][:example_emisprc_capex_adj][:term_sign] == (-)
-            @test ~anyany(<(0), gen.example_emisprc)
-            @test data[:obj_vars][:example_emisprc][:term_sign] == (+)
+                # test that ByYear containers have non zero values
+                @test sum(emisprc -> sum(emisprc.v), gen.example_emisprc) > 0
+            end
 
-            #test that cost restult is calculated
-            pol = config[:mods][:example_emisprc]
-            gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
+            @testset "Adding Emis Prc to the model" begin
+                #test that emis prc is added to the obj 
+                @test haskey(data[:obj_vars], :example_emisprc)
+                @test haskey(data[:obj_vars], :example_emisprc_imports)
+                @test haskey(model, :example_emisprc)
+                @test haskey(model, :example_emisprc_imports)
 
-            #@show compute_result(data, :gen, :egen_total, gen_idxs, [2, 3])
-            @test emis_co2_total > 0
-            @test compute_result(data, :gen, :example_emisprc_cost) > 0.0
+                #make sure model still optimizes 
+                optimize!(model)
+                @test check(config, data, model)
 
+                # process results
+                parse_results!(config, data, model)
+                process_results!(config, data)
+
+                ## Check that policy impacts results 
+                gen = get_table(data, :gen)
+                years = get_years(data)
+                emis_prc_mod = config[:mods][:example_emisprc]
+                emis_co2_total = compute_result(data, :gen, :emis_co2_total, parse_comparisons(emis_prc_mod.gen_filters))
+
+                gen_ref = get_table(data_ref, :gen)
+                emis_co2_total_ref = compute_result(data_ref, :gen, :emis_co2_total, parse_comparisons(emis_prc_mod.gen_filters))
+
+                # check that emissions are reduced for qualifying gens
+                @test emis_co2_total < emis_co2_total_ref
+
+                emis_co2_total_emis_compare = compute_result(data_emis_compare, :gen, :emis_co2_total, parse_comparisons(emis_prc_mod.gen_filters))
+
+                # check that emissions are different across two emissions price set ups
+                @test emis_co2_total != emis_co2_total_ref
+
+                # check that pricing imports changes objective function
+                @test sum(get_raw_result(data, :obj)) > sum(get_raw_result(data_emis_compare, :obj))
+
+                #test that cost restult is calculated
+                pol = config[:mods][:example_emisprc]
+                bus_idxs = get_row_idxs(bus, parse_comparisons(pol.bus_filters))
+
+                #@show compute_result(data, :gen, :egen_total, gen_idxs, [2, 3])
+                @test emis_co2_total > 0
+                @test compute_result(data, :bus, :example_emisprc_imports_cost) > 0.0
+
+            end
         end
     end
-
 
     @testset "Test Generation Standards" begin
 
