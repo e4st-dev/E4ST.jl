@@ -77,6 +77,8 @@ function modify_model!(mod::DCLine, config, data, model)
     nyear = get_num_years(data)
     nhour = get_num_hours(data)
     pflow_bus = model[:pflow_bus]::Array{AffExpr, 3}
+    pflow_import_bus = model[:pflow_import_bus]::Array{AffExpr, 3}
+
 
     # Add the pflow_dc variable
     @variable(model,
@@ -94,6 +96,30 @@ function modify_model!(mod::DCLine, config, data, model)
             add_to_expression!(pflow_bus[f_bus_idx, year_idx, hour_idx], pflow_dc[dc_idx, year_idx, hour_idx], 1)
             add_to_expression!(pflow_bus[t_bus_idx, year_idx, hour_idx], pflow_dc[dc_idx, year_idx, hour_idx], -1)
         end
+    end
+
+     # add to imports
+    @variable(model, pflow_import_dc_to[dc_idx in 1:ndc, y in 1:nyear, h in 1:nhour] >= 0)
+    @variable(model, pflow_import_dc_from[dc_idx in 1:ndc, y in 1:nyear, h in 1:nhour] >= 0)
+
+    @constraint(model,
+        [dc_idx=1:ndc, y=1:nyear, h=1:nhour],
+        pflow_import_dc_to[dc_idx,y,h] >= pflow_dc[dc_idx,y,h]
+    )
+
+    @constraint(model,
+        [dc_idx=1:ndc, y=1:nyear, h=1:nhour],
+        pflow_import_dc_from[dc_idx,y,h] >= -pflow_dc[dc_idx,y,h]
+    )
+
+    for dc_idx in 1:ndc, y in 1:nyear, h in 1:nhour
+        # Add imports to receiving bus
+        add_to_expression!(pflow_import_bus[dc_line[dc_idx,:t_bus_idx],y,h],
+                        pflow_import_dc_to[dc_idx,y,h])
+
+        # Add imports to sending bus if flow is negative
+        add_to_expression!(pflow_import_bus[dc_line[dc_idx,:f_bus_idx],y,h],
+                        pflow_import_dc_from[dc_idx,y,h])
     end
     
     return nothing

@@ -1,0 +1,18 @@
+base_out_path:    "../out/3bus_emisprc"
+mods:
+  example_emisprc:
+    type: "EmissionPrice"
+    emis_col: "emis_co2"
+    prices: 
+      y2035: 10
+      y2040: 20
+    years_after_ref_min: 0
+    years_after_ref_max: 10
+    ref_year_col: "year_on"
+    gen_filters:
+      bus_nation: ["narnia", "archenland"]
+    bus_filters:
+      nation: ["narnia","archenland"]
+    import_emis: 0.4
+
+
