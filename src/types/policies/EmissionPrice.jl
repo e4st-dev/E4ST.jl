@@ -13,6 +13,8 @@ Emission Price - A price on a certain emission for a given set of generators.
 * `ref_year_col`: Column name to use as reference year for min and max above. Must be a year column. If this is :year_on, then the years_after_ref filters will filter gen age. If this is :year_retrofit, the the years_after_ref filters will filter by time since retrofit. This is rarely used in real policy, so be careful if changing from default value
 * `gen_filters`: OrderedDict of generator filters
 * `hour_filters`: OrderedDict of hour filters
+* `bus_filters`: OrderedDict of bus filters
+* `import_emis`: Assumption for emissions intensity of imported electricity. Optional value. If not included, there will be no emissions price placed on imports.
 
 ### Table Column Added:
 * `(:gen, :<name>)` - emissions price per MWh generated for each policy
@@ -32,6 +34,8 @@ Base.@kwdef struct EmissionPrice <: Policy
     ref_year_col::String = "year_on"
     gen_filters::OrderedDict = OrderedDict()
     hour_filters::OrderedDict = OrderedDict()
+    bus_filters::OrderedDict = OrderedDict()
+    import_emis::Union{Float64,Nothing} = nothing
 end
 export EmissionPrice
 
@@ -103,6 +107,41 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
 
     # add the capex adjustment term 
     should_adjust_invest_cost(pol) && add_obj_term!(data, model, PerMWCapInv(), Symbol("$(pol.name)_capex_adj"), oper = -)
+
+    # apply emissions prices to imports if emissions price intensity is provided
+    if !isnothing(pol.import_emis)
+        @warn "Applying emissions prices to imports, which means the emission cost estimates for the gen table will be incomplete."
+        bus = get_table(data, :bus)
+        bus_idxs = get_row_idxs(bus, parse_comparisons(pol.bus_filters))
+        bus[!,pol.emis_col] .= pol.import_emis
+
+
+        if length(hour_idxs) < nhr
+            hour_multiplier = ByHour([i in hour_idxs ? 1.0 : 0.0 for i in 1:nhr])
+        else
+            hour_multiplier = 1.0
+        end
+
+        @info "Applying Emission Price $(pol.name) to imports into $(length(bus_idxs)) busses."
+        
+        pol_name_imports = Symbol(pol.name, "_imports")
+        #create column of Emission prices
+        add_table_col!(data, :bus, pol_name_imports, Container[ByNothing(0.0) for i in 1:nrow(bus)], DollarsPerMWhGenerated,
+            "Emission price per MWh imported for $(pol.name)")
+
+        #update column for bus_idx 
+        price_yearly = [get(pol.prices, Symbol(year), 0.0) for year in years] #prices for the years in the sim
+        for bus_idx in bus_idxs
+            b = bus[bus_idx, :]
+
+            # all years of imports qualify for emissions price
+            bus[bus_idx, pol_name_imports] = ByYear(price_yearly) .* bus[bus_idx, pol.emis_col] .* hour_multiplier #emission rate [st/MWh] * price [$/st] 
+
+        end
+        
+        add_obj_term!(data, model, PerMWhImport(), pol_name_imports, oper = +)
+    end
+    
 end
 
 
@@ -114,6 +153,9 @@ function E4ST.modify_results!(pol::EmissionPrice, config, data)
     cost_name = Symbol("$(pol.name)_cost")
     add_results_formula!(data, :gen, cost_name, "SumHourlyWeighted($(pol.name), pgen)", Dollars, "The cost of $(pol.name)")
     add_to_results_formula!(data, :gen, :emission_cost, cost_name)
+    cost_name = Symbol("$(pol.name)_imports_cost")
+    add_results_formula!(data, :bus, cost_name, "SumHourlyWeighted($(pol.name)_imports, pflow_in)", Dollars, "The cost of $(pol.name) associated with imported emissions.")
+    add_to_results_formula!(data, :bus, :emission_cost, cost_name)
 
     should_adjust_invest_cost(pol) && add_results_formula!(data, :gen, Symbol("$(pol.name)_capex_adj_total"), "SumYearly(ecap_inv_sim, $(pol.name)_capex_adj)", Dollars, "The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.")
 end

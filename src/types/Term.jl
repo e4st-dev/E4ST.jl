@@ -6,6 +6,7 @@ Abstract type Term is used to add variables (terms) to the objective function or
 abstract type Term end
 
 struct PerMWhGen <: Term end
+struct PerMWhImport <: Term end
 struct PerMWCap <: Term end
 struct PerMWCapInv <: Term end
 struct PerMWhCurtailed <: Term end

@@ -64,6 +64,11 @@ function setup_dcopf!(config, data, model)
         upper_bound = get_plnom(data, bus_idx, year_idx, hour_idx),
     )
 
+    # Imports
+    @variable(model, pflow_import_branch_to[br in 1:nbranch, y in 1:nyear, h in 1:nhour]   >= 0) # positive pflow_dc going f_bus => to_bus are imports to t_bus
+    @variable(model, pflow_import_branch_from[br in 1:nbranch, y in 1:nyear, h in 1:nhour] >= 0) # negative pflow_dc going f_bus => to_bus are imports to f_bus
+
+
     ## Expressions to be used later
     @info "Creating Expressions"
 
@@ -81,6 +86,7 @@ function setup_dcopf!(config, data, model)
         AffExpr(0.0)
     )
 
+
     # Loop through each branch and add to the corresponding bus expression.
     for branch_idx in 1:nbranch, year_idx in 1:nyear, hour_idx in 1:nhour
         f_bus_idx = f_bus_idxs[branch_idx]
@@ -95,11 +101,20 @@ function setup_dcopf!(config, data, model)
             -1
         )
     end
-
+    
+    # set up expression to track imports
+    @expression(model,
+        pflow_import_bus[b in 1:nbus, y in 1:nyear, h in 1:nhour],
+        sum(
+            pflow_import_branch_to[br,y,h]   * (t_bus_idxs[br] == b) +  # add the imports when bus is t_bus
+            pflow_import_branch_from[br,y,h] * (f_bus_idxs[br] == b)    # add the imports when bus is f_bus
+            for br in 1:nbranch
+        )
+    )
 
     # Power flowing in/out of buses, only necessary if modeling line losses from pflow.
     if config[:line_loss_type] == "pflow"
-        # Make variables for positive and negative power flowing out of the bus.
+        #  Make variables for positive and negative power flowing out of the bus.
         @variable(model, pflow_out_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], lower_bound = 0)
         @variable(model, pflow_in_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], lower_bound = 0)
     end
@@ -163,6 +178,21 @@ function setup_dcopf!(config, data, model)
             get_pflow_branch_max(data, branch_idx, year_idx, hour_idx) > 0 # Only constrain for branches with nonzero pflow_max
         ], 
         -pflow_branch[branch_idx, year_idx, hour_idx] <= get_pflow_branch_max(data, branch_idx, year_idx, hour_idx)
+    )
+
+    # Constraints on import variables
+    # together these constraints effectively enforce pflow_import_branch ≥ max(pflow_branch, -pflow_branch), taking the absolute value
+    @constraint(model, [br in 1:nbranch, y in 1:nyear, h in 1:nhour],
+        pflow_import_branch_to[br,y,h]   >=  pflow_branch[br,y,h])
+    @constraint(model, [br in 1:nbranch, y in 1:nyear, h in 1:nhour],
+        pflow_import_branch_from[br,y,h] >= -pflow_branch[br,y,h])
+
+    # enforces upper bound on imports otherwise there could be multiple feasible solutions
+    @constraint(model, [br in 1:nbranch, y in 1:nyear, h in 1:nhour],
+        pflow_import_branch_to[br,y,h] <=  2*θ_bound / get_table_num(data, :branch, :x, br, y, h)
+    )
+    @constraint(model, [br in 1:nbranch, y in 1:nyear, h in 1:nhour],
+        pflow_import_branch_from[br,y,h] <=  2*θ_bound / get_table_num(data, :branch, :x, br, y, h)
     )
 
     add_build_constraints!(data, model, :gen, :pcap_gen, :pgen_gen)
@@ -274,6 +304,25 @@ function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper)
 
     # add or subtract the expression from the objective function
     add_obj_exp!(data, model, PerMWhGen(), s; oper = oper)  
+end
+
+function add_obj_term!(data, model, ::PerMWhImport, s::Symbol; oper) 
+    #Check if s has already been added to obj
+    Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
+
+    #write expression for the term
+    pflow_import_bus = model[:pflow_import_bus]::Array{AffExpr, 3}
+    bus = get_table(data, :bus)
+    col = bus[!,s]
+    nhr = get_num_hours(data)
+    nyr = get_num_years(data)
+    hour_weights = get_hour_weights(data)
+    model[s] = @expression(model, 
+        [bus_idx in axes(bus,1), yr_idx in 1:nyr],
+        sum(col[bus_idx][yr_idx,hr_idx] * pflow_import_bus[bus_idx, yr_idx, hr_idx]  * hour_weights[hr_idx] for hr_idx in 1:nhr) # invert becase pflow_bus is net flow out, only sum imports
+    )
+    # add or subtract the expression from the objective function
+    add_obj_exp!(data, model, PerMWhImport(), s; oper = oper)  
 end
 
 function add_obj_term!(data, model, ::PerMMBtu, s::Symbol; oper) 
