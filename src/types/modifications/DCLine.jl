@@ -122,7 +122,8 @@ function modify_model!(mod::DCLine, config, data, model)
         [dc_idx in 1:ndc, y in 1:nyear, h in 1:nhour],
         pflow_import_dc_to[dc_idx,y,h] ≤ get_table_num(data, :dc_line, :pflow_max, dc_idx, y, h)
     )
-
+    
+    # constrain max pflow_import_dc_from as the pflow_max values
     @constraint(model,
         [dc_idx in 1:ndc, y in 1:nyear, h in 1:nhour],
         pflow_import_dc_from[dc_idx,y,h] ≤ get_table_num(data, :dc_line, :pflow_max_reverse, dc_idx, y, h)
