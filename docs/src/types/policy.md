@@ -34,21 +34,21 @@ We adjust this calculation to account for the fact that the simulation represent
 
 $$\sum_{i=1}^l x / \left(1+r \right)^{i+0.5} = \sum_{j=m+1}^n p / \left(1+r \right)^{j+0.5}$$
 
-$$ x \left( \frac{1- \left(\frac{1}{1+r}\right)^{l+0.5}}{1 - \left(\frac{1}{1+r}\right)^{1.5}}\right) = p \left( \frac{1- \left(\frac{1}{1+r}\right)^{n+0.5}}{1 - \left(\frac{1}{1+r}\right)^{m+1.5}}\right) $$
+$$x \left( \frac{1- \left(\frac{1}{1+r}\right)^{l+0.5}}{1 - \left(\frac{1}{1+r}\right)^{1.5}}\right) = p \left( \frac{1- \left(\frac{1}{1+r}\right)^{n+0.5}}{1 - \left(\frac{1}{1+r}\right)^{m+1.5}}\right)$$
 
-$$ x = p \frac{\left(1- \left(\frac{1}{1+r}\right)^{n+0.5}\right)\left(1 - \left(\frac{1}{1+r}\right)^{1.5}\right)}{\left(1- \left(\frac{1}{1+r}\right)^{l+0.5}\right)\left(1 - \left(\frac{1}{1+r}\right)^{m+1.5}\right)} $$
+$$x = p \frac{\left(1- \left(\frac{1}{1+r}\right)^{n+0.5}\right)\left(1 - \left(\frac{1}{1+r}\right)^{1.5}\right)}{\left(1- \left(\frac{1}{1+r}\right)^{l+0.5}\right)\left(1 - \left(\frac{1}{1+r}\right)^{m+1.5}\right)}$$
 
 To get the adjustement to capex $capex\_ adj$ we can start with  
 
-$$ capex + capex\_ adj + p = capex + x $$ 
+$$capex + capex\_ adj + p = capex + x$$ 
 so 
-$$ capex\_ adj = p - x $$
+$$capex\_ adj = p - x$$
 
-$$ capex\_ adj = p \left(1 - \left(\frac{\left(1- \left(\frac{1}{1+r}\right)^{n+0.5}\right)\left(1 - \left(\frac{1}{1+r}\right)^{1.5}\right)}{\left(1- \left(\frac{1}{1+r}\right)^{l+0.5}\right)\left(1 - \left(\frac{1}{1+r}\right)^{m+1.5}\right)}\right)\right) $$
+$$capex\_ adj = p \left(1 - \left(\frac{\left(1- \left(\frac{1}{1+r}\right)^{n+0.5}\right)\left(1 - \left(\frac{1}{1+r}\right)^{1.5}\right)}{\left(1- \left(\frac{1}{1+r}\right)^{l+0.5}\right)\left(1 - \left(\frac{1}{1+r}\right)^{m+1.5}\right)}\right)\right)$$
 
 The value of the PTC per MW capacity $p$ is equal to the PTC in per MWh terms $PTC$ * capacity factor $cf$. We can substitute this in to get the final formula
 
-$$ capex\_ adjust = PTC*cf\left(1 - \left(\frac{\left(1- \left(\frac{1}{1+r}\right)^{n+0.5}\right)\left(1 - \left(\frac{1}{1+r}\right)^{1.5}\right)}{\left(1- \left(\frac{1}{1+r}\right)^{l+0.5}\right)\left(1 - \left(\frac{1}{1+r}\right)^{m+1.5}\right)}\right)\right) $$
+$$capex\_ adjust = PTC*cf\left(1 - \left(\frac{\left(1- \left(\frac{1}{1+r}\right)^{n+0.5}\right)\left(1 - \left(\frac{1}{1+r}\right)^{1.5}\right)}{\left(1- \left(\frac{1}{1+r}\right)^{l+0.5}\right)\left(1 - \left(\frac{1}{1+r}\right)^{m+1.5}\right)}\right)\right)$$
 
 
 # GenerationStandard

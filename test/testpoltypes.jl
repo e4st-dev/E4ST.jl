@@ -34,10 +34,23 @@
         @testset "Adding PTC to gen table" begin
             @test hasproperty(gen, :example_ptc)
 
-            @test hasproperty(gen, :example_ptc_capex_adj)
+            @test !hasproperty(gen, :example_ptc_ptc_adj)
+            @test !hasproperty(gen, :example_ptc_no_age_filter_ptc_adj)
+            @test hasproperty(gen, :example_ptc_short_ptc_adj)
 
             #test that there are byYear containers 
             @test gen.example_ptc isa Vector{<:Container}
+            @test gen.example_ptc_short_ptc_adj isa Vector{<:Container}
+
+            # Test that all the ptc adjustments are between 0 and 1
+            @test ~anyany(<(0), gen.example_ptc_short_ptc_adj)
+            @test ~anyany(>(1), gen.example_ptc_short_ptc_adj)
+
+            for year in keys(config[:mods][:example_ptc_short].values)
+                ptc_val = config[:mods][:example_ptc_short].values[Symbol(year)]
+                gen_year = filter(row->row.year_on==Symbol(year), gen)
+                @test ~anyany(>(ptc_val), gen.example_ptc_short)
+            end
 
             @test any(ptc -> typeof(ptc) == E4ST.ByYear, gen.example_ptc)
 
@@ -52,19 +65,9 @@
             @test haskey(data[:obj_vars], :example_ptc)
             @test haskey(model, :example_ptc)
 
-            #test that PTC capex adj has been added to the model
-            @test haskey(data[:obj_vars], :example_ptc_capex_adj)
-            @test haskey(model, :example_ptc_capex_adj)
-
-            # Test that all the capex adjustments are positive and are added to the objective as a cost
-            @test ~anyany(<(0), gen.example_ptc_capex_adj)
-            @test data[:obj_vars][:example_ptc_capex_adj][:term_sign] == (+)
+            # Test that all the ptc values are positive and are added to the objective as a credit
             @test ~anyany(<(0), gen.example_ptc)
             @test data[:obj_vars][:example_ptc][:term_sign] == (-)
-
-            #check that no capex_adj gets added when no age filter provided
-            @test !haskey(data[:obj_vars], :example_ptc_no_age_filter_capex_adj)
-            @test !haskey(model, :example_ptc_no_age_filter_capex_adj)
 
             #make sure model still optimizes 
             optimize!(model)
@@ -98,18 +101,6 @@
 
         model = setup_model(config, data)
 
-        #test that PTC is added to the obj 
-        @test haskey(data[:obj_vars], :example_ptc)
-        @test haskey(model, :example_ptc)
-
-        #test that PTC capex adj has been added to the model
-        @test haskey(data[:obj_vars], :example_ptc_capex_adj)
-        @test haskey(model, :example_ptc_capex_adj)
-
-        #check that no capex_adj gets added when no age filter provided
-        @test !haskey(data[:obj_vars], :example_ptc_no_age_filter_capex_adj)
-        @test !haskey(model, :example_ptc_no_age_filter_capex_adj)
-
         #make sure model still optimizes 
         optimize!(model)
         @test check(config, data, model)
@@ -124,6 +115,63 @@
 
 
     end
+
+    @testset "Test PTC with pfs" begin
+        config_file = joinpath(@__DIR__, "config", "config_3bus_ptc.yml")
+        pfs_config_file = joinpath(@__DIR__, "config", "config_3bus_pfs.yml")
+        config = read_config(config_file_ref, config_file, pfs_config_file)
+ 
+        data = read_data(config)
+        model = setup_model(config, data)
+        gen = get_table(data, :gen)
+
+        @test hasproperty(gen, :example_ptc)
+
+        @test !hasproperty(gen, :example_ptc_ptc_adj)
+        @test !hasproperty(gen, :example_ptc_no_age_filter_ptc_adj)
+        @test hasproperty(gen, :example_ptc_short_ptc_adj)
+
+        #test that there are byYear containers 
+        @test gen.example_ptc isa Vector{<:Container}
+        @test gen.example_ptc_short_ptc_adj isa Vector{<:Container}
+
+        # Test that all the ptc adjustments are between 0 and 1
+        @test ~anyany(<(0), gen.example_ptc_short_ptc_adj)
+        @test ~anyany(>(1), gen.example_ptc_short_ptc_adj)
+
+        for year in keys(config[:mods][:example_ptc_short].values)
+            ptc_val = config[:mods][:example_ptc_short].values[Symbol(year)]
+            gen_year = filter(row->row.year_on==Symbol(year), gen)
+            @test ~anyany(>(ptc_val), gen.example_ptc_short)
+        end
+
+        @test any(ptc -> typeof(ptc) == E4ST.ByYear, gen.example_ptc)
+
+        # test that ByYear containers have non zero values
+        @test sum(ptc -> sum(ptc.v), gen.example_ptc) > 0
+
+        #test that PTC is added to the obj 
+        @test haskey(data[:obj_vars], :example_ptc_short)
+        @test haskey(model, :example_ptc_short)
+
+        # Test that all the ptc values are positive and are added to the objective as a credit
+        @test ~anyany(<(0), gen.example_ptc_short)
+        @test data[:obj_vars][:example_ptc_short][:term_sign] == (-)
+
+        #make sure model still optimizes 
+        optimize!(model)
+        @test check(config, data, model)
+        parse_results!(config, data, model)
+        process_results!(config, data)
+
+        #make sure obj was lowered
+        @test sum(get_raw_result(data, :obj)) < sum(get_raw_result(data_ref, :obj)) #if this isn't working, check that it isn't due to differences between the config files
+    
+        #test that results are getting calculated
+        @test compute_result(data, :gen, :example_ptc_short_cost) > 0.0
+
+    end
+    
 
 
     @testset "Test ITC" begin
@@ -285,6 +333,7 @@
 
             #make sure model still optimizes 
             optimize!(model)
+            
             @test check(config, data, model)
 
             # process results
@@ -325,8 +374,80 @@
             @test summer_co2_cost > 0
             @test total_co2_cost ≈ summer_co2_cost
         end
-    end
+    
 
+        @testset "Test Emission Price with Leakage" begin
+            config_file = joinpath(@__DIR__, "config", "config_3bus_emisprc_imports.yml")
+            config = read_config(config_file_ref, config_file)
+
+            data_emis_compare = copy(data)
+            data = read_data(config)
+            model = setup_model(config, data)
+
+            gen = get_table(data, :gen)
+            bus = get_table(data, :bus)
+
+            @testset "Adding Emis Prc to gen table" begin
+                @test hasproperty(gen, :example_emisprc)
+                @test hasproperty(bus, :example_emisprc_imports)
+
+                # Test that there are byYear containers 
+                @test typeof(gen.example_emisprc) == Vector{Container}
+                @test typeof(bus.example_emisprc_imports) == Vector{Container}
+
+                # Check that there are ByYear containers
+                @test any(emisprc -> typeof(emisprc) == E4ST.ByYear, gen.example_emisprc)
+
+                # test that ByYear containers have non zero values
+                @test sum(emisprc -> sum(emisprc.v), gen.example_emisprc) > 0
+            end
+
+            @testset "Adding Emis Prc to the model" begin
+                #test that emis prc is added to the obj 
+                @test haskey(data[:obj_vars], :example_emisprc)
+                @test haskey(data[:obj_vars], :example_emisprc_imports)
+                @test haskey(model, :example_emisprc)
+                @test haskey(model, :example_emisprc_imports)
+
+                #make sure model still optimizes 
+                optimize!(model)
+                @test check(config, data, model)
+
+                # process results
+                parse_results!(config, data, model)
+                process_results!(config, data)
+
+                ## Check that policy impacts results 
+                gen = get_table(data, :gen)
+                years = get_years(data)
+                emis_prc_mod = config[:mods][:example_emisprc]
+                emis_co2_total = compute_result(data, :gen, :emis_co2_total, parse_comparisons(emis_prc_mod.gen_filters))
+
+                gen_ref = get_table(data_ref, :gen)
+                emis_co2_total_ref = compute_result(data_ref, :gen, :emis_co2_total, parse_comparisons(emis_prc_mod.gen_filters))
+
+                # check that emissions are reduced for qualifying gens
+                @test emis_co2_total < emis_co2_total_ref
+
+                emis_co2_total_emis_compare = compute_result(data_emis_compare, :gen, :emis_co2_total, parse_comparisons(emis_prc_mod.gen_filters))
+
+                # check that emissions are different across two emissions price set ups
+                @test emis_co2_total != emis_co2_total_ref
+
+                # check that pricing imports changes objective function
+                @test sum(get_raw_result(data, :obj)) > sum(get_raw_result(data_emis_compare, :obj))
+
+                #test that cost restult is calculated
+                pol = config[:mods][:example_emisprc]
+                bus_idxs = get_row_idxs(bus, parse_comparisons(pol.bus_filters))
+
+                #@show compute_result(data, :gen, :egen_total, gen_idxs, [2, 3])
+                @test emis_co2_total > 0
+                @test compute_result(data, :bus, :example_emisprc_imports_cost) > 0.0
+
+            end
+        end
+    end
 
     @testset "Test Generation Standards" begin
 

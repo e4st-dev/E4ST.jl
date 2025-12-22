@@ -105,6 +105,7 @@ bus,merchandising_surplus_comp_total,SumHourly(merchandising_surplus),Dollars,To
 bus,distribution_cost_total,"SumHourlyWeighted(plserv, distribution_cost)",Dollars,Total cost to consumers for the transmission and distribution of power.
 bus,unserved_load_cost_total, "SumHourlyWeighted(plcurt, voll)",Dollars,Total cost of unserved load.
 bus,gs_payment,0,Dollars,Cost of required credits for clean/renewable generation for all generation standards (RPS's and CES's) for the qualifying demand at each given bus.
+bus,emission_cost,0,Dollars,Cost for paying all emissions prices for imported energy.
 branch,eflow_total,SumHourlyWeighted(pflow),MWhFlow,Total energy flowing in this branch
 branch,pflow_hourly_min,MinHourly(pflow),MWFlow,Minimum sum of power flowing in these branches
 branch,pflow_hourly_max,MaxHourly(pflow),MWFlow,Maximum sum of power flowing in these branches

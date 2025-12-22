@@ -134,12 +134,22 @@ function modify_model!(ret::Retrofit, config, data, model)
     end
 
     # Make constraint on the sum of the retrofit capacities
-    @constraint(model, 
+    # retrofit capacity is scaled by the ratio of original pcap_max over retrofit pcap_max so that penalty losses are included in max constraint
+    # e.g. if pcap_max for a gen is 500 MW, its retrofit pcap_max might only be 450 MW because of penalties - need to scale up so that penalty is considered in constraint 
+    @constraint(model,
         cons_pcap_gen_retro_max[
             gen_idx in keys(retrofits),
             yr_idx in 1:nyr
         ],
-        sum(ret_idx-> pcap_gen[ret_idx, yr_idx] * (pcap_max[gen_idx] / pcap_max[ret_idx]), retrofits[gen_idx]) + pcap_gen[gen_idx, yr_idx] <= pcap_max[gen_idx]
+        sum(
+            ret_idx -> pcap_gen[ret_idx, yr_idx] *
+                (
+                    pcap_max[ret_idx, yr_idx] == 0.0 ? # catches divisions by zero when pcap_max is zero
+                    0.0 : 
+                    pcap_max[gen_idx, yr_idx] / pcap_max[ret_idx, yr_idx]
+                ), 
+            retrofits[gen_idx]
+        ) + pcap_gen[gen_idx, yr_idx] <= pcap_max[gen_idx, yr_idx]
     )
 
     # Lower bound the capacities with zero
@@ -154,6 +164,8 @@ function modify_model!(ret::Retrofit, config, data, model)
     end
 
     # Constrain the capacities to add up to the desired min capacity
+    # scaling up for the penalty loss is not necessary for a min constraint
+    # pcap_min does not change across years, so is only indexed by gen_idx
     @constraint(model, 
         cons_pcap_gen_retro_min[
             gen_idx in keys(retrofits),
