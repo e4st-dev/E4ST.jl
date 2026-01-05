@@ -5,14 +5,15 @@
 This is a mod that outputs retail prices, given a `file` that indicates for which regions and years the retail price should be calculated.  `name` is simply the name of the modification, and will be used as the root for the filename that the retail rates are saved to. 
 The mod pulls values across different tables to calculate one retail rate. The specific terms that go into this cross-table calculation can be found in retail_price.jl. 
 
-The mod will also adjust the retail price values through calibration based on the `cal_mode` argument. If `cal_mode` is set to `none`, the retail prices will be unadjusted. If `cal_mode` is `get_val_values` the mod will use the reference price values to get calibration
-values. If `cal_mod` is set to `calibrate`, the calibrator values will be read in from the `calibrator_file` and used to adjust the calculated retail rates.
+The mod will also adjust the retail price values through calibration based on the `cal_mode` argument. If `cal_mode` is set to `none`, the retail prices will be unadjusted. If `cal_mode` is `get_val_values` the mod will use the reference price values in `ref_price_file` to 
+get calibration values. If `cal_mode` is set to `calibrate`, the calibrator values will be read in from the `calibrator_file` and used to adjust the calculated retail rates.
 
 ## Keyword Arguments
 * `file` - the file pointing to a table specifying which retail prices to calculate
 * `name` - the name of the mod, do not need to specify in a config file
 * `cal_mode` - a string that indicates the calibration mode. Options are `none`, `get_cal_values`, and `calibrate`. Defaults to `none`.
-* `calibrator_file` - the file pointing to a table that contains reference price values or calibration values, depending on `cal_mode`.
+* `ref_price_file` - the file pointing to a table that contains the reference price values, only necessary when `cal_mode` is `get_cal_values`.
+* `calibrator_file` - the file pointing to a table that contains calibration values, only necessary when `cal_mode` is `calibrate`.
 * `col_sort` - the column(s) to sort by.  Defaults to the order in which they were originally specified.
 
 The `file` should represent a csv table with the following columns:
@@ -22,7 +23,7 @@ The `file` should represent a csv table with the following columns:
 * `filter_years` - the filtering conditions for the years to be aggregated.  See [`parse_year_idxs`](@ref) for information on the year filters.
 * `filter_hours` - the filtering conditions for the hours to be aggregated.  See [`parse_hour_idxs`](@ref) for information on the hour filters. the retail rate mod is not set up to calculate hourly values.
 
-Note that, for the `filter_` or `filter_hours` columns, if a column name of the data table (or hours table) is given, new rows will be created for each unique value of that column.  I.e. if a value of `gentype` is given, there will be made a new row for `gentype=>coal`, `gentype=>ng`, etc.
+Note that, for the `filter_` or `filter_hours` columns, if a column name of the data table (or hours table) is given, new rows will be created for each unique value of that column.  I.e. if a value of `state` is given, there will be made a new row for `state=>california`, `state=>colorado`, etc.
 However, the filter must be present in each of tables in the cross-table calculation for retail price or it will error. Further, the calibration feature can only handle one filter_ column beyond filter_hours and filter_years (which will most likely designate the region of interest for the retail price calcualation).
 """
 
@@ -231,13 +232,13 @@ function get_retail_price(::Val{:get_cal_values}, m::RetailPrice, config, data, 
 
     # second calibrator adjustment to calibrate with full region
     full_cal!(m, data, table, cal_table)
-    select!(cal_table, 
-    [c for c in (:area, :subarea, :year, :cal_value) if any(!ismissing, cal_table[!, c]) && any(x -> x != "" && !ismissing(x), cal_table[!, c])])
+    select!(cal_table, [c for c in (:area, :subarea, :year, :cal_value) if c != :year ||any(x -> !ismissing(x) && x != "", cal_table.year)])
     CSV.write(get_out_path(config, string(m.name, "_cals.csv")), cal_table)
     results[:calibrator_values] = cal_table
 
 end
 
+# specialized method for retail rates with no cal_mode calibrate
 function get_retail_price(::Val{:calibrate}, m, config, data, table)
 
     # add value column to results table if it doesn't exist
@@ -268,7 +269,7 @@ function get_retail_price(::Val{:calibrate}, m, config, data, table)
     results[m.name] = table    
 end
 
-# final calibration value for full model
+# final calibration step for full model
 # example: for a state level model, ensure that the weighted average prices of all states are calibrated to the national average price
 function full_cal!(m, data, table, cal_table)
 
