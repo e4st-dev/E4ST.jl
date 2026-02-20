@@ -69,6 +69,7 @@ function add_build_constraints!(data, model, table_name::Symbol, pcap_name::Symb
         # Retrieve the investment year (either the retrofit year or the build year)
         year_retrofit = get(r, :year_retrofit, "")
         year_invest = isempty(year_retrofit) ? r.year_on : year_retrofit
+        year_invest > years[end] && return Inf  # return Inf for gens with build year after last model year to always constrain to 0
 
         yr_idx = findlast(year -> year_invest >= year, years)
         yr_idx === nothing || return yr_idx
