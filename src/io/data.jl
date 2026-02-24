@@ -49,6 +49,7 @@ function read_data!(config, data)
     promote_cols!(data)
     setup_results_formulas!(config, data)
     setup_welfare!(config, data)
+    setup_retail_price!(config, data)
 
     # Save the data to file as specified.
     if get(config, :save_data, true)
@@ -84,6 +85,7 @@ function read_data_files!(config, data)
     read_table!(config, data, :load_add_file=>:load_add, optional=true)
     read_table!(config, data, :build_gen_file => :build_gen, optional=true)
     read_table!(config, data, :gentype_genfuel_file => :genfuel, optional=true)
+    read_table!(config, data, :past_invest_file => :past_invest, optional=true)
 end
 export read_data_files!
 
@@ -179,6 +181,7 @@ function setup_data!(config, data)
     setup_table!(config, data, :nominal_load)
     setup_table!(config, data, :gen) # needs to come after build_gen setup for newgens
     setup_table!(config, data, :af_table)
+    setup_table!(config, data, :past_invest)
 end
 export setup_data!
 
@@ -518,17 +521,19 @@ function setup_table!(config, data, ::Val{:gen})
     z = Container(0.0)
     to_container!(gen, :past_invest_cost)
     to_container!(gen, :past_invest_subsidy)
-    for (idx_g, g) in enumerate(eachrow(gen))
-        if g.build_status == "unbuilt"
-            if any(!=(0), g.past_invest_cost) || any(!=(0), g.past_invest_subsidy)
-                @warn "Generator $idx_g is unbuilt yet has past capex cost/subsidy, setting to zero"
-                g.past_invest_cost = z
-                g.past_invest_subsidy = z
+    if !haskey(config,:past_invest_file)
+        for (idx_g, g) in enumerate(eachrow(gen))
+            if g.build_status == "unbuilt"
+                if any(!=(0), g.past_invest_cost) || any(!=(0), g.past_invest_subsidy)
+                    @warn "Generator $idx_g is unbuilt yet has past capex cost/subsidy, setting to zero"
+                    g.past_invest_cost = z
+                    g.past_invest_subsidy = z
+                end
+            else
+                past_invest_percentages = get_past_invest_percentages(g, years)
+                g.past_invest_cost = g.past_invest_cost .* past_invest_percentages
+                g.past_invest_subsidy = g.past_invest_subsidy .* past_invest_percentages
             end
-        else
-            past_invest_percentages = get_past_invest_percentages(g, years)
-            g.past_invest_cost = g.past_invest_cost .* past_invest_percentages
-            g.past_invest_subsidy = g.past_invest_subsidy .* past_invest_percentages
         end
     end
 
@@ -573,6 +578,76 @@ function setup_table!(config, data, ::Val{:gen})
     return gen
 end
 export setup_table!
+"""
+    setup_table!(config, data, ::Val{:past_invest})
+
+Sets up the invest cost gen table. This is necessary when gens are aggregated so that capex for built gens can be found.
+Creates age column which is a ByYear column. Unbuilt generators have a negative age before year_on.
+"""
+function setup_table!(config, data, ::Val{:past_invest})
+ 
+    if !haskey(config, :past_invest_file)
+        return
+    end
+
+    bus = get_table(data, :bus)
+    past_invest = get_table(data, :past_invest)
+    years = get_years(data)
+
+    # Set up year_unbuilt before setting up new gens.  Plus we will want to save the column
+    hasproperty(past_invest, :year_unbuilt) || (past_invest.year_unbuilt = map(y->add_to_year(y, -1), past_invest.year_on))
+    
+    # Set up past capex cost and subsidy to be for built generators only
+    # Make columns as needed
+    hasproperty(past_invest, :past_invest_cost) || (past_invest.past_invest_cost = zeros(nrow(past_invest)))
+    hasproperty(past_invest, :past_invest_subsidy) || (past_invest.past_invest_subsidy = zeros(nrow(past_invest)))
+    z = Container(0.0)
+    to_container!(past_invest, :past_invest_cost)
+    to_container!(past_invest, :past_invest_subsidy)
+    for (idx_g, g) in enumerate(eachrow(past_invest))
+        if g.build_status == "unbuilt"
+            if any(!=(0), g.past_invest_cost) || any(!=(0), g.past_invest_subsidy)
+                @warn "Generator $idx_g is unbuilt yet has past capex cost/subsidy, setting to zero"
+                g.past_invest_cost = z
+                g.past_invest_subsidy = z
+            end
+        else
+            past_invest_percentages = get_past_invest_percentages(g, years)
+            g.past_invest_cost = g.past_invest_cost .* past_invest_percentages
+            g.past_invest_subsidy = g.past_invest_subsidy .* past_invest_percentages
+        end
+    end
+    
+
+    original_cols = propertynames(past_invest)
+    data[:past_invest_table_original_cols] = original_cols
+
+    #removes capex_obj if read in from previous sim
+    :capex_obj in propertynames(data[:past_invest]) && select!(data[:past_invest], Not(:capex_obj))
+
+    #set build_status to 'built' for all gens marked 'new'. This marks gens built in a previous sim as 'built'.
+    b = "built" # pre-allocate
+    transform!(past_invest, :build_status => ByRow(s->isnew(s) ? b : s) => :build_status) # transform in-place
+
+    # Set the pcap_max to be equal to pcap0 for built generators
+    past_invest.pcap_max = map(row->isbuilt(row) ? row.pcap0 : row.pcap_max, eachrow(past_invest))
+    past_invest.pcap0 = map(row->isbuilt(row) ? row.pcap0 : 0.0, eachrow(past_invest))
+
+    
+    ### Add age column as by ByYear based on year_on
+    years = year2float.(get_years(data))
+    gen_age = Container[ByNothing(0.0) for i in 1:nrow(past_invest)]
+    for idx_g in 1:nrow(past_invest)
+        year_on = year2float(past_invest[idx_g, :year_on])
+        g_age = [year - year_on for year in years]
+        gen_age[idx_g] = ByYear(g_age)
+    end
+
+    add_table_col!(data, :past_invest, :age, gen_age, NumYears, "The age of the generator in each simulation year, given as a byYear container. Negative age is given for gens before their year_on.")
+
+    return past_invest
+end
+
 
 """
     join_bus_columns!(data, table_name)
@@ -977,6 +1052,51 @@ function summarize_table(::Val{:gen})
     return df
 end
 
+@doc """
+    summarize_table(::Val{:past_invest})
+
+$(table2markdown(summarize_table(Val(:past_invest))))
+"""
+function summarize_table(::Val{:past_invest})
+    df = TableSummary()
+    push!(df, 
+        (:bus_idx, Int64, NA, true, "The index of the `bus` table that the generator corresponds to"),
+        (:status, Bool, NA, false, "Whether or not the generator is in service"),
+        (:build_status, String15, NA, true, "Whether the generator is `built`, `new`, `unbuilt`, or `unretrofitted`. All generators marked `new` when the gen file is read in will be changed to `built`.  Can also be changed to `retired_exog` or `retired_endog` after the simulation is run. See [`update_build_status!`](@ref).  Note that `unretrofitted` means it is a [`Retrofit`](@ref) option based on a `built` generator."),
+        (:build_type, AbstractString, NA, true, "Whether the generator is 'real', 'exog' (exogenously built), or 'endog' (endogenously built)"),
+        (:build_id, AbstractString, NA, true, "Identifier of the build row.  For pre-existing generators not specified in the build file, this is usually left empty"),
+        (:year_on, YearString, Year, true, "The first year of operation for the generator. (For new gens this is also the year it was built)"),
+        (:year_unbuilt,YearString, Year, false, "The latest year the generator was known not to be built.  Defaults to year_on - 1.  Used for past capex accounting."),
+        (:econ_life, Float64, NumYears, true, "The number of years in the economic lifetime of the generator."),
+        (:year_off, YearString, Year, true, "The first year that the generator is no longer operating in the simulation, computed from the simulation.  Leave as y9999 if an existing generator that has not been retired in the simulation yet."),
+        (:year_shutdown, YearString, Year, true, "The forced (exogenous) shutdown year for the generator.  Often equal to the year_on plus the econ_life"),
+        (:genfuel, AbstractString, NA, true, "The fuel type that the generator uses"),
+        (:gentype, String, NA, true, "The generation technology type that the generator uses"),
+        (:pcap_inv, Float64, MWCapacity, true, "Original invested nameplate power generation capacity for the generator.  This is the original invested capacity of exogenously built generators (even if there have been retirements ), and the original invested capacity in year_on for endogenously built generators."),
+        (:pcap0, Float64, MWCapacity, true, "Nameplate power generation capacity for the generator at the start of the simulation"),
+        (:pcap_min, Float64, MWCapacity, true, "Minimum nameplate power generation capacity of the generator (normally set to zero to allow for retirement)"),
+        (:pcap_max, Float64, MWCapacity, true, "Maximum nameplate power generation capacity of the generator"),
+        (:vom, Float64, DollarsPerMWhGenerated, true, "Variable operation and maintenance cost per MWh of generation"),
+        (:fuel_price, Float64, DollarsPerMMBtu, false, "Fuel cost per MMBtu of fuel used.  `heat_rate` column also necessary when supplying `fuel_price`"),
+        (:heat_rate, Float64, MMBtuPerMWhGenerated, false, "Heat rate,  or MMBtu of fuel consumed per MWh electricity generated (0 for generators that don't use combustion)"),
+        (:fom, Float64, DollarsPerMWCapacityPerHour, true, "Hourly fixed operation and maintenance cost for a MW of generation capacity"),
+        (:capex, Float64, DollarsPerMWBuiltCapacityPerHour, true, "Hourly capital expenditures for a MW of generation capacity.  For already-built generators, this is not accounted for in the optimization or accounting.  For accounting for investment costs and subsidies in built generators, use `past_invest_cost` and `past_invest_subsidy`"),
+        (:transmission_capex, Float64, DollarsPerMWBuiltCapacityPerHour, true, "Hourly capital expenditures for the transmission supporting a MW of generation capacity"),
+        (:routine_capex, Float64, DollarsPerMWCapacityPerHour, true, "Routine capital expenditures for a MW of discharge capacity"),
+        (:past_invest_cost, Float64, DollarsPerMWCapacityPerHour, false, "Investment costs per MW of initial capacity per hour, for past investments"),
+        (:past_invest_subsidy, Float64, DollarsPerMWCapacityPerHour, false, "Investment subsidies from govt. per MW of initial capacity per hour, for past investments"),
+        (:cf_min, Float64, MWhGeneratedPerMWhCapacity, false, "The minimum capacity factor, or operable ratio of power generation to capacity for the generator to operate.  Take care to ensure this is not above the hourly availability factor in any of the hours, or else the model may be infeasible.  Set to zero by default."),
+        (:cf_max, Float64, MWhGeneratedPerMWhCapacity, false, "The maximum capacity factor, or operable ratio of power generation to capacity for the generator to operate"),
+        (:cf_hist, Float64, MWhGeneratedPerMWhCapacity, false, "The historical capacity factor for the generator, or the gentype if no previous data is available. Primarily used to calculate estimate policy value (PTC and EmissionPrice capex_adj)"),
+        (:af, Float64, MWhGeneratedPerMWhCapacity, false, "The availability factor, or maximum available ratio of pewer generation to nameplate capacity for the generator."),
+        (:emis_co2, Float64, ShortTonsPerMWhGenerated, false, "The emission rate per MWh of CO2"),
+        (:capt_co2_percent, Float64, NA, false, "The percentage of co2 emissions captured, to be sequestered."),
+        (:chp_co2_multi,Float64,NA,false,"The percentage of CO2 emissions from CHP attributed to the power generation. Used to calculate CO2e"),
+        (:reg_factor, Float64, NA, true, "The percentage of generation that dispatches to a cost-of-service regulated market"),
+    )
+    return df
+end
+
 
 @doc """
     summarize_table(::Val{:bus})
@@ -1127,6 +1247,11 @@ function get_table(data, table_name::AbstractString)
 end
 export get_table
 export get_table
+
+function get_cross_table(data, table_name)
+    return data[table_name]::OrderedDict{Symbol, OrderedDict{Symbol,OrderedDict{Symbol,Function}}}
+end
+export get_cross_table
 
 """
     get_subtable(table::DataFrame, conditions...)
@@ -1535,7 +1660,17 @@ Returns the number of years in this simulation
 function get_num_years(data)
     return length(get_years(data))
 end
-export get_num_years, get_years
+
+"""
+    get_first_sim_year(data) -> year
+
+Returns the first year as a string (i.e. "y2022") of the years being represented in the sim.
+"""
+function get_first_sim_year(data)
+    return data[:years][1]::String
+end
+
+export get_num_years, get_years, get_first_sim_year
 
 """
     get_bus_gens(data, bus_idx)

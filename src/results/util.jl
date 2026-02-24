@@ -155,3 +155,34 @@ function unweight_hourly(data, v::Vector{<:Container}, s=+)
     return [s(v[i][y,h]) / w[h] for i in 1:length(v), y in 1:ny, h in 1:nh]
 end
 export unweight_hourly
+
+function hours_sortby(s::T) where T
+    if endswith(s, r"h\d+")
+        m = match(r"h(\d+)", s)
+        return lpad(m.captures[1], 4, '0') |> T
+    else
+        return s |> T
+    end
+end
+export hours_sortby
+
+function not_a_full_filter(row::DataFrameRow)
+    not_a_full_filter(row.filter_years) && return true
+    not_a_full_filter(row.filter_hours) && return true
+    for i in 1:1000
+        col_name = "filter$i"
+        hasproperty(row, col_name) || break
+        not_a_full_filter(row[col_name]) && return true
+    end
+    return false
+end
+
+function not_a_full_filter(s::AbstractString)
+    isempty(s) && return false
+    all(isnumeric, s) && return false
+    contains(s, "=>") && return false
+    startswith(s, "[") && return false
+    startswith(s, "y2") && return false
+    return true
+end
+export not_a_full_filter

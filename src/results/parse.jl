@@ -375,6 +375,7 @@ function parse_lmp_results!(config, data)
     res_raw = get_raw_results(data)
 
     branch = get_table(data, :branch)
+    bus = get_table(data, :bus)
     f_bus_idxs = branch.f_bus_idx::Vector{Int64}
     t_bus_idxs = branch.t_bus_idx::Vector{Int64}
     
@@ -420,6 +421,7 @@ function parse_lmp_results!(config, data)
     hour_weights_mat = [hour_weights[hr_idx] for yr_idx in 1:nyr, hr_idx in 1:nhr]
 
     # Loop through each branch and add the hourly merchandising surplus, in dollars, to the appropriate bus
+    ms_all = zeros(size(lmp_elserv)) # nbus x nyr x nhr
     ms = zeros(size(lmp_elserv)) # nbus x nyr x nhr
     ms_branch = zeros(size(pflow_branch))
     
@@ -430,13 +432,17 @@ function parse_lmp_results!(config, data)
         t_bus_lmp = view(lmp_elserv, t_bus_idx, :, :) # nyr x nhr
         pflow = view(pflow_branch, branch_idx, :, :) # nyr x nhr
         ms_per_bus = ((t_bus_lmp .- f_bus_lmp) .* pflow) .* hour_weights_mat .* 0.5
-        ms[f_bus_idx, :, :] .+= ms_per_bus
-        ms[t_bus_idx, :, :] .+= ms_per_bus
+        ms_all[f_bus_idx, :, :] .+= ms_per_bus
+        ms_all[t_bus_idx, :, :] .+= ms_per_bus
+        f_bus_reg_factor = first(filter(row -> row.bus_idx == f_bus_idx, bus))[:reg_factor]
+        t_bus_reg_factor = first(filter(row -> row.bus_idx == t_bus_idx, bus))[:reg_factor]
+        ms[f_bus_idx, :, :] .+= ms_per_bus .* (1 - f_bus_reg_factor)
+        ms[t_bus_idx, :, :] .+= ms_per_bus .* (1 - t_bus_reg_factor)
         ms_branch[branch_idx, :, :] = ms_per_bus .* 2
     end
 
-    add_table_col!(data, :bus, :merchandising_surplus, ms, Dollars, "Merchandising surplus, in dollars, from selling electricity for a higher price at one end of a line than another.")
-    
+    add_table_col!(data, :bus, :merchandising_surplus, ms_all, Dollars, "Merchandising surplus, in dollars, from selling electricity for a higher price at one end of a line than another, calculated for every node.")
+    add_table_col!(data, :bus, :merchandising_surplus_comp, ms, Dollars, "Merchandising surplus, in dollars, from selling electricity for a higher price at one end of a line than another, calculated for nodes in competitive regions only.")
     add_table_col!(data, :branch, :merchandising_surplus, ms_branch, Dollars, "Merchandising surplus, in dollars, from selling electricity for a higher price at one end of a line than another.")
     
     # # Add the LMP's to the results and to the branch table
