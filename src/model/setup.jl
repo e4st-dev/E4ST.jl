@@ -79,6 +79,8 @@ function setup_model(config, data)
     do_not_parse!(data, :cons_pgen_max)
     do_not_parse!(data, :cons_pgen_min)
     do_not_parse!(data, :cons_pcap_gen_noadd)
+    do_not_parse!(data, :import_emis_price)
+    do_not_parse!(data, :import_dc_emis_price)
 
     if haskey(config, :model_presolve_file)
         @info "Loading model from:\n$(config[:model_presolve_file])"

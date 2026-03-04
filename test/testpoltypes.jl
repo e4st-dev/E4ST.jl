@@ -338,14 +338,15 @@
 
             gen = get_table(data, :gen)
             bus = get_table(data, :bus)
+            branch = get_table(data, :branch)
 
             @testset "Adding Emis Prc to gen table" begin
                 @test hasproperty(gen, :example_emisprc)
-                @test hasproperty(bus, :example_emisprc_imports)
+                @test hasproperty(branch, :example_emisprc_imports)
 
                 # Test that there are byYear containers 
                 @test typeof(gen.example_emisprc) == Vector{Container}
-                @test typeof(bus.example_emisprc_imports) == Vector{Container}
+                @test typeof(branch.example_emisprc_imports) == Vector{Container}
 
                 # Check that there are ByYear containers
                 @test any(emisprc -> typeof(emisprc) == E4ST.ByYear, gen.example_emisprc)
@@ -395,7 +396,7 @@
 
                 #@show compute_result(data, :gen, :egen_total, gen_idxs, [2, 3])
                 @test emis_co2_total > 0
-                @test compute_result(data, :bus, :example_emisprc_imports_cost) > 0.0
+                @test compute_result(data, :branch, :example_emisprc_imports_cost) > 0.0
 
             end
         end

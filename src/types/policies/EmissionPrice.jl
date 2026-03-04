@@ -110,36 +110,105 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
 
     # apply emissions prices to imports if emissions price intensity is provided
     if !isnothing(pol.import_emis)
-        @warn "Applying emissions prices to imports, which means the emission cost estimates for the gen table will be incomplete."
+        @warn "Applying emissions prices to imports, which means the emission cost estimates for the gen table will not be the total cost of $(pol.name). Must consider import costs from branches and/or dc lines as well. "
         bus = get_table(data, :bus)
+        branch = get_table(data, :branch)
+        
+        # get set of buses that emissions price applies to 
         bus_idxs = get_row_idxs(bus, parse_comparisons(pol.bus_filters))
-        bus[!,pol.emis_col] .= pol.import_emis
+        bus_set = Set(bus_idxs)
+        # set up kwarg argments for obj term function
+        pflow_col = Symbol("pflow_branch")
+        table = :branch
 
+        branch[!,pol.emis_col] .= pol.import_emis  # add emissions intensity column to branch table
 
-        if length(hour_idxs) < nhr
-            hour_multiplier = ByHour([i in hour_idxs ? 1.0 : 0.0 for i in 1:nhr])
-        else
-            hour_multiplier = 1.0
+        branch_idxs = findall(row -> (row.t_bus_idx in bus_set) ⊻ (row.f_bus_idx in bus_set), eachrow(branch))  # get branch idxs that connect buses that are subject to emissions price and buses outside of emissions price
+        
+        if length(branch_idxs) > 0 
+        
+            # get hour weights
+            if length(hour_idxs) < nhr
+                hour_multiplier = ByHour([i in hour_idxs ? 1.0 : 0.0 for i in 1:nhr])
+            else
+                hour_multiplier = ByHour(ones(nhr))
+            end
+
+            @info "Applying Emission Price $(pol.name) to imports into $(length(bus_idxs)) busses."
+            
+            pol_name_imports = Symbol(pol.name, "_imports")
+            #create column of Emission prices
+            add_table_col!(data, :branch, pol_name_imports, Container[ByNothing(0.0) for i in 1:nrow(branch)], DollarsPerMWhGenerated,
+                "Emission price per MWh imported for $(pol.name). Positive values indicate that for this branch, the t_bus is incldued in the policy while gegative values indicate the f_bus is included in the policy.")
+            # create column that indicates whether emissions price applies to this branch
+            add_table_col!(data, :branch, pol.name, [0 for i in 1:nrow(branch)], NA,
+                "Indicator col for $(pol.name)")
+
+            #update emission price column for branch_idx 
+            price_yearly = [get(pol.prices, Symbol(year), 0.0) for year in years] #prices for the years in the sim
+            # scalar so that imports to relevant buses are positive, and exports are negative, for both t_bus and f_bus
+            for branch_idx in branch_idxs
+                if branch[branch_idx, :t_bus_idx] in bus_set         # when pflow is positive, t_bus is importing -> set scalar to 1
+                    scalar = 1
+                elseif branch[branch_idx, :f_bus_idx] in bus_set     # when pflow is negative, f_bus is importing -> set scalar to -1 
+                    scalar = -1
+                end
+
+                # all years of imports qualify for emissions price
+                branch[branch_idx, pol_name_imports] = ByYear(price_yearly) .* branch[branch_idx, pol.emis_col] .* hour_multiplier * scalar #emission rate [st/MWh] * price [$/st] 
+                branch[branch_idx, pol.name] = 1    # set indicator column to 1 for this branch
+            end
+            
+            # add imports on branches to the objective function
+            add_obj_term!(data, model, PerMWhImport(), pol_name_imports, pol.name, table, pflow_col, oper = +)
+        else 
+            @warn "There are no relevant branches for $(pol.name). Imports on branches have no emissions price."
         end
 
-        @info "Applying Emission Price $(pol.name) to imports into $(length(bus_idxs)) busses."
+        # price emissions from imports on dc lines
+        if any(mod -> mod isa DCLine, values(config[:mods]))   # skip if there is no dc lines mod
+            dc_line = get_table(data, :dc_line)
+            # set up kwarg argments for obj term function
+            pflow_col = Symbol("pflow_dc") 
+            table = :dc_line
+
+            dc_line[!,pol.emis_col] .= pol.import_emis      # add emissions intensity column to dc line table
         
-        pol_name_imports = Symbol(pol.name, "_imports")
-        #create column of Emission prices
-        add_table_col!(data, :bus, pol_name_imports, Container[ByNothing(0.0) for i in 1:nrow(bus)], DollarsPerMWhGenerated,
-            "Emission price per MWh imported for $(pol.name)")
+            dc_idxs = findall(row -> (row.t_bus_idx in bus_set) ⊻ (row.f_bus_idx in bus_set), eachrow(dc_line))  # get ids of dc lines that connect buses that are subject to emissions price and buses outside of emissions price
+            
+            if length(dc_idxs) > 0 
+                pol_name_imports = Symbol(pol.name, "_dc_imports")
+                #create column of Emission prices
+                add_table_col!(data, :dc_line, pol_name_imports, Container[ByNothing(0.0) for i in 1:nrow(dc_line)], DollarsPerMWhGenerated,
+                "Emission price per MWh imported for $(pol.name)")
+                # create column that indicates whether emissions price applies to this branch
+                add_table_col!(data, :dc_line, pol.name, [0 for i in 1:nrow(dc_line)], NA,
+                "Indicator col for $(pol.name)")
 
-        #update column for bus_idx 
-        price_yearly = [get(pol.prices, Symbol(year), 0.0) for year in years] #prices for the years in the sim
-        for bus_idx in bus_idxs
-            b = bus[bus_idx, :]
+                #update column for dc_idx 
+                price_yearly = [get(pol.prices, Symbol(year), 0.0) for year in years] #prices for the years in the sim
+                # scalar so that imports to relevant buses are positive, and exports are negative, for both t_bus and f_bus
+                for dc_idx in dc_idxs
+                    if dc_line[dc_idx, :t_bus_idx] in bus_set                # when pflow is positive, t_bus is importing -> set scalar to 1
+                        scalar = 1
+                    elseif dc_line[dc_idx, :f_bus_idx] in bus_set            # when pflow is negative, f_bus is importing -> set scalar to -1 
+                        scalar = -1
+                    end
 
-            # all years of imports qualify for emissions price
-            bus[bus_idx, pol_name_imports] = ByYear(price_yearly) .* bus[bus_idx, pol.emis_col] .* hour_multiplier #emission rate [st/MWh] * price [$/st] 
+                    # all years of imports qualify for emissions price
+                    dc_line[dc_idx, pol_name_imports] = ByYear(price_yearly) .* dc_line[dc_idx, pol.emis_col] .* hour_multiplier * scalar #emission rate [st/MWh] * price [$/st] 
+                    dc_line[dc_idx, pol.name] = 1       # set indicator column to 1 for this branch
+            
 
+                end
+            
+                # add imports on dc lines to the objective function
+                add_obj_term!(data, model, PerMWhImport(), pol_name_imports, pol.name, table, pflow_col, oper = +)
+            else
+                 @warn "There are no relevant dc lines for $(pol.name). Imports on dc lines have no emissions price."
+            end
         end
-        
-        add_obj_term!(data, model, PerMWhImport(), pol_name_imports, oper = +)
+   
     end
     
 end
@@ -149,13 +218,47 @@ end
     E4ST.modify_results!(pol::EmissionPrice, config, data) -> 
 """
 function E4ST.modify_results!(pol::EmissionPrice, config, data)
+
     # policy cost, price per mwh * generation
     cost_name = Symbol("$(pol.name)_cost")
     add_results_formula!(data, :gen, cost_name, "SumHourlyWeighted($(pol.name), pgen)", Dollars, "The cost of $(pol.name)")
     add_to_results_formula!(data, :gen, :emission_cost, cost_name)
-    cost_name = Symbol("$(pol.name)_imports_cost")
-    add_results_formula!(data, :bus, cost_name, "SumHourlyWeighted($(pol.name)_imports, pflow_in)", Dollars, "The cost of $(pol.name) associated with imported emissions.")
-    add_to_results_formula!(data, :bus, :emission_cost, cost_name)
+
+    # policy cost for imports on branches
+    branch = get_table(data, :branch)
+    pol_name_imports = Symbol(pol.name, "_imports")
+    
+    if hasproperty(branch, pol_name_imports)
+        # ignore exports
+        for i in axes(branch,1), y in axes(branch[i,:pflow],1), h in axes(branch[i,:pflow],2)
+            if branch[i,:pflow][y,h] * branch[i,pol_name_imports][y,h] < 0
+                branch[i,pol_name_imports][y,h] = 0    # neg pflow and pos col value together indicate exports, not imports, at relevant bus and vice versa
+            end
+        end  
+        cost_name = Symbol("$(pol.name)_imports_cost")
+        add_results_formula!(data, :branch, cost_name, "SumHourlyWeighted($(pol.name)_imports, pflow)", Dollars, "The cost of $(pol.name) associated with imported emissions.")
+        add_results_formula!(data, :branch, :emission_cost, "0", Dollars, "The total cost of imported emissions on branches.")
+        add_to_results_formula!(data, :branch, :emission_cost, cost_name)
+    end
+    
+    # policy cost for imports on dc lines
+    if any(mod -> mod isa DCLine, values(config[:mods]))  # create emissions price for imports on dc lines
+        dc_line = get_table(data, :dc_line)
+
+        if hasproperty(dc_line, pol_name_imports)
+            #ignore exports
+            pol_name_imports = Symbol(pol.name, "_dc_imports")
+            for i in axes(dc_line,1), y in axes(dc_line[i,:pflow],1), h in axes(dc_line[i,:pflow],2)
+                if dc_line[i,:pflow][y,h] * dc_line[i,pol_name_imports][y,h] < 0
+                    dc_line[i,pol_name_imports][y,h] = 0    # neg pflow and pos col value together indicate exports, not imports, at relevant bus and vice versa
+                end
+            end  
+            cost_name = Symbol("$(pol.name)_imports_cost")
+            add_results_formula!(data, :dc_line, cost_name, "SumHourlyWeighted($(pol.name)_imports, pflow)", Dollars, "The cost of $(pol.name) associated with imported emissions.")
+            add_results_formula!(data, :dc_line, :emission_cost, "0", Dollars, "The total cost of imported emissions on dc lines.")
+            add_to_results_formula!(data, :dc_line, :emission_cost, cost_name)
+        end
+    end
 
     should_adjust_invest_cost(pol) && add_results_formula!(data, :gen, Symbol("$(pol.name)_capex_adj_total"), "SumYearly(ecap_inv_sim, $(pol.name)_capex_adj)", Dollars, "The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.")
 end
