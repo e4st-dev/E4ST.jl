@@ -299,10 +299,9 @@ function add_obj_term!(data, model, ::PerMWhImport, s::Symbol, s2::Symbol, table
 
         # variable and constraint together ensure that exports are not priced by setting lower bound to zero
         # (e.g., neg pflow_branch and pos col value together indicate exports at relevant bus and vice versa)
-        @variable(model,                                                                              
-        import_emis_price[branch_idx in valid_branches,
-                    yr_idx in 1:nyr,                                                                                                                                                                                             
-                    hr_idx in 1:nhr] >= 0
+        import_emis_price = @variable(model,
+            [branch_idx in valid_branches, yr_idx in 1:nyr, hr_idx in 1:nhr],
+            lower_bound = 0
         )
 
         @constraint(model, [branch_idx in valid_branches, yr_idx in 1:nyr, hr_idx in 1: nhr],
@@ -318,14 +317,14 @@ function add_obj_term!(data, model, ::PerMWhImport, s::Symbol, s2::Symbol, table
     elseif pflow_col == :pflow_dc
         
         pflow_branch = model[pflow_col]::Array{VariableRef, 3}
-        @variable(model,
-        import_dc_emis_price[branch_idx in valid_branches,
-                    yr_idx in 1:nyr,
-                    hr_idx in 1:nhr] >= 0
-        )
 
         # variable and constraint together ensure that exports are not priced by setting lower bound to zero
         # (e.g., neg pflow_branch and pos col value together indicate exports at relevant bus and vice versa)
+        import_dc_emis_price = @variable(model,
+            [branch_idx in valid_branches, yr_idx in 1:nyr, hr_idx in 1:nhr],
+            lower_bound = 0
+        )
+
         @constraint(model, [branch_idx in valid_branches, yr_idx in 1:nyr, hr_idx in 1: nhr],
         import_dc_emis_price[branch_idx, yr_idx, hr_idx] >=
             col[branch_idx][yr_idx,hr_idx] *

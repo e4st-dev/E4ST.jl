@@ -341,26 +341,26 @@
             branch = get_table(data, :branch)
 
             @testset "Adding Emis Prc to gen table" begin
-                @test hasproperty(gen, :example_emisprc)
-                @test hasproperty(branch, :example_emisprc_imports)
+                @test hasproperty(gen, :example_emisprc_arch)
+                @test hasproperty(branch, :example_emisprc_arch_imports)
 
                 # Test that there are byYear containers 
-                @test typeof(gen.example_emisprc) == Vector{Container}
-                @test typeof(branch.example_emisprc_imports) == Vector{Container}
+                @test typeof(gen.example_emisprc_arch) == Vector{Container}
+                @test typeof(branch.example_emisprc_arch_imports) == Vector{Container}
 
                 # Check that there are ByYear containers
-                @test any(emisprc -> typeof(emisprc) == E4ST.ByYear, gen.example_emisprc)
+                @test any(emisprc -> typeof(emisprc) == E4ST.ByYear, gen.example_emisprc_arch)
 
                 # test that ByYear containers have non zero values
-                @test sum(emisprc -> sum(emisprc.v), gen.example_emisprc) > 0
+                @test sum(emisprc -> sum(emisprc.v), gen.example_emisprc_arch) > 0
             end
 
             @testset "Adding Emis Prc to the model" begin
                 #test that emis prc is added to the obj 
-                @test haskey(data[:obj_vars], :example_emisprc)
-                @test haskey(data[:obj_vars], :example_emisprc_imports)
-                @test haskey(model, :example_emisprc)
-                @test haskey(model, :example_emisprc_imports)
+                @test haskey(data[:obj_vars], :example_emisprc_arch)
+                @test haskey(data[:obj_vars], :example_emisprc_arch_imports)
+                @test haskey(model, :example_emisprc_arch)
+                @test haskey(model, :example_emisprc_arch_imports)
 
                 #make sure model still optimizes 
                 optimize!(model)
@@ -373,7 +373,7 @@
                 ## Check that policy impacts results 
                 gen = get_table(data, :gen)
                 years = get_years(data)
-                emis_prc_mod = config[:mods][:example_emisprc]
+                emis_prc_mod = config[:mods][:example_emisprc_arch]
                 emis_co2_total = compute_result(data, :gen, :emis_co2_total, parse_comparisons(emis_prc_mod.gen_filters))
 
                 gen_ref = get_table(data_ref, :gen)
@@ -390,13 +390,16 @@
                 # check that pricing imports changes objective function
                 @test sum(get_raw_result(data, :obj)) > sum(get_raw_result(data_emis_compare, :obj))
 
-                #test that cost restult is calculated
-                pol = config[:mods][:example_emisprc]
+                #test that cost result is calculated
+                pol = config[:mods][:example_emisprc_arch]
                 bus_idxs = get_row_idxs(bus, parse_comparisons(pol.bus_filters))
 
                 #@show compute_result(data, :gen, :egen_total, gen_idxs, [2, 3])
                 @test emis_co2_total > 0
-                @test compute_result(data, :branch, :example_emisprc_imports_cost) > 0.0
+                @test compute_result(data, :branch, :example_emisprc_arch_imports_cost) > 0.0
+
+
+                @test compute_result(data, :branch, :example_emisprc_narnia_imports_cost) == 0.0  # in this setup, narnia always exports to archenland so the emissions cost on narnias import should be 0
 
             end
         end
