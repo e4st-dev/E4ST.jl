@@ -99,7 +99,7 @@ function setup_dcopf!(config, data, model)
     end
     
 
-    # Power flowing in/out of buses (previously only necessary when modeling line losses from pflow).
+    # Power flowing in/out of buses, only necessary if modeling line losses from pflow.
     if config[:line_loss_type] == "pflow"
         #  Make variables for positive and negative power flowing out of the bus.
         @variable(model, pflow_out_bus[bus_idx in 1:nbus, year_idx in 1:nyear, hour_idx in 1:nhour], lower_bound = 0)
