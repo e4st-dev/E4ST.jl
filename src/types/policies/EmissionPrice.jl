@@ -141,43 +141,39 @@ function E4ST.modify_results!(pol::EmissionPrice, config, data)
     add_results_formula!(data, :gen, cost_name, "SumHourlyWeighted($(pol.name), pgen)", Dollars, "The cost of $(pol.name)")
     add_to_results_formula!(data, :gen, :emission_cost, cost_name)
 
-    # policy cost for imports on branches
     branch = get_table(data, :branch)
     pol_name_imports = Symbol(pol.name, "_imports")
-    
     if hasproperty(branch, pol_name_imports)
-        # ignore exports
-        for i in axes(branch,1), y in axes(branch[i,:pflow],1), h in axes(branch[i,:pflow],2)
-            if branch[i,:pflow][y,h] * branch[i,pol_name_imports][y,h] < 0
-                branch[i,pol_name_imports][y,h] = 0    # neg pflow and pos col value together indicate exports, not imports, at relevant bus and vice versa
-            end
-        end  
-        cost_name = Symbol("$(pol.name)_imports_cost")
-        add_results_formula!(data, :branch, cost_name, "SumHourlyWeighted($(pol.name)_imports, pflow)", Dollars, "The cost of $(pol.name) associated with imported emissions.")
-        add_results_formula!(data, :branch, :emission_cost, "0", Dollars, "The total cost of imported emissions on branches.")
-        add_to_results_formula!(data, :branch, :emission_cost, cost_name)
+        zero_exports!(branch, pol_name_imports)
+        add_import_costs!(data, :branch, pol, pol_name_imports, Symbol("$(pol.name)_imports_cost"))
     end
-    
-    # policy cost for imports on dc lines
-    if any(mod -> mod isa DCLine, values(config[:mods]))  # create emissions price for imports on dc lines
-        dc_line = get_table(data, :dc_line)
 
-        if hasproperty(dc_line, pol_name_imports)
-            #ignore exports
-            pol_name_imports = Symbol(pol.name, "_dc_imports")
-            for i in axes(dc_line,1), y in axes(dc_line[i,:pflow],1), h in axes(dc_line[i,:pflow],2)
-                if dc_line[i,:pflow][y,h] * dc_line[i,pol_name_imports][y,h] < 0
-                    dc_line[i,pol_name_imports][y,h] = 0    # neg pflow and pos col value together indicate exports, not imports, at relevant bus and vice versa
-                end
-            end  
-            cost_name = Symbol("$(pol.name)_imports_cost")
-            add_results_formula!(data, :dc_line, cost_name, "SumHourlyWeighted($(pol.name)_imports, pflow)", Dollars, "The cost of $(pol.name) associated with imported emissions.")
-            add_results_formula!(data, :dc_line, :emission_cost, "0", Dollars, "The total cost of imported emissions on dc lines.")
-            add_to_results_formula!(data, :dc_line, :emission_cost, cost_name)
+    if any(mod -> mod isa DCLine, values(config[:mods]))
+        dc_line = get_table(data, :dc_line)
+        pol_name_imports_dc = Symbol(pol.name, "_dc_imports")
+        if hasproperty(dc_line, pol_name_imports_dc)
+            zero_exports!(dc_line, pol_name_imports_dc)
+            add_import_costs!(data, :dc_line, pol, pol_name_imports_dc, Symbol("$(pol.name)_imports_cost"))
         end
     end
 
     should_adjust_invest_cost(pol) && add_results_formula!(data, :gen, Symbol("$(pol.name)_capex_adj_total"), "SumYearly(ecap_inv_sim, $(pol.name)_capex_adj)", Dollars, "The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.")
+end
+
+function add_import_costs!(data, table, pol::EmissionPrice, col::Symbol, cost_sym::Symbol)
+    add_results_formula!(data, table, cost_sym, "SumHourlyWeighted($(col), pflow)", 
+                            Dollars, "The cost of $(pol.name) associated with imported emissions.")
+    add_results_formula!(data, table, :emission_cost, "0", Dollars, 
+                            "The total cost of imported emissions for $(table).")
+    add_to_results_formula!(data, table, :emission_cost, cost_sym)
+end
+
+function zero_exports!(table, col::Symbol)
+    for i in axes(table,1), y in axes(table[i,:pflow],1), h in axes(table[i,:pflow],2)
+        if table[i,:pflow][y,h] * table[i,col][y,h] < 0
+            table[i,col][y,h] = 0
+        end
+    end
 end
 
 """
