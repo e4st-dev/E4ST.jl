@@ -109,106 +109,23 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
     should_adjust_invest_cost(pol) && add_obj_term!(data, model, PerMWCapInv(), Symbol("$(pol.name)_capex_adj"), oper = -)
 
     # apply emissions prices to imports if emissions price intensity is provided
+    
     if !isnothing(pol.import_emis)
-        @warn "Applying emissions prices to imports, which means the emission cost estimates for the gen table will not be the total cost of $(pol.name). Must consider import costs from branches and/or dc lines as well. "
+        @warn "Applying emissions prices to imports; emission cost estimates for the gen table will not include import costs."
         bus = get_table(data, :bus)
-        branch = get_table(data, :branch)
-        
-        # get set of buses that emissions price applies to 
         bus_idxs = get_row_idxs(bus, parse_comparisons(pol.bus_filters))
         bus_set = Set(bus_idxs)
-        # set up kwarg argments for obj term function
-        pflow_col = Symbol("pflow_branch")
-        table = :branch
 
-        branch[!,pol.emis_col] .= pol.import_emis  # add emissions intensity column to branch table
+        # Hour multiplier
+        hour_multiplier = length(hour_idxs) < nhr ? ByHour([i in hour_idxs ? 1.0 : 0.0 for i in 1:nhr]) : ByHour(ones(nhr))
 
-        branch_idxs = findall(row -> (row.t_bus_idx in bus_set) ⊻ (row.f_bus_idx in bus_set), eachrow(branch))  # get branch idxs that connect buses that are subject to emissions price and buses outside of emissions price
-        
-        if length(branch_idxs) > 0 
-        
-            # get hour weights
-            if length(hour_idxs) < nhr
-                hour_multiplier = ByHour([i in hour_idxs ? 1.0 : 0.0 for i in 1:nhr])
-            else
-                hour_multiplier = ByHour(ones(nhr))
-            end
+        # Apply to branches
+        apply_import_emis!(data, model, pol, :branch, bus_set, hour_multiplier, years)
 
-            @info "Applying Emission Price $(pol.name) to imports into $(length(bus_idxs)) busses."
-            
-            pol_name_imports = Symbol(pol.name, "_imports")
-            #create column of Emission prices
-            add_table_col!(data, :branch, pol_name_imports, Container[ByNothing(0.0) for i in 1:nrow(branch)], DollarsPerMWhGenerated,
-                "Emission price per MWh imported for $(pol.name). Positive values indicate that for this branch, the t_bus is incldued in the policy while gegative values indicate the f_bus is included in the policy.")
-            # create column that indicates whether emissions price applies to this branch
-            add_table_col!(data, :branch, pol.name, [0 for i in 1:nrow(branch)], NA,
-                "Indicator col for $(pol.name)")
-
-            #update emission price column for branch_idx 
-            price_yearly = [get(pol.prices, Symbol(year), 0.0) for year in years] #prices for the years in the sim
-            # scalar so that imports to relevant buses are positive, and exports are negative, for both t_bus and f_bus
-            for branch_idx in branch_idxs
-                if branch[branch_idx, :t_bus_idx] in bus_set         # when pflow is positive, t_bus is importing -> set scalar to 1
-                    scalar = 1
-                elseif branch[branch_idx, :f_bus_idx] in bus_set     # when pflow is negative, f_bus is importing -> set scalar to -1 
-                    scalar = -1
-                end
-
-                # all years of imports qualify for emissions price
-                branch[branch_idx, pol_name_imports] = ByYear(price_yearly) .* branch[branch_idx, pol.emis_col] .* hour_multiplier * scalar #emission rate [st/MWh] * price [$/st] 
-                branch[branch_idx, pol.name] = 1    # set indicator column to 1 for this branch
-            end
-            
-            # add imports on branches to the objective function
-            add_obj_term!(data, model, PerMWhImport(), pol_name_imports, pol.name, table, pflow_col, oper = +)
-        else 
-            @warn "There are no relevant branches for $(pol.name). Imports on branches have no emissions price."
+        # Apply to DC lines if they exist
+        if any(mod -> mod isa DCLine, values(config[:mods]))
+            apply_import_emis!(data, model, pol, :dc_line, bus_set, hour_multiplier, years)
         end
-
-        # price emissions from imports on dc lines
-        if any(mod -> mod isa DCLine, values(config[:mods]))   # skip if there is no dc lines mod
-            dc_line = get_table(data, :dc_line)
-            # set up kwarg argments for obj term function
-            pflow_col = Symbol("pflow_dc") 
-            table = :dc_line
-
-            dc_line[!,pol.emis_col] .= pol.import_emis      # add emissions intensity column to dc line table
-        
-            dc_idxs = findall(row -> (row.t_bus_idx in bus_set) ⊻ (row.f_bus_idx in bus_set), eachrow(dc_line))  # get ids of dc lines that connect buses that are subject to emissions price and buses outside of emissions price
-            
-            if length(dc_idxs) > 0 
-                pol_name_imports = Symbol(pol.name, "_dc_imports")
-                #create column of Emission prices
-                add_table_col!(data, :dc_line, pol_name_imports, Container[ByNothing(0.0) for i in 1:nrow(dc_line)], DollarsPerMWhGenerated,
-                "Emission price per MWh imported for $(pol.name)")
-                # create column that indicates whether emissions price applies to this branch
-                add_table_col!(data, :dc_line, pol.name, [0 for i in 1:nrow(dc_line)], NA,
-                "Indicator col for $(pol.name)")
-
-                #update column for dc_idx 
-                price_yearly = [get(pol.prices, Symbol(year), 0.0) for year in years] #prices for the years in the sim
-                # scalar so that imports to relevant buses are positive, and exports are negative, for both t_bus and f_bus
-                for dc_idx in dc_idxs
-                    if dc_line[dc_idx, :t_bus_idx] in bus_set                # when pflow is positive, t_bus is importing -> set scalar to 1
-                        scalar = 1
-                    elseif dc_line[dc_idx, :f_bus_idx] in bus_set            # when pflow is negative, f_bus is importing -> set scalar to -1 
-                        scalar = -1
-                    end
-
-                    # all years of imports qualify for emissions price
-                    dc_line[dc_idx, pol_name_imports] = ByYear(price_yearly) .* dc_line[dc_idx, pol.emis_col] .* hour_multiplier * scalar #emission rate [st/MWh] * price [$/st] 
-                    dc_line[dc_idx, pol.name] = 1       # set indicator column to 1 for this branch
-            
-
-                end
-            
-                # add imports on dc lines to the objective function
-                add_obj_term!(data, model, PerMWhImport(), pol_name_imports, pol.name, table, pflow_col, oper = +)
-            else
-                 @warn "There are no relevant dc lines for $(pol.name). Imports on dc lines have no emissions price."
-            end
-        end
-   
     end
     
 end
@@ -289,4 +206,41 @@ function get_emisprc_capex_adj(pol::EmissionPrice, g::DataFrameRow, config)
 
     capex_adj = adj_factor .* cf .* emisprc_vals
     return capex_adj
+end
+
+function apply_import_emis!(data, model, pol, table::Symbol, bus_set, hour_multiplier, years)
+    tbl = get_table(data, table)
+    pflow_col = table == :branch ? :pflow_branch : :pflow_dc
+    pol_name_imports = Symbol(pol.name, table == :branch ? "_imports" : "_dc_imports")
+
+    # Add emissions intensity column
+    tbl[!, pol.emis_col] .= pol.import_emis
+
+    # Find relevant indices
+    idxs = findall(row -> (row.t_bus_idx in bus_set) ⊻ (row.f_bus_idx in bus_set), eachrow(tbl))
+
+    if isempty(idxs)
+        @warn "No relevant $(table) for $(pol.name). Imports have no emissions price."
+        return
+    end
+
+    # Create emission price and indicator columns
+    add_table_col!(data, table, pol_name_imports, Container[ByNothing(0.0) for _ in 1:nrow(tbl)],
+                   DollarsPerMWhGenerated, "Emission price per MWh imported for $(pol.name)")
+    add_table_col!(data, table, pol.name, [0 for _ in 1:nrow(tbl)], NA, "Indicator col for $(pol.name)")
+
+    # Get yearly prices
+    price_yearly = [get(pol.prices, Symbol(y), 0.0) for y in years]
+
+    # Update column values
+    for idx in idxs
+        scalar = tbl[idx, :t_bus_idx] in bus_set ? 1 : -1
+        tbl[idx, pol_name_imports] = ByYear(price_yearly) .* tbl[idx, pol.emis_col] .* hour_multiplier * scalar
+        tbl[idx, pol.name] = 1
+    end
+
+    # Add term to objective
+    add_obj_term!(data, model, PerMWhImport(), pol_name_imports, pol.name, table, pflow_col, oper = +)
+
+    @info "Applied Emission Price $(pol.name) to $(length(idxs)) $(table)."
 end
