@@ -30,6 +30,7 @@ Storage is represented over sets of time-weighted sequential representative hour
 * `(:storage, :lmp_e)` - locational marginal price of electricity.
 * `(:storage, :ploss)` - power lost by the battery, counted as served load equal to `pcharge * (1-η)` 
 * `(:storage, :eloss)` - energy lost by the battery, counted as served load.
+* `(:storage, :age)` - age of storage unit, based on the year_on column.
 
 ### Model Modification
 * Variables 
@@ -304,6 +305,16 @@ function modify_setup_data!(mod::Storage, config, data)
         sdf_storage.intervals .= Ref(intervals)
     end
 
+    years = year2float.(get_years(data))
+    stor_age = Container[ByNothing(0.0) for i in 1:nrow(storage)]
+    for idx_s in 1:nrow(storage)
+        year_on = year2float(storage[idx_s, :year_on])
+        s_age = [year - year_on for year in years]
+        stor_age[idx_s] = ByYear(s_age)
+    end
+
+    add_table_col!(data, :storage, :age, stor_age, NumYears, "The age of the storage unit in each simulation year, given as a byYear container. Negative age is given for storage units before their year_on.")
+
     ### Map bus characteristics to storage
     join_bus_columns!(data, :storage)
     return storage
@@ -335,7 +346,7 @@ function modify_model!(mod::Storage, config, data, model)
     # Power discharge capacity
     @variable(model, 
         pcap_stor[stor_idx in axes(storage,1), yr_idx in 1:nyr],
-        lower_bound = 0,
+        lower_bound = storage.pcap_min[stor_idx, yr_idx],
         upper_bound = storage.pcap_max[stor_idx]
     )
 

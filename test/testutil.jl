@@ -1,4 +1,4 @@
-import E4ST: Container, ByNothing, ByHour, ByYear, ByYearAndHour, OriginalContainer, scale_hourly, scale_yearly, add_hourly, add_yearly, set_hourly, set_yearly, get_original
+import E4ST: Container, ByNothing, ByHour, ByYear, ByYearAndHour, OriginalContainer, scale_hourly, scale_yearly, add_hourly, add_yearly, set_hourly, set_yearly, get_original, scale!, comparison
 function Base.:(==)(f1::ComposedFunction, f2::ComposedFunction)
     return (f1.inner == f2.inner) && (f1.outer == f2.outer)
 end
@@ -335,6 +335,15 @@ end
         int_years = [2020, 2025]
         @test year2str(int_year) isa AbstractString
         @test year2str.(int_years) isa Vector{String}
+
+        @test scale!(1,2) == 2
+        @test scale!([1,1,1],2) == [2,2,2]
+
+        cmp = comparison("23", Int)
+        @test cmp(23) == true
+        cmp = comparison(("dd", "zz"), Union{Missing, String})
+        @test cmp("aa") == false
+        @test cmp("mm") == true
     end
 
 end
