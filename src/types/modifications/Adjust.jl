@@ -82,6 +82,24 @@ function summarize_table(::Val{:adjust_string})
     return df
 end
 
+@doc """
+    summarize_table(::Val{:adjust_value})
+
+$(table2markdown(summarize_table(Val(:adjust_value))))
+"""
+function summarize_table(::Val{:adjust_value})
+    df = TableSummary()
+    push!(df, 
+        (:table_name, AbstractString, NA, true, "The name of the table to adjust.  Leave blank if this adjustment is intended for a variable in `data`"),
+        (:variable_name, AbstractString, NA, true, "The name of the variable/column to adjust"),
+        (:filter_, String, NA, true, "There can be multiple filter conditions - `filter1`, `filter2`, etc.  It denotes a comparison used for selecting the table rows to apply the adjustment to.  See `parse_comparison` for examples"),
+        (:status, Bool, NA, false, "Whether or not to use this adjustment"),
+        (:value, String, NA, true, "Value to set to."),
+    )
+    return df
+end
+
+
 
 
 
@@ -93,6 +111,7 @@ This [`Modification`](@ref) creates a way to adjust table values or data paramet
 * [`AdjustYearly`](@ref)
 * [`AdjustByAge`](@ref)
 * [`AdjustString`](@ref)
+* [`AdjustValue`](@ref)
 
 ### Keyword Arguments
 """
@@ -138,7 +157,8 @@ Adjusts tables and parameters by setting a string.  Stores the table stored in `
 $(table2markdown(summarize_table(Val(:adjust_string))))
 """
 const AdjustString = Adjust{:adjust_string}
-export Adjust, AdjustHourly, AdjustYearly, AdjustByAge, AdjustString
+const AdjustValue = Adjust{:adjust_val}
+export Adjust, AdjustHourly, AdjustYearly, AdjustByAge, AdjustString, AdjustValue
 
 
 
@@ -174,6 +194,10 @@ end
 
 function adjust!(mod::Adjust{:adjust_string}, config, data, row)
     adjust_string!(config, data, row)
+end
+
+function adjust!(mod::Adjust{:adjust_val}, config, data, row)
+    adjust_value!(config, data, row)
 end
 
 
@@ -425,3 +449,65 @@ function adjust_string!(config, data, row)
     return
 end
 export adjust_string!
+
+
+"""
+    adjust_value!(config, data, row)
+
+Single value adjustment.
+"""
+function adjust_value!(config, data, row)
+    table_name = row.table_name::AbstractString
+    variable_name = row.variable_name::AbstractString
+    oper = row.operation::AbstractString
+    if isempty(table_name)
+        key = Symbol(variable_name)
+        val = row.value
+        c = get(data, key, 0)
+        data[key] = operate_value(oper, c, vals)
+        row.num_adjusted = 1
+        return
+    end
+
+    # Get the filtered table with which to perform the adjustment
+    pairs = parse_comparisons(row)
+    
+    if !haskey(data, Symbol(table_name))
+        @warn "No table $table_name found for adjust_value"
+        return
+    end
+
+    table = get_table(data, table_name, pairs)
+    isempty(table) && return
+    hasproperty(table, variable_name) || (@warn("Table $table_name has no column $variable_name to adjust in `adjust_value!`"); return)
+    # Perform the adjustment on each row of the table
+    val = row.value
+
+    row.num_adjusted = nrow(table)
+
+    for r in eachrow(table)
+        r[variable_name] = operate_value(oper, r[variable_name], val)
+    end
+    return
+end
+export adjust_value!
+
+###############################################################################
+# Value Adjust
+###############################################################################
+
+function operate_value(oper::AbstractString, args...)
+    oper == "add"   && return add_value(args...)
+    oper == "scale" && return scale_value(args...)
+    oper == "set"   && return set_value(args...)
+end
+
+function set_value(r::Real, v::Real)
+    return v
+end
+function add_value(r::Real, v::Real)
+    return r + v
+end
+function scale_value(r::Real, v::Real)
+    return r*v
+end
