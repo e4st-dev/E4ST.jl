@@ -2,3 +2,5 @@ table_name,variable_name,filter1,operation,value
 gen,econ_life,econ_life=>30,set,20
 gen,econ_life,econ_life=>20,scale,2
 gen,econ_life,econ_life=>40,add,-15
+gen2,econ_life,econ_life=>40,add,-15
+,voll,,set,10000

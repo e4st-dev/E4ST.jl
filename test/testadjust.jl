@@ -97,6 +97,8 @@
         @testset "Test AdjustValue" begin
             table = get_table(data, :gen, :econ_life=>25)
             @test nrow(table) > 0
+            voll = data[:voll]
+            @test voll == 10000
         end
         @testset "Test AdjustString" begin
             table = get_table(data, :gen, :year_shutdown=>"y2051")

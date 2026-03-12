@@ -464,7 +464,7 @@ function adjust_value!(config, data, row)
         key = Symbol(variable_name)
         val = row.value
         c = get(data, key, 0)
-        data[key] = operate_value(oper, c, vals)
+        data[key] = operate_value(oper, c, val)
         row.num_adjusted = 1
         return
     end
