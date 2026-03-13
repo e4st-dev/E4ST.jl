@@ -157,6 +157,14 @@ Adjusts tables and parameters by setting a string.  Stores the table stored in `
 $(table2markdown(summarize_table(Val(:adjust_string))))
 """
 const AdjustString = Adjust{:adjust_string}
+
+"""
+AdjustValue(;file, name, rank)
+
+Adjusts the value of a variable in a table by either setting, adding to, or scaling it.
+
+$(table2markdown(summarize_table(Val(:adjust_value))))
+"""
 const AdjustValue = Adjust{:adjust_val}
 export Adjust, AdjustHourly, AdjustYearly, AdjustByAge, AdjustString, AdjustValue
 
