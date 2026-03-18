@@ -109,37 +109,23 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
     should_adjust_invest_cost(pol) && add_obj_term!(data, model, PerMWCapInv(), Symbol("$(pol.name)_capex_adj"), oper = -)
 
     # apply emissions prices to imports if emissions price intensity is provided
+    
     if !isnothing(pol.import_emis)
-        @warn "Applying emissions prices to imports, which means the emission cost estimates for the gen table will be incomplete."
+        @warn "Applying emissions prices to imports; emission cost estimates for the gen table will not include import costs."
         bus = get_table(data, :bus)
         bus_idxs = get_row_idxs(bus, parse_comparisons(pol.bus_filters))
-        bus[!,pol.emis_col] .= pol.import_emis
+        bus_set = Set(bus_idxs)
 
+        # Hour multiplier
+        hour_multiplier = length(hour_idxs) < nhr ? ByHour([i in hour_idxs ? 1.0 : 0.0 for i in 1:nhr]) : ByHour(ones(nhr))
 
-        if length(hour_idxs) < nhr
-            hour_multiplier = ByHour([i in hour_idxs ? 1.0 : 0.0 for i in 1:nhr])
-        else
-            hour_multiplier = 1.0
+        # Apply to branches
+        apply_import_emis!(data, model, pol, :branch, bus_set, hour_multiplier, years)
+
+        # Apply to DC lines if they exist
+        if any(mod -> mod isa DCLine, values(config[:mods]))
+            apply_import_emis!(data, model, pol, :dc_line, bus_set, hour_multiplier, years)
         end
-
-        @info "Applying Emission Price $(pol.name) to imports into $(length(bus_idxs)) busses."
-        
-        pol_name_imports = Symbol(pol.name, "_imports")
-        #create column of Emission prices
-        add_table_col!(data, :bus, pol_name_imports, Container[ByNothing(0.0) for i in 1:nrow(bus)], DollarsPerMWhGenerated,
-            "Emission price per MWh imported for $(pol.name)")
-
-        #update column for bus_idx 
-        price_yearly = [get(pol.prices, Symbol(year), 0.0) for year in years] #prices for the years in the sim
-        for bus_idx in bus_idxs
-            b = bus[bus_idx, :]
-
-            # all years of imports qualify for emissions price
-            bus[bus_idx, pol_name_imports] = ByYear(price_yearly) .* bus[bus_idx, pol.emis_col] .* hour_multiplier #emission rate [st/MWh] * price [$/st] 
-
-        end
-        
-        add_obj_term!(data, model, PerMWhImport(), pol_name_imports, oper = +)
     end
     
 end
@@ -149,15 +135,45 @@ end
     E4ST.modify_results!(pol::EmissionPrice, config, data) -> 
 """
 function E4ST.modify_results!(pol::EmissionPrice, config, data)
+
     # policy cost, price per mwh * generation
     cost_name = Symbol("$(pol.name)_cost")
     add_results_formula!(data, :gen, cost_name, "SumHourlyWeighted($(pol.name), pgen)", Dollars, "The cost of $(pol.name)")
     add_to_results_formula!(data, :gen, :emission_cost, cost_name)
-    cost_name = Symbol("$(pol.name)_imports_cost")
-    add_results_formula!(data, :bus, cost_name, "SumHourlyWeighted($(pol.name)_imports, pflow_in)", Dollars, "The cost of $(pol.name) associated with imported emissions.")
-    add_to_results_formula!(data, :bus, :emission_cost, cost_name)
+
+    branch = get_table(data, :branch)
+    pol_name_imports = Symbol(pol.name, "_imports")
+    if hasproperty(branch, pol_name_imports)
+        zero_exports!(branch, pol_name_imports)
+        add_import_costs!(data, :branch, pol, pol_name_imports, Symbol("$(pol.name)_imports_cost"))
+    end
+
+    if any(mod -> mod isa DCLine, values(config[:mods]))
+        dc_line = get_table(data, :dc_line)
+        pol_name_imports_dc = Symbol(pol.name, "_dc_imports")
+        if hasproperty(dc_line, pol_name_imports_dc)
+            zero_exports!(dc_line, pol_name_imports_dc)
+            add_import_costs!(data, :dc_line, pol, pol_name_imports_dc, Symbol("$(pol.name)_imports_cost"))
+        end
+    end
 
     should_adjust_invest_cost(pol) && add_results_formula!(data, :gen, Symbol("$(pol.name)_capex_adj_total"), "SumYearly(ecap_inv_sim, $(pol.name)_capex_adj)", Dollars, "The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.")
+end
+
+function add_import_costs!(data, table, pol::EmissionPrice, col::Symbol, cost_sym::Symbol)
+    add_results_formula!(data, table, cost_sym, "SumHourlyWeighted($(col), pflow)", 
+                            Dollars, "The cost of $(pol.name) associated with imported emissions.")
+    add_results_formula!(data, table, :emission_cost, "0", Dollars, 
+                            "The total cost of imported emissions for $(table).")
+    add_to_results_formula!(data, table, :emission_cost, cost_sym)
+end
+
+function zero_exports!(table, col::Symbol)
+    for i in axes(table,1), y in axes(table[i,:pflow],1), h in axes(table[i,:pflow],2)
+        if table[i,:pflow][y,h] * table[i,col][y,h] < 0
+            table[i,col][y,h] = 0
+        end
+    end
 end
 
 """
@@ -186,4 +202,41 @@ function get_emisprc_capex_adj(pol::EmissionPrice, g::DataFrameRow, config)
 
     capex_adj = adj_factor .* cf .* emisprc_vals
     return capex_adj
+end
+
+function apply_import_emis!(data, model, pol, table::Symbol, bus_set, hour_multiplier, years)
+    tbl = get_table(data, table)
+    pflow_col = table == :branch ? :pflow_branch : :pflow_dc
+    pol_name_imports = Symbol(pol.name, table == :branch ? "_imports" : "_dc_imports")
+
+    # Add emissions intensity column
+    tbl[!, pol.emis_col] .= pol.import_emis
+
+    # Find relevant indices
+    idxs = findall(row -> (row.t_bus_idx in bus_set) ⊻ (row.f_bus_idx in bus_set), eachrow(tbl))
+
+    if isempty(idxs)
+        @warn "No relevant $(table) for $(pol.name). Imports have no emissions price."
+        return
+    end
+
+    # Create emission price and indicator columns
+    add_table_col!(data, table, pol_name_imports, Container[ByNothing(0.0) for _ in 1:nrow(tbl)],
+                   DollarsPerMWhGenerated, "Emission price per MWh imported for $(pol.name)")
+    add_table_col!(data, table, pol.name, [0 for _ in 1:nrow(tbl)], NA, "Indicator col for $(pol.name)")
+
+    # Get yearly prices
+    price_yearly = [get(pol.prices, Symbol(y), 0.0) for y in years]
+
+    # Update column values
+    for idx in idxs
+        scalar = tbl[idx, :t_bus_idx] in bus_set ? 1 : -1
+        tbl[idx, pol_name_imports] = ByYear(price_yearly) .* tbl[idx, pol.emis_col] .* hour_multiplier * scalar
+        tbl[idx, pol.name] = 1
+    end
+
+    # Add term to objective
+    add_obj_term!(data, model, PerMWhImport(), pol_name_imports, pol.name, table, pflow_col, oper = +)
+
+    @info "Applied Emission Price $(pol.name) to $(length(idxs)) $(table)."
 end

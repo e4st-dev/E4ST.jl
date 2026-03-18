@@ -33,7 +33,7 @@ function parse_results!(config, data, model)
     obj_coef = OrderedDict{Symbol, Any}()
     for (k,v) in od
         if v isa AbstractArray{<:VariableRef}
-            obj_coef[k] = map(x->obj[x], v)
+            obj_coef[k] = JuMP.coefficient.(Ref(obj), v)
         end
     end
     obj_coef[:pcap_gen_inv_sim] = map(x->obj[x], model[:pcap_gen_inv_sim])
@@ -44,7 +44,7 @@ function parse_results!(config, data, model)
     obj_coef_unscaled = OrderedDict{Symbol, Any}()
     for (k,v) in od
         if v isa AbstractArray{<:VariableRef}
-            obj_coef_unscaled[k] = map(x->obj_unscaled[x], v)
+            obj_coef_unscaled[k] = JuMP.coefficient.(Ref(obj_unscaled), v)
         end
     end
     obj_coef_unscaled[:pcap_gen_inv_sim] = map(x->obj_unscaled[x], model[:pcap_gen_inv_sim])
