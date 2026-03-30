@@ -281,7 +281,7 @@ end
 
 function add_obj_term!(data, model, ::PerMWhImport, s::Symbol, s2::Symbol, table::Symbol, pflow_col::Symbol; oper) 
     #Check if s has already been added to obj
-    Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
+    Base.@assert s2 ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
 
     branch = get_table(data, table)
     col = branch[!,s]
@@ -310,7 +310,7 @@ function add_obj_term!(data, model, ::PerMWhImport, s::Symbol, s2::Symbol, table
             pflow_branch[branch_idx,yr_idx,hr_idx]
             )
 
-        model[s] = @expression(model,
+        model[s2] = @expression(model,
         [branch_idx in valid_branches, yr_idx in 1:nyr],
         sum(import_emis_price[branch_idx,yr_idx,hr_idx] * hour_weights[hr_idx] for hr_idx in 1:nhr))
 
@@ -331,7 +331,7 @@ function add_obj_term!(data, model, ::PerMWhImport, s::Symbol, s2::Symbol, table
             pflow_branch[branch_idx,yr_idx,hr_idx]
             )
 
-        model[s] = @expression(model,
+        model[s2] = @expression(model,
         [branch_idx in valid_branches, yr_idx in 1:nyr],
         sum(import_dc_emis_price[branch_idx,yr_idx,hr_idx] * hour_weights[hr_idx] for hr_idx in 1:nhr))
     else
@@ -339,7 +339,7 @@ function add_obj_term!(data, model, ::PerMWhImport, s::Symbol, s2::Symbol, table
     end
 
     # add or subtract the expression from the objective function
-    add_obj_exp!(data, model, PerMWhImport(), s; oper = oper)  
+    add_obj_exp!(data, model, PerMWhImport(), s2; oper = oper)  
 end
 
 
