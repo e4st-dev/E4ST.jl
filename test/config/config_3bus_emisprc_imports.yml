@@ -28,8 +28,7 @@ mods:
     bus_filters:
       nation: ["archenland"]
     price_imports: true
-    import_ef: 0.4
-    import_ef_file: "../data/3bus/import_ef.csv"
+    import_ef_file: "../data/3bus/import_ef_yearly.csv"
   example_emisprc_narnia:
     type: "EmissionPrice"
     emis_col: "emis_co2"
@@ -45,6 +44,7 @@ mods:
       nation: ["narnia"]
     price_imports: true
     import_ef: 0.4
+    import_ef_file: "../data/3bus/import_ef.csv"
   summer_co2_price:
     type: "EmissionPrice"
     emis_col: "emis_co2"
@@ -54,4 +54,5 @@ mods:
     hour_filters:
       season: summer
     import_ef: 0.4
+  
 

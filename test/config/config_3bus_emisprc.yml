@@ -19,5 +19,16 @@ mods:
       y2040: 1.2
     hour_filters:
       season: summer
+  example_emisprc_arch:
+    type: "EmissionPrice"
+    emis_col: "emis_co2"
+    prices: 
+      y2035: 10
+      y2040: 20
+    years_after_ref_min: 0
+    years_after_ref_max: 10
+    ref_year_col: "year_on"
+    gen_filters:
+      bus_nation: "archenland"
 
 

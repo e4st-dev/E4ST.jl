@@ -307,6 +307,7 @@
     @testset "Test Emission Price" begin
         config_file = joinpath(@__DIR__, "config", "config_3bus_emisprc.yml")
         config = read_config(config_file_ref, config_file)
+        delete!(config[:mods], :example_emisprc_arch)
 
         data = read_data(config)
         model = setup_model(config, data)
@@ -377,6 +378,17 @@
     
 
         @testset "Test Emission Price with Leakage" begin
+            # rerun for comparison with policies that don't price imports
+            config_file = joinpath(@__DIR__, "config", "config_3bus_emisprc.yml")
+            config = read_config(config_file_ref, config_file)
+            data = read_data(config)
+            model = setup_model(config, data)
+            optimize!(model)
+            parse_results!(config, data, model)
+            process_results!(config, data)
+            data_emis_compare = copy(data)
+
+            # leakage policies
             config_file = joinpath(@__DIR__, "config", "config_3bus_emisprc_imports.yml")
             config = read_config(config_file_ref, config_file)
 
@@ -397,6 +409,9 @@
                 # Test that there are byYear containers 
                 @test typeof(gen.example_emisprc_arch) == Vector{Container}
                 @test typeof(branch.example_emisprc_arch) == Vector{Container}
+
+                @test any(ef -> typeof(ef) == E4ST.ByYearAndHour, branch.example_emisprc_arch_emis_co2)
+                @test any(ef -> typeof(ef) == E4ST.ByHour, branch.example_emisprc_narnia_emis_co2)
 
                 # Check that there are ByYear containers
                 @test any(emisprc -> typeof(emisprc) == E4ST.ByYear, gen.example_emisprc_arch)
@@ -452,6 +467,7 @@
                 @test sum(get_raw_result(data, :obj)) > sum(get_raw_result(data_emis_compare, :obj))
 
                 # check that pricing imports changes the amount of imported power
+                @test compute_result(data, :bus, :eflow_in_total, :nation=>"archenland") < compute_result(data_emis_compare, :bus, :eflow_in_total, :nation=>"archenland")
 
                 #test that cost result is calculated
                 pol = config[:mods][:example_emisprc_arch]
