@@ -74,8 +74,6 @@ function E4ST.modify_raw_data!(pol::EmissionPrice, config, data)
         table  = read_table(data, pol.import_ef_file, name)
         data[name] = table
     end
-
-    return
 end
 
 
@@ -170,8 +168,6 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
             apply_import_ef!(data, model, pol, :dc_line, bus_set, hour_multiplier, years, ef_type)
         end
     end
-
-    
 end
 
 
@@ -240,30 +236,54 @@ function apply_import_ef!(data, model, pol::EmissionPrice, table_name::Symbol, b
     bus = get_table(data, :bus)
     hr_idx = findfirst(s->s=="h1", names(pol_table))
     nhr = get_num_hours(data)
+    years = get_years(data)
     
     emis_col = Symbol("$(pol.name)_$(pol.emis_col)")
     add_table_col!(data, table_name, emis_col, Container[ByNothing(0.0) for i in 1:nrow(table)], DollarsPerMWhGenerated,
         "Hourly emissions factors for imported power on given $(table_name) for $(pol.name)")
 
-    # for each row in the import_ef_file, identify the relevent branches or dc_lines and add the corresponding efs to the emis_col
+    # add the corresponding efs to the emis_col of branch/dc_lien
     idxs = []
-    for row in eachrow(pol_table)
-        row_idxs = get_row_idxs(bus, parse_comparisons(row))   # find relevant buses for the row
-        row_set = Set(row_idxs)
+    for sa in unique(pol_table.subarea)                                                     # loop through unique regions
+        sa_table = pol_table[pol_table.subarea .== sa, :]                                  
 
-        idx = findall(row -> (row.t_bus_idx in bus_set && row.f_bus_idx in row_set) ⊻       # get idxs of branch or dc_line table where power flows between policy region and the import_ef_file row region
+        row_idxs = get_row_idxs(bus, parse_comparisons(sa_table[1,:]))                      # find buses located within the region
+        row_set = Set(row_idxs)
+        idx = findall(row -> (row.t_bus_idx in bus_set && row.f_bus_idx in row_set) ⊻       # get idxs of branch or dc_line table where power flows between policy region and the ef table region 
                                 (row.f_bus_idx in bus_set && row.t_bus_idx in row_set),
                     eachrow(table))
-        append!(idxs, idx)              
+        append!(idxs, idx)
         
-        efs = ByHour(Float64[row[i_hr] for i_hr in hr_idx:(hr_idx + nhr - 1)])              
-        table[idx, emis_col] .= Ref(efs)                                                # fill the emis_col with the hourly efs
+        # set up container of efs for region
+        if hasproperty(pol_table, :year)   # check for yearly ef values
+            # ensure that all modeled policy years have efs
+            pol_years = [y for y in years if y in string.(collect(keys(pol.prices)))]       
+            ef_years = unique(sa_table.year)
+            all(in(ef_years), pol_years) || (@warn "The ef table for $(sa) is missing years required by the emission price policy. There will be no emission price on imported power from region $(sa)"; continue)
+            
+            # set up year x hour container to store efs for region
+            efs = ByYearAndHour(zeros(length(years), get_num_hours(data)))
+            for (yr_idx, year) in enumerate(years)
+                rows = sa_table[sa_table.year .== year, :]
+                isempty(rows) && continue  # if model year does not have corresponding ef, continue
+                row = (nrow(rows) > 1 && @warn "Multiple rows for $(sa) $(year). Using first."; rows[1, :])
+
+                hr_efs = [row[hr] for hr in hr_idx:(hr_idx + nhr - 1)]
+                efs[yr_idx] = hr_efs
+            end
+        else # if no year col in table, column set up hour container to store efs for regions
+            row = (nrow(sa_table) > 1 && @warn "Multiple rows for $(sa). Using first."; sa_table[1, :])
+            efs = ByHour(Float64[row[hr] for hr in hr_idx:(hr_idx + nhr - 1)])
+        end
+        # assign ef containers to table
+        table[idx, emis_col] .= Ref(efs)  
     end
 
     if isempty(idxs)
         @warn "No relevant $(table_name) for $(pol.name). Imports have no emissions price."
         return
     end
+
 
     _apply_import_ef!(data, model, pol, table_name, bus_set, hour_multiplier, years, idxs)
 end
