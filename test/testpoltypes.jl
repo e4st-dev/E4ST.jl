@@ -389,18 +389,31 @@
             branch = get_table(data, :branch)
 
             @testset "Adding Emis Prc to gen table" begin
+                @test hasproperty(branch, :example_emisprc_arch_emis_co2)
                 @test hasproperty(gen, :example_emisprc_arch)
+                @test hasproperty(branch, :example_emisprc_arch)
                 @test hasproperty(branch, :example_emisprc_arch_imports)
 
                 # Test that there are byYear containers 
                 @test typeof(gen.example_emisprc_arch) == Vector{Container}
-                @test typeof(branch.example_emisprc_arch_imports) == Vector{Container}
+                @test typeof(branch.example_emisprc_arch) == Vector{Container}
 
                 # Check that there are ByYear containers
                 @test any(emisprc -> typeof(emisprc) == E4ST.ByYear, gen.example_emisprc_arch)
 
                 # test that ByYear containers have non zero values
                 @test sum(emisprc -> sum(emisprc.v), gen.example_emisprc_arch) > 0
+
+                # test that the emissions factors of imported power varies for EmissionPolicy with ef file
+                @test all(eachrow(branch)) do row
+                    if row.example_emisprc_arch_imports == 1
+                        vals = collect(Iterators.flatten(values(row.example_emisprc_arch_emis_co2)))
+                        any(!=(vals[1]), vals)
+                    else
+                        true
+                    end
+                end
+
             end
 
             @testset "Adding Emis Prc to the model" begin
@@ -437,6 +450,8 @@
 
                 # check that pricing imports changes objective function
                 @test sum(get_raw_result(data, :obj)) > sum(get_raw_result(data_emis_compare, :obj))
+
+                # check that pricing imports changes the amount of imported power
 
                 #test that cost result is calculated
                 pol = config[:mods][:example_emisprc_arch]
