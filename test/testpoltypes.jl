@@ -241,8 +241,10 @@
         end
 
         @testset "Add constraint to model" begin
-            # Creates GenerationConstraint
-            @test typeof(config[:mods][:example_emiscap][:gen_cons]) == E4ST.GenerationConstraint
+            # # Creates GenerationConstraint
+            # @test typeof(config[:mods][:example_emiscap][:gen_cons]) == E4ST.GenerationConstraint
+             cap_cons_name = :cons_example_emiscap_max
+             @test haskey(model, cap_cons_name)
 
 
             # Added to the gen table 
@@ -302,7 +304,106 @@
 
             @test compute_result(data, :gen, :emis_co2_total, :, 1, :season=>"summer") ≈ 1000
         end
+
+        @testset "Test Emission Cap with Leakage" begin
+            # rerun for comparison with policies that don't price imports
+            config_file = joinpath(@__DIR__, "config", "config_3bus_emiscap.yml")
+            config = read_config(config_file_ref, config_file)
+            data = read_data(config)
+            model = setup_model(config, data)
+            optimize!(model)
+            parse_results!(config, data, model)
+            process_results!(config, data)
+            data_emis_compare = copy(data)
+
+            # leakage policies
+            config_file = joinpath(@__DIR__, "config", "config_3bus_emiscap_imports.yml")
+            config = read_config(config_file_ref, config_file)
+
+            data_emis_compare = copy(data)
+            data = read_data(config)
+            model = setup_model(config, data)
+
+            gen = get_table(data, :gen)
+            bus = get_table(data, :bus)
+            branch = get_table(data, :branch)
+
+
+            @testset "Adding Emis Cap to gen table" begin
+                @test hasproperty(gen, :example_emiscap_arch)
+                @test hasproperty(branch, :example_emiscap_arch)
+                @test hasproperty(branch, :example_emiscap_arch_emis_co2)
+                @test hasproperty(branch, :example_emiscap_arch_dir)
+
+                # Test that there are byYear containers 
+                @test eltype(gen.example_emiscap_arch) <: Container
+                @test eltype(branch.example_emiscap_arch) <: Container
+
+                @test any(ef -> typeof(ef) == E4ST.ByYearAndHour, branch.example_emiscap_arch_emis_co2)
+                @test any(ef -> typeof(ef) == E4ST.ByHour, branch.example_emiscap_narnia_emis_co2)
+
+                # test that ByYear containers have non zero values
+                @test sum(emisprc -> sum(emisprc.v), gen.example_emiscap_arch) > 0
+
+                # test that the emissions factors of imported power varies for EmissionPolicy with ef file
+                @test all(eachrow(branch)) do row
+                    if row.example_emiscap_arch == 1
+                        vals = collect(Iterators.flatten(values(row.example_emiscap_arch_emis_co2)))
+                        any(!=(vals[1]), vals)
+                    else
+                        true
+                    end
+                end
+
+            end
+        
+            @testset "Adding Emis Cap to the model" begin
+
+                #make sure model still optimizes 
+                optimize!(model)
+                @test check(config, data, model)
+
+                # process results
+                parse_results!(config, data, model)
+                process_results!(config, data)
+
+                ## Check that policy impacts results 
+                gen = get_table(data, :gen)
+                years = get_years(data)
+                emis_cap_mod = config[:mods][:example_emiscap_arch]
+                emis_co2_total = compute_result(data, :gen, :emis_co2_total, parse_comparisons(emis_cap_mod.gen_filters))
+
+                gen_ref = get_table(data_ref, :gen)
+                emis_co2_total_ref = compute_result(data_ref, :gen, :emis_co2_total, parse_comparisons(emis_cap_mod.gen_filters))
+
+                # check that emissions are reduced for qualifying gens
+                @test emis_co2_total < emis_co2_total_ref
+
+                emis_co2_total_emis_compare = compute_result(data_emis_compare, :gen, :emis_co2_total, parse_comparisons(emis_cap_mod.gen_filters))
+
+                # check that emissions are different across two emissions price set ups
+                @test emis_co2_total != emis_co2_total_ref
+
+                # check that pricing imports changes objective function
+                @test sum(get_raw_result(data, :obj)) > sum(get_raw_result(data_emis_compare, :obj))
+
+                # check that pricing imports changes the amount of imported power
+                @test compute_result(data, :bus, :eflow_in_total, :nation=>"archenland") < compute_result(data_emis_compare, :bus, :eflow_in_total, :nation=>"archenland")
+
+                #test that cost result is calculated
+                pol = config[:mods][:example_emiscap_arch]
+                bus_idxs = get_row_idxs(bus, parse_comparisons(pol.bus_filters))
+
+                @test emis_co2_total > 0
+                @test compute_result(data, :branch, :example_emiscap_arch_import_cost) > 0.0
+
+
+                @test compute_result(data, :branch, :example_emiscap_narnia_import_cost) == 0.0  # in this setup, narnia always exports to archenland so the emissions cost on narnias import should be 0
+
+            end
+        end
     end
+    
 
     @testset "Test Emission Price" begin
         config_file = joinpath(@__DIR__, "config", "config_3bus_emisprc.yml")

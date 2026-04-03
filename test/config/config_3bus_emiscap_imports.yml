@@ -1,0 +1,43 @@
+base_out_path:    "../out/3bus_emiscap"
+mods:
+  example_emiscap:
+    type: "EmissionCap"
+    emis_col: "emis_co2"
+    targets: 
+      y2035: 4000
+      y2040: 3000
+    gen_filters:
+      bus_nation: "[narnia, archenland]"
+  example_emiscap_arch:
+    type: "EmissionCap"
+    emis_col: "emis_co2"
+    cap_imports: true
+    import_ef_file: "../data/3bus/import_ef_yearly.csv"
+    targets: 
+      y2035: 2000
+      y2040: 1500
+    gen_filters:
+      bus_nation: "[archenland]"
+    bus_filters:
+      nation: "[archenland]"
+  example_emiscap_narnia:
+    type: "EmissionCap"
+    emis_col: "emis_co2"
+    cap_imports: true
+    import_ef_file: "../data/3bus/import_ef.csv"
+    targets: 
+      y2035: 2000
+      y2040: 1500
+    gen_filters:
+      bus_nation: "[narnia]"
+    bus_filters:
+      nation: "[narnia]"
+  example_summer_emiscap:
+    type: "EmissionCap"
+    emis_col: "emis_co2"
+    targets: 
+      y2030: 1000
+    hour_filters:
+      season: "summer"
+
+
