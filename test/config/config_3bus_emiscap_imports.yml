@@ -3,6 +3,7 @@ mods:
   example_emiscap:
     type: "EmissionCap"
     emis_col: "emis_co2"
+    cap_imports: true
     targets: 
       y2035: 4000
       y2040: 3000
@@ -39,5 +40,6 @@ mods:
       y2030: 1000
     hour_filters:
       season: "summer"
+    import_ef: 0.4
 
 

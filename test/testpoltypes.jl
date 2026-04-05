@@ -508,8 +508,8 @@
                 @test hasproperty(branch, :example_emisprc_arch_imports)
 
                 # Test that there are byYear containers 
-                @test typeof(gen.example_emisprc_arch) == Vector{Container}
-                @test typeof(branch.example_emisprc_arch) == Vector{Container}
+                @test eltype(gen.example_emisprc_arch) <: Container
+                @test eltype(branch.example_emisprc_arch) <: Container
 
                 @test any(ef -> typeof(ef) == E4ST.ByYearAndHour, branch.example_emisprc_arch_emis_co2)
                 @test any(ef -> typeof(ef) == E4ST.ByHour, branch.example_emisprc_narnia_emis_co2)
