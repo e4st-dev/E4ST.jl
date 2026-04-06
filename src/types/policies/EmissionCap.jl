@@ -57,6 +57,18 @@ end
 
 export EmissionCap
 
+
+function summarize_table(::Val{:import_ef_file})
+    df = TableSummary()
+    push!(df, 
+        (:area, String, NA, true, "The area the ef value applies to. I.e. \"state\". Leave blank to apply grid-wide."),
+        (:subarea, String, NA, true, "The subarea that ef value applies to. Leave blank to apply grid-wide"),
+        (:year, String, NA, false, "The year the ef values correspond to. Include a row for each model year for each region. Optional column. When not included, the same ef values will be applied in each year."),
+        (:h_, Float64, Ratio, true, "The ef of the imported power.  Include a column for each hour in the hours table.  I.e. `:h1`, `:h2`, etc"),
+    )
+    return df
+end
+
 function E4ST.modify_raw_data!(pol::EmissionCap, config, data)
     if !isnothing(pol.import_ef_file)
         data[pol.name] = read_table(data, pol.import_ef_file, pol.name)
@@ -127,18 +139,18 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
     cap_years = collect(keys(pol.targets))
     filter!(in(years), cap_years)
 
-    if ~isempty(cap_years)
-        cap_cons_name = Symbol("cons_$(pol.name)_max")
-        @info "Creating emissions cap constraint for $(pol.name) in years $(cap_years)"
-        model[cap_cons_name] = @constraint(model,
-            [
-                yr_idx in 1:nyr;
-                years[yr_idx] in cap_years
-            ],
-            sum(model[emis_expr_name][yr_idx, hr_idx] for hr_idx in 1:nhr)
-            <= pol.targets[years[yr_idx]]
-        )
-    end
+    
+    cap_cons_name = Symbol("cons_$(pol.name)_max")
+    @info "Creating emissions cap constraint for $(pol.name) in years $(cap_years)"
+    model[cap_cons_name] = @constraint(model,
+        [
+            yr_idx in 1:nyr;
+            years[yr_idx] in cap_years
+        ],
+        sum(model[emis_expr_name][yr_idx, hr_idx] for hr_idx in 1:nhr)
+        <= pol.targets[years[yr_idx]]
+    )
+    
 end
 
 
@@ -204,7 +216,7 @@ function tag_import_branches!(pol, config, data, table_name::Symbol)
     hour_idxs = get_row_idxs(hours, parse_comparisons(pol.hour_filters))
     hour_multiplier = length(hour_idxs) < nhr ? ByHour([i in hour_idxs ? 1.0 : 0.0 for i in 1:nhr]) : ByNothing(1.0)
 
-    # use a policy-specific column name to avoid colliding with the existing emis_col on the table
+    # use a policy-specific column name to avoid overwriting existing emis_col on the table
     import_emis_col = Symbol("$(pol.name)_$(pol.emis_col)")
     add_table_col!(data, table_name, import_emis_col, Container[ByNothing(0.0) for _ in 1:nrow(table)], NA,
         "Emissions factor of imported power on $(table_name) for $(pol.name)")
