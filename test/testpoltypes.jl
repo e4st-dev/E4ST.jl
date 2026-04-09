@@ -306,6 +306,31 @@
         end
 
         @testset "Test Emission Cap with Leakage" begin
+
+            @testset "EmissionCap constructor validation" begin
+                # both import_ef and import_ef_file provided — should error immediately
+                @test_throws ErrorException EmissionCap(
+                    name = "test_both_ef",
+                    emis_col = "emis_co2",
+                    targets = Dict(:y2035 => 1000),
+                    gen_filters = Dict(:nation=>"archenland"),
+                    bus_filters = Dict(:nation => "archenland"),
+                    cap_imports = true,
+                    import_ef = 0.4,
+                    import_ef_file = "data/import_ef.csv"
+                )
+
+                # import_ef provided but cap_imports false -> should warn
+                @test_logs (:warn, r"cap_imports=false") EmissionCap(
+                    name = "test_cap_false",
+                    emis_col = "emis_co2",
+                    targets = Dict(:y2035 => 1000),
+                    gen_filters = Dict(:nation=>"archenland"),
+                    bus_filters = Dict(:nation => "archenland"),
+                    import_ef = 0.4,
+                )
+            end
+
             # rerun for comparison with policies that don't price imports
             config_file = joinpath(@__DIR__, "config", "config_3bus_emiscap.yml")
             config = read_config(config_file_ref, config_file)
@@ -399,11 +424,13 @@
 
 
                 @test compute_result(data, :branch, :example_emiscap_narnia_import_cost) == 0.0  # in this setup, narnia always exports to archenland so the emissions cost on narnias import should be 0
+                @test compute_result(data, :branch, :example_emiscap_narnia_empty_import_cost) == 0.0  # should be zero because narnia exports, and the ef file set up will not tag any branches
 
             end
         end
+
     end
-    
+
 
     @testset "Test Emission Price" begin
         config_file = joinpath(@__DIR__, "config", "config_3bus_emisprc.yml")
@@ -479,6 +506,31 @@
     
 
         @testset "Test Emission Price with Leakage" begin
+
+            @testset "EmissionPrice constructor validation" begin
+                # both import_ef and import_ef_file provided — should error immediately
+                @test_throws ErrorException EmissionPrice(
+                    name = "test_both_ef",
+                    emis_col = "emis_co2",
+                    prices = Dict(:y2035 => 10.0),
+                    gen_filters = Dict(:nation => "archenland"),
+                    bus_filters = Dict(:nation => "archenland"),
+                    price_imports = true,
+                    import_ef = 0.4,
+                    import_ef_file = "table/import_ef.csv"
+                )
+
+                # import_ef provided but price_imports false -> should warn
+                @test_logs (:warn, r"price_imports=false") EmissionPrice(
+                    name = "test_price_false",
+                    emis_col = "emis_co2",
+                    prices = Dict(:y2035 => 10),
+                    gen_filters = Dict(:nation=>"archenland"),
+                    bus_filters = Dict(:nation => "archenland"),
+                    import_ef = 0.4,
+                )
+            end
+
             # rerun for comparison with policies that don't price imports
             config_file = joinpath(@__DIR__, "config", "config_3bus_emisprc.yml")
             config = read_config(config_file_ref, config_file)
@@ -576,13 +628,15 @@
 
                 #@show compute_result(data, :gen, :egen_total, gen_idxs, [2, 3])
                 @test emis_co2_total > 0
-                @test compute_result(data, :branch, :example_emisprc_arch_imports_cost) > 0.0
+                @test compute_result(data, :branch, :example_emisprc_arch_import_cost) > 0.0
 
 
-                @test compute_result(data, :branch, :example_emisprc_narnia_imports_cost) == 0.0  # in this setup, narnia always exports to archenland so the emissions cost on narnias import should be 0
+                @test compute_result(data, :branch, :example_emisprc_narnia_import_cost) == 0.0  # in this setup, narnia always exports to archenland so the emissions cost on narnias import should be 0
+                @test compute_result(data, :branch, :example_emisprc_narnia_empty_import_cost) == 0.0  # should be zero because narnia exports, and the ef file set up will not tag any branches
 
             end
         end
+
     end
 
     @testset "Test Generation Standards" begin

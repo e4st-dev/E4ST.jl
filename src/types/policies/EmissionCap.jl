@@ -50,7 +50,7 @@ struct EmissionCap <: Policy
         elseif !cap_imports && (import_ef !== nothing || import_ef_file !== nothing)
             @warn "EmissionCap $(name) has cap_imports=false but emission factors were provided. Imports will not be counted toward the cap."
         end
-        new(Symbol(name), Symbol(emis_col), targets, gen_filters, hour_filters, bus_filters, cap_imports, import_ef, import_ef_file)
+        new(Symbol(name), Symbol(emis_col), OrderedDict{Symbol, Float64}(targets), OrderedDict(gen_filters), OrderedDict(hour_filters), OrderedDict(bus_filters), cap_imports, import_ef, import_ef_file)
     end
 
 end
@@ -281,7 +281,6 @@ function _tag_import_branches_by_file!(pol, data, table_name, bus_set, import_em
             eachrow(table)
         )
         isempty(idxs) && continue
-        append!(all_idxs, idxs)
 
         # build EF container — ByYearAndHour if the file has a year column, ByHour otherwise
         if hasproperty(pol_table, :year)
@@ -291,6 +290,7 @@ function _tag_import_branches_by_file!(pol, data, table_name, bus_set, import_em
                 @warn "The ef table for $(sa) is missing cap years required by $(pol.name). No import emissions counted for region $(sa)."
                 continue
             end
+    
             efs = ByYearAndHour(zeros(length(years), nhr))
             for (yr_idx, year) in enumerate(years)
                 rows = sa_table[sa_table.year .== year, :]
@@ -303,8 +303,9 @@ function _tag_import_branches_by_file!(pol, data, table_name, bus_set, import_em
             efs = ByHour(Float64[sa_table[1, hr] for hr in hr_col_start:(hr_col_start + nhr - 1)])
         end
         table[idxs, import_emis_col] .= Ref(efs)
+        append!(all_idxs, idxs)
     end
-
+    
     if isempty(all_idxs)
         @warn "No relevant $(table_name) for $(pol.name). Imports will not count toward the emission cap."
         return

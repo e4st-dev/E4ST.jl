@@ -1,6 +1,6 @@
 base_out_path:    "../out/3bus_emisprc"
 mods:
-  example_emisprc_empty:  # this will lead to an empty branch table in the emission price mod because there aren't any bus that connect from the filtered buses to to other buses, intentionally including this to test lines of code
+  example_emisprc_empty:   # test lines of code for single ef value, tests warning for default ef value
     type: "EmissionPrice"
     emis_col: "emis_co2"
     prices: 
@@ -10,11 +10,11 @@ mods:
     years_after_ref_max: 10
     ref_year_col: "year_on"
     gen_filters:
-      bus_nation: ["narnia", "archenland"]
+      bus_nation: ["archenland"]
     bus_filters:
-      nation: ["narnia","archenland"]
+      nation: ["archenland"]
     price_imports: true
-  example_emisprc_arch:
+  example_emisprc_arch:  # included to test lines of code with region, year, hour efs
     type: "EmissionPrice"
     emis_col: "emis_co2"
     prices: 
@@ -29,7 +29,7 @@ mods:
       nation: ["archenland"]
     price_imports: true
     import_ef_file: "../data/3bus/import_ef_yearly.csv"
-  example_emisprc_narnia:
+  example_emisprc_narnia:  # included to test lines of code with region, hour efs
     type: "EmissionPrice"
     emis_col: "emis_co2"
     prices: 
@@ -44,7 +44,21 @@ mods:
       nation: ["narnia"]
     price_imports: true
     import_ef_file: "../data/3bus/import_ef.csv"
-  summer_co2_price:
+  example_emisprc_narnia_empty:    # included to test lines of code where ef file has missing years and where branch idxs is empty
+    type: "EmissionPrice"
+    emis_col: "emis_co2"
+    price_imports: true
+    import_ef_file: "../data/3bus/import_ef_yearly_missing.csv"
+    prices: 
+      y2035: 10
+      y2040: 20
+    years_after_ref_min: 0
+    years_after_ref_max: 10
+    gen_filters:
+      bus_nation: "[narnia]"
+    bus_filters:
+      nation: "[narnia]"
+  example_summer_co2_price:    # included to warn when cap_imports true but no bus_filter provided
     type: "EmissionPrice"
     emis_col: "emis_co2"
     prices: 
@@ -52,6 +66,7 @@ mods:
       y2040: 1.2
     hour_filters:
       season: summer
-    import_ef: 0.4
-  
+    price_imports: true
+    import_ef: 0.0          # returns empty table, ef doesn't matter
+
 

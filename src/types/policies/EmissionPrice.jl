@@ -60,7 +60,7 @@ struct EmissionPrice <: Policy
         elseif !price_imports && (import_ef !== nothing || import_ef_file !== nothing)
             @warn "EmissionPrice $(name) has price_imports=false but emission factors were provided. Imports will not be priced."
         end
-        return new(name, emis_col, prices, years_after_ref_min, years_after_ref_max, ref_year_col, gen_filters, hour_filters, bus_filters, price_imports, import_ef, import_ef_file)
+        return new(Symbol(name), Symbol(emis_col), OrderedDict(prices), years_after_ref_min, years_after_ref_max, ref_year_col, OrderedDict(gen_filters), OrderedDict(hour_filters), OrderedDict(bus_filters), price_imports, import_ef, import_ef_file)
     end
 end
 export EmissionPrice
@@ -174,14 +174,14 @@ function E4ST.modify_results!(pol::EmissionPrice, config, data)
     branch = get_table(data, :branch)
     if hasproperty(branch, pol.name)
         zero_exports!(branch, pol.name) # set col to zero for rows with exports so that they are not priced
-        add_import_costs!(data, :branch, pol, pol.name, Symbol("$(pol.name)_imports_cost"))
+        add_import_costs!(data, :branch, pol, pol.name, Symbol("$(pol.name)_import_cost"))
     end
 
     if any(mod -> mod isa DCLine, values(config[:mods]))
         dc_line = get_table(data, :dc_line)
         if hasproperty(dc_line, pol.name)
             zero_exports!(dc_line, pol.name) # set col to zero for rows with exports so that they are not priced
-            add_import_costs!(data, :dc_line, pol, pol.name, Symbol("$(pol.name)_imports_cost"))
+            add_import_costs!(data, :dc_line, pol, pol.name, Symbol("$(pol.name)_import_cost"))
         end
     end
 
@@ -287,7 +287,6 @@ function _tag_import_branches_by_file!(pol::EmissionPrice, data, table_name, bus
             eachrow(table)
         )
         isempty(idxs) && continue
-        append!(all_idxs, idxs)
 
         # build EF container — ByYearAndHour if the file has a year column, ByHour otherwise
         if hasproperty(pol_table, :year)
@@ -309,6 +308,7 @@ function _tag_import_branches_by_file!(pol::EmissionPrice, data, table_name, bus
             efs = ByHour(Float64[sa_table[1, hr] for hr in hr_col_start:(hr_col_start + nhr - 1)])
         end
         table[idxs, import_emis_col] .= Ref(efs)
+        append!(all_idxs, idxs)
     end
 
     if isempty(all_idxs)
