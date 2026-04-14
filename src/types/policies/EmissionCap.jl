@@ -17,6 +17,8 @@ of the generation constraint is used to evalaute the cost of the policy.
 * `cap_imports`: Bool that indicates if emissions cap applies to imported power. Optional value, defaults to false. If this is true but no emissions factors are provided, will default to the emissions intensity of ng.
 * `import_ef`: Single emissions factor for imported power in all regions and hours. Optional, defaults to ng emissions intensity.
 * `import_ef_file`: File that contains emissions factors of imported power by region and hour. Optional.
+* `banking`: Bool that indicates if emissions banking is allowed across years. When true, the constraint is cumulative: the sum of emissions from the first cap year through each year must be ≤ the sum of caps over those years plus `initial_bank`. Defaults to false.
+* `initial_bank`: Initial allowance bank (in the same units as targets) available at the start of the first cap year. Only used when `banking=true`. Defaults to 0.0.
 
 ### Table Column Added: 
 * `(:gen, :<name>_prc)` - the shadow price of the policy converted to DollarsPerMWhGenerated
@@ -36,8 +38,10 @@ struct EmissionCap <: Policy
     cap_imports::Bool
     import_ef::Union{Float64, Nothing}
     import_ef_file::Union{String,Nothing}
+    banking::Bool
+    initial_bank::Float64
 
-    function EmissionCap(;name, emis_col, targets, gen_filters=OrderedDict(), hour_filters=OrderedDict(), bus_filters=OrderedDict(), cap_imports=false, import_ef=nothing, import_ef_file=nothing)
+    function EmissionCap(;name, emis_col, targets, gen_filters=OrderedDict(), hour_filters=OrderedDict(), bus_filters=OrderedDict(), cap_imports=false, import_ef=nothing, import_ef_file=nothing, banking=false, initial_bank=0.0)
         if cap_imports && isempty(bus_filters)
             @warn "EmissionCap $(name) has cap_imports=true but no bus_filters specified — no import branches will be found."
         end
@@ -159,14 +163,24 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
     
     cap_cons_name = Symbol("cons_$(pol.name)_max")
     @info "Creating emissions cap constraint for $(pol.name) in years $(cap_years)"
-    model[cap_cons_name] = @constraint(model,
-        [
-            yr_idx in 1:nyr;
-            years[yr_idx] in cap_years
-        ],
-        sum(model[emis_expr_name][yr_idx, hr_idx] for hr_idx in 1:nhr)
-        <= pol.targets[years[yr_idx]]
-    )
+    if pol.banking
+        # Cumulative constraint: sum of emissions from the first cap year through yr_idx
+        # must be ≤ sum of targets over those years + initial_bank
+        model[cap_cons_name] = @constraint(model,
+            [yr_idx in 1:nyr; years[yr_idx] in cap_years],
+            sum(
+                model[emis_expr_name][y_idx, hr_idx]
+                for y_idx in 1:nyr, hr_idx in 1:nhr
+                if years[y_idx] in cap_years && years[y_idx] <= years[yr_idx]
+            ) <= sum(pol.targets[y] for y in cap_years if y <= years[yr_idx]) + pol.initial_bank
+        )
+    else
+        model[cap_cons_name] = @constraint(model,
+            [yr_idx in 1:nyr; years[yr_idx] in cap_years],
+            sum(model[emis_expr_name][yr_idx, hr_idx] for hr_idx in 1:nhr)
+            <= pol.targets[years[yr_idx]]
+        )
+    end
     
 end
 
