@@ -325,11 +325,10 @@ function setup_imports!(pol, config, data, model, table_name::Symbol)
     # skip if tag_import_branches! found no relevant branches for this table
     hasproperty(table, pol.name) || return
 
-    indic_col = table[!, pol.name]
     dir_col = table[!, Symbol("$(pol.name)_dir")]
     nhr = get_num_hours(data)
     nyr = get_num_years(data)
-    valid_idxs = findall(br -> indic_col[br] != 0, axes(table, 1))
+    valid_idxs = findall(br -> dir_col[br] != 0, axes(table, 1))
     isempty(valid_idxs) && return
 
     pflow_col = table_name == :branch ? :pflow_branch : :pflow_dc

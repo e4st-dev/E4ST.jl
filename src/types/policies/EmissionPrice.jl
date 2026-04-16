@@ -172,16 +172,18 @@ function E4ST.modify_results!(pol::EmissionPrice, config, data)
     add_to_results_formula!(data, :gen, :emission_cost, cost_name)
 
     branch = get_table(data, :branch)
-    if hasproperty(branch, pol.name)
-        zero_exports!(branch, pol.name) # set col to zero for rows with exports so that they are not priced
-        add_import_costs!(data, :branch, pol, pol.name, Symbol("$(pol.name)_import_cost"))
+    pol_name_imports = Symbol("$(pol.name)_imports")
+    if hasproperty(branch, pol_name_imports)
+        zero_exports!(branch, pol_name_imports) # set col to zero for rows with exports so that they are not priced
+        add_import_costs!(data, :branch, pol, pol_name_imports, Symbol("$(pol.name)_import_cost"))
     end
 
+    pol_name_imports = Symbol("$(pol.name)_dc_imports")
     if any(mod -> mod isa DCLine, values(config[:mods]))
         dc_line = get_table(data, :dc_line)
-        if hasproperty(dc_line, pol.name)
-            zero_exports!(dc_line, pol.name) # set col to zero for rows with exports so that they are not priced
-            add_import_costs!(data, :dc_line, pol, pol.name, Symbol("$(pol.name)_import_cost"))
+        if hasproperty(dc_line, pol_name_imports)
+            zero_exports!(dc_line, pol_name_imports) # set col to zero for rows with exports so that they are not priced
+            add_import_costs!(data, :dc_line, pol, pol_name_imports, Symbol("$(pol.name)_import_cost"))
         end
     end
 
@@ -226,15 +228,13 @@ function tag_import_branches!(pol::EmissionPrice, config, data, table_name::Symb
 
     years = get_years(data)
     import_emis_col = Symbol("$(pol.name)_$(pol.emis_col)")
-    pol_name_imports = Symbol(pol.name, table_name == :branch ? "_imports" : "_dc_imports")
+    pol_name_imports = Symbol(pol.name, table_name == :branch ? "_imports" : "_dc_imports")  # suffix added to pol.name in branch/dc_line table to prevent duplicative obj_vars in add_obj_term
 
-    # pol.name: price per MWh of imports (ByYear * emis_col * hour_multiplier * scalar), 0 for non-qualifying branches
-    # pol_name_imports: binary indicator used by add_obj_term! PerMWhImport
+    # pol_name_imports: price per MWh of imports (ByYear * emis_col * hour_multiplier * scalar), 0 for non-qualifying branches
     add_table_col!(data, table_name, import_emis_col, Container[ByNothing(0.0) for _ in 1:nrow(table)], DollarsPerMWhGenerated,
         "Emissions factor of imported power on $(table_name) for $(pol.name)")
-    add_table_col!(data, table_name, pol.name, Container[ByNothing(0.0) for _ in 1:nrow(table)],
+    add_table_col!(data, table_name, pol_name_imports, Container[ByNothing(0.0) for _ in 1:nrow(table)],
         DollarsPerMWhGenerated, "Emission price per MWh imported for $(pol.name)")
-    add_table_col!(data, table_name, pol_name_imports, [0 for _ in 1:nrow(table)], NA, "Indicator col for $(pol.name)")
 
     if !isnothing(pol.import_ef_file)
         _tag_import_branches_by_file!(pol, data, table_name, bus_set, import_emis_col, pol_name_imports, hour_multiplier, years)
@@ -257,8 +257,7 @@ function _tag_import_branches_by_value!(pol::EmissionPrice, data, table_name, bu
     price_yearly = [get(pol.prices, Symbol(y), 0.0) for y in years]
     for idx in idxs
         scalar = table[idx, :t_bus_idx] in bus_set ? 1 : -1
-        table[idx, pol_name_imports] = 1
-        table[idx, pol.name] = ByYear(price_yearly) .* table[idx, import_emis_col] .* hour_multiplier .* scalar
+        table[idx, pol_name_imports] = ByYear(price_yearly) .* table[idx, import_emis_col] .* hour_multiplier .* scalar
     end
     @info "Applied EmissionPrice $(pol.name) to $(length(idxs)) $(table_name)."
 end
@@ -319,8 +318,7 @@ function _tag_import_branches_by_file!(pol::EmissionPrice, data, table_name, bus
     price_yearly = [get(pol.prices, Symbol(y), 0.0) for y in years]
     for idx in all_idxs
         scalar = table[idx, :t_bus_idx] in bus_set ? 1 : -1
-        table[idx, pol_name_imports] = 1
-        table[idx, pol.name] = ByYear(price_yearly) .* table[idx, import_emis_col] .* hour_multiplier .* scalar
+        table[idx, pol_name_imports] = ByYear(price_yearly) .* table[idx, import_emis_col] .* hour_multiplier .* scalar
     end
     @info "Applied EmissionPrice $(pol.name) to $(length(all_idxs)) $(table_name)."
 end
@@ -335,9 +333,9 @@ function _add_import_obj_term!(data, model, pol::EmissionPrice, table_name::Symb
     table = get_table(data, table_name)
     pol_name_imports = Symbol(pol.name, table_name == :branch ? "_imports" : "_dc_imports")
     hasproperty(table, pol_name_imports) || return
-    any(!=(0), getproperty(table, pol_name_imports)) || return
+    any(c -> any(!iszero, c), getproperty(table, pol_name_imports)) || return
     pflow_col = table_name == :branch ? :pflow_branch : :pflow_dc
-    add_obj_term!(data, model, PerMWhImport(), pol.name, pol_name_imports, table_name, pflow_col, oper = +)
+    add_obj_term!(data, model, PerMWhImport(), pol_name_imports, table_name, pflow_col, oper = +)  
 end
 
 

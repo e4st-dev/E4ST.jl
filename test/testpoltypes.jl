@@ -556,12 +556,11 @@
             @testset "Adding Emis Prc to gen table" begin
                 @test hasproperty(branch, :example_emisprc_arch_emis_co2)
                 @test hasproperty(gen, :example_emisprc_arch)
-                @test hasproperty(branch, :example_emisprc_arch)
                 @test hasproperty(branch, :example_emisprc_arch_imports)
 
                 # Test that there are byYear containers 
                 @test eltype(gen.example_emisprc_arch) <: Container
-                @test eltype(branch.example_emisprc_arch) <: Container
+                @test eltype(branch.example_emisprc_arch_imports) <: Container
 
                 @test any(ef -> typeof(ef) == E4ST.ByYearAndHour, branch.example_emisprc_arch_emis_co2)
                 @test any(ef -> typeof(ef) == E4ST.ByHour, branch.example_emisprc_narnia_emis_co2)
