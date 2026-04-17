@@ -57,6 +57,23 @@ end
 
 export EmissionCap
 
+"""
+    _emiscap_colnames(pol::EmissionCap) -> NamedTuple
+
+Returns a NamedTuple of all derived column/result Symbol names for an EmissionCap policy.
+"""
+function _emiscap_colnames(pol::EmissionCap)
+    return (
+        prc                = Symbol("$(pol.name)_prc"),
+        cost               = Symbol("$(pol.name)_cost"),
+        import_cost        = Symbol("$(pol.name)_import_cost"),
+        import_emis        = Symbol("$(pol.name)_$(pol.emis_col)"),
+        flag               = Symbol("$(pol.name)_flag"),
+        import_emis_result = Symbol("$(pol.name)_import_emis"),
+        dir                = Symbol("$(pol.name)_dir"),
+    )
+end
+
 
 function summarize_table(::Val{:import_ef_file})
     df = TableSummary()
@@ -79,10 +96,10 @@ function E4ST.modify_setup_data!(pol::EmissionCap, config, data)
     pol.cap_imports || return  # check if pol.cap_imports is set to true
 
     # tag the branches and dc lines that import power into regions subject to emission cap
-    tag_import_branches!(pol, config, data, :branch)
+    setup_import_branches!(pol, config, data, :branch)
 
     if any(mod -> mod isa DCLine, values(config[:mods]))
-        tag_import_branches!(pol, config, data, :dc_line)
+        setup_import_branches!(pol, config, data, :dc_line)
     end
 end
 
@@ -155,57 +172,88 @@ end
 
 
 """
-    E4ST.modify_results!(pol::EmissionCap, config, data) -> 
+    E4ST.modify_results!(pol::EmissionCap, config, data) ->
 """
 function E4ST.modify_results!(pol::EmissionCap, config, data)
     gen = get_table(data, :gen)
+    cols = _emiscap_colnames(pol)
 
-    # create column for per MWh price of the policy in :gen
     cons_name = Symbol("cons_$(pol.name)_max")
     haskey(data[:results][:raw], cons_name) || return
 
     shadow_prc = get_shadow_price_as_ByYear(data, cons_name) #($/EmissionsUnit)
 
     prc_col = [(-shadow_prc) .* g[pol.name] .* g[pol.emis_col] for g in eachrow(gen)] #($/MWh Generated)
+    add_table_col!(data, :gen, cols.prc, prc_col, DollarsPerMWhGenerated, "Shadow price of $(pol.name) converted to DollarsPerMWhGenerated")
 
-    add_table_col!(data, :gen, Symbol("$(pol.name)_prc"), prc_col, DollarsPerMWhGenerated, "Shadow price of $(pol.name) converted to DollarsPerMWhGenerated")
+    add_results_formula!(data, :gen, cols.cost, "SumHourlyWeighted($(cols.prc), pgen)", Dollars, "The cost of $(pol.name) based on the shadow price of the generation constraint")
+    add_to_results_formula!(data, :gen, :emission_cap_cost, cols.cost)
 
-    # policy cost for generation: shadow price (per MWh generated) * generation
-    cost_name = Symbol("$(pol.name)_cost")
-    add_results_formula!(data, :gen, cost_name, "SumHourlyWeighted($(pol.name)_prc, pgen)", Dollars, "The cost of $(pol.name) based on the shadow price of the generation constraint")
-    add_to_results_formula!(data, :gen, :emission_cap_cost, cost_name)
-
-    # policy cost for imports: shadow price * emis factor * import flow, for branch and dc_line tables
     if pol.cap_imports
-        import_emis_col = Symbol("$(pol.name)_$(pol.emis_col)")
-        import_prc_col = Symbol("$(pol.name)_prc")
-        import_cost_name = Symbol("$(pol.name)_import_cost")
-
         for table_name in (:branch, :dc_line)
             table_name == :dc_line && !any(mod -> mod isa DCLine, values(config[:mods])) && continue
-            table = get_table(data, table_name)
-            hasproperty(table, pol.name) || continue
-
-            # shadow price per MWh of imports: shadow_prc * indicator * emis_factor
-            prc_col = [(-shadow_prc) .* row[pol.name] .* row[import_emis_col] for row in eachrow(table)]
-            add_table_col!(data, table_name, import_prc_col, prc_col, DollarsPerMWhGenerated,
-                "Shadow price of $(pol.name) per MWh of imports on $(table_name)")
-
-            add_results_formula!(data, table_name, import_cost_name, "SumHourlyWeighted($(import_prc_col), pflow)",
-                Dollars, "The cost of $(pol.name) attributed to imports on $(table_name)")
-            haskey(get_results_formulas(data), (table_name, :emission_cap_cost)) ||
-                add_results_formula!(data, table_name, :emission_cap_cost, "0", Dollars, "Cost attributed to imports for all emission caps on $(table_name)")
-            add_to_results_formula!(data, table_name, :emission_cap_cost, import_cost_name)
+            tag_import_flows!(pol, data, table_name)
+            add_import_results!(data, table_name, pol, cols, shadow_prc)
         end
     end
 end
 
 """
-    tag_import_branches!(pol::EmissionCap, config, data, table_name) -> 
+    add_cap_import_results!(data, table_name, pol::EmissionCap, cols, shadow_prc)
+
+Creates results formulas for import cost attributed to an EmissionCap for the given table.
+"""
+function add_import_results!(data, table_name, pol::EmissionCap, cols, shadow_prc)
+    table = get_table(data, table_name)
+    hasproperty(table, pol.name) || return
+
+    prc_col = [(-shadow_prc) .* row[pol.name] .* row[cols.import_emis] for row in eachrow(table)]
+    add_table_col!(data, table_name, cols.prc, prc_col, DollarsPerMWhGenerated,
+        "Shadow price of $(pol.name) per MWh of imports on $(table_name)")
+
+    # results formula for cost of emission cap policy contributed by imports
+    add_results_formula!(data, table_name, cols.import_cost, "SumHourlyWeighted($(cols.prc), pflow)",
+        Dollars, "The cost of $(pol.name) attributed to imports on $(table_name)")
+    # setup a results formula to track total cost of all emission cap policies for imported power
+    haskey(get_results_formulas(data), (table_name, :emission_cap_cost)) ||
+        add_results_formula!(data, table_name, :emission_cap_cost, "0", Dollars,
+            "Cost attributed to imports for all emission caps on $(table_name)")
+    add_to_results_formula!(data, table_name, :emission_cap_cost, cols.import_cost)
+
+    # results formula to track associated emissions from imported power
+    if pol.emis_col == "emis_co2"
+        unit = ShortTons
+    else
+        unit = Pounds
+    end
+    add_results_formula!(data, table_name, cols.import_emis_result, "SumHourlyWeighted($(cols.import_emis), (pflow .* $(cols.flag)))", unit, "Total emissions from imported power under $(pol.name). Note the imported emissions are calculated using the exogenous ef inputs and do not reflect the actual ef of the model run.")
+end
+
+"""
+    tag_import_flows!(table, col::Symbol) ->
+    Tag rows in branch or dc line tables where power is imported into the EmissionCap region..
+"""
+
+function tag_import_flows!(pol, data, table_name)
+    table = get_table(data, table_name)
+    cols = _emiscap_colnames(pol)
+    nyr = get_num_years(data)
+    nhr = get_num_hours(data)
+    add_table_col!(data, table_name, cols.flag, Container[ByYearAndHour(zeros(nyr,nhr)) for i in 1:nrow(table)], NA,
+                "Indicates pflow in $(table_name) table is covered by $(pol.name).")
+    for i in axes(table,1), y in axes(table[i,:pflow],1), h in axes(table[i,:pflow],2)   # search for rows where pol col times pflow is greater than 0, which indicates the power line 1) transfers power with policy region 2) and is importing power in the y,h combination
+        if table[i,:pflow][y,h] * table[i,cols.dir][y,h] > 0
+            table[i,cols.flag][y,h] = 1 * table[i,cols.dir][y,h]
+        end
+    end
+end
+
+"""
+    setup_import_branches!(pol::EmissionCap, config, data, table_name) -> 
     Function that identifies the branches and dc_lines that import power into the region/s covered by the EmissionCap.
 """
 
-function tag_import_branches!(pol, config, data, table_name::Symbol)
+function setup_import_branches!(pol, config, data, table_name::Symbol)
     table = get_table(data, table_name)
     bus = get_table(data, :bus)
     bus_idxs = get_row_idxs(bus, parse_comparisons(pol.bus_filters))
@@ -216,40 +264,40 @@ function tag_import_branches!(pol, config, data, table_name::Symbol)
     hour_idxs = get_row_idxs(hours, parse_comparisons(pol.hour_filters))
     hour_multiplier = length(hour_idxs) < nhr ? ByHour([i in hour_idxs ? 1.0 : 0.0 for i in 1:nhr]) : ByNothing(1.0)
 
+    cols = _emiscap_colnames(pol)
+
     # use a policy-specific column name to avoid overwriting existing emis_col on the table
-    import_emis_col = Symbol("$(pol.name)_$(pol.emis_col)")
-    add_table_col!(data, table_name, import_emis_col, Container[ByNothing(0.0) for _ in 1:nrow(table)], NA,
+    add_table_col!(data, table_name, cols.import_emis, Container[ByNothing(0.0) for _ in 1:nrow(table)], NA,
         "Emissions factor of imported power on $(table_name) for $(pol.name)")
 
     # pol.name: hour-filtered indicator (ByHour when hour_filters apply, ByNothing(1) otherwise), 0 for non-qualifying branches
-    # pol.name_dir: signed direction scalar (+1 if t_bus in region, -1 if f_bus in region) for use in setup_imports!
+    # cols.dir: signed direction scalar (+1 if t_bus in region, -1 if f_bus in region) for use in setup_imports!
     add_table_col!(data, table_name, pol.name, Container[ByNothing(0.0) for _ in 1:nrow(table)], NA, "Indicator col for $(pol.name)")
-    dir_col_name = Symbol("$(pol.name)_dir")
-    add_table_col!(data, table_name, dir_col_name, [0.0 for _ in 1:nrow(table)], NA,
+    add_table_col!(data, table_name, cols.dir, [0.0 for _ in 1:nrow(table)], NA,
         "Direction scalar for $(pol.name): +1 if t_bus is in region, -1 if f_bus is in region")
 
     if !isnothing(pol.import_ef_file)
-        _tag_import_branches_by_file!(pol, data, table_name, bus_set, import_emis_col, dir_col_name, hour_multiplier)
+        _setup_import_branches_by_file!(pol, data, table_name, bus_set, cols, hour_multiplier)
     else
-        _tag_import_branches_by_value!(pol, data, table_name, bus_set, import_emis_col, dir_col_name, hour_multiplier)
+        _setup_import_branches_by_value!(pol, data, table_name, bus_set, cols, hour_multiplier)
     end
 end
 
 """
 Single emissions factor: assign pol.import_ef to all branches crossing the cap region boundary.
 """
-function _tag_import_branches_by_value!(pol, data, table_name, bus_set, import_emis_col, dir_col_name, hour_multiplier)
+function _setup_import_branches_by_value!(pol, data, table_name, bus_set, cols, hour_multiplier)
     table = get_table(data, table_name)
     idxs = findall(row -> (row.t_bus_idx in bus_set) ⊻ (row.f_bus_idx in bus_set), eachrow(table))
     if isempty(idxs)
         @warn "No relevant $(table_name) for $(pol.name). Imports will not count toward the emission cap."
         return
     end
-    table[idxs, import_emis_col] .= pol.import_ef
+    table[idxs, cols.import_emis] .= pol.import_ef
     for idx in idxs
         scalar = table[idx, :t_bus_idx] in bus_set ? 1 : -1
         table[idx, pol.name] = hour_multiplier
-        table[idx, dir_col_name] = Float64(scalar)
+        table[idx, cols.dir] = Float64(scalar)
     end
 end
 
@@ -258,7 +306,7 @@ Region- and hour-varying emissions factors from a file. Each row of the ef table
 region (via its column values used as bus filters) and the hourly EFs for that region. Branches
 are tagged per source region so each gets the correct EF container.
 """
-function _tag_import_branches_by_file!(pol, data, table_name, bus_set, import_emis_col, dir_col_name, hour_multiplier)
+function _setup_import_branches_by_file!(pol, data, table_name, bus_set, cols, hour_multiplier)
     table = get_table(data, table_name)
     bus = get_table(data, :bus)
     pol_table = data[pol.name]
@@ -302,10 +350,10 @@ function _tag_import_branches_by_file!(pol, data, table_name, bus_set, import_em
             nrow(sa_table) > 1 && @warn "Multiple ef rows for $(sa) in $(pol.name). Using first."
             efs = ByHour(Float64[sa_table[1, hr] for hr in hr_col_start:(hr_col_start + nhr - 1)])
         end
-        table[idxs, import_emis_col] .= Ref(efs)
+        table[idxs, cols.import_emis] .= Ref(efs)
         append!(all_idxs, idxs)
     end
-    
+
     if isempty(all_idxs)
         @warn "No relevant $(table_name) for $(pol.name). Imports will not count toward the emission cap."
         return
@@ -314,7 +362,7 @@ function _tag_import_branches_by_file!(pol, data, table_name, bus_set, import_em
     for idx in all_idxs
         scalar = table[idx, :t_bus_idx] in bus_set ? 1 : -1
         table[idx, pol.name] = hour_multiplier
-        table[idx, dir_col_name] = Float64(scalar)
+        table[idx, cols.dir] = Float64(scalar)
     end
 end
 
@@ -322,10 +370,11 @@ end
 function setup_imports!(pol, config, data, model, table_name::Symbol)
     table = get_table(data, table_name)
 
-    # skip if tag_import_branches! found no relevant branches for this table
+    # skip if setup_import_branches! found no relevant branches for this table
     hasproperty(table, pol.name) || return
 
-    dir_col = table[!, Symbol("$(pol.name)_dir")]
+    cols = _emiscap_colnames(pol)
+    dir_col = table[!, cols.dir]
     nhr = get_num_hours(data)
     nyr = get_num_years(data)
     valid_idxs = findall(br -> dir_col[br] != 0, axes(table, 1))
@@ -352,15 +401,15 @@ function setup_imports!(pol, config, data, model, table_name::Symbol)
     # add import emissions into the total emissions expression for this policy
     # pol.name col encodes hour filtering (ByHour or ByNothing), matching the gen indicator pattern
     hour_weights = get_hour_weights(data)
-    import_emis_col = Symbol("$(pol.name)_$(pol.emis_col)")
     emis_expr = model[Symbol("emis_total_$(pol.name)")]
+    
     for branch_idx in valid_idxs, yr_idx in 1:nyr, hr_idx in 1:nhr
         add_to_expression!(
             emis_expr[yr_idx, hr_idx],
             model[import_var_name][branch_idx, yr_idx, hr_idx],
             hour_weights[hr_idx] *
             get_table_num(data, table_name, pol.name, branch_idx, yr_idx, hr_idx) *
-            get_table_num(data, table_name, import_emis_col, branch_idx, yr_idx, hr_idx)
+            get_table_num(data, table_name, cols.import_emis, branch_idx, yr_idx, hr_idx)
         )
     end
 end

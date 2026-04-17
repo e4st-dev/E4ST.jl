@@ -422,9 +422,25 @@
                 @test emis_co2_total > 0
                 @test compute_result(data, :branch, :example_emiscap_arch_import_cost) > 0.0
 
-
+                @test compute_result(data, :bus, :eflow_in_total, :nation=>"narnia") == 0.0  # in this setup, narnia always exports to archenland so the imported power into narnia should be 0
                 @test compute_result(data, :branch, :example_emiscap_narnia_import_cost) == 0.0  # in this setup, narnia always exports to archenland so the emissions cost on narnias import should be 0
                 @test compute_result(data, :branch, :example_emiscap_narnia_empty_import_cost) == 0.0  # should be zero because narnia exports, and the ef file set up will not tag any branches
+
+
+                # check that emissions from in state generation + imported emissions are less than cap
+                @test compute_result(data, :branch, :example_emiscap_arch_import_emis, (:), "y2035") > 0
+                @test compute_result(data, :gen, :emis_co2_total, :nation=>"archenland", "y2035") >0 
+                
+                total_emis_2035 = compute_result(data, :branch, :example_emiscap_arch_import_emis, (:), "y2035") + compute_result(data, :dc_line, :example_emiscap_arch_import_emis, (:), "y2035") + compute_result(data, :gen, :emis_co2_total, :nation=>"archenland", "y2035")
+                target_2035 = config[:mods][:example_emiscap_arch][:targets][:y2035]
+                @test total_emis_2035 <= target_2035 || total_emis_2035 ≈ target_2035
+
+                @test compute_result(data, :branch, :example_emiscap_arch_import_emis, (:), "y2040") > 0
+                @test compute_result(data, :gen, :emis_co2_total, :nation=>"archenland", "y2040") >0 
+
+                total_emis_2040 = compute_result(data, :branch, :example_emiscap_arch_import_emis, (:), "y2040") + compute_result(data, :dc_line, :example_emiscap_arch_import_emis, (:), "y2040") + compute_result(data, :gen, :emis_co2_total, :nation=>"archenland", "y2040")
+                target_2040 = config[:mods][:example_emiscap_arch][:targets][:y2040]
+                @test total_emis_2040 <= target_2040 || total_emis_2040 ≈ target_2040
 
             end
         end
@@ -632,6 +648,14 @@
 
                 @test compute_result(data, :branch, :example_emisprc_narnia_import_cost) == 0.0  # in this setup, narnia always exports to archenland so the emissions cost on narnias import should be 0
                 @test compute_result(data, :branch, :example_emisprc_narnia_empty_import_cost) == 0.0  # should be zero because narnia exports, and the ef file set up will not tag any branches
+
+
+                # check that imported emissions are greater than 0
+                @test compute_result(data, :branch, :example_emisprc_arch_import_emis, (:), "y2035") > 0
+                @test compute_result(data, :dc_line, :example_emisprc_arch_import_emis, (:), "y2035") > 0
+                
+                @test compute_result(data, :branch, :example_emisprc_arch_import_emis, (:), "y2040") > 0
+                @test compute_result(data, :dc_line, :example_emisprc_arch_import_emis, (:), "y2040") > 0
 
             end
         end

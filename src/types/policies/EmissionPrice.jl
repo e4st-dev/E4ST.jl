@@ -21,16 +21,14 @@ Emission Price - A price on a certain emission for a given set of generators.
 ### Table Column Added:
 * `(:gen, :<name>)` - emissions price per MWh generated for each policy
 * `(:gen, :<name>_capex_adj)` - Adjustment factor added to the obj function as a PerMWCapInv term to account for emisprc payments that do not continue through the entire econ lifetime of a generator
-* `(:branch, :<name>)` - emissions price per MWh generated for each policy due to imports on branches
-* `(:branch, :<name>_imports)` - Bool column that indicates which branches the EmissionPrice applies to. Also the name of the corresponding obj_var.
-* `(:dc_line, :<name>)` - emissions price per MWh generated for each policy due to imports on dc lines
-* `(:dc_line, :<name>_dc_imports)` - Bool column that indicates which branches the EmissionPrice applies to. Also the name of the corresponding obj_var.
+* `(:branch, :<name>_imports)` - emission price per MWh imported for branches
+* `(:dc_line, :<name>_dc_imports)` - emission price per MWh imported for dc lines
 
 ### Results Formulas:
 * `(:gen, :<name>_cost)` - the cost of the policy, excluding imports
 * `(:gen, :<name>_capex_adj_total)` - The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.
-* `(:branch, :<name>_cost)` - the cost of imports on branches for the policy
-* `(:dc_line, :<name>_cost)` - the cost of imports on dc lines for the policy
+* `(:branch, :<name>_import_cost)` - the cost of imports on branches for the policy
+* `(:dc_line, :<name>_import_cost)` - the cost of imports on dc lines for the policy
 
 """
 struct EmissionPrice <: Policy
@@ -65,6 +63,25 @@ struct EmissionPrice <: Policy
 end
 export EmissionPrice
 
+"""
+    _emisprc_colnames(pol::EmissionPrice, table_name::Symbol=:branch) -> NamedTuple
+
+Returns a NamedTuple of all derived column/result Symbol names for an EmissionPrice policy,
+centralizing name construction to avoid repetition across functions.
+"""
+function _emisprc_colnames(pol::EmissionPrice, table_name::Symbol=:branch)
+    return (
+        cost            = Symbol("$(pol.name)_cost"),
+        capex_adj       = Symbol("$(pol.name)_capex_adj"),
+        capex_adj_total = Symbol("$(pol.name)_capex_adj_total"),
+        import_emis     = Symbol("$(pol.name)_$(pol.emis_col)"),
+        imports         = Symbol(pol.name, table_name == :branch ? "_imports" : "_dc_imports"),
+        flag            = Symbol("$(pol.name)_flag"),
+        import_cost     = Symbol("$(pol.name)_import_cost"),
+        import_emis_result = Symbol("$(pol.name)_import_emis"),
+    )
+end
+
 
 function should_adjust_invest_cost(pol::EmissionPrice)
     return (pol.years_after_ref_min != 0.0 || pol.years_after_ref_max != 9999.0)
@@ -81,10 +98,10 @@ function E4ST.modify_setup_data!(pol::EmissionPrice, config, data)
 
     @warn "Applying emissions prices to imports for $(pol.name); emission cost estimates for the gen table will not include import costs."
 
-    tag_import_branches!(pol, config, data, :branch)
+    setup_import_branches!(pol, config, data, :branch)
 
     if any(mod -> mod isa DCLine, values(config[:mods]))
-        tag_import_branches!(pol, config, data, :dc_line)
+        setup_import_branches!(pol, config, data, :dc_line)
     end
 end
 
@@ -97,6 +114,8 @@ Adds this as a `PerMWhGen` price to the objective function using [`add_obj_term!
 """
 function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
     @info ("$(pol.name) modifying the model")
+
+    cols = _emisprc_colnames(pol)
 
     gen = get_table(data, :gen)
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
@@ -122,7 +141,7 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
         # note: >2 used here for emisprc value and 0
         length(unique(values(pol.prices))) > 2 && @warn "The current E4ST EmissionPrice mod isn't formulated correctly for both a variable EmissionPrice value (ie. 2020: 12, 2025: 15) and year_from_ref filters, please only specify a single value"
 
-        add_table_col!(data, :gen, Symbol("$(pol.name)_capex_adj"), Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWBuiltCapacityPerHour,
+        add_table_col!(data, :gen, cols.capex_adj, Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWBuiltCapacityPerHour,
         "Adjustment factor added to the obj function as a PerMWCapInv term to account for emisprc payments that do not continue through the entire econ lifetime of a generator.")
     end
 
@@ -139,17 +158,17 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
         qual_price_yearly = ByYear([(i in g_qual_year_idxs) ? price_yearly[i] : 0.0  for i in 1:length(years)])
         gen[gen_idx, pol.name] = qual_price_yearly .* gen[gen_idx, pol.emis_col] .* hour_multiplier #emission rate [st/MWh] * price [$/st]
 
-        # add capex adjustment term to the the pol.name _capex_adj column
+        # add capex adjustment term to the the cols.capex_adj column
         if should_adjust_invest_cost(pol)
             adj_term = get_emisprc_capex_adj(pol, g, config)
-            g[Symbol("$(pol.name)_capex_adj")] = adj_term
+            g[cols.capex_adj] = adj_term
         end
     end
 
     add_obj_term!(data, model, PerMWhGen(), pol.name, oper = +)
 
     # add the capex adjustment term
-    should_adjust_invest_cost(pol) && add_obj_term!(data, model, PerMWCapInv(), Symbol("$(pol.name)_capex_adj"), oper = -)
+    should_adjust_invest_cost(pol) && add_obj_term!(data, model, PerMWCapInv(), cols.capex_adj, oper = -)
 
     # add objective terms for imports if price_imports is true (columns already set up in modify_setup_data!)
     if pol.price_imports
@@ -165,57 +184,76 @@ end
     E4ST.modify_results!(pol::EmissionPrice, config, data) ->
 """
 function E4ST.modify_results!(pol::EmissionPrice, config, data)
+    cols = _emisprc_colnames(pol)
 
     # policy cost, price per mwh * generation
-    cost_name = Symbol("$(pol.name)_cost")
-    add_results_formula!(data, :gen, cost_name, "SumHourlyWeighted($(pol.name), pgen)", Dollars, "The cost of $(pol.name)")
-    add_to_results_formula!(data, :gen, :emission_cost, cost_name)
+    add_results_formula!(data, :gen, cols.cost, "SumHourlyWeighted($(pol.name), pgen)", Dollars, "The cost of $(pol.name)")
+    add_to_results_formula!(data, :gen, :emission_cost, cols.cost)
 
     branch = get_table(data, :branch)
-    pol_name_imports = Symbol("$(pol.name)_imports")
-    if hasproperty(branch, pol_name_imports)
-        zero_exports!(branch, pol_name_imports) # set col to zero for rows with exports so that they are not priced
-        add_import_costs!(data, :branch, pol, pol_name_imports, Symbol("$(pol.name)_import_cost"))
+    branch_cols = _emisprc_colnames(pol, :branch)
+    if hasproperty(branch, branch_cols.imports)
+        tag_import_flows!(pol, data, branch, :branch)
+        add_import_results!(data, :branch, pol, branch_cols.imports)
     end
 
-    pol_name_imports = Symbol("$(pol.name)_dc_imports")
     if any(mod -> mod isa DCLine, values(config[:mods]))
         dc_line = get_table(data, :dc_line)
-        if hasproperty(dc_line, pol_name_imports)
-            zero_exports!(dc_line, pol_name_imports) # set col to zero for rows with exports so that they are not priced
-            add_import_costs!(data, :dc_line, pol, pol_name_imports, Symbol("$(pol.name)_import_cost"))
+        dc_cols = _emisprc_colnames(pol, :dc_line)
+        if hasproperty(dc_line, dc_cols.imports)
+            tag_import_flows!(pol, data, dc_line, :dc_line)
+            add_import_results!(data, :dc_line, pol, dc_cols.imports)
         end
     end
 
-    should_adjust_invest_cost(pol) && add_results_formula!(data, :gen, Symbol("$(pol.name)_capex_adj_total"), "SumYearly(ecap_inv_sim, $(pol.name)_capex_adj)", Dollars, "The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.")
+    should_adjust_invest_cost(pol) && add_results_formula!(data, :gen, cols.capex_adj_total, "SumYearly(ecap_inv_sim, $(cols.capex_adj))", Dollars, "The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.")
 end
 
 """
-    add_import_costs!(data, table, pol::EmissionPrice, col::Symbol, cost_sym::Symbol) ->
-    Create results formulas that find the cost of importing power due to the specific policy in the branch or dc_line tables and add the result to a total cost for imported power due to EmissionPrice policies.
+    add_import_results!(data, table_name, pol::EmissionPrice, col::Symbol) ->
+    Create results formulas for import cost and import emissions for the given table.
 """
-function add_import_costs!(data, table, pol::EmissionPrice, col::Symbol, cost_sym::Symbol)
-    add_results_formula!(data, table, cost_sym, "SumHourlyWeighted($(col), pflow)",
+function add_import_results!(data, table_name, pol::EmissionPrice, col::Symbol)
+    table = get_table(data, table_name)
+    cols = _emisprc_colnames(pol, table_name)
+    hasproperty(table, cols.imports) || return
+
+    add_results_formula!(data, table_name, cols.import_cost, "SumHourlyWeighted($(col), (pflow .* $(cols.flag)))",
                             Dollars, "The cost of $(pol.name) associated with imported emissions.")
-    haskey(get_results_formulas(data), (table, :emission_cost)) ||
-        add_results_formula!(data, table, :emission_cost, "0", Dollars,
-                            "The total cost of imported emissions for $(table).")
-    add_to_results_formula!(data, table, :emission_cost, cost_sym)
+    haskey(get_results_formulas(data), (table_name, :emission_cost)) ||
+        add_results_formula!(data, table_name, :emission_cost, "0", Dollars,
+                            "The total cost of imported emissions for $(table_name).")
+    add_to_results_formula!(data, table_name, :emission_cost, cols.import_cost)
+
+    if pol.emis_col == "emis_co2"
+        unit = ShortTons
+    else
+        unit = Pounds
+    end
+
+    add_results_formula!(data, table_name, cols.import_emis_result, "SumHourlyWeighted($(cols.import_emis), (pflow .* $(cols.flag)))", unit, "Total emissions from imported power under $(pol.name). Note the imported emissions are calculated using the exogenous ef inputs and do not reflect the actual ef of the model run.")
 end
 
+
 """
-    zero_exports!(table, col::Symbol) ->
-    Search in the branch and dc line tables for rows where power is being exported out of the EmissionPrice region. In these cases, set the emission price per MWh to 0 so that the emissions price won't be applied to exports.
+    tag_import_flows!(table, col::Symbol) ->
+    Tag rows in branch or dc line tables where power is imported into the EmissionPrice region..
 """
-function zero_exports!(table, col::Symbol)
+
+function tag_import_flows!(pol, data, table, table_name)
+    cols = _emisprc_colnames(pol, table_name)
+    nyr = get_num_years(data)
+    nhr = get_num_hours(data)
+    add_table_col!(data, table_name, cols.flag, Container[ByYearAndHour(zeros(nyr,nhr)) for i in 1:nrow(table)], NA,
+                "Indicates pflow in $(table_name) table is covered by $(pol.name).")
     for i in axes(table,1), y in axes(table[i,:pflow],1), h in axes(table[i,:pflow],2)
-        if table[i,:pflow][y,h] * table[i,col][y,h] < 0
-            table[i,col][y,h] = 0
+        if table[i,:pflow][y,h] * table[i,cols.imports][y,h] > 0
+            table[i,cols.flag][y,h] = sign(table[i,cols.imports][y,h])  # set flag to sign of cols.imports so that plfow*cols.flag in results formula will always be positive for imports and zero for exports
         end
     end
 end
 
-function tag_import_branches!(pol::EmissionPrice, config, data, table_name::Symbol)
+function setup_import_branches!(pol::EmissionPrice, config, data, table_name::Symbol)
     table = get_table(data, table_name)
     bus = get_table(data, :bus)
     bus_idxs = get_row_idxs(bus, parse_comparisons(pol.bus_filters))
@@ -227,37 +265,35 @@ function tag_import_branches!(pol::EmissionPrice, config, data, table_name::Symb
     hour_multiplier = length(hour_idxs) < nhr ? ByHour([i in hour_idxs ? 1.0 : 0.0 for i in 1:nhr]) : ByHour(ones(nhr))
 
     years = get_years(data)
-    import_emis_col = Symbol("$(pol.name)_$(pol.emis_col)")
-    pol_name_imports = Symbol(pol.name, table_name == :branch ? "_imports" : "_dc_imports")  # suffix added to pol.name in branch/dc_line table to prevent duplicative obj_vars in add_obj_term
+    cols = _emisprc_colnames(pol, table_name)
 
-    # pol_name_imports: price per MWh of imports (ByYear * emis_col * hour_multiplier * scalar), 0 for non-qualifying branches
-    add_table_col!(data, table_name, import_emis_col, Container[ByNothing(0.0) for _ in 1:nrow(table)], DollarsPerMWhGenerated,
+    add_table_col!(data, table_name, cols.import_emis, Container[ByNothing(0.0) for _ in 1:nrow(table)], DollarsPerMWhGenerated,
         "Emissions factor of imported power on $(table_name) for $(pol.name)")
-    add_table_col!(data, table_name, pol_name_imports, Container[ByNothing(0.0) for _ in 1:nrow(table)],
+    add_table_col!(data, table_name, cols.imports, Container[ByNothing(0.0) for _ in 1:nrow(table)],
         DollarsPerMWhGenerated, "Emission price per MWh imported for $(pol.name)")
 
     if !isnothing(pol.import_ef_file)
-        _tag_import_branches_by_file!(pol, data, table_name, bus_set, import_emis_col, pol_name_imports, hour_multiplier, years)
+        _setup_import_branches_by_file!(pol, data, table_name, bus_set, cols, hour_multiplier, years)
     else
-        _tag_import_branches_by_value!(pol, data, table_name, bus_set, import_emis_col, pol_name_imports, hour_multiplier, years)
+        _setup_import_branches_by_value!(pol, data, table_name, bus_set, cols, hour_multiplier, years)
     end
 end
 
 """
 Single emissions factor: assign pol.import_ef to all branches crossing the price region boundary.
 """
-function _tag_import_branches_by_value!(pol::EmissionPrice, data, table_name, bus_set, import_emis_col, pol_name_imports, hour_multiplier, years)
+function _setup_import_branches_by_value!(pol::EmissionPrice, data, table_name, bus_set, cols, hour_multiplier, years)
     table = get_table(data, table_name)
     idxs = findall(row -> (row.t_bus_idx in bus_set) ⊻ (row.f_bus_idx in bus_set), eachrow(table))
     if isempty(idxs)
         @warn "No relevant $(table_name) for $(pol.name). Imports have no emissions price."
         return
     end
-    table[idxs, import_emis_col] .= pol.import_ef
+    table[idxs, cols.import_emis] .= pol.import_ef
     price_yearly = [get(pol.prices, Symbol(y), 0.0) for y in years]
     for idx in idxs
         scalar = table[idx, :t_bus_idx] in bus_set ? 1 : -1
-        table[idx, pol_name_imports] = ByYear(price_yearly) .* table[idx, import_emis_col] .* hour_multiplier .* scalar
+        table[idx, cols.imports] = ByYear(price_yearly) .* table[idx, cols.import_emis] .* hour_multiplier .* scalar
     end
     @info "Applied EmissionPrice $(pol.name) to $(length(idxs)) $(table_name)."
 end
@@ -267,7 +303,7 @@ Region- and hour-varying emissions factors from a file. Each row of the ef table
 region (via its column values used as bus filters) and the hourly EFs for that region. Branches
 are tagged per source region so each gets the correct EF container.
 """
-function _tag_import_branches_by_file!(pol::EmissionPrice, data, table_name, bus_set, import_emis_col, pol_name_imports, hour_multiplier, years)
+function _setup_import_branches_by_file!(pol::EmissionPrice, data, table_name, bus_set, cols, hour_multiplier, years)
     pol_table = data[pol.name]
     table = get_table(data, table_name)
     bus = get_table(data, :bus)
@@ -306,7 +342,7 @@ function _tag_import_branches_by_file!(pol::EmissionPrice, data, table_name, bus
             nrow(sa_table) > 1 && @warn "Multiple rows for $(sa) in $(pol.name). Using first."
             efs = ByHour(Float64[sa_table[1, hr] for hr in hr_col_start:(hr_col_start + nhr - 1)])
         end
-        table[idxs, import_emis_col] .= Ref(efs)
+        table[idxs, cols.import_emis] .= Ref(efs)
         append!(all_idxs, idxs)
     end
 
@@ -318,7 +354,7 @@ function _tag_import_branches_by_file!(pol::EmissionPrice, data, table_name, bus
     price_yearly = [get(pol.prices, Symbol(y), 0.0) for y in years]
     for idx in all_idxs
         scalar = table[idx, :t_bus_idx] in bus_set ? 1 : -1
-        table[idx, pol_name_imports] = ByYear(price_yearly) .* table[idx, import_emis_col] .* hour_multiplier .* scalar
+        table[idx, cols.imports] = ByYear(price_yearly) .* table[idx, cols.import_emis] .* hour_multiplier .* scalar
     end
     @info "Applied EmissionPrice $(pol.name) to $(length(all_idxs)) $(table_name)."
 end
@@ -331,11 +367,11 @@ Columns must already exist on the table (set up by modify_setup_data!).
 """
 function _add_import_obj_term!(data, model, pol::EmissionPrice, table_name::Symbol)
     table = get_table(data, table_name)
-    pol_name_imports = Symbol(pol.name, table_name == :branch ? "_imports" : "_dc_imports")
-    hasproperty(table, pol_name_imports) || return
-    any(c -> any(!iszero, c), getproperty(table, pol_name_imports)) || return
+    cols = _emisprc_colnames(pol, table_name)
+    hasproperty(table, cols.imports) || return
+    any(c -> any(!iszero, c), getproperty(table, cols.imports)) || return
     pflow_col = table_name == :branch ? :pflow_branch : :pflow_dc
-    add_obj_term!(data, model, PerMWhImport(), pol_name_imports, table_name, pflow_col, oper = +)  
+    add_obj_term!(data, model, PerMWhImport(), cols.imports, table_name, pflow_col, oper = +)
 end
 
 
