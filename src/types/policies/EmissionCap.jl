@@ -40,8 +40,9 @@ struct EmissionCap <: Policy
     import_ef_file::Union{String,Nothing}
     banking::Bool
     initial_bank::Float64
+    offset::Float64
 
-    function EmissionCap(;name, emis_col, targets, gen_filters=OrderedDict(), hour_filters=OrderedDict(), bus_filters=OrderedDict(), cap_imports=false, import_ef=nothing, import_ef_file=nothing, banking=false, initial_bank=0.0)
+    function EmissionCap(;name, emis_col, targets, gen_filters=OrderedDict(), hour_filters=OrderedDict(), bus_filters=OrderedDict(), cap_imports=false, import_ef=nothing, import_ef_file=nothing, banking=false, initial_bank=0.0, offset=0)
         if cap_imports && isempty(bus_filters)
             @warn "EmissionCap $(name) has cap_imports=true but no bus_filters specified — no import branches will be found."
         end
@@ -54,7 +55,7 @@ struct EmissionCap <: Policy
         elseif !cap_imports && (import_ef !== nothing || import_ef_file !== nothing)
             @warn "EmissionCap $(name) has cap_imports=false but emission factors were provided. Imports will not be counted toward the cap."
         end
-        new(Symbol(name), Symbol(emis_col), OrderedDict{Symbol, Float64}(targets), OrderedDict(gen_filters), OrderedDict(hour_filters), OrderedDict(bus_filters), cap_imports, import_ef, import_ef_file)
+        new(Symbol(name), Symbol(emis_col), OrderedDict{Symbol, Float64}(targets), OrderedDict(gen_filters), OrderedDict(hour_filters), OrderedDict(bus_filters), cap_imports, import_ef, import_ef_file, banking, initial_bank, offset)
     end
 
 end
@@ -172,13 +173,14 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
                 model[emis_expr_name][y_idx, hr_idx]
                 for y_idx in 1:nyr, hr_idx in 1:nhr
                 if years[y_idx] in cap_years && years[y_idx] <= years[yr_idx]
-            ) <= sum(pol.targets[y] for y in cap_years if y <= years[yr_idx]) + pol.initial_bank
+            ) <= (sum(pol.targets[y] for y in cap_years if y <= years[yr_idx]) + pol.initial_bank) / (1-pol.offset)
         )
+
     else
         model[cap_cons_name] = @constraint(model,
             [yr_idx in 1:nyr; years[yr_idx] in cap_years],
-            sum(model[emis_expr_name][yr_idx, hr_idx] for hr_idx in 1:nhr)
-            <= pol.targets[years[yr_idx]]
+            sum(model[emis_expr_name][yr_idx, hr_idx] for hr_idx in 1:nhr) 
+            <= (pol.targets[years[yr_idx]] / (1-pol.offset))
         )
     end
     
@@ -197,6 +199,36 @@ function E4ST.modify_results!(pol::EmissionCap, config, data)
 
     shadow_prc = get_shadow_price_as_ByYear(data, cons_name) #($/EmissionsUnit)
 
+    # the cumulative banking formulation means that each unit of emissions emitted in year y tightens the constraint in future years
+    # that means total cost of unit of emissions is sum of shadow prices on the affected constraints
+
+    if pol.banking
+        # With year-specific objective scaling, the correct emission price for year y is:
+        # allowance_price[y] = (sum_{T >= y} λ_T_scaled) / (yr_scalar[y])
+        # get_shadow_price_as_ByYear returns λ_T_scaled / yr_scalar[T],
+        # so we first multiply λ_T_scaled = shadow_prc_as_byyear[T] * yr_scalar[T].
+    
+        yr_scalars = config[:yearly_objective_scalars]::Vector{Float64}
+        years = Symbol.(get_years(data))
+        nyr = get_num_years(data)
+        cap_years = collect(keys(pol.targets))
+
+        # recover raw scaled shadow prices: λ_T_scaled = returned_value * yr_scalar[T] 
+        lambda_scaled = [shadow_prc[t_idx] * yr_scalars[t_idx] for t_idx in 1:nyr]
+        
+        shadow_prc = ByYear(zeros(nyr))
+        for y_idx in 1:nyr
+            shadow_prc[y_idx] = sum(
+                lambda_scaled[t_idx]
+                for t_idx in 1:nyr
+                if years[t_idx] in cap_years && years[t_idx] >= years[y_idx];
+                init=0.0
+            ) / (yr_scalars[y_idx])
+        end
+
+        data[:results][cons_name] = shadow_prc   # replace the shadow price with the correct price considering the banking formulation
+    end
+   
     prc_col = [(-shadow_prc) .* g[pol.name] .* g[pol.emis_col] for g in eachrow(gen)] #($/MWh Generated)
     add_table_col!(data, :gen, cols.prc, prc_col, DollarsPerMWhGenerated, "Shadow price of $(pol.name) converted to DollarsPerMWhGenerated")
 
