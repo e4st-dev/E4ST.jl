@@ -445,6 +445,80 @@
             end
         end
 
+        @testset "Test Emission Cap with Banking" begin
+
+            # rerun for comparison with policies that don't price imports
+            config_file = joinpath(@__DIR__, "config", "config_3bus_emiscap.yml")
+            config = read_config(config_file_ref, config_file)
+            data = read_data(config)
+            model = setup_model(config, data)
+            optimize!(model)
+            parse_results!(config, data, model)
+            process_results!(config, data)
+            data_emis_compare = copy(data)
+
+            # bank formulation
+            config_file = joinpath(@__DIR__, "config", "config_3bus_emiscap_bank.yml")
+            config = read_config(config_file_ref, config_file)
+
+            data_sc = copy(data)  # data from the simple cap representation
+            data = read_data(config)
+            model = setup_model(config, data)
+
+            gen = get_table(data, :gen)
+            bus = get_table(data, :bus)
+            branch = get_table(data, :branch)
+
+            @testset "Adding Emis Cap with banking to gen table" begin
+
+                @test hasproperty(gen, :example_emiscap)
+
+                # Test that there are byYear containers 
+                @test eltype(gen.example_emiscap) <: Container
+
+                # test that ByYear containers have non zero values
+                @test sum(emisprc -> sum(emisprc.v), gen.example_emiscap) > 0
+
+            end
+
+            @testset "Model optimizes correctly" begin
+                ## make sure model still optimizes 
+                optimize!(model)
+                @test check(config, data, model)
+
+                parse_results!(config, data, model)
+                process_results!(config, data)
+
+                ## Check that policy impacts results 
+                gen = get_table(data, :gen)
+                years = get_years(data)
+                emis_co2_total = compute_result(data, :gen, :emis_co2_total, :, [2, 3])
+
+                gen_sc = get_table(data_sc, :gen)
+                emis_co2_total_sc = compute_result(data_sc, :gen, :emis_co2_total, :, [2, 3])
+
+                # emissions with banking formulation should be larger than simple cap because of initial bank
+                @test emis_co2_total > emis_co2_total_sc
+
+                # check that the bank is non-negative at each year:
+                # bank[T] = initial_bank + sum(targets[1..T]) - sum(emissions[1..T]) >= 0
+                pol_bank = config[:mods][:example_emiscap]
+                cap_years_bank = sort(collect(keys(pol_bank.targets)))
+                nyr = get_num_years(data)
+                sim_years_bank = Symbol.(get_years(data))
+                year_to_idx = Dict(sim_years_bank[i] => i for i in 1:nyr)
+                for yr_idx in 1:nyr
+                    sim_years_bank[yr_idx] in cap_years_bank || continue
+                    println(yr_idx)
+                    cumulative_emis = sum(compute_result(data, :gen, :emis_co2_total, :, year_to_idx[y]) for y in cap_years_bank if y <= sim_years_bank[yr_idx])
+                    cumulative_target = sum(pol_bank.targets[y] for y in cap_years_bank if y <= sim_years_bank[yr_idx]) + pol_bank.initial_bank
+                    @test cumulative_emis <= cumulative_target + tol
+                end
+
+            end
+
+        end
+
     end
 
 
