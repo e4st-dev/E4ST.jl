@@ -509,7 +509,6 @@
                 year_to_idx = Dict(sim_years_bank[i] => i for i in 1:nyr)
                 for yr_idx in 1:nyr
                     sim_years_bank[yr_idx] in cap_years_bank || continue
-                    println(yr_idx)
                     cumulative_emis = sum(compute_result(data, :gen, :emis_co2_total, :, year_to_idx[y]) for y in cap_years_bank if y <= sim_years_bank[yr_idx])
                     cumulative_target = sum(pol_bank.targets[y] for y in cap_years_bank if y <= sim_years_bank[yr_idx]) + pol_bank.initial_bank
                     @test cumulative_emis <= cumulative_target + tol

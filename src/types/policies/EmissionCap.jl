@@ -19,6 +19,7 @@ of the generation constraint is used to evalaute the cost of the policy.
 * `import_ef_file`: File that contains emissions factors of imported power by region and hour. Optional.
 * `banking`: Bool that indicates if emissions banking is allowed across years. When true, the constraint is cumulative: the sum of emissions from the first cap year through each year must be ≤ the sum of caps over those years plus `initial_bank`. Defaults to false.
 * `initial_bank`: Initial allowance bank (in the same units as targets) available at the start of the first cap year. Only used when `banking=true`. Defaults to 0.0.
+* `offset`: The amount of offsets allowed, represented as a percentage. Defaults to 0.
 
 ### Table Column Added: 
 * `(:gen, :<name>_prc)` - the shadow price of the policy converted to DollarsPerMWhGenerated
@@ -36,23 +37,23 @@ struct EmissionCap <: Policy
     hour_filters::OrderedDict
     bus_filters::OrderedDict
     cap_imports::Bool
-    import_ef::Union{Float64, Nothing}
-    import_ef_file::Union{String,Nothing}
+    import_ef::Float64
+    import_ef_file::String
     banking::Bool
     initial_bank::Float64
     offset::Float64
 
-    function EmissionCap(;name, emis_col, targets, gen_filters=OrderedDict(), hour_filters=OrderedDict(), bus_filters=OrderedDict(), cap_imports=false, import_ef=nothing, import_ef_file=nothing, banking=false, initial_bank=0.0, offset=0)
+    function EmissionCap(;name, emis_col, targets, gen_filters=OrderedDict(), hour_filters=OrderedDict(), bus_filters=OrderedDict(), cap_imports=false, import_ef=0.0, import_ef_file="", banking=false, initial_bank=0.0, offset=0)
         if cap_imports && isempty(bus_filters)
             @warn "EmissionCap $(name) has cap_imports=true but no bus_filters specified — no import branches will be found."
         end
-        if cap_imports && import_ef === nothing && import_ef_file === nothing
+        if cap_imports && import_ef == 0.0 && isempty(import_ef_file)
             emis_col == "emis_co2" || error("EmissionCap $(name) has cap_imports=true but no import emissions factor was provided and there is no default for $(emis_col)")
             import_ef = 0.428
             @warn "EmissionCap $(name) has cap_imports=true but no emissions factors were provided. The default ng emissions factor (0.428) will be applied to all imports."
-        elseif cap_imports && import_ef !== nothing && import_ef_file !== nothing
+        elseif cap_imports && import_ef != 0.0 && !isempty(import_ef_file)
             error("EmissionCap $(name) has both import_ef and import_ef_file specified. Provide only one.")
-        elseif !cap_imports && (import_ef !== nothing || import_ef_file !== nothing)
+        elseif !cap_imports && (import_ef != 0.0 || !isempty(import_ef_file))
             @warn "EmissionCap $(name) has cap_imports=false but emission factors were provided. Imports will not be counted toward the cap."
         end
         new(Symbol(name), Symbol(emis_col), OrderedDict{Symbol, Float64}(targets), OrderedDict(gen_filters), OrderedDict(hour_filters), OrderedDict(bus_filters), cap_imports, import_ef, import_ef_file, banking, initial_bank, offset)
@@ -92,7 +93,7 @@ function summarize_table(::Val{:import_ef_file})
 end
 
 function E4ST.modify_raw_data!(pol::EmissionCap, config, data)
-    if !isnothing(pol.import_ef_file)
+    if !isempty(pol.import_ef_file)
         data[pol.name] = read_table(data, pol.import_ef_file, pol.name)
     end
 end
@@ -322,7 +323,7 @@ function setup_import_branches!(pol, config, data, table_name::Symbol)
     add_table_col!(data, table_name, cols.dir, [0.0 for _ in 1:nrow(table)], NA,
         "Direction scalar for $(pol.name): +1 if t_bus is in region, -1 if f_bus is in region")
 
-    if !isnothing(pol.import_ef_file)
+    if !isempty(pol.import_ef_file)
         _setup_import_branches_by_file!(pol, data, table_name, bus_set, cols, hour_multiplier)
     else
         _setup_import_branches_by_value!(pol, data, table_name, bus_set, cols, hour_multiplier)
