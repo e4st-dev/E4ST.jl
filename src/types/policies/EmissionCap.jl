@@ -20,6 +20,7 @@ of the generation constraint is used to evalaute the cost of the policy.
 * `banking`: Bool that indicates if emissions banking is allowed across years. When true, the constraint is cumulative: the sum of emissions from the first cap year through each year must be ≤ the sum of caps over those years plus `initial_bank`. Defaults to false.
 * `initial_bank`: Initial allowance bank (in the same units as targets) available at the start of the first cap year. Only used when `banking=true`. Defaults to 0.0.
 * `offset`: The amount of offsets allowed, represented as a percentage. Defaults to 0.
+* `offset_under_cap`: Bool that indicates whether offsets are under or outside the emission cap, defaults to true.
 
 ### Table Column Added: 
 * `(:gen, :<name>_prc)` - the shadow price of the policy converted to DollarsPerMWhGenerated
@@ -42,8 +43,9 @@ struct EmissionCap <: Policy
     banking::Bool
     initial_bank::Float64
     offset::Float64
+    offset_under_cap:: Bool
 
-    function EmissionCap(;name, emis_col, targets, gen_filters=OrderedDict(), hour_filters=OrderedDict(), bus_filters=OrderedDict(), cap_imports=false, import_ef=0.0, import_ef_file="", banking=false, initial_bank=0.0, offset=0)
+    function EmissionCap(;name, emis_col, targets, gen_filters=OrderedDict(), hour_filters=OrderedDict(), bus_filters=OrderedDict(), cap_imports=false, import_ef=0.0, import_ef_file="", banking=false, initial_bank=0.0, offset=0, offset_under_cap=true)
         if cap_imports && isempty(bus_filters)
             @warn "EmissionCap $(name) has cap_imports=true but no bus_filters specified — no import branches will be found."
         end
@@ -56,7 +58,7 @@ struct EmissionCap <: Policy
         elseif !cap_imports && (import_ef != 0.0 || !isempty(import_ef_file))
             @warn "EmissionCap $(name) has cap_imports=false but emission factors were provided. Imports will not be counted toward the cap."
         end
-        new(Symbol(name), Symbol(emis_col), OrderedDict{Symbol, Float64}(targets), OrderedDict(gen_filters), OrderedDict(hour_filters), OrderedDict(bus_filters), cap_imports, import_ef, import_ef_file, banking, initial_bank, offset)
+        new(Symbol(name), Symbol(emis_col), OrderedDict{Symbol, Float64}(targets), OrderedDict(gen_filters), OrderedDict(hour_filters), OrderedDict(bus_filters), cap_imports, import_ef, import_ef_file, banking, initial_bank, offset, offset_under_cap)
     end
 
 end
@@ -162,7 +164,7 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
     cap_years = collect(keys(pol.targets))
     filter!(in(years), cap_years)
 
-    
+    offset_adjust = pol.offset_under_cap == false ? pol.offset : 0  # only adjust emission cap constraint if offsets are oustide the cap
     cap_cons_name = Symbol("cons_$(pol.name)_max")
     @info "Creating emissions cap constraint for $(pol.name) in years $(cap_years)"
     if pol.banking
@@ -174,14 +176,14 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
                 model[emis_expr_name][y_idx, hr_idx]
                 for y_idx in 1:nyr, hr_idx in 1:nhr
                 if years[y_idx] in cap_years && years[y_idx] <= years[yr_idx]
-            ) <= (sum(pol.targets[y] for y in cap_years if y <= years[yr_idx]) + pol.initial_bank) / (1-pol.offset)
+            ) <= (sum(pol.targets[y] for y in cap_years if y <= years[yr_idx]) + pol.initial_bank) / (1-offset_adjust)
         )
 
     else
         model[cap_cons_name] = @constraint(model,
             [yr_idx in 1:nyr; years[yr_idx] in cap_years],
             sum(model[emis_expr_name][yr_idx, hr_idx] for hr_idx in 1:nhr) 
-            <= (pol.targets[years[yr_idx]] / (1-pol.offset))
+            <= (pol.targets[years[yr_idx]] / (1-offset_adjust))
         )
     end
     
@@ -233,7 +235,7 @@ function E4ST.modify_results!(pol::EmissionCap, config, data)
     prc_col = [(-shadow_prc) .* g[pol.name] .* g[pol.emis_col] for g in eachrow(gen)] #($/MWh Generated)
     add_table_col!(data, :gen, cols.prc, prc_col, DollarsPerMWhGenerated, "Shadow price of $(pol.name) converted to DollarsPerMWhGenerated")
 
-    add_results_formula!(data, :gen, cols.cost, "SumHourlyWeighted($(cols.prc), pgen)", Dollars, "The cost of $(pol.name) based on the shadow price of the generation constraint")
+    add_results_formula!(data, :gen, cols.cost, "SumHourlyWeighted($(cols.prc), pgen)*(1-pol.offset)", Dollars, "The cost of $(pol.name) based on the shadow price of the generation constraint")
     add_to_results_formula!(data, :gen, :emission_cap_cost, cols.cost)
 
     if pol.cap_imports
@@ -259,7 +261,7 @@ function add_import_results!(data, table_name, pol::EmissionCap, cols, shadow_pr
         "Shadow price of $(pol.name) per MWh of imports on $(table_name)")
 
     # results formula for cost of emission cap policy contributed by imports
-    add_results_formula!(data, table_name, cols.import_cost, "SumHourlyWeighted($(cols.prc), pflow)",
+    add_results_formula!(data, table_name, cols.import_cost, "SumHourlyWeighted($(cols.prc), pflow)*(1-pol.offset)",
         Dollars, "The cost of $(pol.name) attributed to imports on $(table_name)")
     # setup a results formula to track total cost of all emission cap policies for imported power
     haskey(get_results_formulas(data), (table_name, :emission_cap_cost)) ||
