@@ -3,8 +3,9 @@
 @doc raw"""
     struct EmissionCap <: Policy
 
-Emission Cap - A limit on a certain emission for a given set of generators. The mod caps emissions by setting up a generation constraint, which uses the given emissions rate column to determine the generation limit. The shadow price
-of the generation constraint is used to evalaute the cost of the policy.
+Emission Cap - A limit on a certain emission for a given set of generators. The mod caps emissions by setting up a generation constraint, which uses the given emissions rate column to determine the generation limit. The allowance price is equal
+to the shadow price of the generation constraint, or the sum of shadow prices across years when banking is allowed, which is used to evaluate the cost of the policy.
+Note: The banking formulation in this modification requires that years[n] - years[n-1] is constant.
 
 ### Keyword Arguments:
 * `name`: name of the policy (Symbol)
@@ -19,14 +20,14 @@ of the generation constraint is used to evalaute the cost of the policy.
 * `import_ef_file`: File that contains emissions factors of imported power by region and hour. Optional.
 * `banking`: Bool that indicates if emissions banking is allowed across years. When true, the constraint is cumulative: the sum of emissions from the first cap year through each year must be ≤ the sum of caps over those years plus `initial_bank`. Defaults to false.
 * `initial_bank`: Initial allowance bank (in the same units as targets) available at the start of the first cap year. Only used when `banking=true`. Defaults to 0.0.
-* `offset`: The amount of offsets allowed, represented as a percentage. Defaults to 0.
-* `offset_under_cap`: Bool that indicates whether offsets are under or outside the emission cap, defaults to true.
+* `offset`: The amount of offsets allowed, represented as a percentage. The factor represents a limit on the use of offsets as a fraction of the entity's compliance obligation. Defaults to 0.
+* `offset_under_cap`: Bool that indicates whether offsets are under or outside the emission cap, defaults to true. 
 
 ### Table Column Added: 
-* `(:gen, :<name>_prc)` - the shadow price of the policy converted to DollarsPerMWhGenerated
+* `(:gen, :<name>_prc)` - the allowance price of the policy converted to DollarsPerMWhGenerated
 
 ### Results Formula:
-* `(:gen, :cost_name)` - the cost of the policy based on the shadow price of the generation constraint
+* `(:gen, :cost_name)` - the cost of the policy based on the allowance price, determined using the shadow price of the generation constraint
 
 
 """
@@ -200,10 +201,10 @@ function E4ST.modify_results!(pol::EmissionCap, config, data)
     cons_name = Symbol("cons_$(pol.name)_max")
     haskey(data[:results][:raw], cons_name) || return
 
-    shadow_prc = get_shadow_price_as_ByYear(data, cons_name) #($/EmissionsUnit)
+    alw_prc = get_shadow_price_as_ByYear(data, cons_name) #($/EmissionsUnit)
 
     # the cumulative banking formulation means that each unit of emissions emitted in year y tightens the constraint in future years
-    # that means total cost of unit of emissions is sum of shadow prices on the affected constraints
+    # that means allowance price is the sum of shadow prices on the affected constraints
 
     if pol.banking
         # With year-specific objective scaling, the correct emission price for year y is:
@@ -217,11 +218,11 @@ function E4ST.modify_results!(pol::EmissionCap, config, data)
         cap_years = collect(keys(pol.targets))
 
         # recover raw scaled shadow prices: λ_T_scaled = returned_value * yr_scalar[T] 
-        lambda_scaled = [shadow_prc[t_idx] * yr_scalars[t_idx] for t_idx in 1:nyr]
+        lambda_scaled = [alw_prc[t_idx] * yr_scalars[t_idx] for t_idx in 1:nyr]
         
-        shadow_prc = ByYear(zeros(nyr))
+        alw_prc = ByYear(zeros(nyr))
         for y_idx in 1:nyr
-            shadow_prc[y_idx] = sum(
+            alw_prc[y_idx] = sum(
                 lambda_scaled[t_idx]
                 for t_idx in 1:nyr
                 if years[t_idx] in cap_years && years[t_idx] >= years[y_idx];
@@ -229,36 +230,36 @@ function E4ST.modify_results!(pol::EmissionCap, config, data)
             ) / (yr_scalars[y_idx])
         end
 
-        data[:results][cons_name] = shadow_prc   # replace the shadow price with the correct price considering the banking formulation
+        data[:results][cons_name] = alw_prc   # replace the shadow price of constraint with allowance price 
     end
    
-    prc_col = [(-shadow_prc) .* g[pol.name] .* g[pol.emis_col] for g in eachrow(gen)] #($/MWh Generated)
-    add_table_col!(data, :gen, cols.prc, prc_col, DollarsPerMWhGenerated, "Shadow price of $(pol.name) converted to DollarsPerMWhGenerated")
+    prc_col = [(-alw_prc) .* g[pol.name] .* g[pol.emis_col] for g in eachrow(gen)] #($/MWh Generated)
+    add_table_col!(data, :gen, cols.prc, prc_col, DollarsPerMWhGenerated, "Allowance price of $(pol.name) converted to DollarsPerMWhGenerated")
 
-    add_results_formula!(data, :gen, cols.cost, "SumHourlyWeighted($(cols.prc), pgen)*(1-pol.offset)", Dollars, "The cost of $(pol.name) based on the shadow price of the generation constraint")
+    add_results_formula!(data, :gen, cols.cost, "SumHourlyWeighted($(cols.prc), pgen)*(1-pol.offset)", Dollars, "The cost of $(pol.name) based on the allowance price, which is determined with the shadow price of the generation constraint")
     add_to_results_formula!(data, :gen, :emission_cap_cost, cols.cost)
 
     if pol.cap_imports
         for table_name in (:branch, :dc_line)
             table_name == :dc_line && !any(mod -> mod isa DCLine, values(config[:mods])) && continue
             tag_import_flows!(pol, data, table_name)
-            add_import_results!(data, table_name, pol, cols, shadow_prc)
+            add_import_results!(data, table_name, pol, cols, alw_prc)
         end
     end
 end
 
 """
-    add_cap_import_results!(data, table_name, pol::EmissionCap, cols, shadow_prc)
+    add_cap_import_results!(data, table_name, pol::EmissionCap, cols, alw_prc)
 
 Creates results formulas for import cost attributed to an EmissionCap for the given table.
 """
-function add_import_results!(data, table_name, pol::EmissionCap, cols, shadow_prc)
+function add_import_results!(data, table_name, pol::EmissionCap, cols, alw_prc)
     table = get_table(data, table_name)
     hasproperty(table, pol.name) || return
 
-    prc_col = [(-shadow_prc) .* row[pol.name] .* row[cols.import_emis] for row in eachrow(table)]
+    prc_col = [(-alw_prc) .* row[pol.name] .* row[cols.import_emis] for row in eachrow(table)]
     add_table_col!(data, table_name, cols.prc, prc_col, DollarsPerMWhGenerated,
-        "Shadow price of $(pol.name) per MWh of imports on $(table_name)")
+        "Allowance price of $(pol.name) per MWh of imports on $(table_name)")
 
     # results formula for cost of emission cap policy contributed by imports
     add_results_formula!(data, table_name, cols.import_cost, "SumHourlyWeighted($(cols.prc), pflow)*(1-pol.offset)",
