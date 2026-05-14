@@ -42,20 +42,20 @@ struct EmissionPrice <: Policy
     hour_filters::OrderedDict
     bus_filters::OrderedDict
     price_imports::Bool
-    import_ef::Union{Float64, Nothing}
-    import_ef_file::Union{String,Nothing}
+    import_ef::Float64
+    import_ef_file::String
 
-    function EmissionPrice(; name, emis_col, prices, years_after_ref_min=0.0, years_after_ref_max=9999.0, ref_year_col="year_on", gen_filters=OrderedDict(), hour_filters=OrderedDict(), bus_filters=OrderedDict(), price_imports=false, import_ef=nothing, import_ef_file=nothing)
+    function EmissionPrice(; name, emis_col, prices, years_after_ref_min=0.0, years_after_ref_max=9999.0, ref_year_col="year_on", gen_filters=OrderedDict(), hour_filters=OrderedDict(), bus_filters=OrderedDict(), price_imports=false, import_ef=0.0, import_ef_file="")
         if price_imports && isempty(bus_filters)
             @warn "EmissionPrice $(name) has price_imports=true but no bus_filters specified — no import branches will be found."
         end
-        if price_imports && import_ef === nothing && import_ef_file === nothing
+        if price_imports && import_ef == 0.0 && isempty(import_ef_file)
             emis_col == "emis_co2" || error("EmissionPrice $(name) has price_imports=true but no import emissions factor was provided and there is no default for $(emis_col)")
             import_ef = 0.428
             @warn "EmissionPrice $(name) has price_imports=true but no emissions factors were provided. The default ng emissions factor (0.428) will be applied to all imports."
-        elseif price_imports && import_ef !== nothing && import_ef_file !== nothing
+        elseif price_imports && import_ef != 0.0 && !isempty(import_ef_file)
             error("EmissionPrice $(name) has both import_ef and import_ef_file specified. Provide only one.")
-        elseif !price_imports && (import_ef !== nothing || import_ef_file !== nothing)
+        elseif !price_imports && (import_ef != 0.0 || !isempty(import_ef_file))
             @warn "EmissionPrice $(name) has price_imports=false but emission factors were provided. Imports will not be priced."
         end
         return new(Symbol(name), Symbol(emis_col), OrderedDict(prices), years_after_ref_min, years_after_ref_max, ref_year_col, OrderedDict(gen_filters), OrderedDict(hour_filters), OrderedDict(bus_filters), price_imports, import_ef, import_ef_file)
@@ -88,7 +88,7 @@ function should_adjust_invest_cost(pol::EmissionPrice)
 end
 
 function E4ST.modify_raw_data!(pol::EmissionPrice, config, data)
-    if !isnothing(pol.import_ef_file)
+    if !isempty(pol.import_ef_file)
         data[pol.name] = read_table(data, pol.import_ef_file, pol.name)
     end
 end
@@ -272,7 +272,7 @@ function setup_import_branches!(pol::EmissionPrice, config, data, table_name::Sy
     add_table_col!(data, table_name, cols.imports, Container[ByNothing(0.0) for _ in 1:nrow(table)],
         DollarsPerMWhGenerated, "Emission price per MWh imported for $(pol.name)")
 
-    if !isnothing(pol.import_ef_file)
+    if !isempty(pol.import_ef_file)
         _setup_import_branches_by_file!(pol, data, table_name, bus_set, cols, hour_multiplier, years)
     else
         _setup_import_branches_by_value!(pol, data, table_name, bus_set, cols, hour_multiplier, years)

@@ -1,0 +1,14 @@
+base_out_path:    "../out/3bus_emiscap"
+mods:
+  example_emiscap:
+    type: "EmissionCap"
+    emis_col: "emis_co2"
+    banking: true
+    initial_bank: 1000
+    targets: 
+      y2035: 4000
+      y2040: 3000
+    gen_filters:
+      bus_nation: "[narnia, archenland]"
+
+
