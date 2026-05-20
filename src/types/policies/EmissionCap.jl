@@ -605,7 +605,7 @@ function setup_allowance_price_steps(pol, config, data)
     end
     
     data[cols.price_steps] = price_steps
-    println(price_steps)
+   
 end
 
 """
