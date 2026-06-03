@@ -621,8 +621,8 @@ function add_price_responsive_allowances(pol, config, data, model)
     price_steps = data[cols.price_steps]
 
     # Rebuild matrices
-    all_prices = Matrix{Float64}(undef, nsteps, nyr)
-    step_widths = Matrix{Float64}(undef, nsteps, nyr)
+    all_prices = zeros(Float64, nsteps, nyr)
+    step_widths = fill(Inf, nsteps, nyr)
 
     for row in eachrow(price_steps)
         s = row.step

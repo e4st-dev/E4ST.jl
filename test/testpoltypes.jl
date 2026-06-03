@@ -541,7 +541,6 @@
             
             k = findfirst(>=(emis), cum_alw)
             if emis < cum_alw[k]
-                println(cum_alw[k])
                 @test alw_prc == prices[k]  # when allowances are in the step interior, test that allowance price is equal to the price at the step
             else
                 @test prices[k] < alw_prc < prices[k+1] # when allowances are at the kink point, test that allowance price falls between the 2 bounding steps
