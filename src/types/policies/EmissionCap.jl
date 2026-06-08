@@ -22,13 +22,10 @@ Note: The banking formulation in this modification requires that years[n] - year
 * `initial_bank`: Initial allowance bank (in the same units as targets) available at the start of the first cap year. Only used when `banking=true`. Defaults to 0.0.
 * `offset`: The amount of offsets allowed, represented as a percentage. The factor represents a limit on the use of offsets as a fraction of the entity's compliance obligation. Defaults to 0.
 * `offset_under_cap`: Bool that indicates whether offsets are under or outside the emission cap, defaults to true. 
-* `price_steps`: Bool that turns on price responsive allowances, defaults to true.
-* `price_floor`: Sets a price floor for allowances so that allowances will not be priced below this threshold
-* `price_celing`: Sets a price ceiling for allowances to stabilize market prices
-* `price_rate`: The rate step prices increase by each year. Defaults to 5%.
-* `ref_year`: Yearly step prices are scaled by the equation pr^(y - ref_year)
-* `step_price_fracs`: Length-k vector of fractions in [0,1] that locate each step's price within the floor-to-ceiling pathway. E.g. 0.0 = floor, 0.5 = midpoint, 1.0 = ceiling.
-* `step_adders`: Length-k vector of allowance quantities added to (positive) or withdrawn from (negative) the base target at each price step, which defines the cumulative supply available at step k. 
+* `price_resp_alws`: Bool that turns on price responsive allowances, defaults to false.
+* `step_prices`: Length-k vector of prices for each step.
+* `step_adders`: Length-k vector of allowance quantities added to (positive) or withdrawn from (negative) the base target at each price step, which defines the cumulative supply available at step k. When representing a price ceiling, include a backstop step with Inf allowances.
+* `rate`: The rate step prices increase by each year. Defaults to 5%. Note that prices esacalate relative to first model year.
 
 ### Table Column Added: 
 * `(:gen, :<name>_prc)` - the allowance price of the policy converted to DollarsPerMWhGenerated
@@ -58,16 +55,13 @@ struct EmissionCap <: Policy
     initial_bank::Float64
     offset::Float64
     offset_under_cap::Bool
-    price_steps::Bool
-    price_floor::Float64
-    price_ceiling::Float64
-    ref_year::String
-    step_price_fracs::Vector{Float64}
+    price_resp_alws::Bool
+    step_prices::Vector{Float64}
     step_adders::Vector{Float64}
-    price_rate::Float64
+    rate::Float64
 
     function EmissionCap(;name, emis_col, targets, gen_filters=OrderedDict(), hour_filters=OrderedDict(), bus_filters=OrderedDict(), cap_imports=false, import_ef=0.0, import_ef_file="", banking=false, initial_bank=0.0, offset=0, offset_under_cap=true,
-        price_steps = false, price_floor = -Inf, price_ceiling = Inf, ref_year = "", step_price_fracs = Float64[], step_adders = Float64[], price_rate = 0.05 )
+        price_resp_alws = false, step_prices = Float64[], step_adders = Float64[], rate = 0.05)
         if cap_imports && isempty(bus_filters)
             @warn "EmissionCap $(name) has cap_imports=true but no bus_filters specified — no import branches will be found."
         end
@@ -80,15 +74,15 @@ struct EmissionCap <: Policy
         elseif !cap_imports && (import_ef != 0.0 || !isempty(import_ef_file))
             @warn "EmissionCap $(name) has cap_imports=false but emission factors were provided. Imports will not be counted toward the cap."
         end
-        if price_steps && (price_floor == -Inf || price_ceiling == Inf || isempty(ref_year) || isempty(step_price_fracs) || isempty(step_adders))
-            error("Emission cap $(name) has price_steps=true but one or more relevant kwargs were left empty")
-        elseif price_steps && length(step_price_fracs) != length(step_adders)
-            error("The step_price_fracs and step_adders are not equal length for Emission cap $(name), which will error when setting up the allowance supply price curve.")
-        elseif price_steps == false && (price_floor != -Inf || price_ceiling != Inf || !isempty(ref_year) || !isempty(step_price_fracs) || !isempty(step_adders))
-            @warn "Emission cap $(name) has price_steps=false, and the allowance supply curve will not be included in the formulation, but one or more relevant kwargs have values."
+        if price_resp_alws && (isempty(step_prices) || isempty(step_adders))
+            error("Emission cap $(name) has price_resp_alws=true but one or more relevant kwargs were left empty")
+        elseif price_resp_alws && length(step_prices) != length(step_adders)
+            error("The step_prices and step_adders are not equal length for Emission cap $(name), which will error when setting up the allowance supply price curve.")
+        elseif price_resp_alws == false && (!isempty(step_prices) || !isempty(step_adders))
+            @warn "Emission cap $(name) has price_resp_alws=false, and the allowance supply curve will not be included in the formulation, but one or more relevant kwargs have values."
         end
         new(Symbol(name), Symbol(emis_col), OrderedDict{Symbol, Float64}(targets), OrderedDict(gen_filters), OrderedDict(hour_filters), OrderedDict(bus_filters), cap_imports, import_ef, import_ef_file, banking, initial_bank, offset, offset_under_cap,
-        price_steps, price_floor, price_ceiling, ref_year, step_price_fracs, step_adders, price_rate)
+        price_resp_alws, step_prices, step_adders, rate)
     end
 
 end
@@ -112,7 +106,7 @@ function _emiscap_colnames(pol::EmissionCap)
         cons_name          = Symbol("cons_$(pol.name)_max"),
         alw_name           = Symbol("alw_$(pol.name)"),
         alw_cost           = Symbol("alw_cost_$(pol.name)"),
-        price_steps        = Symbol("$(pol.name)_price_steps")
+        price_resp_alws        = Symbol("$(pol.name)_supply_curve")
     )
 end
 
@@ -135,7 +129,7 @@ function E4ST.modify_raw_data!(pol::EmissionCap, config, data)
 end
 
 function E4ST.modify_setup_data!(pol::EmissionCap, config, data)
-    pol.price_steps && setup_allowance_price_steps(pol, config, data)  # store price steps
+    pol.price_resp_alws && setup_allowance_price_resp_alws(pol, config, data)  # store price steps
 
     pol.cap_imports || return  # check if pol.cap_imports is set to true
 
@@ -203,9 +197,9 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
     filter!(in(years), cap_years)
     
     # add price responsive allowances to the model
-    if pol.price_steps
+    if pol.price_resp_alws
         add_price_responsive_allowances(pol, config, data, model)
-        nsteps = length(pol.step_price_fracs)
+        nsteps = length(pol.step_prices)
         alw = model[cols.alw_name]
     end
     
@@ -215,15 +209,7 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
     if pol.banking
         # Cumulative constraint: sum of emissions from the first cap year through yr_idx
         # must be ≤ sum of targets over those years + initial_bank
-        rhs = [                                         
-            pol.price_steps ?
-                sum(alw[y_idx, s] for y_idx in 1:nyr, s in 1:nsteps
-                    if years[y_idx] in cap_years && years[y_idx] <= years[yr_idx]) + pol.initial_bank :   # if pol.price_steps is true, RHS is equal to sum of alllowances at each step 
-                (sum(pol.targets[y] for y in cap_years if y <= years[yr_idx]) + pol.initial_bank) 
-            for yr_idx in 1:nyr
-            if years[yr_idx] in cap_years
-        ]
-
+        
        model[cap_cons_name] = @constraint(model,
             [yr_idx in 1:nyr; years[yr_idx] in cap_years],
             sum(
@@ -231,7 +217,7 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
                 for y_idx in 1:nyr, hr_idx in 1:nhr
                 if years[y_idx] in cap_years && years[y_idx] <= years[yr_idx]
             ) <= (
-                pol.price_steps ?                                                    # if pol.price_steps is true, RHS is equal to sum of alllowances at each step 
+                pol.price_resp_alws ?                                                    # if pol.price_resp_alws is true, RHS is equal to sum of alllowances at each step 
                 sum(
                     alw[y_idx, s]
                     for y_idx in 1:nyr, s in 1:nsteps
@@ -242,17 +228,10 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
         )
     else
 
-        rhs = [
-            pol.price_steps ?
-                sum(alw[yr_idx, s] for s in 1:nsteps) :     # if pol.price_steps is true, RHS is equal to sum of allowances at each step
-                pol.targets[years[yr_idx]]
-            for yr_idx in 1:nyr
-            if years[yr_idx] in cap_years
-        ]
         model[cap_cons_name] = @constraint(model,
             [yr_idx in 1:nyr; years[yr_idx] in cap_years],
             sum(model[emis_expr_name][yr_idx, hr_idx] for hr_idx in 1:nhr) <= 
-            (pol.price_steps ?
+            (pol.price_resp_alws ?
                 sum(alw[yr_idx, s] for s in 1:nsteps) :
                 pol.targets[years[yr_idx]]
             ) / (1 - pol.offset)
@@ -541,29 +520,20 @@ end
     setup_allowance_prce_steps!(pol::EmissionCap, config, data) -> 
     Function that sets up prices and allowance quantities based on kwarg and stores values in data. 
 """
-function setup_allowance_price_steps(pol, config, data)
+function setup_allowance_price_resp_alws(pol, config, data)
     cols = _emiscap_colnames(pol)
 
     years = get_years(data)
     sym_years = Symbol.(get_years(data))
     nyr = get_num_years(data)
-    ref_year = pol.ref_year
-    nsteps = length(pol.step_price_fracs)
+    nsteps = length(pol.step_prices)
 
     target_years = [String(y) for y in sym_years if haskey(pol.targets, y)]
     target_idxs = [i for i in 1:nyr if years[i] in target_years]
     target_nyr = length(target_years)
    
-    # Escalate floor and ceiling at 5%/yr from ref_year
-    pr =  1 + pol.price_rate
-    floor_prices   = [pol.price_floor   * pr^(diff_years(y, ref_year)) for y in target_years]
-    ceiling_prices = [pol.price_ceiling * pr^(diff_years(y, ref_year)) for y in target_years]
-   
-    # Price at each step = floor + frac * (ceiling - floor), escalated
-    all_prices = [
-        [floor_prices[i] + frac * (ceiling_prices[i] - floor_prices[i]) for i in 1:target_nyr]
-        for frac in pol.step_price_fracs
-    ]
+    # Escalate price steps at 5%/yr
+    prices = [[p * (1 + pol.rate)^(yr_idx - 1) for yr_idx in 1:nyr] for p in pol.step_prices]
     
     # cumulative allowance quantity at each step boundary = target + adder
     targets = [get(pol.targets, y, 0.0) for y in Symbol.(target_years)]
@@ -573,14 +543,12 @@ function setup_allowance_price_steps(pol, config, data)
     # Step 1 lower boundary is 0, so width = cum_qty[1]
     step_widths = Vector{Vector{Float64}}(undef, nsteps)
     step_widths[1] = step_alw[1]
-    for s in 2:nsteps-1
+    for s in 2:nsteps
         step_widths[s] = step_alw[s] .- step_alw[s-1]
     end
-    step_widths[nsteps] = fill(Inf, nyr)  # last step is unlimited backstop
-
 
     # add price steps to data
-    price_steps = DataFrame(
+    price_resp_alws = DataFrame(
         step         = Int[],
         year         = String[],
         price        = Float64[],
@@ -593,10 +561,10 @@ function setup_allowance_price_steps(pol, config, data)
             yr = get_years(data)[yr_idx]
             haskey(pol.targets, Symbol(yr)) || continue 
 
-            push!(price_steps, (
+            push!(price_resp_alws, (
                 s,
                 years[yr_idx],
-                all_prices[s][i],
+                prices[s][i],
                 step_alw[s][i],
                 step_widths[s][i],
             ))
@@ -604,8 +572,7 @@ function setup_allowance_price_steps(pol, config, data)
         end
     end
     
-    data[cols.price_steps] = price_steps
-   
+    data[cols.price_resp_alws] = price_resp_alws
 end
 
 """
@@ -617,18 +584,18 @@ function add_price_responsive_allowances(pol, config, data, model)
 
     nyr = get_num_years(data)
     years = get_years(data)
-    nsteps = length(pol.step_price_fracs)
-    price_steps = data[cols.price_steps]
+    nsteps = length(pol.step_prices)
+    price_resp_alws = data[cols.price_resp_alws]
 
     # Rebuild matrices
-    all_prices = zeros(Float64, nsteps, nyr)
+    prices = zeros(Float64, nsteps, nyr)
     step_widths = fill(Inf, nsteps, nyr)
 
-    for row in eachrow(price_steps)
+    for row in eachrow(price_resp_alws)
         s = row.step
         yr_idx = findfirst(==(row.year), years)
 
-        all_prices[s, yr_idx] = row.price
+        prices[s, yr_idx] = row.price
         step_widths[s, yr_idx] = row.step_alw_q
     end
     
@@ -649,7 +616,7 @@ function add_price_responsive_allowances(pol, config, data, model)
     alw_cost_name = cols.alw_cost 
     model[alw_cost_name] = @expression(model,           # cost expression is allowances at step k multiplied by price at step s
         [yr_idx in 1:nyr],
-        sum(all_prices[s, yr_idx] * alw[yr_idx, s] for s in 1:nsteps)
+        sum(prices[s, yr_idx] * alw[yr_idx, s] for s in 1:nsteps)
     )
    
     add_obj_exp!(data, model, AllowanceTerm(), alw_cost_name; oper=+)   # add allowance costs to objective function

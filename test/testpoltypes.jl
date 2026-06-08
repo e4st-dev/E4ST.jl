@@ -523,7 +523,7 @@
             config = read_config(config_file_ref, config_file)
             data = read_data(config)
 
-            @test haskey(data, :example_prc_resp_alw_price_steps)
+            @test haskey(data, :example_prc_resp_alw_supply_curve)
             model = setup_model(config, data)
             optimize!(model)
             
@@ -535,7 +535,7 @@
             alw_prc = data[:results][:raw][:cons_example_prc_resp_alw_max][2] * -1
             emis = compute_result(data,:gen,:emis_co2_total,:nation=>["narnia", "archenland"], 2)
            
-            price_steps = data[:example_prc_resp_alw_price_steps]
+            price_steps = data[:example_prc_resp_alw_supply_curve]
             prices = price_steps[!,:price]
             cum_alw = price_steps[!,:cum_alw]
             

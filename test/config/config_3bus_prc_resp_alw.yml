@@ -3,12 +3,8 @@ mods:
   example_prc_resp_alw:
     type: "EmissionCap"
     emis_col: "emis_co2"
-    price_steps: true
-    price_floor: 5
-    price_ceiling: 10
-    ref_year: y2020
-    price_rate: 0.05
-    step_price_fracs: [0, 0.25, 0.5, 0.75, 1.0, 1.01]
+    price_resp_alws: true
+    step_prices: [5, 6.25, 7.5, 8.75, 10, 10.05]
     step_adders: [-1000, -50, 50, 100, 150, 500]
     targets: 
       y2035: 2500
