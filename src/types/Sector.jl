@@ -65,11 +65,15 @@ Loads input files into tables:
 # sector_baseline_load_profile 
 #
 
+"""
 
+"""
+read in necessary data tables for the sector
+    
 """
 
   function modify_raw_data!(sec::Sector, config, data)
-      data[mod.name] = read_table(data, mod.file, mod.name)
+      name = sector_name(sec)
       mac_key = Symbol("sector_$(name)_mac_steps")
       emis_key = Symbol("sector_$(name)_baseline_emissions")
       elec_key = Symbol("sector_$(name)_baseline_electricity")
@@ -81,12 +85,16 @@ Loads input files into tables:
       config[elec_key] = mod.baseline_electricity
       config[lp_key] = mod.load_profile 
 
-        read_table!(config, data, mac_key => Symbol("sector_$(name)_mac_steps)")
+        read_table!(config, data, mac_key => Symbol("sector_$(name)_mac_steps)"))
         read_table!(config, data, emis_key => Symbol("sector_$(name)_baseline_emissions"))
         read_table!(config, data, elec_key => Symbol("sector_$(name)_baseline_electricity"))
         read_table!(config, data, lp_key => Symbol("sector_$(name)_baseline_load_profile"))
         return nothing
   end
+
+  """
+  creates and attaches year-index mapping for MAC steps to the bus table
+  """
 
   function modify_setup_data!(sec::Sector, config, data)
       # Attach industrial loads to bus / nominal_load tables here, OR
@@ -169,7 +177,7 @@ Stub for adding electrification loads to the power balancing equation.
       cons_sym = Symbol("sector_$(name)_cons")
       cost_sym = Symbol("sector_$(name)_cost")
 
-      model[abate_sym] = @varaiable(model, [k in 1:nstep, y in 1:nyear], 
+      model[abate_sym] = @variable(model, [k in 1:nstep, y in 1:nyear], 
                  lower_bound = 0.0, 
                  upper_bound = isfinite(mac.quantity_tons[k]) ? mac.quantity_tons[k] : 1e12,
                  base_name = String(abate_sym)
@@ -195,7 +203,7 @@ Stub for adding electrification loads to the power balancing equation.
 
        # placeholder for addition to power balancing equation                              
        #if sec.add_to_pbal
-       # add_sector_electricfication_loads!(sec, data, abate_total)
+       # add_sector_electricfication_loads!(sec, config, data, model, abate_total)
        # end 
 
        model[cost_sym] = @expression(model, 
@@ -211,6 +219,13 @@ Stub for adding electrification loads to the power balancing equation.
 
   end
 
+"""
+named `SectorTerm` for the sector's contribution to the objective function. 
+Used in `add_obj_term!` to add the sector's abatement and residual emissions costs to the objective function.
+
+"""
+
+  struct SectorTerm <: Term end
 
 """ 
 modify_results!(sec::Sector, config, data)
