@@ -163,6 +163,8 @@ Implements the sector's abatement and residual emissions variables,
 constraints (non-negativity), objective function contributio, and emissions cap contribution.  
 Stub for adding electrification loads to the power balancing equation. 
 
+## emissions 
+
 """
 
 function modify_model!(s::Sector, config, data, model)
@@ -280,6 +282,9 @@ Runs unconditionally: any Sector modification whose residual emissions
 overlap an active cap contributes to that cap. There is no config knob to
 opt out — remove the cap or narrow its `bus_filters` if you don't want the
 sector to be captured.
+
+### might need to add a check for the case where the sector is not in the bus filter of any emission cap / there is no emission cap.  This would be a warning that the sector is not being captured by any emission cap.
+
 """
 function add_resid_emis_to_caps!(s::Sector, config, data, model,
                                   base, base_year_idx, resid_emis)
@@ -348,7 +353,52 @@ Implementation outline once disaggregation is decided:
           add_to_expression!(plserv_bus[b, year_idx, h],
                              abate_total[g] * load_per_ton_profile[b, year_idx, h])
 """
-function add_sector_electrification_load!(s::Sector, config, data, model, abate_total)
+function add_sector_electrification_load!(sec::Sector, config, data, model, abate_total)
+    name = sector_name(sec)
+    plserv_bus = model[:plserv_bus]::Array{AffExpr, 3}
+    lp = get_table(data, Symbol("sector_$(name)_baseline_load_profile"))
+    bus = get_table(data, :bus)
+    nbus = nrow(bus)
+    nhr = get_num_hours(data)
+    hour_cols = [Symbol("hour_$(h)") for h in 1:nhr]
+    years = get_years(data)
+    year_to_idx = Dict(y => i for (i, y) in enumerate(years))
+
+    # get bus lists per area and subsector due to appearance across roads
+    region_bus_cache = Dict{Tuple{String,String}, Vector{Int}}()
+
+    function buses_for(area, subarea)
+        get!(region_bus_cache, (string(area), string(subarea))) do
+            col = Symbol(area)
+            if !hasproperty(bus, col)
+                @warn "Sector $name: bus table has no column `$area` referenced in baseline load profile"
+                return Int[]
+            end
+            target = string(subarea)
+            return [b for b in 1:nbus if string(bus[b, col]) == target]
+        end
+    end
+    
+    n_rows_applied = 0
+    for row in eachrow(lp)
+        haskey(year_to_idx, row.year) || continue
+        y = year_to_idx[string(row.year)]
+
+        buses = buses_for(row.area, row.subarea)
+        if isempty(buses)
+            @warn "Sector $name: baseline load profile row has no buses in area=$(row.area), subarea=$(row.subarea)"
+            continue
+        end
+        share = 1.0 / length(buses) # just equally split across buses 
+        for (h, col) in enumerate(hour_cols)
+            mw_per_bus = share * row[col]
+            for b in buses
+                add_to_expression!(plserv_bus[b, y, h], mw_per_bus)
+            end
+        end
+        n_rows_applied += 1
+    end
+
     @info "Sector $(sector_name(s)): pbal coupling stub — load mapping not yet implemented"
     return nothing
 end
