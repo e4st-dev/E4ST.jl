@@ -41,15 +41,19 @@ end
 
 function find_constraint_name_and_index(model, cons)
     od = object_dictionary(model)
-    for (k,v) in od
-        i = nothing
-        for (key, c) in v.data
+    for (k, v) in od
+        # DenseAxisArray/SparseAxisArray store their entries in .data; a container whose
+        # axes are all plain 1:n ranges comes back from JuMP as a bare Array/Dict instead,
+        # which has no .data field.
+        container = v isa Union{JuMP.Containers.DenseAxisArray, JuMP.Containers.SparseAxisArray} ? v.data : v
+        (container isa AbstractArray || container isa AbstractDict) || continue
+
+        for (key, c) in pairs(container)
             if c === cons
-                i = key[1]
-                break
+                idx = key isa CartesianIndex ? Tuple(key) : key
+                return k, idx[1]
             end
         end
-        return k, i
     end
     return :not_found, 0
 end
