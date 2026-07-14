@@ -90,7 +90,8 @@ Loads input files into tables:
 # :y2016-y2050 - float, baseline emissions for given year in short tons
 
 # sector_baseline_load_profile 
-# :region 
+# :area
+# :subarea
 
 """
 
@@ -338,8 +339,8 @@ overlap an active cap contributes to that cap. There is no config knob to
 opt out — remove the cap or narrow its `bus_filters` if you don't want the
 sector to be captured.
 
-### might need to add a check for the case where the sector is not in the bus filter of any emission cap / there is no emission cap.  
-This would be a warning that the sector is not being captured by any emission cap.
+### might need to add a check for the case where the sector is not in the bus filter of any emission cap / there is no emission cap
+### in that case, the sector will not be abated at all, should issue warning sector isn't being captured
 
 """
 function add_resid_emis_to_caps!(sec::Sector, config, data, model,
@@ -411,14 +412,12 @@ load is distributed equally across every bus whose `bus[!, Symbol(area)]`
 equals `subarea` -- a placeholder disaggregation rule that can later be
 swapped for a weighted split (population, existing load share, etc.).
 
-The added term is a *constant* (no JuMP variables): sector abatement
-decisions do not endogenously change electric load in this pass. If an
-"abate more fossil fuel -> add electric load" coupling is desired later, it
+The added term is a constant (no JuMP variables): sector abatement
+decisions do not endogenously change electric load in this pass. If we want to include the rebound effect of abatement pathways in the future, the function
 will attach a JuMP-affine `abate_total`-scaled term alongside the constant
 baseline load handled here.
 
-The `abate_total` argument is unused today but kept in the signature so a
-future feedback version can be introduced without changing callers.
+
 
 """
 function add_sector_electrification_load!(sec::Sector, config, data, model, abate_total)
@@ -467,7 +466,6 @@ function add_sector_electrification_load!(sec::Sector, config, data, model, abat
         n_rows_applied += 1
     end
 
-    @info "Sector $(sector_name(sec)): pbal coupling stub — load mapping not yet implemented"
     return nothing
 end
 export add_sector_electrification_load!
