@@ -477,6 +477,18 @@ function force_table_types!(df::DataFrame, name, row::DataFrameRow; kwargs...)
         req || return
         error(":$name table missing column :$col")
     end
+
+    # filter columns (filter1, filter2, ...) hold arbitrary user-defined comparison
+    # expressions (eg. "resource_id=>wind_ID2314528") whose length varies table to table.
+    # The expected `data_type` here gets locked in from whichever table happens to set this
+    # column's type first (often blank/narrow, eg. InlineStrings.String1), which is too
+    # narrow for another table's real filter values. Widen to plain String instead of
+    # forcing the (possibly too-narrow) expected type, rather than erroring/truncating.
+    if occursin(r"^filter\d+$", string(col)) && eltype(df[!, col]) <: Union{Missing, AbstractString}
+        df[!, col] = String.(df[!, col])
+        return
+    end
+
     ET = eltype(df[!,col])
     if ET === Missing
         df[!,col] = convert(Vector{T}, df[!,col])
