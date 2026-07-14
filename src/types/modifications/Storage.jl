@@ -344,31 +344,31 @@ function modify_model!(mod::Storage, config, data, model)
 
     ### Create Variables
     # Power discharge capacity
-    @variable(model, 
+    @variable(model,
         pcap_stor[stor_idx in axes(storage,1), yr_idx in 1:nyr],
         lower_bound = storage.pcap_min[stor_idx, yr_idx],
-        upper_bound = storage.pcap_max[stor_idx]
+        upper_bound = storage.pcap_max[stor_idx, yr_idx]
     )
 
     # Power discharged
     @variable(model,
         pdischarge_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
         lower_bound = 0,
-        upper_bound = storage.pcap_max[stor_idx]
+        upper_bound = storage.pcap_max[stor_idx, yr_idx]
     )
 
     # Power charged - upper bound depends on ratio of duration for charge/discharge durations.
     @variable(model,
         pcharge_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr, hr_idx in 1:nhr],
         lower_bound = 0,
-        upper_bound = storage.pcap_max[stor_idx]  * storage.duration_discharge[stor_idx] / (storage.duration_charge[stor_idx] * storage.storage_efficiency[stor_idx])
+        upper_bound = storage.pcap_max[stor_idx, yr_idx]  * storage.duration_discharge[stor_idx] / (storage.duration_charge[stor_idx] * storage.storage_efficiency[stor_idx])
     )
 
     # initial energy stored in the device
     @variable(model,
         e0_stor[stor_idx in axes(storage, 1), yr_idx in 1:nyr, int_idx in 1:storage.num_intervals[stor_idx]],
         lower_bound = 0,
-        upper_bound = storage.pcap_max[stor_idx] * storage.duration_discharge[stor_idx]
+        upper_bound = storage.pcap_max[stor_idx, yr_idx] * storage.duration_discharge[stor_idx]
     )
 
     ### Create Constraints
