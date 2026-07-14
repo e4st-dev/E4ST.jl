@@ -305,6 +305,28 @@ function modify_model!(mod::CCUS, config, data, model)
     pgen = model[:pgen_gen]::Array{VariableRef, 3}
     hour_weights = get_hour_weights(data)
 
+    # Members of a ccus_gen_set represent alternate storage pathways (saline/eor) for a
+    # single shared physical capacity, but add_build_constraints! doesn't know they share
+    # capacity - for real/exog generators with a build year in the model horizon, it fixes
+    # each member independently to its own full pcap_max. That conflicts with the sum <=
+    # pcap_max constraint added by match_capacity! below (e.g. two 25.5 MW fixes summing to
+    # 51 MW against a 25.5 MW cap). Replace the independent per-row fixes with a single
+    # equality on the group's total, leaving the saline/eor split free for the optimizer.
+    pcap_gen = model[:pcap_gen]::Matrix{VariableRef}
+    for set in ccus_gen_sets
+        length(set) > 1 || continue
+        for yr_idx in 1:nyear
+            fixed_idxs = filter(idx -> is_fixed(pcap_gen[idx, yr_idx]), set)
+            length(fixed_idxs) > 1 || continue
+            target = fix_value(pcap_gen[fixed_idxs[1], yr_idx])
+            for idx in fixed_idxs
+                unfix(pcap_gen[idx, yr_idx])
+                set_lower_bound(pcap_gen[idx, yr_idx], 0.0)
+            end
+            @constraint(model, sum(pcap_gen[idx, yr_idx] for idx in set) == target)
+        end
+    end
+
     # Add capacity matching constraints for the sets of ccus_paths generators
     match_capacity!(data, model, :gen, :pcap_gen, :ccus, ccus_gen_sets)
 
