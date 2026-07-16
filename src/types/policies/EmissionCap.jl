@@ -4,7 +4,8 @@
     struct EmissionCap <: Policy
 
 Emission Cap - A limit on a certain emission for a given set of generators. The mod caps emissions by setting up a generation constraint, which uses the given emissions rate column to determine the generation limit. The allowance price is equal
-to the shadow price of the generation constraint, or the sum of shadow prices across years when banking is allowed, which is used to evaluate the cost of the policy.
+to the shadow price of the generation constraint, or the sum of shadow prices across years when banking is allowed, which is used to evaluate the cost of the policy. There is an option for price responsive allowances which features a structured 
+allowance supply curve with multiple price-quantity steps serving different market functions.
 Note: The banking formulation in this modification requires that years[n] - years[n-1] is constant.
 
 ### Keyword Arguments:
@@ -13,7 +14,6 @@ Note: The banking formulation in this modification requires that years[n] - year
 * `targets`: OrderedDict of cap targets by year
 * `gen_filters`: OrderedDict of generator filters
 * `hour_filters`: OrderedDict of hour filters
-* `gen_cons`: GenerationConstraint Modification created on instantiation of the EmissionCap (not specified in config). It sets the cap targets as the max_targets of the GenerationConstraint and passes on other fields.
 * `bus_filters`: OrderedDict of bus filters
 * `cap_imports`: Bool that indicates if emissions cap applies to imported power. Optional value, defaults to false. If this is true but no emissions factors are provided, will default to the emissions intensity of ng.
 * `import_ef`: Single emissions factor for imported power in all regions and hours. Optional, defaults to ng emissions intensity.
@@ -22,13 +22,23 @@ Note: The banking formulation in this modification requires that years[n] - year
 * `initial_bank`: Initial allowance bank (in the same units as targets) available at the start of the first cap year. Only used when `banking=true`. Defaults to 0.0.
 * `offset`: The amount of offsets allowed, represented as a percentage. The factor represents a limit on the use of offsets as a fraction of the entity's compliance obligation. Defaults to 0.
 * `offset_under_cap`: Bool that indicates whether offsets are under or outside the emission cap, defaults to true. 
+* `price_resp_alws`: Bool that turns on price responsive allowances, defaults to false.
+* `step_prices`: Length-k vector of prices for each step.
+* `step_adders`: Length-k vector of allowance quantities added to (positive) or withdrawn from (negative) the base target at each price step, which defines the cumulative supply available at step k. When representing a price ceiling, include a backstop step with Inf allowances.
+* `rate`: The rate step prices increase by each year. Defaults to 5%. Note that prices esacalate relative to first model year.
 
 ### Table Column Added: 
 * `(:gen, :<name>_prc)` - the allowance price of the policy converted to DollarsPerMWhGenerated
+* `(:branch, :<name>_prc)` - the allowance price of the policy converted to DollarsPerMWhGenerated
+* `(:dc_line, :<name>_prc)` - the allowance price of the policy converted to DollarsPerMWhGenerated
+* `(:branch, :<name>_import_emis)` - Total emissions from imported power on dc lines
+* `(:dc_line, :<name>_import_emis)` - Total emissions from imported power on dc lines
+
 
 ### Results Formula:
 * `(:gen, :cost_name)` - the cost of the policy based on the allowance price, determined using the shadow price of the generation constraint
-
+* `(:branch, :cost_name)` - the cost of the policy based on the allowance price, determined using the shadow price of the generation constraint
+* `(:dc_line, :cost_name)` - the cost of the policy based on the allowance price, determined using the shadow price of the generation constraint
 
 """
 struct EmissionCap <: Policy
@@ -44,9 +54,14 @@ struct EmissionCap <: Policy
     banking::Bool
     initial_bank::Float64
     offset::Float64
-    offset_under_cap:: Bool
+    offset_under_cap::Bool
+    price_resp_alws::Bool
+    step_prices::Vector{Float64}
+    step_adders::Vector{Float64}
+    rate::Float64
 
-    function EmissionCap(;name, emis_col, targets, gen_filters=OrderedDict(), hour_filters=OrderedDict(), bus_filters=OrderedDict(), cap_imports=false, import_ef=0.0, import_ef_file="", banking=false, initial_bank=0.0, offset=0, offset_under_cap=true)
+    function EmissionCap(;name, emis_col, targets, gen_filters=OrderedDict(), hour_filters=OrderedDict(), bus_filters=OrderedDict(), cap_imports=false, import_ef=0.0, import_ef_file="", banking=false, initial_bank=0.0, offset=0, offset_under_cap=true,
+        price_resp_alws = false, step_prices = Float64[], step_adders = Float64[], rate = 0.05)
         if cap_imports && isempty(bus_filters)
             @warn "EmissionCap $(name) has cap_imports=true but no bus_filters specified — no import branches will be found."
         end
@@ -59,7 +74,15 @@ struct EmissionCap <: Policy
         elseif !cap_imports && (import_ef != 0.0 || !isempty(import_ef_file))
             @warn "EmissionCap $(name) has cap_imports=false but emission factors were provided. Imports will not be counted toward the cap."
         end
-        new(Symbol(name), Symbol(emis_col), OrderedDict{Symbol, Float64}(targets), OrderedDict(gen_filters), OrderedDict(hour_filters), OrderedDict(bus_filters), cap_imports, import_ef, import_ef_file, banking, initial_bank, offset, offset_under_cap)
+        if price_resp_alws && (isempty(step_prices) || isempty(step_adders))
+            error("Emission cap $(name) has price_resp_alws=true but one or more relevant kwargs were left empty")
+        elseif price_resp_alws && length(step_prices) != length(step_adders)
+            error("The step_prices and step_adders are not equal length for Emission cap $(name), which will error when setting up the allowance supply price curve.")
+        elseif price_resp_alws == false && (!isempty(step_prices) || !isempty(step_adders))
+            @warn "Emission cap $(name) has price_resp_alws=false, and the allowance supply curve will not be included in the formulation, but one or more relevant kwargs have values."
+        end
+        new(Symbol(name), Symbol(emis_col), OrderedDict{Symbol, Float64}(targets), OrderedDict(gen_filters), OrderedDict(hour_filters), OrderedDict(bus_filters), cap_imports, import_ef, import_ef_file, banking, initial_bank, offset, offset_under_cap,
+        price_resp_alws, step_prices, step_adders, rate)
     end
 
 end
@@ -80,6 +103,10 @@ function _emiscap_colnames(pol::EmissionCap)
         flag               = Symbol("$(pol.name)_flag"),
         import_emis_result = Symbol("$(pol.name)_import_emis"),
         dir                = Symbol("$(pol.name)_dir"),
+        cons_name          = Symbol("cons_$(pol.name)_max"),
+        alw_name           = Symbol("alw_$(pol.name)"),
+        alw_cost           = Symbol("alw_cost_$(pol.name)"),
+        price_resp_alws        = Symbol("$(pol.name)_supply_curve")
     )
 end
 
@@ -102,6 +129,8 @@ function E4ST.modify_raw_data!(pol::EmissionCap, config, data)
 end
 
 function E4ST.modify_setup_data!(pol::EmissionCap, config, data)
+    pol.price_resp_alws && setup_allowance_price_resp_alws(pol, config, data)  # store price steps
+
     pol.cap_imports || return  # check if pol.cap_imports is set to true
 
     # tag the branches and dc lines that import power into regions subject to emission cap
@@ -120,6 +149,8 @@ Calls [`modify_model!(cons::GenerationConstraint, config, data, model)`](@ref)
 """
 
 function E4ST.modify_model!(pol::EmissionCap, config, data, model)
+    cols = _emiscap_colnames(pol)
+
     # track emissions from generation
     gen = get_table(data, :gen)
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters)) # get gens that this policy applies to
@@ -164,29 +195,50 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
     years = Symbol.(get_years(data))
     cap_years = collect(keys(pol.targets))
     filter!(in(years), cap_years)
+    
+    # add price responsive allowances to the model
+    if pol.price_resp_alws
+        add_price_responsive_allowances(pol, config, data, model)
+        nsteps = length(pol.step_prices)
+        alw = model[cols.alw_name]
+    end
+    
 
-    offset_adjust = pol.offset_under_cap == false ? pol.offset : 0  # only adjust emission cap constraint if offsets are oustide the cap
-    cap_cons_name = Symbol("cons_$(pol.name)_max")
+    cap_cons_name = cols.cons_name
     @info "Creating emissions cap constraint for $(pol.name) in years $(cap_years)"
     if pol.banking
         # Cumulative constraint: sum of emissions from the first cap year through yr_idx
         # must be ≤ sum of targets over those years + initial_bank
-        model[cap_cons_name] = @constraint(model,
+        
+       model[cap_cons_name] = @constraint(model,
             [yr_idx in 1:nyr; years[yr_idx] in cap_years],
             sum(
                 model[emis_expr_name][y_idx, hr_idx]
                 for y_idx in 1:nyr, hr_idx in 1:nhr
                 if years[y_idx] in cap_years && years[y_idx] <= years[yr_idx]
-            ) <= (sum(pol.targets[y] for y in cap_years if y <= years[yr_idx]) + pol.initial_bank) / (1-offset_adjust)
+            ) <= (
+                pol.price_resp_alws ?                                                    # if pol.price_resp_alws is true, RHS is equal to sum of alllowances at each step 
+                sum(
+                    alw[y_idx, s]
+                    for y_idx in 1:nyr, s in 1:nsteps
+                    if years[y_idx] in cap_years && years[y_idx] <= years[yr_idx]
+                ) + pol.initial_bank :
+                sum(pol.targets[y] for y in cap_years if y <= years[yr_idx]) + pol.initial_bank
+            )
         )
-
     else
+
         model[cap_cons_name] = @constraint(model,
             [yr_idx in 1:nyr; years[yr_idx] in cap_years],
-            sum(model[emis_expr_name][yr_idx, hr_idx] for hr_idx in 1:nhr) 
-            <= (pol.targets[years[yr_idx]] / (1-offset_adjust))
+            sum(model[emis_expr_name][yr_idx, hr_idx] for hr_idx in 1:nhr) <= 
+            (pol.price_resp_alws ?
+                sum(alw[yr_idx, s] for s in 1:nsteps) :
+                pol.targets[years[yr_idx]]
+            ) / (1 - pol.offset)
+
         )
     end
+
     
 end
 
@@ -198,7 +250,7 @@ function E4ST.modify_results!(pol::EmissionCap, config, data)
     gen = get_table(data, :gen)
     cols = _emiscap_colnames(pol)
 
-    cons_name = Symbol("cons_$(pol.name)_max")
+    cons_name = cols.cons_name 
     haskey(data[:results][:raw], cons_name) || return
 
     alw_prc = get_shadow_price_as_ByYear(data, cons_name) #($/EmissionsUnit)
@@ -463,6 +515,114 @@ function setup_imports!(pol, config, data, model, table_name::Symbol)
         )
     end
 end
+
+"""
+    setup_allowance_prce_steps!(pol::EmissionCap, config, data) -> 
+    Function that sets up prices and allowance quantities based on kwarg and stores values in data. 
+"""
+function setup_allowance_price_resp_alws(pol, config, data)
+    cols = _emiscap_colnames(pol)
+
+    years = get_years(data)
+    sym_years = Symbol.(get_years(data))
+    nyr = get_num_years(data)
+    nsteps = length(pol.step_prices)
+
+    target_years = [String(y) for y in sym_years if haskey(pol.targets, y)]
+    target_idxs = [i for i in 1:nyr if years[i] in target_years]
+    target_nyr = length(target_years)
+   
+    # Escalate price steps at 5%/yr
+    prices = [[p * (1 + pol.rate)^(yr_idx - 1) for yr_idx in 1:nyr] for p in pol.step_prices]
+    
+    # cumulative allowance quantity at each step boundary = target + adder
+    targets = [get(pol.targets, y, 0.0) for y in Symbol.(target_years)]
+    step_alw = [targets .+ adder for adder in pol.step_adders]
+    
+    # Marginal (incremental) width of each step
+    # Step 1 lower boundary is 0, so width = cum_qty[1]
+    step_widths = Vector{Vector{Float64}}(undef, nsteps)
+    step_widths[1] = step_alw[1]
+    for s in 2:nsteps
+        step_widths[s] = step_alw[s] .- step_alw[s-1]
+    end
+
+    # add price steps to data
+    price_resp_alws = DataFrame(
+        step         = Int[],
+        year         = String[],
+        price        = Float64[],
+        cum_alw      = Float64[],
+        step_alw_q   = Float64[],
+        )
+
+    for s in 1:nsteps
+        for (i,yr_idx) in enumerate(target_idxs)
+            yr = get_years(data)[yr_idx]
+            haskey(pol.targets, Symbol(yr)) || continue 
+
+            push!(price_resp_alws, (
+                s,
+                years[yr_idx],
+                prices[s][i],
+                step_alw[s][i],
+                step_widths[s][i],
+            ))
+
+        end
+    end
+    
+    data[cols.price_resp_alws] = price_resp_alws
+end
+
+"""
+    add_price_responsive_allowances!(pol::EmissionCap, config, data) -> 
+    Function creates a variable for price responsive allowances and adds cost of allowances at each step to objective term. 
+"""
+function add_price_responsive_allowances(pol, config, data, model)
+    cols = _emiscap_colnames(pol)
+
+    nyr = get_num_years(data)
+    years = get_years(data)
+    nsteps = length(pol.step_prices)
+    price_resp_alws = data[cols.price_resp_alws]
+
+    # Rebuild matrices
+    prices = zeros(Float64, nsteps, nyr)
+    step_widths = fill(Inf, nsteps, nyr)
+
+    for row in eachrow(price_resp_alws)
+        s = row.step
+        yr_idx = findfirst(==(row.year), years)
+
+        prices[s, yr_idx] = row.price
+        step_widths[s, yr_idx] = row.step_alw_q
+    end
+    
+    # Variables: allowances purchased per year per step
+    alw_name = cols.alw_name
+    model[alw_name] = @variable(model,          # initialize a variable of size year x steps with lower bound 0
+        [yr_idx in 1:nyr, s in 1:nsteps],
+        lower_bound = 0,
+        base_name = string(alw_name)
+    )
+    alw = model[alw_name]
+    for yr_idx in 1:nyr, s in 1:nsteps         # set upper bound of allowances for each step s
+        w = step_widths[s, yr_idx]
+        isinf(w) || set_upper_bound(alw[yr_idx, s], w)
+    end
+  
+    # Per-year cost expression 
+    alw_cost_name = cols.alw_cost 
+    model[alw_cost_name] = @expression(model,           # cost expression is allowances at step k multiplied by price at step s
+        [yr_idx in 1:nyr],
+        sum(prices[s, yr_idx] * alw[yr_idx, s] for s in 1:nsteps)
+    )
+   
+    add_obj_exp!(data, model, AllowanceTerm(), alw_cost_name; oper=+)   # add allowance costs to objective function
+end
+
+struct AllowanceTerm <: Term end
 
 """
     fieldnames_for_yaml(::EmissionCap) where {M<:Modification}

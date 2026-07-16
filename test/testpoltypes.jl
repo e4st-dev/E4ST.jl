@@ -517,6 +517,38 @@
             end
 
         end
+        @testset "Test Emission Cap with Price Responsive Allowances" begin
+            # rerun for comparison with policies that don't price imports
+            config_file = joinpath(@__DIR__, "config", "config_3bus_prc_resp_alw.yml")
+            config = read_config(config_file_ref, config_file)
+            data = read_data(config)
+
+            @test haskey(data, :example_prc_resp_alw_supply_curve)
+            model = setup_model(config, data)
+            optimize!(model)
+            
+            parse_results!(config, data, model)
+            process_results!(config, data)
+           
+            @test haskey(data[:results][:raw], :cons_example_prc_resp_alw_max)
+            
+            alw_prc = data[:results][:raw][:cons_example_prc_resp_alw_max][2] * -1
+            emis = compute_result(data,:gen,:emis_co2_total,:nation=>["narnia", "archenland"], 2)
+           
+            price_steps = data[:example_prc_resp_alw_supply_curve]
+            prices = price_steps[!,:price]
+            cum_alw = price_steps[!,:cum_alw]
+            
+            k = findfirst(>=(emis), cum_alw)
+            if emis < cum_alw[k]
+                @test alw_prc == prices[k]  # when allowances are in the step interior, test that allowance price is equal to the price at the step
+            else
+                @test prices[k] < alw_prc < prices[k+1] # when allowances are at the kink point, test that allowance price falls between the 2 bounding steps
+            end
+            
+            
+        end
+
 
     end
 
