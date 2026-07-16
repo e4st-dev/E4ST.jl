@@ -1,0 +1,15 @@
+base_out_path:    "../out/3bus_emiscap"
+mods:
+  example_prc_resp_alw:
+    type: "EmissionCap"
+    emis_col: "emis_co2"
+    price_resp_alws: true
+    step_prices: [5, 6.25, 7.5, 8.75, 10, 10.05]
+    step_adders: [-1000, -50, 50, 100, 150, 500]
+    targets: 
+      y2035: 2500
+      y2040: 2000
+    gen_filters:
+      bus_nation: "[narnia, archenland]"
+
+
