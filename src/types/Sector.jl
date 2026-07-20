@@ -23,6 +23,8 @@ Abstract supertype for sectors.  Must implement the following interfaces:
     - `emis_baseline_file::String`
     - `elec_baseline_file::String`
     - `load_profile_file::String`
+    - `elec_per_ton_file::String` — `λ`, the electricity demand increase per
+      unit abatement (MWh/short ton), per Haiku eq. 10.
     - `emis_price::Float64`
     - `add_to_pbal::Bool`
 
@@ -41,15 +43,15 @@ The following methods are defined for `Sector`.
       to the model objective via [`add_obj_exp!`](@ref).
 * Constraints: `cons_abate_cap_<name>[g]` — `abate_total <= baseline_emis`.
 
+
 ## Pbal coupling
-[`add_sector_electrification_load!`](@ref) reads the sector's hourly load
-profile and, when `mod.add_to_pbal` is true, distributes each row's MW
-values equally across the buses matching that row's `(area, subarea)` and
-adds them to `plserv_bus[b, y, h]`. The added term is a constant (no JuMP
-variables) representing baseline electric load; abatement-driven feedback
-is a future extension that would attach an `abate_total`-scaled term
-alongside it. Equal-split disaggregation is a placeholder pending a
-weighted rule (population, existing load share, etc.).
+When `mod.add_to_pbal` is true, `modify_model!` calls
+[`add_sector_baseline_load!`](@ref) (constant `Cons0`) and
+[`add_sector_electrification_load!`](@ref) (responsive `abate_total · λ`).
+Both use the sector's hourly load profile for shape and distribute load
+equally across the buses matching each row's `(area, subarea)`. Equal-split
+disaggregation is a placeholder pending a weighted rule (population, existing
+load share, etc.).
 
 """
 
@@ -89,9 +91,15 @@ Loads input files into tables:
 # :subsector - string, sub-sector id (e.g., NAICS code for industrial sector, LDV / MHDV / transit for transportation)
 # :y2016-y2050 - float, baseline emissions for given year in short tons
 
-# sector_baseline_load_profile 
+# sector_load_profile 
 # :area
 # :subarea
+
+# sector_elec_baseline
+#
+#
+
+# sector_elec_per_ton
 
 """
 
@@ -102,25 +110,28 @@ Reads in necessary input data files for the sector
 
 """
 
-  function modify_raw_data!(sec::Sector, config, data)
-      name = sector_name(sec)
-      mac_key = Symbol("sector_$(name)_mac_steps")
-      emis_key = Symbol("sector_$(name)_baseline_emissions")
-      elec_key = Symbol("sector_$(name)_baseline_electricity")
-      # load profile 
-      lp_key = Symbol("sector_$(name)_baseline_load_profile")
+function modify_raw_data!(sec::Sector, config, data)
+    name = sector_name(sec)
+    mac_key   = Symbol("sector_$(name)_mac_file")
+    emis_key  = Symbol("sector_$(name)_emis_baseline_file")
+    elec_key  = Symbol("sector_$(name)_elec_baseline_file")
+    lp_key    = Symbol("sector_$(name)_load_profile_file")
+    ept_key   = Symbol("sector_$(name)_elec_per_ton_file")
 
-      config[mac_key] = mod.mac_steps
-      config[emis_key] = mod.baseline_emissions
-      config[elec_key] = mod.baseline_electricity
-      config[lp_key] = mod.load_profile 
+    config[mac_key]  = sec.mac_file
+    config[emis_key] = sec.emis_baseline_file
+    config[elec_key] = sec.elec_baseline_file
+    config[lp_key]   = sec.load_profile_file
+    config[ept_key]  = sec.elec_per_ton_file
 
-        read_table!(config, data, mac_key => Symbol("sector_$(name)_mac_steps)"))
-        read_table!(config, data, emis_key => Symbol("sector_$(name)_baseline_emissions"))
-        read_table!(config, data, elec_key => Symbol("sector_$(name)_baseline_electricity"))
-        read_table!(config, data, lp_key => Symbol("sector_$(name)_baseline_load_profile"))
-        return nothing
-  end
+    read_table!(config, data, mac_key  => Symbol("sector_$(name)_mac_steps"))
+    read_table!(config, data, emis_key => Symbol("sector_$(name)_emis_baseline"))
+    read_table!(config, data, elec_key => Symbol("sector_$(name)_elec_baseline"))
+    read_table!(config, data, lp_key   => Symbol("sector_$(name)_load_profile"))
+    read_table!(config, data, ept_key  => Symbol("sector_$(name)_elec_per_ton"))
+    return nothing
+end
+
 
 """
     modify_setup_data!(sec::Sector, config, data)
@@ -139,9 +150,9 @@ function modify_setup_data!(sec::Sector, config, data)
 
     mac  = get_table(data, Symbol("sector_$(name)_mac_steps"))
     base_wide = get_table(data, Symbol("sector_$(name)_emis_baseline"))
-    # we don't need yearly emisisons data in addition to the load profile data; CHECK
-    # elec_wide = get_table(data, Symbol("sector_$(name)_elec_baseline"))
+    elec_wide = get_table(data, Symbol("sector_$(name)_elec_baseline"))
     lp   = get_table(data, Symbol("sector_$(name)_load_profile"))
+    ept_wide = get_table(data, Symbol("sector_$(name)_elec_per_ton"))
 
     years = get_years(data)
     year_to_idx = Dict(y => i for (i, y) in enumerate(years))
@@ -158,6 +169,30 @@ function modify_setup_data!(sec::Sector, config, data)
                      string(row.subsector), string(y), Float64(row[col])))
     end
     data[Symbol("sector_$(name)_emis_baseline")] = base
+
+
+    elec = DataFrame(area=String[], subarea=String[], subsector=String[],
+                    year=String[], baseline_elec_use=Float64[])
+    for row in eachrow(elec_wide), y in years
+        col = Symbol(y)
+        hasproperty(elec_wide, col) || continue
+        push!(elec, (string(row.area), string(row.subarea),
+                     string(row.subsector), string(y), Float64(row[col])))
+    end
+    data[Symbol("sector_$(name)_elec_baseline")] = elec
+
+    # Melt λ (electrification intensity, MWh/ton) the same way, and build a
+    # lookup keyed by (area, subarea, subsector, year) for the responsive-load
+    # coupling in add_sector_electrification_load!.
+    lambda = Dict{NTuple{4, String}, Float64}()
+    for row in eachrow(ept_wide), y in years
+        col = Symbol(y)
+        hasproperty(ept_wide, col) || continue
+        lambda[(string(row.area), string(row.subarea),
+                string(row.subsector), string(y))] = Float64(row[col])
+    end
+    data[Symbol("sector_$(name)_lambda")] = lambda
+
 
     # Validate per-row (area, subarea) against the bus table. `area` names a bus
     # column ("state", "bus_idx", ...); `subarea` is one of that column's
@@ -206,9 +241,11 @@ end
 
 Implements the sector's abatement and residual emissions variables, 
 constraints (non-negativity), objective function contribution, and emissions cap contribution via [`add_resid_emis_to_caps!`](@ref).  
-If `sec.add_to_pbal` is true, 
-it also calls [`add_sector_electrification_load!`](@ref) to add the sector's electrification load to the power balancing equation.
-Stub for adding electrification loads to the power balancing equation. 
+If `sec.add_to_pbal` is true, Feeds residual
+emissions into any covering `EmissionCap`, and adds the
+sector's baseline and responsive electric load to `plserv_bus` via
+[`add_sector_baseline_load!`](@ref) and
+[`add_sector_electrification_load!`](@ref).
 
 """
 
@@ -263,14 +300,14 @@ function modify_model!(sec::Sector, config, data, model)
     )
     abate_total = model[abate_total_sym]
 
-        # like equation 7 in Nick's HAIKU documentation
+        # Equation 7 in HAIKU documentation
     model[resid_sym] = @expression(model,
         [g in 1:nbase],
         base.baseline_emis[g] - abate_total[g]
     )
     resid_emis = model[resid_sym]
 
-        # like equation 8 in Nick's HAIKU documentation
+        # Equation 8 in HAIKU documentation
     model[cons_sym] = @constraint(model,
         [g in 1:nbase],
         abate_total[g] <= base.baseline_emis[g]
@@ -293,9 +330,12 @@ function modify_model!(sec::Sector, config, data, model)
     end
 
 
-    # see the function `add_sector_electrification_load!` for adding to the power balancing equation
+    # Power-balance coupling: add the sector's baseline electric load (constant)
+    # and the responsive electrification load induced by abatement (affine in
+    # abate_total, per Haiku eq. 9) into plserv_bus.
     if sec.add_to_pbal
-        add_sector_electrification_load!(sec, config, data, model, abate_total)
+        add_sector_baseline_load!(sec, config, data, model)
+        add_sector_electrification_load!(sec, config, data, model, base, base_year_idx, abate_total)
     end
 
     model[cost_sym] = @expression(model,
@@ -399,76 +439,184 @@ end
 export add_resid_emis_to_caps!
 
 
+"""
+    _sector_region_buses(bus, nbus)
+
+Returns a closure `buses_for(area, subarea) -> Vector{Int}` giving the bus
+indices where `bus[!, Symbol(area)] == subarea`, memoized per `(area, subarea)`.
+Shared by the baseline- and responsive-load couplings.
+"""
+function _sector_region_buses(bus, nbus)
+    cache = Dict{Tuple{String,String}, Vector{Int}}()
+    return function buses_for(area, subarea)
+        get!(cache, (string(area), string(subarea))) do
+            col = Symbol(area)
+            hasproperty(bus, col) || return Int[]
+            target = string(subarea)
+            [b for b in 1:nbus if string(bus[b, col]) == target]
+        end
+    end
+end
 
 """
-    add_sector_electrification_load!(sec::Sector, config, data, model, abate_total)
+    
+ add_sector_baseline_load!(sec::Sector, config, data, model)
 
-Adds this sector's baseline electric load into `plserv_bus`, driving the
-power-balance constraint in `setup.jl`.
+Adds this sector's baseline electric load (`Cons0`, HAIKU documentation equation 9) into `plserv_bus`,
+driving the power-balance constraint in `setup.jl`.
 
-The load profile carries baseline sector electric load in MW per hour, keyed
-by `(area, subarea, sector, subsector, year)`. For each profile row, the
-load is distributed equally across every bus whose `bus[!, Symbol(area)]`
-equals `subarea` -- a placeholder disaggregation rule that can later be
-swapped for a weighted split (population, existing load share, etc.).
+The magnitude comes from the annual baseline demand in
+`:sector_<name>_elec_baseline` (MWh, indexed by `(area, subarea, subsector,
+year)`); the hourly pattern comes from the load-profile SHAPE
+(`:sector_<name>_load_profile`). For each
+`elec_baseline` row `g`, the annual demand is distributed over hours following
+the profile shape and equally across the buses in `(area, subarea)`:
 
-The added term is a constant (no JuMP variables): sector abatement
-decisions do not endogenously change electric load in this pass. If we want to include the rebound effect of abatement pathways in the future, the function
-will attach a JuMP-affine `abate_total`-scaled term alongside the constant
-baseline load handled here.
+    plserv_bus[b, y, h] += (1/n_buses) · demand[g] · shape[h] / Σ_h' shape[h']·w_h'
 
-
+so `Σ_h (added MW at h)·w_h = demand[g]` MWh. The added term is a constant (no
+JuMP variables) — the sector's existing electricity demand, independent of
+abatement.
 
 """
-function add_sector_electrification_load!(sec::Sector, config, data, model, abate_total)
+function add_sector_baseline_load!(sec::Sector, config, data, model)
     name = sector_name(sec)
-    plserv_bus = model[:plserv_bus]::Array{AffExpr, 3}
-    lp = get_table(data, Symbol("sector_$(name)_baseline_load_profile"))
+    plserv_bus = model[:plserv_bus]::Array{AffExpr,3}
+    elec = get_table(data, Symbol("sector_$(name)_elec_baseline"))
+    lp = get_table(data, Symbol("sector_$(name)_load_profile"))
+    lp_index = data[Symbol("sector_$(name)_lp_index")]::Dict{NTuple{4,String},Int}
     bus = get_table(data, :bus)
     nbus = nrow(bus)
     nhr = get_num_hours(data)
-    hour_cols = [Symbol("hour_$(h)") for h in 1:nhr]
-    years = get_years(data)
-    year_to_idx = Dict(y => i for (i, y) in enumerate(years))
-
-    # get bus lists per area and subsector due to appearance across roads
-    region_bus_cache = Dict{Tuple{String,String}, Vector{Int}}()
-
-    function buses_for(area, subarea)
-        get!(region_bus_cache, (string(area), string(subarea))) do
-            col = Symbol(area)
-            if !hasproperty(bus, col)
-                @warn "Sector $name: bus table has no column `$area` referenced in baseline load profile"
-                return Int[]
-            end
-            target = string(subarea)
-            return [b for b in 1:nbus if string(bus[b, col]) == target]
-        end
-    end
+    hour_cols = [Symbol("hour$h") for h in 1:nhr]
+    hour_weights = get_hour_weights(data)
+    year_to_idx = Dict(y => i for (i, y) in enumerate(get_years(data)))
+    buses_for = _sector_region_buses(bus, nbus)
 
     n_rows_applied = 0
-    for row in eachrow(lp)
-        haskey(year_to_idx, row.year) || continue
+    for row in eachrow(elec)
+        haskey(year_to_idx, string(row.year)) || continue
         y = year_to_idx[string(row.year)]
+
+        demand = row.baseline_elec_use
+        demand == 0.0 && continue
+
+        key = (string(row.area), string(row.subarea), string(row.subsector), string(row.year))
+        lp_row_idx = get(lp_index, key, nothing)
+        if lp_row_idx === nothing
+            @warn "Sector $name: no load-profile shape for $key; baseline demand not added to pbal"
+            continue
+        end
+        lp_row = lp[lp_row_idx, :]
+
+        annual_shape = sum(lp_row[hour_cols[h]] * hour_weights[h] for h in 1:nhr)
+        annual_shape > 0 || continue
 
         buses = buses_for(row.area, row.subarea)
         if isempty(buses)
-            @warn "Sector $name: baseline load profile row has no buses in area=$(row.area), subarea=$(row.subarea)"
+            @warn "Sector $name: no buses found for (area=$(row.area), subarea=$(row.subarea)); baseline load row skipped"
             continue
         end
-        share = 1.0 / length(buses) # just equally split across buses 
-        for (h, col) in enumerate(hour_cols)
-            mw_per_bus = share * row[col]
+
+        share = 1.0 / length(buses)   # equal-split placeholder disaggregation
+        for h in 1:nhr
+            mw_per_bus = share * demand * lp_row[hour_cols[h]] / annual_shape
             for b in buses
                 add_to_expression!(plserv_bus[b, y, h], mw_per_bus)
             end
         end
         n_rows_applied += 1
     end
+    @info "Sector $name: added baseline electric load from $n_rows_applied elec_baseline rows to plserv_bus"
+    return nothing
+end
+export add_sector_baseline_load!
 
+
+"""
+    add_sector_electrification_load!(sec::Sector, config, data, model, base, base_year_idx, abate_total)
+
+Adds the *responsive* electrification load induced by abatement into
+`plserv_bus`, implementing the consumption/abatement linkage of Haiku eq. 9:
+
+    Cons_{y,r,sec} = Cons0_{y,r,sec} + Σ_k EmisAbatement_{y,r,sec,k} · λ_{y,r,sec}
+
+where `λ` (short tons -> MWh) is the `elec_per_ton` input. `Cons0` is handled
+separately by [`add_sector_baseline_load!`](@ref); this function adds only the
+second term.
+
+For each baseline row `g = (area, subarea, subsector, year)`:
+* `annual_responsive_MWh = abate_total[g] · λ[g]` (an affine expression in the
+  `abate` variables).
+* This annual energy is distributed over hours following the *shape* of the
+  sector's load profile (so the responsive load has the same hourly pattern as
+  baseline demand), and equally across the buses in `(area, subarea)`:
+
+      plserv_bus[b, y, h] += (1/n_buses) · λ[g] · profile[h] / Σ_h' profile[h']·w_h' · abate_total[g]
+
+Because the coefficient multiplies the JuMP expression `abate_total[g]`, the
+LP is forced to serve more electric load whenever it chooses to abate more —
+the endogenous electrification feedback.
+"""
+function add_sector_electrification_load!(sec::Sector, config, data, model,
+                                          base, base_year_idx, abate_total)
+    name = sector_name(sec)
+    plserv_bus = model[:plserv_bus]::Array{AffExpr,3}
+    lp = get_table(data, Symbol("sector_$(name)_load_profile"))
+    lp_index = data[Symbol("sector_$(name)_lp_index")]::Dict{NTuple{4,String},Int}
+    lambda = data[Symbol("sector_$(name)_lambda")]::Dict{NTuple{4,String},Float64}
+    bus = get_table(data, :bus)
+    nbus = nrow(bus)
+    nhr = get_num_hours(data)
+    hour_cols = [Symbol("hour$h") for h in 1:nhr]
+    hour_weights = get_hour_weights(data)
+    buses_for = _sector_region_buses(bus, nbus)
+
+    n_rows_applied = 0
+    for g in 1:nrow(base)
+        key = (string(base.area[g]), string(base.subarea[g]),
+               string(base.subsector[g]), string(base.year[g]))
+
+        λ = get(lambda, key, NaN)
+        if isnan(λ)
+            @warn "Sector $name: no λ (elec_per_ton) for $key; responsive load skipped"
+            continue
+        end
+        λ == 0.0 && continue   # no electrification response for this row
+
+        lp_row_idx = get(lp_index, key, nothing)
+        if lp_row_idx === nothing
+            @warn "Sector $name: no load profile for $key; responsive load skipped"
+            continue
+        end
+        lp_row = lp[lp_row_idx, :]
+
+        # Normalize the profile to a distribution over the year (energy basis)
+        # so the responsive MW at each hour integrates to abate_total·λ MWh.
+        annual_shape = sum(lp_row[hour_cols[h]] * hour_weights[h] for h in 1:nhr)
+        annual_shape > 0 || continue
+
+        buses = buses_for(base.area[g], base.subarea[g])
+        isempty(buses) && continue
+        share = 1.0 / length(buses)
+        y = base_year_idx[g]
+
+        for h in 1:nhr
+            # MW added per unit abate_total at (bus, hour):
+            coef = share * λ * lp_row[hour_cols[h]] / annual_shape
+            coef == 0.0 && continue
+            for b in buses
+                add_to_expression!(plserv_bus[b, y, h], coef, abate_total[g])
+            end
+        end
+        n_rows_applied += 1
+    end
+    @info "Sector $name: added responsive electrification load from $n_rows_applied baseline rows to plserv_bus"
     return nothing
 end
 export add_sector_electrification_load!
+
+"""
 
 
 
