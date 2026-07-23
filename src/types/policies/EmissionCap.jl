@@ -195,7 +195,8 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
     years = Symbol.(get_years(data))
     cap_years = collect(keys(pol.targets))
     filter!(in(years), cap_years)
-    
+    offset_adjust = pol.offset_under_cap == false ? pol.offset : 0.0  # only loosen the cap if offsets are outside it
+
     # add price responsive allowances to the model
     if pol.price_resp_alws
         add_price_responsive_allowances(pol, config, data, model)
@@ -217,14 +218,16 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
                 for y_idx in 1:nyr, hr_idx in 1:nhr
                 if years[y_idx] in cap_years && years[y_idx] <= years[yr_idx]
             ) <= (
-                pol.price_resp_alws ?                                                    # if pol.price_resp_alws is true, RHS is equal to sum of alllowances at each step 
-                sum(
-                    alw[y_idx, s]
-                    for y_idx in 1:nyr, s in 1:nsteps
-                    if years[y_idx] in cap_years && years[y_idx] <= years[yr_idx]
-                ) + pol.initial_bank :
-                sum(pol.targets[y] for y in cap_years if y <= years[yr_idx]) + pol.initial_bank
-            )
+                (
+                    pol.price_resp_alws ?                                                    # if pol.price_resp_alws is true, RHS is equal to sum of alllowances at each step
+                    sum(
+                        alw[y_idx, s]
+                        for y_idx in 1:nyr, s in 1:nsteps
+                        if years[y_idx] in cap_years && years[y_idx] <= years[yr_idx]
+                    ) :
+                    sum(pol.targets[y] for y in cap_years if y <= years[yr_idx])
+                ) + pol.initial_bank
+            ) / (1 - offset_adjust)
         )
     else
 
@@ -234,7 +237,7 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
             (pol.price_resp_alws ?
                 sum(alw[yr_idx, s] for s in 1:nsteps) :
                 pol.targets[years[yr_idx]]
-            ) / (1 - pol.offset)
+            ) / (1 - offset_adjust)
 
         )
     end
