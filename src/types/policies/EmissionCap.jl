@@ -25,9 +25,9 @@ Note: The banking formulation in this modification requires that years[n] - year
 * `price_resp_alws`: Bool that turns on price responsive allowances, defaults to false.
 * `step_prices`: Length-k vector of prices for each step.
 * `step_adders`: Length-k vector of allowance quantities added to (positive) or withdrawn from (negative) the base target at each price step, which defines the cumulative supply available at step k. When representing a price ceiling, include a backstop step with Inf allowances.
-* `rate`: The rate step prices increase by each year. Defaults to 5%. Note that prices esacalate relative to first model year.
+* `rate`: The rate step prices increase by each year. Defaults to 5%. Prices escalate relative to the first year that has a target.
 
-### Table Column Added: 
+### Table Column Added:
 * `(:gen, :<name>_prc)` - the allowance price of the policy converted to DollarsPerMWhGenerated
 * `(:branch, :<name>_prc)` - the allowance price of the policy converted to DollarsPerMWhGenerated
 * `(:dc_line, :<name>_prc)` - the allowance price of the policy converted to DollarsPerMWhGenerated
@@ -182,7 +182,7 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
             for gen_idx in gen_idxs
         )
     )
-    
+
     # add emissions from imports to expression if pol.cap_imports == true
     if pol.cap_imports == true
         setup_imports!(pol, config, data, model, :branch)
@@ -210,7 +210,7 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
     if pol.banking
         # Cumulative constraint: sum of emissions from the first cap year through yr_idx
         # must be ≤ sum of targets over those years + initial_bank
-        
+
        model[cap_cons_name] = @constraint(model,
             [yr_idx in 1:nyr; years[yr_idx] in cap_years],
             sum(
@@ -219,7 +219,7 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
                 if years[y_idx] in cap_years && years[y_idx] <= years[yr_idx]
             ) <= (
                 (
-                    pol.price_resp_alws ?                                                    # if pol.price_resp_alws is true, RHS is equal to sum of alllowances at each step
+                    pol.price_resp_alws ?
                     sum(
                         alw[y_idx, s]
                         for y_idx in 1:nyr, s in 1:nsteps
@@ -233,7 +233,7 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
 
         model[cap_cons_name] = @constraint(model,
             [yr_idx in 1:nyr; years[yr_idx] in cap_years],
-            sum(model[emis_expr_name][yr_idx, hr_idx] for hr_idx in 1:nhr) <= 
+            sum(model[emis_expr_name][yr_idx, hr_idx] for hr_idx in 1:nhr) <=
             (pol.price_resp_alws ?
                 sum(alw[yr_idx, s] for s in 1:nsteps) :
                 pol.targets[years[yr_idx]]
@@ -242,7 +242,6 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
         )
     end
 
-    
 end
 
 
@@ -534,9 +533,11 @@ function setup_allowance_price_resp_alws(pol, config, data)
     target_years = [String(y) for y in sym_years if haskey(pol.targets, y)]
     target_idxs = [i for i in 1:nyr if years[i] in target_years]
     target_nyr = length(target_years)
-   
-    # Escalate price steps at 5%/yr
-    prices = [[p * (1 + pol.rate)^(yr_idx - 1) for yr_idx in 1:nyr] for p in pol.step_prices]
+
+    # Escalate price steps at 5%/yr, relative to the first year that has a target
+    # (not the first model year), so the configured step_prices land unescalated in that year.
+    first_target_idx = first(target_idxs)
+    prices = [[p * (1 + pol.rate)^(yr_idx - first_target_idx) for yr_idx in 1:nyr] for p in pol.step_prices]
     
     # cumulative allowance quantity at each step boundary = target + adder
     targets = [get(pol.targets, y, 0.0) for y in Symbol.(target_years)]
@@ -567,7 +568,7 @@ function setup_allowance_price_resp_alws(pol, config, data)
             push!(price_resp_alws, (
                 s,
                 years[yr_idx],
-                prices[s][i],
+                prices[s][yr_idx],
                 step_alw[s][i],
                 step_widths[s][i],
             ))
@@ -602,7 +603,7 @@ function add_price_responsive_allowances(pol, config, data, model)
         step_widths[s, yr_idx] = row.step_alw_q
     end
     
-    # Variables: allowances purchased per year per step
+    # Variables: allowances purchased per year per step, in tons
     alw_name = cols.alw_name
     model[alw_name] = @variable(model,          # initialize a variable of size year x steps with lower bound 0
         [yr_idx in 1:nyr, s in 1:nsteps],
@@ -614,9 +615,9 @@ function add_price_responsive_allowances(pol, config, data, model)
         w = step_widths[s, yr_idx]
         isinf(w) || set_upper_bound(alw[yr_idx, s], w)
     end
-  
-    # Per-year cost expression 
-    alw_cost_name = cols.alw_cost 
+
+    # Per-year cost expression
+    alw_cost_name = cols.alw_cost
     model[alw_cost_name] = @expression(model,           # cost expression is allowances at step k multiplied by price at step s
         [yr_idx in 1:nyr],
         sum(prices[s, yr_idx] * alw[yr_idx, s] for s in 1:nsteps)
