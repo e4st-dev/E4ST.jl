@@ -454,7 +454,7 @@ function modify_results!(mod::ReserveRequirement, config, data)
     add_results_formula!(data, :gen, rebate_price_result_name, "$(rebate_result_name)/pcap_qual_$(mod.name)",DollarsPerMWCapacity, "The per MW of qualifying capacity price of the rebate receive by EGU's from the $(mod.name) reserve requirement.")
     
     # Add it to net_total_revenue_prelim
-    add_to_results_formula!(data, :gen, :net_total_revenue_prelim, "+ $rebate_result_name")
+    add_to_results_formula!(data, :gen, :net_total_revenue_prelim, "$rebate_result_name")
 
     # Subtract the cost from user surplus
     add_welfare_term!(data, :user, :bus, cost_result_name, -)
@@ -490,7 +490,7 @@ function modify_results!(mod::ReserveRequirement, config, data)
         add_results_formula!(data, :storage, rebate_price_result_name, "$(rebate_result_name)/pcap_qual_$(mod.name)",DollarsPerMWCapacity, "The per MW price of the rebate receive by EGU's from the $(mod.name) reserve requirement.")
 
         # Add it to net_total_revenue_prelim
-        add_to_results_formula!(data, :storage, :net_total_revenue_prelim, "+ $rebate_result_name")
+        add_to_results_formula!(data, :storage, :net_total_revenue_prelim, "$rebate_result_name")
     end
 
     # Add merchandising surplus if applicable

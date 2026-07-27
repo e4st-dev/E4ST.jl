@@ -2,8 +2,10 @@
     struct GenerationStandard{T} <: Policy
 
 A generation standard (also refered to as a portfolio standard) is a constraint on generation where a portion of generation from certain generators must meet the a portion of the load in a specified region.
-This encompasses RPSs, CESs, and technology carveouts.
+This encompasses RPSs, CESs, and technology carveouts. 
 To assign the credit (the portion of generation that can contribute) to generators, the [`Crediting`](@ref) type is used.
+In certain instances, there can be a mismatch between the location of the qualifying load and the location of the generation that is used to meet the load. To handle this, gs_rebate is calculated as the payment
+that a generators get for providing generation for qualifying load while gs_payment is calculated as the payment that would be associated with the qualifying load.
 
 ### Keyword Arguments
 * `name` - Name of the policy 
@@ -171,6 +173,8 @@ Modifies the results by adding the following columns to the bus table:
 function modify_results!(pol::GenerationStandard, config, data)
     bus = get_table(data, :bus)
     gen = get_table(data, :gen)
+    nyr = get_num_years(data)
+    years = Symbol.(get_years(data))
 
     prc_name = Symbol("$(pol.name)_prc")
     cost_name = Symbol("$(pol.name)_cost")
@@ -179,7 +183,7 @@ function modify_results!(pol::GenerationStandard, config, data)
     if !hasproperty(bus, :pl_gs) 
         pl_gs_bus = get_raw_result(data, :pl_gs_bus)
         el_gs_bus = weight_hourly(data, pl_gs_bus)
-
+    
         add_table_col!(data, :bus, :pl_gs, pl_gs_bus, MWServed, "Served Load Power that qualifies for generation standards")
         add_table_col!(data, :bus, :el_gs, el_gs_bus, MWhServed, "Served Load Energy that qualifies for generation standards")
 
@@ -191,16 +195,28 @@ function modify_results!(pol::GenerationStandard, config, data)
     gen_idxs = get_row_idxs(gen, parse_comparisons(pol.gen_filters))
 
     add_table_col!(data, :gen, prc_name,  Container[ByNothing(0.0) for i in 1:nrow(gen)], DollarsPerMWhGenerated, "Policy price based on shadow price of $(pol.name) (converted to DollarsPerMWhGenerated) multiplied by the credit.")
+    add_table_col!(data, :bus, prc_name,  Container[ByNothing(0.0) for i in 1:nrow(bus)], DollarsPerMWhGenerated, "Policy cost based on shadow price of $(pol.name) (converted to DollarsPerMWhGenerated).")
 
     # set to shadow_prc * crediting
     for i in gen_idxs
         gen[i, prc_name] = -(shadow_prc) .* gen[i, pol.name]
     end
 
+    for (k,d) in pol.load_targets
+        targets = collect(values(OrderedDict(y => get(d[:targets], y, 0.0) for y in years)))[1:nyr] # target set to 0 if missing
+        filters = d[:filters]
+        bus_idxs = get_row_idxs(bus, parse_comparisons(d[:filters]))
+        # set to shadow_prc for bus
+        for i in bus_idxs
+            bus[i, prc_name] = -(shadow_prc) .* targets
+        end
+    end
 
     # policy cost, price * credit * generation
     add_results_formula!(data, :gen, cost_name, "SumHourlyWeighted($(prc_name), pgen)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
     add_to_results_formula!(data, :gen, :gs_rebate, cost_name)
+    add_results_formula!(data, :bus, cost_name, "SumHourlyWeighted($(prc_name), pl_gs)", Dollars, "Cost of $(pol.name) based on the shadow price on the constraint and the generator credit level.")
+    add_to_results_formula!(data, :bus, :gs_payment, cost_name)
 end
 export modify_results!
 

@@ -1,0 +1,10 @@
+area,subarea,year,cal_value
+bus_idx,1,y2030,10
+bus_idx,2,y2030,5
+bus_idx,3,y2030,3
+bus_idx,1,y2035,12
+bus_idx,2,y2035,6
+bus_idx,3,y2035,4
+bus_idx,1,y2040,12
+bus_idx,2,y2040,6
+bus_idx,3,y2040,4

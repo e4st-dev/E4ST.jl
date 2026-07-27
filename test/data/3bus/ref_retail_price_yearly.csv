@@ -1,0 +1,10 @@
+area,subarea,year,ref_price
+bus_idx,1,y2030,87.172
+bus_idx,2,y2030,72.716
+bus_idx,3,y2030,93.828
+bus_idx,1,y2035,88.172
+bus_idx,2,y2035,73.716
+bus_idx,3,y2035,94.828
+bus_idx,1,y2040,89.172
+bus_idx,2,y2040,75.716
+bus_idx,3,y2040,97.828

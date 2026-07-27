@@ -73,6 +73,8 @@ include("types/modifications/GenHashID.jl")
 include("types/modifications/LeftJoinCols.jl")
 include("types/modifications/CapacityConstraint.jl")
 include("types/modifications/PerfectForesight.jl")
+# include("types/modifications/RetailPriceCalibration.jl")
+include("types/modifications/RetailPrice.jl")
 
 # Include Policies
 include("types/policies/ITC.jl")
@@ -106,6 +108,7 @@ include("results/process.jl")
 include("results/aggregate.jl")
 include("results/welfare.jl")
 include("results/util.jl")
+include("results/retail_price.jl")
 
 # Include postprocessing
 include("post/post.jl")
