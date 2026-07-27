@@ -241,8 +241,10 @@
         end
 
         @testset "Add constraint to model" begin
-            # Creates GenerationConstraint
-            @test typeof(config[:mods][:example_emiscap][:gen_cons]) == E4ST.GenerationConstraint
+            # # Creates GenerationConstraint
+            # @test typeof(config[:mods][:example_emiscap][:gen_cons]) == E4ST.GenerationConstraint
+             cap_cons_name = :cons_example_emiscap_max
+             @test haskey(model, cap_cons_name)
 
 
             # Added to the gen table 
@@ -302,11 +304,259 @@
 
             @test compute_result(data, :gen, :emis_co2_total, :, 1, :season=>"summer") ≈ 1000
         end
+
+        @testset "Test Emission Cap with Leakage" begin
+
+            @testset "EmissionCap constructor validation" begin
+                # both import_ef and import_ef_file provided — should error immediately
+                @test_throws ErrorException EmissionCap(
+                    name = "test_both_ef",
+                    emis_col = "emis_co2",
+                    targets = Dict(:y2035 => 1000),
+                    gen_filters = Dict(:nation=>"archenland"),
+                    bus_filters = Dict(:nation => "archenland"),
+                    cap_imports = true,
+                    import_ef = 0.4,
+                    import_ef_file = "data/import_ef.csv"
+                )
+
+                # import_ef provided but cap_imports false -> should warn
+                @test_logs (:warn, r"cap_imports=false") EmissionCap(
+                    name = "test_cap_false",
+                    emis_col = "emis_co2",
+                    targets = Dict(:y2035 => 1000),
+                    gen_filters = Dict(:nation=>"archenland"),
+                    bus_filters = Dict(:nation => "archenland"),
+                    import_ef = 0.4,
+                )
+            end
+
+            # rerun for comparison with policies that don't price imports
+            config_file = joinpath(@__DIR__, "config", "config_3bus_emiscap.yml")
+            config = read_config(config_file_ref, config_file)
+            data = read_data(config)
+            model = setup_model(config, data)
+            optimize!(model)
+            parse_results!(config, data, model)
+            process_results!(config, data)
+            data_emis_compare = copy(data)
+
+            # leakage policies
+            config_file = joinpath(@__DIR__, "config", "config_3bus_emiscap_imports.yml")
+            config = read_config(config_file_ref, config_file)
+
+            data_emis_compare = copy(data)
+            data = read_data(config)
+            model = setup_model(config, data)
+
+            gen = get_table(data, :gen)
+            bus = get_table(data, :bus)
+            branch = get_table(data, :branch)
+
+
+            @testset "Adding Emis Cap to gen table" begin
+                @test hasproperty(gen, :example_emiscap_arch)
+                @test hasproperty(branch, :example_emiscap_arch)
+                @test hasproperty(branch, :example_emiscap_arch_emis_co2)
+                @test hasproperty(branch, :example_emiscap_arch_dir)
+
+                # Test that there are byYear containers 
+                @test eltype(gen.example_emiscap_arch) <: Container
+                @test eltype(branch.example_emiscap_arch) <: Container
+
+                @test any(ef -> typeof(ef) == E4ST.ByYearAndHour, branch.example_emiscap_arch_emis_co2)
+                @test any(ef -> typeof(ef) == E4ST.ByHour, branch.example_emiscap_narnia_emis_co2)
+
+                # test that ByYear containers have non zero values
+                @test sum(emisprc -> sum(emisprc.v), gen.example_emiscap_arch) > 0
+
+                # test that the emissions factors of imported power varies for EmissionPolicy with ef file
+                @test all(eachrow(branch)) do row
+                    if row.example_emiscap_arch == 1
+                        vals = collect(Iterators.flatten(values(row.example_emiscap_arch_emis_co2)))
+                        any(!=(vals[1]), vals)
+                    else
+                        true
+                    end
+                end
+
+            end
+        
+            @testset "Adding Emis Cap to the model" begin
+
+                #make sure model still optimizes 
+                optimize!(model)
+                @test check(config, data, model)
+
+                # process results
+                parse_results!(config, data, model)
+                process_results!(config, data)
+
+                ## Check that policy impacts results 
+                gen = get_table(data, :gen)
+                years = get_years(data)
+                emis_cap_mod = config[:mods][:example_emiscap_arch]
+                emis_co2_total = compute_result(data, :gen, :emis_co2_total, parse_comparisons(emis_cap_mod.gen_filters))
+
+                gen_ref = get_table(data_ref, :gen)
+                emis_co2_total_ref = compute_result(data_ref, :gen, :emis_co2_total, parse_comparisons(emis_cap_mod.gen_filters))
+
+                # check that emissions are reduced for qualifying gens
+                @test emis_co2_total < emis_co2_total_ref
+
+                emis_co2_total_emis_compare = compute_result(data_emis_compare, :gen, :emis_co2_total, parse_comparisons(emis_cap_mod.gen_filters))
+
+                # check that emissions are different across two emissions price set ups
+                @test emis_co2_total != emis_co2_total_ref
+
+                # check that pricing imports changes objective function
+                @test sum(get_raw_result(data, :obj)) > sum(get_raw_result(data_emis_compare, :obj))
+
+                # check that pricing imports changes the amount of imported power
+                @test compute_result(data, :bus, :eflow_in_total, :nation=>"archenland") < compute_result(data_emis_compare, :bus, :eflow_in_total, :nation=>"archenland")
+
+                #test that cost result is calculated
+                pol = config[:mods][:example_emiscap_arch]
+                bus_idxs = get_row_idxs(bus, parse_comparisons(pol.bus_filters))
+
+                @test emis_co2_total > 0
+                @test compute_result(data, :branch, :example_emiscap_arch_import_cost) > 0.0
+
+                @test compute_result(data, :bus, :eflow_in_total, :nation=>"narnia") == 0.0  # in this setup, narnia always exports to archenland so the imported power into narnia should be 0
+                @test compute_result(data, :branch, :example_emiscap_narnia_import_cost) == 0.0  # in this setup, narnia always exports to archenland so the emissions cost on narnias import should be 0
+                @test compute_result(data, :branch, :example_emiscap_narnia_empty_import_cost) == 0.0  # should be zero because narnia exports, and the ef file set up will not tag any branches
+
+
+                # check that emissions from in state generation + imported emissions are less than cap
+                @test compute_result(data, :branch, :example_emiscap_arch_import_emis, (:), "y2035") > 0
+                @test compute_result(data, :gen, :emis_co2_total, :nation=>"archenland", "y2035") >0 
+                
+                total_emis_2035 = compute_result(data, :branch, :example_emiscap_arch_import_emis, (:), "y2035") + compute_result(data, :dc_line, :example_emiscap_arch_import_emis, (:), "y2035") + compute_result(data, :gen, :emis_co2_total, :nation=>"archenland", "y2035")
+                target_2035 = config[:mods][:example_emiscap_arch][:targets][:y2035]
+                @test total_emis_2035 <= target_2035 || total_emis_2035 ≈ target_2035
+
+                @test compute_result(data, :branch, :example_emiscap_arch_import_emis, (:), "y2040") > 0
+                @test compute_result(data, :gen, :emis_co2_total, :nation=>"archenland", "y2040") >0 
+
+                total_emis_2040 = compute_result(data, :branch, :example_emiscap_arch_import_emis, (:), "y2040") + compute_result(data, :dc_line, :example_emiscap_arch_import_emis, (:), "y2040") + compute_result(data, :gen, :emis_co2_total, :nation=>"archenland", "y2040")
+                target_2040 = config[:mods][:example_emiscap_arch][:targets][:y2040]
+                @test total_emis_2040 <= target_2040 || total_emis_2040 ≈ target_2040
+
+            end
+        end
+
+        @testset "Test Emission Cap with Banking" begin
+
+            # rerun for comparison with policies that don't price imports
+            config_file = joinpath(@__DIR__, "config", "config_3bus_emiscap.yml")
+            config = read_config(config_file_ref, config_file)
+            data = read_data(config)
+            model = setup_model(config, data)
+            optimize!(model)
+            parse_results!(config, data, model)
+            process_results!(config, data)
+            data_emis_compare = copy(data)
+
+            # bank formulation
+            config_file = joinpath(@__DIR__, "config", "config_3bus_emiscap_bank.yml")
+            config = read_config(config_file_ref, config_file)
+
+            data_sc = copy(data)  # data from the simple cap representation
+            data = read_data(config)
+            model = setup_model(config, data)
+
+            gen = get_table(data, :gen)
+            bus = get_table(data, :bus)
+            branch = get_table(data, :branch)
+
+            @testset "Adding Emis Cap with banking to gen table" begin
+
+                @test hasproperty(gen, :example_emiscap)
+
+                # Test that there are byYear containers 
+                @test eltype(gen.example_emiscap) <: Container
+
+                # test that ByYear containers have non zero values
+                @test sum(emisprc -> sum(emisprc.v), gen.example_emiscap) > 0
+
+            end
+
+            @testset "Model optimizes correctly" begin
+                ## make sure model still optimizes 
+                optimize!(model)
+                @test check(config, data, model)
+
+                parse_results!(config, data, model)
+                process_results!(config, data)
+
+                ## Check that policy impacts results 
+                gen = get_table(data, :gen)
+                years = get_years(data)
+                emis_co2_total = compute_result(data, :gen, :emis_co2_total, :, [2, 3])
+
+                gen_sc = get_table(data_sc, :gen)
+                emis_co2_total_sc = compute_result(data_sc, :gen, :emis_co2_total, :, [2, 3])
+
+                # emissions with banking formulation should be larger than simple cap because of initial bank
+                @test emis_co2_total > emis_co2_total_sc
+
+                # check that the bank is non-negative at each year:
+                # bank[T] = initial_bank + sum(targets[1..T]) - sum(emissions[1..T]) >= 0
+                pol_bank = config[:mods][:example_emiscap]
+                cap_years_bank = sort(collect(keys(pol_bank.targets)))
+                nyr = get_num_years(data)
+                sim_years_bank = Symbol.(get_years(data))
+                year_to_idx = Dict(sim_years_bank[i] => i for i in 1:nyr)
+                for yr_idx in 1:nyr
+                    sim_years_bank[yr_idx] in cap_years_bank || continue
+                    cumulative_emis = sum(compute_result(data, :gen, :emis_co2_total, :, year_to_idx[y]) for y in cap_years_bank if y <= sim_years_bank[yr_idx])
+                    cumulative_target = sum(pol_bank.targets[y] for y in cap_years_bank if y <= sim_years_bank[yr_idx]) + pol_bank.initial_bank
+                    @test cumulative_emis <= cumulative_target + tol
+                end
+
+            end
+
+        end
+        @testset "Test Emission Cap with Price Responsive Allowances" begin
+            # rerun for comparison with policies that don't price imports
+            config_file = joinpath(@__DIR__, "config", "config_3bus_prc_resp_alw.yml")
+            config = read_config(config_file_ref, config_file)
+            data = read_data(config)
+
+            @test haskey(data, :example_prc_resp_alw_supply_curve)
+            model = setup_model(config, data)
+            optimize!(model)
+            
+            parse_results!(config, data, model)
+            process_results!(config, data)
+           
+            @test haskey(data[:results][:raw], :cons_example_prc_resp_alw_max)
+            
+            alw_prc = data[:results][:raw][:cons_example_prc_resp_alw_max][2] * -1
+            emis = compute_result(data,:gen,:emis_co2_total,:nation=>["narnia", "archenland"], 2)
+           
+            price_steps = data[:example_prc_resp_alw_supply_curve]
+            prices = price_steps[!,:price]
+            cum_alw = price_steps[!,:cum_alw]
+            
+            k = findfirst(>=(emis), cum_alw)
+            if emis < cum_alw[k]
+                @test alw_prc == prices[k]  # when allowances are in the step interior, test that allowance price is equal to the price at the step
+            else
+                @test prices[k] < alw_prc < prices[k+1] # when allowances are at the kink point, test that allowance price falls between the 2 bounding steps
+            end
+            
+            
+        end
+
+
     end
+
 
     @testset "Test Emission Price" begin
         config_file = joinpath(@__DIR__, "config", "config_3bus_emisprc.yml")
         config = read_config(config_file_ref, config_file)
+        delete!(config[:mods], :example_emisprc_arch)
 
         data = read_data(config)
         model = setup_model(config, data)
@@ -377,6 +627,42 @@
     
 
         @testset "Test Emission Price with Leakage" begin
+
+            @testset "EmissionPrice constructor validation" begin
+                # both import_ef and import_ef_file provided — should error immediately
+                @test_throws ErrorException EmissionPrice(
+                    name = "test_both_ef",
+                    emis_col = "emis_co2",
+                    prices = Dict(:y2035 => 10.0),
+                    gen_filters = Dict(:nation => "archenland"),
+                    bus_filters = Dict(:nation => "archenland"),
+                    price_imports = true,
+                    import_ef = 0.4,
+                    import_ef_file = "table/import_ef.csv"
+                )
+
+                # import_ef provided but price_imports false -> should warn
+                @test_logs (:warn, r"price_imports=false") EmissionPrice(
+                    name = "test_price_false",
+                    emis_col = "emis_co2",
+                    prices = Dict(:y2035 => 10),
+                    gen_filters = Dict(:nation=>"archenland"),
+                    bus_filters = Dict(:nation => "archenland"),
+                    import_ef = 0.4,
+                )
+            end
+
+            # rerun for comparison with policies that don't price imports
+            config_file = joinpath(@__DIR__, "config", "config_3bus_emisprc.yml")
+            config = read_config(config_file_ref, config_file)
+            data = read_data(config)
+            model = setup_model(config, data)
+            optimize!(model)
+            parse_results!(config, data, model)
+            process_results!(config, data)
+            data_emis_compare = copy(data)
+
+            # leakage policies
             config_file = joinpath(@__DIR__, "config", "config_3bus_emisprc_imports.yml")
             config = read_config(config_file_ref, config_file)
 
@@ -386,28 +672,44 @@
 
             gen = get_table(data, :gen)
             bus = get_table(data, :bus)
+            branch = get_table(data, :branch)
 
             @testset "Adding Emis Prc to gen table" begin
-                @test hasproperty(gen, :example_emisprc)
-                @test hasproperty(bus, :example_emisprc_imports)
+                @test hasproperty(branch, :example_emisprc_arch_emis_co2)
+                @test hasproperty(gen, :example_emisprc_arch)
+                @test hasproperty(branch, :example_emisprc_arch_imports)
 
                 # Test that there are byYear containers 
-                @test typeof(gen.example_emisprc) == Vector{Container}
-                @test typeof(bus.example_emisprc_imports) == Vector{Container}
+                @test eltype(gen.example_emisprc_arch) <: Container
+                @test eltype(branch.example_emisprc_arch_imports) <: Container
+
+                @test any(ef -> typeof(ef) == E4ST.ByYearAndHour, branch.example_emisprc_arch_emis_co2)
+                @test any(ef -> typeof(ef) == E4ST.ByHour, branch.example_emisprc_narnia_emis_co2)
 
                 # Check that there are ByYear containers
-                @test any(emisprc -> typeof(emisprc) == E4ST.ByYear, gen.example_emisprc)
+                @test any(emisprc -> typeof(emisprc) == E4ST.ByYear, gen.example_emisprc_arch)
 
                 # test that ByYear containers have non zero values
-                @test sum(emisprc -> sum(emisprc.v), gen.example_emisprc) > 0
+                @test sum(emisprc -> sum(emisprc.v), gen.example_emisprc_arch) > 0
+
+                # test that the emissions factors of imported power varies for EmissionPolicy with ef file
+                @test all(eachrow(branch)) do row
+                    if row.example_emisprc_arch_imports == 1
+                        vals = collect(Iterators.flatten(values(row.example_emisprc_arch_emis_co2)))
+                        any(!=(vals[1]), vals)
+                    else
+                        true
+                    end
+                end
+
             end
 
             @testset "Adding Emis Prc to the model" begin
                 #test that emis prc is added to the obj 
-                @test haskey(data[:obj_vars], :example_emisprc)
-                @test haskey(data[:obj_vars], :example_emisprc_imports)
-                @test haskey(model, :example_emisprc)
-                @test haskey(model, :example_emisprc_imports)
+                @test haskey(data[:obj_vars], :example_emisprc_arch)
+                @test haskey(data[:obj_vars], :example_emisprc_arch_imports)
+                @test haskey(model, :example_emisprc_arch)
+                @test haskey(model, :example_emisprc_arch_imports)
 
                 #make sure model still optimizes 
                 optimize!(model)
@@ -420,7 +722,7 @@
                 ## Check that policy impacts results 
                 gen = get_table(data, :gen)
                 years = get_years(data)
-                emis_prc_mod = config[:mods][:example_emisprc]
+                emis_prc_mod = config[:mods][:example_emisprc_arch]
                 emis_co2_total = compute_result(data, :gen, :emis_co2_total, parse_comparisons(emis_prc_mod.gen_filters))
 
                 gen_ref = get_table(data_ref, :gen)
@@ -437,16 +739,32 @@
                 # check that pricing imports changes objective function
                 @test sum(get_raw_result(data, :obj)) > sum(get_raw_result(data_emis_compare, :obj))
 
-                #test that cost restult is calculated
-                pol = config[:mods][:example_emisprc]
+                # check that pricing imports changes the amount of imported power
+                @test compute_result(data, :bus, :eflow_in_total, :nation=>"archenland") < compute_result(data_emis_compare, :bus, :eflow_in_total, :nation=>"archenland")
+
+                #test that cost result is calculated
+                pol = config[:mods][:example_emisprc_arch]
                 bus_idxs = get_row_idxs(bus, parse_comparisons(pol.bus_filters))
 
                 #@show compute_result(data, :gen, :egen_total, gen_idxs, [2, 3])
                 @test emis_co2_total > 0
-                @test compute_result(data, :bus, :example_emisprc_imports_cost) > 0.0
+                @test compute_result(data, :branch, :example_emisprc_arch_import_cost) > 0.0
+
+
+                @test compute_result(data, :branch, :example_emisprc_narnia_import_cost) == 0.0  # in this setup, narnia always exports to archenland so the emissions cost on narnias import should be 0
+                @test compute_result(data, :branch, :example_emisprc_narnia_empty_import_cost) == 0.0  # should be zero because narnia exports, and the ef file set up will not tag any branches
+
+
+                # check that imported emissions are greater than 0
+                @test compute_result(data, :branch, :example_emisprc_arch_import_emis, (:), "y2035") > 0
+                @test compute_result(data, :dc_line, :example_emisprc_arch_import_emis, (:), "y2035") > 0
+                
+                @test compute_result(data, :branch, :example_emisprc_arch_import_emis, (:), "y2040") > 0
+                @test compute_result(data, :dc_line, :example_emisprc_arch_import_emis, (:), "y2040") > 0
 
             end
         end
+
     end
 
     @testset "Test Generation Standards" begin

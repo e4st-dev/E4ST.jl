@@ -79,7 +79,6 @@ function modify_model!(mod::DCLine, config, data, model)
     nhour = get_num_hours(data)
     nbus = nrow(bus)
     pflow_bus = model[:pflow_bus]::Array{AffExpr, 3}
-    pflow_import_bus = model[:pflow_import_bus]
 
 
     # Add the pflow_dc variable
@@ -100,59 +99,6 @@ function modify_model!(mod::DCLine, config, data, model)
         end
     end
 
-    # positive pflow_dc going f_bus => to_bus are imports to t_bus
-    # negative pflow_dc going f_bus => to_bus are imports to f_bus
-    @variable(model, pflow_import_dc_to[dc_idx in 1:ndc, y in 1:nyear, h in 1:nhour] >= 0)
-    @variable(model, pflow_import_dc_from[dc_idx in 1:ndc, y in 1:nyear, h in 1:nhour] >= 0)
-    
-    # constraint the pflow_import_dc_to as positive pflow_dc
-    @constraint(model,
-        [dc_idx=1:ndc, y=1:nyear, h=1:nhour],
-        pflow_import_dc_to[dc_idx,y,h] >= pflow_dc[dc_idx,y,h]
-    )
-
-    # constraint the pflow_import_dc_from as negative pflow_dc
-    @constraint(model,
-        [dc_idx=1:ndc, y=1:nyear, h=1:nhour],
-        pflow_import_dc_from[dc_idx,y,h] >= -pflow_dc[dc_idx,y,h]
-    )
-
-    # constrain max pflow_import_dc_to as the pflow_max values
-    @constraint(model,
-        [dc_idx in 1:ndc, y in 1:nyear, h in 1:nhour],
-        pflow_import_dc_to[dc_idx,y,h] <= get_table_num(data, :dc_line, :pflow_max, dc_idx, y, h)
-    )
-    
-    # constrain max pflow_import_dc_from as the pflow_max values
-    @constraint(model,
-        [dc_idx in 1:ndc, y in 1:nyear, h in 1:nhour],
-        pflow_import_dc_from[dc_idx,y,h] <= get_table_num(data, :dc_line, :pflow_max_reverse, dc_idx, y, h)
-    )
-
-    if pflow_import_bus isa Array{AffExpr, 3}
-        # add imports to the pflow_import_bus expression
-        for dc_idx in 1:ndc, y in 1:nyear, h in 1:nhour
-            # Add imports to receiving bus
-            add_to_expression!(pflow_import_bus[dc_line[dc_idx,:t_bus_idx],y,h],
-                            pflow_import_dc_to[dc_idx,y,h])
-
-            # Add imports to sending bus if flow is negative
-            add_to_expression!(pflow_import_bus[dc_line[dc_idx,:f_bus_idx],y,h],
-                            pflow_import_dc_from[dc_idx,y,h])
-        end
-    elseif pflow_import_bus isa Array{Float64, 3}
-        unregister(model, :pflow_import_bus)
-        @expression(model,
-            pflow_import_bus[b in 1:nbus, y in 1:nyear, h in 1:nhour],
-            sum(
-                pflow_import_dc_to[dc_idx,y,h]   * (dc_line[dc_idx, :t_bus_idx] == b) +  # add the imports when bus is t_bus
-                pflow_import_dc_from[dc_idx,y,h] * (dc_line[dc_idx, :f_bus_idx] == b)    # add the imports when bus is f_bus
-                for dc_idx in 1:ndc
-            )
-        )
-    else
-        @warn "The pflow_import_bus variable is not type AffExpr or Float64. Imports on DC Lines will not be added"
-    end
     return nothing
 end
 

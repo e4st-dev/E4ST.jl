@@ -64,10 +64,6 @@ function setup_dcopf!(config, data, model)
         upper_bound = get_plnom(data, bus_idx, year_idx, hour_idx),
     )
 
-    # Imports
-    @variable(model, pflow_import_branch_to[br in 1:nbranch, y in 1:nyear, h in 1:nhour]   >= 0) # positive pflow_dc going f_bus => to_bus are imports to t_bus
-    @variable(model, pflow_import_branch_from[br in 1:nbranch, y in 1:nyear, h in 1:nhour] >= 0) # negative pflow_dc going f_bus => to_bus are imports to f_bus
-
 
     ## Expressions to be used later
     @info "Creating Expressions"
@@ -102,15 +98,6 @@ function setup_dcopf!(config, data, model)
         )
     end
     
-    # set up expression to track imports
-    @expression(model,
-        pflow_import_bus[b in 1:nbus, y in 1:nyear, h in 1:nhour],
-        sum(
-            pflow_import_branch_to[br,y,h]   * (t_bus_idxs[br] == b) +  # add the imports when bus is t_bus
-            pflow_import_branch_from[br,y,h] * (f_bus_idxs[br] == b)    # add the imports when bus is f_bus
-            for br in 1:nbranch
-        )
-    )
 
     # Power flowing in/out of buses, only necessary if modeling line losses from pflow.
     if config[:line_loss_type] == "pflow"
@@ -178,21 +165,6 @@ function setup_dcopf!(config, data, model)
             get_pflow_branch_max(data, branch_idx, year_idx, hour_idx) > 0 # Only constrain for branches with nonzero pflow_max
         ], 
         -pflow_branch[branch_idx, year_idx, hour_idx] <= get_pflow_branch_max(data, branch_idx, year_idx, hour_idx)
-    )
-
-    # Constraints on import variables
-    # together these constraints effectively enforce pflow_import_branch ≥ max(pflow_branch, -pflow_branch), taking the absolute value
-    @constraint(model, [br in 1:nbranch, y in 1:nyear, h in 1:nhour],
-        pflow_import_branch_to[br,y,h]   >=  pflow_branch[br,y,h])
-    @constraint(model, [br in 1:nbranch, y in 1:nyear, h in 1:nhour],
-        pflow_import_branch_from[br,y,h] >= -pflow_branch[br,y,h])
-
-    # enforces upper bound on imports otherwise there could be multiple feasible solutions
-    @constraint(model, [br in 1:nbranch, y in 1:nyear, h in 1:nhour],
-        pflow_import_branch_to[br,y,h] <=  2*θ_bound / get_table_num(data, :branch, :x, br, y, h)
-    )
-    @constraint(model, [br in 1:nbranch, y in 1:nyear, h in 1:nhour],
-        pflow_import_branch_from[br,y,h] <=  2*θ_bound / get_table_num(data, :branch, :x, br, y, h)
     )
 
     add_build_constraints!(data, model, :gen, :pcap_gen, :pgen_gen)
@@ -306,24 +278,75 @@ function add_obj_term!(data, model, ::PerMWhGen, s::Symbol; oper)
     add_obj_exp!(data, model, PerMWhGen(), s; oper = oper)  
 end
 
-function add_obj_term!(data, model, ::PerMWhImport, s::Symbol; oper) 
+"""
+Method called to add cost/revenue of imported power to the objective function. 
+Example: EmissionPrice mod places a price on the emissions of imported power. `s` is 
+the price of imports in \$/MWh, calculated in EmissionPrice mod using emission factors. 
+Function sets up distinct vars for branch or dc_line table to avoid duplication.
+"""
+function add_obj_term!(data, model, ::PerMWhImport, s::Symbol, table::Symbol, pflow_col::Symbol; oper) 
     #Check if s has already been added to obj
     Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
 
-    #write expression for the term
-    pflow_import_bus = model[:pflow_import_bus]::Array{AffExpr, 3}
-    bus = get_table(data, :bus)
-    col = bus[!,s]
+    branch = get_table(data, table)
+    col = branch[!,s]
     nhr = get_num_hours(data)
     nyr = get_num_years(data)
     hour_weights = get_hour_weights(data)
-    model[s] = @expression(model, 
-        [bus_idx in axes(bus,1), yr_idx in 1:nyr],
-        sum(col[bus_idx][yr_idx,hr_idx] * pflow_import_bus[bus_idx, yr_idx, hr_idx]  * hour_weights[hr_idx] for hr_idx in 1:nhr) # invert becase pflow_bus is net flow out, only sum imports
-    )
+
+    # check for branches/dc_lines that connect to policy region
+    valid_branches = findall(br -> any(!iszero, col[br]), axes(branch, 1))
+
+    #write expression for the term, setting up different variables for branch vs dc line imports
+    if pflow_col == :pflow_branch   
+        pflow_branch = model[pflow_col]::Array{AffExpr, 3}
+
+        # variable and constraint together ensure that exports are not priced by setting lower bound to zero
+        # (e.g., neg pflow_branch and pos col value together indicate exports at relevant bus and vice versa)
+        import_emis_price = @variable(model,
+            [branch_idx in valid_branches, yr_idx in 1:nyr, hr_idx in 1:nhr],
+            lower_bound = 0
+        )
+
+        @constraint(model, [branch_idx in valid_branches, yr_idx in 1:nyr, hr_idx in 1: nhr],
+        import_emis_price[branch_idx, yr_idx, hr_idx] >=
+            col[branch_idx][yr_idx,hr_idx] *
+            pflow_branch[branch_idx,yr_idx,hr_idx]
+            )
+
+        # expression for imported power cost/revenue on branches
+        model[s] = @expression(model,
+        [branch_idx in valid_branches, yr_idx in 1:nyr],
+        sum(import_emis_price[branch_idx,yr_idx,hr_idx] * hour_weights[hr_idx] for hr_idx in 1:nhr))
+
+    elseif pflow_col == :pflow_dc
+        pflow_branch = model[pflow_col]::Array{VariableRef, 3}
+
+        # variable and constraint together ensure that exports are not priced by setting lower bound to zero
+        # (e.g., neg pflow_branch and pos col value together indicate exports at relevant bus and vice versa)
+        import_dc_emis_price = @variable(model,
+            [branch_idx in valid_branches, yr_idx in 1:nyr, hr_idx in 1:nhr],
+            lower_bound = 0
+        )
+
+        @constraint(model, [branch_idx in valid_branches, yr_idx in 1:nyr, hr_idx in 1: nhr],
+        import_dc_emis_price[branch_idx, yr_idx, hr_idx] >=
+            col[branch_idx][yr_idx,hr_idx] *
+            pflow_branch[branch_idx,yr_idx,hr_idx]
+            )
+
+        # expression for imported power cost/revenue on dc lines  
+        model[s] = @expression(model,
+        [branch_idx in valid_branches, yr_idx in 1:nyr],
+        sum(import_dc_emis_price[branch_idx,yr_idx,hr_idx] * hour_weights[hr_idx] for hr_idx in 1:nhr))
+    else
+        error("$(pflow_col) is not a valid option for the PerMWhImport objective term.")
+    end
+
     # add or subtract the expression from the objective function
     add_obj_exp!(data, model, PerMWhImport(), s; oper = oper)  
 end
+
 
 function add_obj_term!(data, model, ::PerMMBtu, s::Symbol; oper) 
     #Check if s has already been added to obj
@@ -490,6 +513,26 @@ function add_obj_exp!(data, model, term::Term, s::Symbol, expr::AbstractArray{<:
         :term_type => typeof(term)
     )
 end
+
+# function add_obj_exp!(data, model, term::Term, s::Symbol, expr::JuMP.Containers.DenseAxisArray; oper)
+#     # DenseAxisArray has custom axes (e.g. non-contiguous branch indices × yr_idx).
+#     # Assumed to be 2D with year in the second axis.
+#     nyr = get_num_years(data)
+#     obj = model[:obj]::Vector{AffExpr}
+#     scalar = get_scalar_from_operator(oper)
+
+#     for yr_idx in 1:nyr
+#         obj_yr = obj[yr_idx]
+#         for new_term in expr[:, yr_idx]
+#             add_to_expression!(obj_yr, scalar, new_term)
+#         end
+#     end
+
+#     data[:obj_vars][s] = OrderedDict{Symbol, Any}(
+#         :term_sign => oper,
+#         :term_type => typeof(term)
+#     )
+# end
 
 function add_obj_exp!(data, model, term::Term, s::Symbol, expr::JuMP.Containers.SparseAxisArray; oper)
     n_dims = length(first(eachindex(expr)))

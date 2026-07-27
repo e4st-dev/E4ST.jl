@@ -1,0 +1,61 @@
+base_out_path:    "../out/3bus_emiscap"
+mods:
+  example_emiscap:    # test lines of code for single ef value, tests warning for default ef value
+    type: "EmissionCap"
+    emis_col: "emis_co2"
+    cap_imports: true
+    targets: 
+      y2035: 4000
+      y2040: 3000
+    gen_filters:
+      bus_nation: "[archenland]"
+    bus_filters:
+      nation: "[archenland]"
+  example_emiscap_arch:      # included to test lines of code with region, year, hour efs
+    type: "EmissionCap"
+    emis_col: "emis_co2"
+    cap_imports: true
+    import_ef_file: "../data/3bus/import_ef_yearly.csv"
+    targets: 
+      y2035: 2000
+      y2040: 1500
+    gen_filters:
+      bus_nation: "[archenland]"
+    bus_filters:
+      nation: "[archenland]"
+  example_emiscap_narnia:    # included to test lines of code with region, hour efs
+    type: "EmissionCap"
+    emis_col: "emis_co2"
+    cap_imports: true
+    import_ef_file: "../data/3bus/import_ef.csv"
+    targets: 
+      y2035: 2000
+      y2040: 1500
+    gen_filters:
+      bus_nation: "[narnia]"
+    bus_filters:
+      nation: "[narnia]"
+  example_emiscap_narnia_empty:    # included to test lines of code where ef file has missing years and where branch idxs is empty
+    type: "EmissionCap"
+    emis_col: "emis_co2"
+    cap_imports: true
+    import_ef_file: "../data/3bus/import_ef_yearly_missing.csv"
+    targets: 
+      y2035: 2000                   #
+      y2040: 1500
+    gen_filters:
+      bus_nation: "[narnia]"
+    bus_filters:
+      nation: "[narnia]"
+  example_summer_emiscap:   # included to warn when cap_imports true but no bus_filter provided
+    type: "EmissionCap"
+    emis_col: "emis_co2"
+    targets: 
+      y2030: 1000
+    hour_filters:
+      season: "summer"
+    cap_imports: true
+    import_ef: 0.0   # mod returns empty table to tag branches, value doesn't matter
+ 
+
+

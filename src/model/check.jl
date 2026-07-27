@@ -42,10 +42,14 @@ end
 function find_constraint_name_and_index(model, cons)
     od = object_dictionary(model)
     for (k,v) in od
-        if cons in v
-            i = findfirst(==(cons), v)
-            return k, i
+        i = nothing
+        for (key, c) in v.data
+            if c === cons
+                i = key[1]
+                break
+            end
         end
+        return k, i
     end
     return :not_found, 0
 end
