@@ -1,0 +1,2 @@
+table_name,result_name,filter1,filter2,filter3,filter_years,filter_hours
+retail_price,avg_elec_rate,bus_idx,,,:,
