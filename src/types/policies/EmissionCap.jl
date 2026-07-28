@@ -276,6 +276,7 @@ function E4ST.modify_results!(pol::EmissionCap, config, data)
         
         alw_prc = ByYear(zeros(nyr))
         for y_idx in 1:nyr
+            years[y_idx] in cap_years || continue  # no compliance obligation, and thus no allowance price, outside cap years
             alw_prc[y_idx] = sum(
                 lambda_scaled[t_idx]
                 for t_idx in 1:nyr
