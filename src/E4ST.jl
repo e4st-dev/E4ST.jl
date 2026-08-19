@@ -51,6 +51,7 @@ include("types/Iterable.jl")
 include("types/Term.jl")
 include("types/Crediting.jl")
 include("types/Retrofit.jl")
+include("types/Sector.jl")
 
 # Include Modifications
 include("types/modifications/DCLine.jl")
