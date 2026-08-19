@@ -52,6 +52,9 @@ it or appends its own rows. Columns:
   columns and the Haiku eq. 10 elasticity ratio, respectively.
 * `abate_total`, `resid_emis` -- `ByYear` containers, populated post-solve by
   `modify_results!` from the model's solved expression values.
+* `elec_demand_change` -- `ByYear` container, populated post-solve by
+  `modify_results!` as `abate_total · phi` (Haiku eq. 9's responsive term,
+  in MWh) -- the induced change in electricity demand from abatement.
 
 Note: MAC step row-indices (`mac_idxs`, into the `sector_<name>_mac_steps`
 table) are *not* a column here -- they're a pure lookup with no standalone
@@ -590,6 +593,7 @@ function modify_model!(sec::Sector, config, data, model)
     cap_rows_added = add_resid_emis_to_caps!(sec, config, data, model, regsub, resid_emis)
     if cap_rows_added == 0
         @warn "Sector $name: no EmissionCap covers this sector's region-subsectors. Abatement will be zero for every MAC step in every year; the modification will not affect the LP."
+        return nothing
     end
 
      # Power-balance coupling: add ONLY the responsive electrification load
@@ -599,7 +603,6 @@ function modify_model!(sec::Sector, config, data, model)
     # adding it again would double-count in the power-balance constraint.
     add_sector_electrification_load!(sec, config, data, model, regsub, abate_total, lp, lp_index)
   
-
     model[cost_sym] = @expression(model,
         [y in 1:nyear],
         sum(abate[k, y] * mac.price[k] for k in 1:nstep)
@@ -844,12 +847,21 @@ via [`get_raw_result`](@ref) rather than the (by now emptied) JuMP `model`,
 since `modify_results!` runs after `parse_results!` has already pulled every
 registered variable/expression value into `data[:results][:raw]`.
 
+Also writes `elec_demand_change`, the induced change in electricity demand
+(Haiku eq. 9's responsive term, `abate_total · phi`, in MWh -- see
+[`add_sector_electrification_load!`](@ref)). Unlike `abate_total`/`resid_emis`,
+this isn't a separate JuMP expression -- `phi` is a precomputed constant
+(not a decision variable), so it's just an elementwise product of the
+already-retrieved `abate_total` and the `phi` column `modify_setup_data!`
+already populated.
+
 Since `:nonelec` is shared across every Sector mod instance, the
-`abate_total`/`resid_emis` columns are created (filled with a `NaN`-`ByYear`
-placeholder for every row) the first time any instance's `modify_results!`
-runs; each instance then overwrites only its own rows. Which instance runs
-first doesn't matter -- `process_results!` calls `modify_results!` for every
-mod, so every row ends up written by the time all Sector instances have run.
+`abate_total`/`resid_emis`/`elec_demand_change` columns are created (filled
+with a `NaN`-`ByYear` placeholder for every row) the first time any
+instance's `modify_results!` runs; each instance then overwrites only its
+own rows. Which instance runs first doesn't matter -- `process_results!`
+calls `modify_results!` for every mod, so every row ends up written by the
+time all Sector instances have run.
 """
 function modify_results!(sec::Sector, config, data)
     name = sec.name
@@ -858,8 +870,9 @@ function modify_results!(sec::Sector, config, data)
     isempty(row_idxs) && return nothing
 
     nyear = get_num_years(data)
-    hasproperty(regsub, :abate_total) || (regsub.abate_total = [ByYear(fill(NaN, nyear)) for _ in 1:nrow(regsub)])
-    hasproperty(regsub, :resid_emis)  || (regsub.resid_emis  = [ByYear(fill(NaN, nyear)) for _ in 1:nrow(regsub)])
+    hasproperty(regsub, :abate_total)        || (regsub.abate_total        = [ByYear(fill(NaN, nyear)) for _ in 1:nrow(regsub)])
+    hasproperty(regsub, :resid_emis)         || (regsub.resid_emis         = [ByYear(fill(NaN, nyear)) for _ in 1:nrow(regsub)])
+    hasproperty(regsub, :elec_demand_change) || (regsub.elec_demand_change = [ByYear(fill(NaN, nyear)) for _ in 1:nrow(regsub)])
 
     abate_total_raw = get_raw_result(data, Symbol("abate_total_$(name)"))::AbstractMatrix
     resid_emis_raw  = get_raw_result(data, Symbol("resid_emis_$(name)"))::AbstractMatrix
@@ -867,6 +880,9 @@ function modify_results!(sec::Sector, config, data)
     for (i, row_idx) in enumerate(row_idxs)
         regsub.abate_total[row_idx] = ByYear(Float64.(abate_total_raw[i, :]))
         regsub.resid_emis[row_idx]  = ByYear(Float64.(resid_emis_raw[i, :]))
+
+        phi = regsub.phi[row_idx]
+        regsub.elec_demand_change[row_idx] = ByYear([abate_total_raw[i, yi] * phi[yi] for yi in 1:nyear])
     end
     return nothing
 end
