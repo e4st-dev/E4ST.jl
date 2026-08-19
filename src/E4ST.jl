@@ -51,7 +51,6 @@ include("types/Iterable.jl")
 include("types/Term.jl")
 include("types/Crediting.jl")
 include("types/Retrofit.jl")
-include("types/Sector.jl")
 
 # Include Modifications
 include("types/modifications/DCLine.jl")
@@ -76,6 +75,7 @@ include("types/modifications/CapacityConstraint.jl")
 include("types/modifications/PerfectForesight.jl")
 # include("types/modifications/RetailPriceCalibration.jl")
 include("types/modifications/RetailPrice.jl")
+include("types/modifications/Sector.jl")
 
 # Include Policies
 include("types/policies/ITC.jl")
