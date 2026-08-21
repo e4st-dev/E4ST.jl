@@ -318,12 +318,17 @@ function add_import_results!(data, table_name, pol::EmissionCap, cols, alw_prc)
 
     # results formula for cost of emission cap policy contributed by imports
     add_results_formula!(data, table_name, cols.import_cost, "SumHourlyWeighted($(cols.prc), pflow)*(1-pol.offset)",
-        Dollars, "The cost of $(pol.name) attributed to imports on $(table_name)")
+        Dollars, "The cost of $(pol.name) attributed to imports on $(table_name). Import costs have also been allocated to the corresponding busses in the bus table's emission_cap_cost result formula.")
     # setup a results formula to track total cost of all emission cap policies for imported power
     haskey(get_results_formulas(data), (table_name, :emission_cap_cost)) ||
         add_results_formula!(data, table_name, :emission_cap_cost, "0", Dollars,
-            "Cost attributed to imports for all emission caps on $(table_name)")
+            "Cost attributed to imports for all emission caps on $(table_name). Import costs have aslo been allocated to the corresponding busses in the bus table's emission_cap_cost result formula")
     add_to_results_formula!(data, table_name, :emission_cap_cost, cols.import_cost)
+
+    # attribute the import cost to the importing bus, so that it can be aggregated/filtered by
+    # any area available on the bus table (e.g. state) - branch/dc_line rows span two areas and
+    # have no area columns of their own.
+    add_import_cost_to_bus!(data, table_name, pol, cols, prc_col)
 
     # results formula to track associated emissions from imported power
     if pol.emis_col == "emis_co2"
@@ -332,6 +337,47 @@ function add_import_results!(data, table_name, pol::EmissionCap, cols, alw_prc)
         unit = Pounds
     end
     add_results_formula!(data, table_name, cols.import_emis_result, "SumHourlyWeighted($(cols.import_emis), (pflow .* $(cols.flag)))", unit, "Total emissions from imported power under $(pol.name). Note the imported emissions are calculated using the exogenous ef inputs and do not reflect the actual ef of the model run.")
+end
+
+"""
+    add_import_cost_to_bus!(data, table_name, pol::EmissionCap, cols, prc_col)
+
+Allocates the per-row import cost computed in [`add_import_results!`](@ref) (using the same
+per-row price container `prc_col`) onto the importing bus,which is the endpoint inside the capped
+region (`t_bus_idx` when `dir > 0`, `f_bus_idx` when `dir < 0`). This mirrors how branch-level
+merchandising surplus is allocated to buses in `parse_lmp_results!`. This is necessary to compute
+results like retail price at the state level, since the branch and dc line table have no area
+columns. 
+"""
+function add_import_cost_to_bus!(data, table_name, pol::EmissionCap, cols, prc_col)
+    table = get_table(data, table_name)
+    bus = get_table(data, :bus)
+    nyr = get_num_years(data)
+    nhr = get_num_hours(data)
+    hour_weights = get_hour_weights(data)
+
+    bus_cost_col = Symbol("$(pol.name)_import_cost")
+    bus_cost_total = Symbol("$(pol.name)_import_cost_total")
+    if !hasproperty(bus, bus_cost_col)
+        add_table_col!(data, :bus, bus_cost_col, Container[ByYearAndHour(zeros(nyr, nhr)) for _ in 1:nrow(bus)], Dollars,
+            "Cost of $(pol.name) attributed to imports, allocated to the importing bus.")
+        add_results_formula!(data, :bus, bus_cost_total, "SumHourly($(bus_cost_col))", Dollars,
+            "Total cost of $(pol.name) attributed to imports, allocated to buses.")
+        haskey(get_results_formulas(data), (:bus, :emission_cap_cost)) ||
+            add_results_formula!(data, :bus, :emission_cap_cost, "0", Dollars,
+                "Cost attributed to imports for all emission caps, allocated to buses.")
+        add_to_results_formula!(data, :bus, :emission_cap_cost, bus_cost_total)
+    end
+
+    for (row_idx, row) in enumerate(eachrow(table))
+        dir = row[cols.dir]
+        dir == 0 && continue
+        bus_idx = dir > 0 ? row[:t_bus_idx] : row[:f_bus_idx]
+        prc = prc_col[row_idx]
+        for y in 1:nyr, h in 1:nhr
+            bus[bus_idx, bus_cost_col][y,h] += hour_weights[h] * prc[y,h] * row[:pflow][y,h] * (1-pol.offset)
+        end
+    end
 end
 
 """

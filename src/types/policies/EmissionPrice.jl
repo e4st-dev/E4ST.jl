@@ -225,6 +225,11 @@ function add_import_results!(data, table_name, pol::EmissionPrice, col::Symbol)
                             "The total cost of imported emissions for $(table_name).")
     add_to_results_formula!(data, table_name, :emission_cost, cols.import_cost)
 
+    # attribute the import cost to the importing bus, so that it can be aggregated/filtered by
+    # any area available on the bus table (e.g. state) - branch/dc_line rows span two areas and
+    # have no area columns of their own.
+    add_import_cost_to_bus!(data, table_name, pol, col)
+
     if pol.emis_col == "emis_co2"
         unit = ShortTons
     else
@@ -232,6 +237,48 @@ function add_import_results!(data, table_name, pol::EmissionPrice, col::Symbol)
     end
 
     add_results_formula!(data, table_name, cols.import_emis_result, "SumHourlyWeighted($(cols.import_emis), (pflow .* $(cols.flag)))", unit, "Total emissions from imported power under $(pol.name). Note the imported emissions are calculated using the exogenous ef inputs and do not reflect the actual ef of the model run.")
+end
+
+"""
+    add_import_cost_to_bus!(data, table_name, pol::EmissionPrice, col::Symbol)
+Allocates the per-row import cost computed in [`add_import_results!`](@ref) (using the same
+per-row price container `prc_col`) onto the importing bus,which is the endpoint inside the capped
+region (`t_bus_idx` when `dir > 0`, `f_bus_idx` when `dir < 0`). This mirrors how branch-level
+merchandising surplus is allocated to buses in `parse_lmp_results!`. This is necessary to compute
+results like retail price at the state level, since the branch and dc line table have no area
+columns. 
+"""
+function add_import_cost_to_bus!(data, table_name, pol::EmissionPrice, col::Symbol)
+    table = get_table(data, table_name)
+    bus = get_table(data, :bus)
+    cols = _emisprc_colnames(pol, table_name)
+    nyr = get_num_years(data)
+    nhr = get_num_hours(data)
+    hour_weights = get_hour_weights(data)
+    bus_set = Set(get_row_idxs(bus, parse_comparisons(pol.bus_filters)))
+
+    bus_cost_col = Symbol("$(pol.name)_import_cost")
+    bus_cost_total = Symbol("$(pol.name)_import_cost_total")
+    if !hasproperty(bus, bus_cost_col)
+        add_table_col!(data, :bus, bus_cost_col, Container[ByYearAndHour(zeros(nyr, nhr)) for _ in 1:nrow(bus)], Dollars,
+            "Cost of $(pol.name) attributed to imports, allocated to the importing bus.")
+        add_results_formula!(data, :bus, bus_cost_total, "SumHourly($(bus_cost_col))", Dollars,
+            "Total cost of $(pol.name) attributed to imports, allocated to buses.")
+        haskey(get_results_formulas(data), (:bus, :emission_cost)) ||
+            add_results_formula!(data, :bus, :emission_cost, "0", Dollars,
+                "The total cost of imported emissions, allocated to buses.")
+        add_to_results_formula!(data, :bus, :emission_cost, bus_cost_total)
+    end
+
+    for row in eachrow(table)
+        t_in = row[:t_bus_idx] in bus_set
+        f_in = row[:f_bus_idx] in bus_set
+        t_in == f_in && continue  # not a branch/dc_line crossing the priced region boundary
+        bus_idx = t_in ? row[:t_bus_idx] : row[:f_bus_idx]
+        for y in 1:nyr, h in 1:nhr
+            bus[bus_idx, bus_cost_col][y,h] += hour_weights[h] * row[col][y,h] * row[:pflow][y,h] * row[cols.flag][y,h]
+        end
+    end
 end
 
 
