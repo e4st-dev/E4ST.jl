@@ -498,7 +498,7 @@ function make_paths_absolute!(config, filename)
 end
 make_paths_absolute!(config) = make_paths_absolute!(config, config[:config_file])
 
-_abspath(path, fn::AbstractString) = abspath(path, fn)
+_abspath(path, fn::AbstractString) = isempty(fn) ? fn : abspath(path, fn)
 _abspath(path, fns::AbstractVector{<:AbstractString}) = map(fn->(isabspath(fn) ? fn : abspath(path, fn)), fns)
 """
     contains_file_or_path(s) -> Bool
