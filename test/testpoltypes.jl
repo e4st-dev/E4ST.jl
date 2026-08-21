@@ -442,6 +442,9 @@
                 target_2040 = config[:mods][:example_emiscap_arch][:targets][:y2040]
                 @test total_emis_2040 <= target_2040 || total_emis_2040 ≈ target_2040
 
+                # check that the results formulas on the branch and bus tables are aligned
+                @test compute_result(data, :branch, :emission_cap_cost) + compute_result(data, :dc_line, :emission_cap_cost) ≈ compute_result(data, :bus, :emission_cap_cost)
+
             end
         end
 
@@ -761,6 +764,9 @@
                 
                 @test compute_result(data, :branch, :example_emisprc_arch_import_emis, (:), "y2040") > 0
                 @test compute_result(data, :dc_line, :example_emisprc_arch_import_emis, (:), "y2040") > 0
+
+                # check that the results formulas on the branch and bus tables are aligned
+                @test compute_result(data, :branch, :emission_cost) + compute_result(data, :dc_line, :emission_cost) ≈ compute_result(data, :bus, :emission_cost)
 
             end
         end
