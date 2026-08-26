@@ -19,16 +19,26 @@ Emission Price - A price on a certain emission for a given set of generators.
 * `import_ef_file`: File that contains emissions factors of imported power by region and hour. Optional.
 
 ### Table Column Added:
+Naming note: In this mod, the `<name>` column holds the exogenous input price value, which is known when the mmodel is built. This isthe same convention used by other exogenous-price policies ([`PTC`](@ref), [`ITC`](@ref), [`ITCStorage`](@ref)). 
+This differs from policies with a post-solve shadow price (e.g. [`EmissionCap`](@ref), `GenerationStandard`, `ReserveRequirement`), where the `<name>` column is instead used as a indicator, and the `$`/MWh price is computed afterward into a separate `<name>_prc`-style column.
 * `(:gen, :<name>)` - emissions price per MWh generated for each policy
-* `(:gen, :<name>_capex_adj)` - Adjustment factor added to the obj function as a PerMWCapInv term to account for emisprc payments that do not continue through the entire econ lifetime of a generator
-* `(:branch, :<name>_imports)` - emission price per MWh imported for branches
-* `(:dc_line, :<name>_dc_imports)` - emission price per MWh imported for dc lines
+* `(:gen, :<name>_capex_adj)` - Adjustment factor added to the obj function as a PerMWCapInv term to account for emisprc payments that do not continue through the entire econ lifetime of a generator. Only added when `years_after_ref_min`/`years_after_ref_max` are set to non-default values.
+* `(:branch, :<name>_<emis_col>)` - Emissions factor of imported power (e.g. `<name>_emis_co2`). Only added when `price_imports=true`.
+* `(:dc_line, :<name>_<emis_col>)` - Emissions factor of imported power (e.g. `<name>_emis_co2`). Only added when `price_imports=true`.
+* `(:branch, :<name>_imports)` - emission price per MWh imported for branches. Only added when `price_imports=true`.
+* `(:dc_line, :<name>_dc_imports)` - emission price per MWh imported for dc lines. Only added when `price_imports=true`.
+* `(:branch, :<name>_flag)` - Sign of realized import flow direction, nonzero only where `pflow * <name>_imports > 0`; used to isolate import flows in results formulas. Only added when `price_imports=true`.
+* `(:dc_line, :<name>_flag)` - Sign of realized import flow direction, nonzero only where `pflow * <name>_dc_imports > 0`; used to isolate import flows in results formulas. Only added when `price_imports=true`.
+* `(:bus, :<name>_import_cost)` - Cost of the policy attributed to imports, allocated to the importing bus (`ByYearAndHour`). Only added when `price_imports=true`.
 
 ### Results Formulas:
 * `(:gen, :<name>_cost)` - the cost of the policy, excluding imports
 * `(:gen, :<name>_capex_adj_total)` - The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.
 * `(:branch, :<name>_import_cost)` - the cost of imports on branches for the policy
 * `(:dc_line, :<name>_import_cost)` - the cost of imports on dc lines for the policy
+* `(:branch, :<name>_import_emis)` - Total emissions from imported power. Only added when `price_imports=true`.
+* `(:dc_line, :<name>_import_emis)` - Total emissions from imported power. Only added when `price_imports=true`.
+* `(:bus, :<name>_import_cost_total)` - Total cost of the policy attributed to imports, allocated to buses. Only added when `price_imports=true`.
 
 """
 struct EmissionPrice <: Policy
@@ -225,6 +235,11 @@ function add_import_results!(data, table_name, pol::EmissionPrice, col::Symbol)
                             "The total cost of imported emissions for $(table_name).")
     add_to_results_formula!(data, table_name, :emission_cost, cols.import_cost)
 
+    # attribute the import cost to the importing bus, so that it can be aggregated/filtered by
+    # any area available on the bus table (e.g. state) - branch/dc_line rows span two areas and
+    # have no area columns of their own.
+    add_import_cost_to_bus!(data, table_name, pol, col)
+
     if pol.emis_col == "emis_co2"
         unit = ShortTons
     else
@@ -232,6 +247,48 @@ function add_import_results!(data, table_name, pol::EmissionPrice, col::Symbol)
     end
 
     add_results_formula!(data, table_name, cols.import_emis_result, "SumHourlyWeighted($(cols.import_emis), (pflow .* $(cols.flag)))", unit, "Total emissions from imported power under $(pol.name). Note the imported emissions are calculated using the exogenous ef inputs and do not reflect the actual ef of the model run.")
+end
+
+"""
+    add_import_cost_to_bus!(data, table_name, pol::EmissionPrice, col::Symbol)
+Allocates the per-row import cost computed in [`add_import_results!`](@ref) (using the same
+per-row price container `prc_col`) onto the importing bus,which is the endpoint inside the capped
+region (`t_bus_idx` when `dir > 0`, `f_bus_idx` when `dir < 0`). This mirrors how branch-level
+merchandising surplus is allocated to buses in `parse_lmp_results!`. This is necessary to compute
+results like retail price at the state level, since the branch and dc line table have no area
+columns. 
+"""
+function add_import_cost_to_bus!(data, table_name, pol::EmissionPrice, col::Symbol)
+    table = get_table(data, table_name)
+    bus = get_table(data, :bus)
+    cols = _emisprc_colnames(pol, table_name)
+    nyr = get_num_years(data)
+    nhr = get_num_hours(data)
+    hour_weights = get_hour_weights(data)
+    bus_set = Set(get_row_idxs(bus, parse_comparisons(pol.bus_filters)))
+
+    bus_cost_col = Symbol("$(pol.name)_import_cost")
+    bus_cost_total = Symbol("$(pol.name)_import_cost_total")
+    if !hasproperty(bus, bus_cost_col)
+        add_table_col!(data, :bus, bus_cost_col, Container[ByYearAndHour(zeros(nyr, nhr)) for _ in 1:nrow(bus)], Dollars,
+            "Cost of $(pol.name) attributed to imports, allocated to the importing bus.")
+        add_results_formula!(data, :bus, bus_cost_total, "SumHourly($(bus_cost_col))", Dollars,
+            "Total cost of $(pol.name) attributed to imports, allocated to buses.")
+        haskey(get_results_formulas(data), (:bus, :emission_cost)) ||
+            add_results_formula!(data, :bus, :emission_cost, "0", Dollars,
+                "The total cost of imported emissions, allocated to buses.")
+        add_to_results_formula!(data, :bus, :emission_cost, bus_cost_total)
+    end
+
+    for row in eachrow(table)
+        t_in = row[:t_bus_idx] in bus_set
+        f_in = row[:f_bus_idx] in bus_set
+        t_in == f_in && continue  # not a branch/dc_line crossing the priced region boundary
+        bus_idx = t_in ? row[:t_bus_idx] : row[:f_bus_idx]
+        for y in 1:nyr, h in 1:nhr
+            bus[bus_idx, bus_cost_col][y,h] += hour_weights[h] * row[col][y,h] * row[:pflow][y,h] * row[cols.flag][y,h]
+        end
+    end
 end
 
 
