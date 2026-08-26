@@ -60,5 +60,19 @@
 
     newconfig = nothing
 
+    @testset "YAML printing of NamedTuple config values" begin
+        # Modification/Policy fields aren't required to be OrderedDicts - a field could be a
+        # NamedTuple, which YAML.jl doesn't know how to serialize on its own. E4ST teaches it how
+        # via a YAML._print(io, ::NamedTuple, ...) override (see config.jl), converting the
+        # NamedTuple to an OrderedDict before printing. Test that override directly here.
+        nt = (a = 1, b = "two", c = [1, 2, 3])
+        io = IOBuffer()
+        YAML.write(io, nt)
+        yaml_str = String(take!(io))
+
+        reloaded = YAML.load(yaml_str, dicttype = OrderedDict{Symbol, Any})
+        @test reloaded == OrderedDict(pairs(nt))
+    end
+
 end
 

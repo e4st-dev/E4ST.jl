@@ -21,24 +21,36 @@ Note: The banking formulation in this modification requires that years[n] - year
 * `banking`: Bool that indicates if emissions banking is allowed across years. When true, the constraint is cumulative: the sum of emissions from the first cap year through each year must be ≤ the sum of caps over those years plus `initial_bank`. Defaults to false.
 * `initial_bank`: Initial allowance bank (in the same units as targets) available at the start of the first cap year. Only used when `banking=true`. Defaults to 0.0.
 * `offset`: The amount of offsets allowed, represented as a percentage. The factor represents a limit on the use of offsets as a fraction of the entity's compliance obligation. Defaults to 0.
-* `offset_under_cap`: Bool that indicates whether offsets are under or outside the emission cap, defaults to true. 
-* `price_resp_alws`: Bool that turns on price responsive allowances, defaults to false.
+* `offset_under_cap`: Bool that indicates whether offsets are under or outside the emission cap, defaults to true. Either way, offsets impact the revenue calculation because offsets are not bought in the allowance auction and payments are instead made to offset providers (although the model does not track this). The same offset proportion is applied to the calculated cost for both in-region (gen) emissions and imported emissions.
+* `price_resp_alws`: Bool that turns on price responsive allowances, defaults to false. 
 * `step_prices`: Length-k vector of prices for each step.
 * `step_adders`: Length-k vector of allowance quantities added to (positive) or withdrawn from (negative) the base target at each price step, which defines the cumulative supply available at step k. When representing a price ceiling, include a backstop step with Inf allowances.
 * `rate`: The rate step prices increase by each year. Defaults to 5%. Prices escalate relative to the first year that has a target.
 
 ### Table Column Added:
+Naming note: In this mod, the `<name>`` column is used to indicate which gens/branches/dc lines qualify under the cap, and the `<name>_prc`` column records the allowance price of policy which is unknown until after model solve. This is the same convention used by other post-solve-shadow-price policies (`GenerationStandard`, `ReserveRequirement`). 
+It differs from policies with an exogenous input price (e.g. [`EmissionPrice`](@ref), [`PTC`](@ref), [`ITC`](@ref)), where the`<name>` column holds the `$`/MWh value directly.
+* `(:gen, :<name>)` - Indicator marking whether the gen's emissions count toward the cap.
 * `(:gen, :<name>_prc)` - the allowance price of the policy converted to DollarsPerMWhGenerated
-* `(:branch, :<name>_prc)` - the allowance price of the policy converted to DollarsPerMWhGenerated
-* `(:dc_line, :<name>_prc)` - the allowance price of the policy converted to DollarsPerMWhGenerated
-* `(:branch, :<name>_import_emis)` - Total emissions from imported power on dc lines
-* `(:dc_line, :<name>_import_emis)` - Total emissions from imported power on dc lines
-
+* `(:branch, :<name>)` - Same indicator as `(:gen, :<name>)`, for branches that cross into the capped region. Only added when `cap_imports=true`.
+* `(:dc_line, :<name>)` - Same indicator as `(:gen, :<name>)`, for dc_lines that cross into the capped region. Only added when `cap_imports=true`.
+* `(:branch, :<name>_dir)` - Signed direction scalar: +1 if `t_bus_idx` is in the capped region, -1 if `f_bus_idx` is. Only added when `cap_imports=true`.
+* `(:dc_line, :<name>_dir)` - Signed direction scalar: +1 if `t_bus_idx` is in the capped region, -1 if `f_bus_idx` is. Only added when `cap_imports=true`.
+* `(:branch, :<name>_<emis_col>)` - Emissions factor of imported power (e.g. `<name>_emis_co2`). Only added when `cap_imports=true`.
+* `(:dc_line, :<name>_<emis_col>)` - Emissions factor of imported power (e.g. `<name>_emis_co2`). Only added when `cap_imports=true`.
+* `(:branch, :<name>_flag)` - Sign of realized import flow direction, nonzero only where `pflow * <name>_dir > 0`; used to isolate import flows in results formulas. Only added when `cap_imports=true`.
+* `(:dc_line, :<name>_flag)` - Sign of realized import flow direction, nonzero only where `pflow * <name>_dir > 0`; used to isolate import flows in results formulas. Only added when `cap_imports=true`.
+* `(:branch, :<name>_prc)` - the allowance price of the policy per MWh of imports. Only added when `cap_imports=true`.
+* `(:dc_line, :<name>_prc)` - the allowance price of the policy per MWh of imports. Only added when `cap_imports=true`.
+* `(:bus, :<name>_import_cost)` - Cost of the policy attributed to imports, allocated to the importing bus (`ByYearAndHour`). Only added when `cap_imports=true`.
 
 ### Results Formula:
-* `(:gen, :cost_name)` - the cost of the policy based on the allowance price, determined using the shadow price of the generation constraint
-* `(:branch, :cost_name)` - the cost of the policy based on the allowance price, determined using the shadow price of the generation constraint
-* `(:dc_line, :cost_name)` - the cost of the policy based on the allowance price, determined using the shadow price of the generation constraint
+* `(:gen, :<name>_cost)` - the cost of the policy based on the allowance price, determined using the shadow price of the generation constraint
+* `(:branch, :<name>_import_cost)` - the cost of the policy attributed to imports. Only added when `cap_imports=true`.
+* `(:dc_line, :<name>_import_cost)` - the cost of the policy attributed to imports. Only added when `cap_imports=true`.
+* `(:branch, :<name>_import_emis)` - Total emissions from imported power. Only added when `cap_imports=true`.
+* `(:dc_line, :<name>_import_emis)` - Total emissions from imported power. Only added when `cap_imports=true`.
+* `(:bus, :<name>_import_cost_total)` - Total cost of the policy attributed to imports, allocated to buses. Only added when `cap_imports=true`.
 
 """
 struct EmissionCap <: Policy
@@ -98,6 +110,7 @@ function _emiscap_colnames(pol::EmissionCap)
     return (
         prc                = Symbol("$(pol.name)_prc"),
         cost               = Symbol("$(pol.name)_cost"),
+        offset_factor      = Symbol("$(pol.name)_offset_factor"),
         import_cost        = Symbol("$(pol.name)_import_cost"),
         import_emis        = Symbol("$(pol.name)_$(pol.emis_col)"),
         flag               = Symbol("$(pol.name)_flag"),
@@ -291,7 +304,11 @@ function E4ST.modify_results!(pol::EmissionCap, config, data)
     prc_col = [(-alw_prc) .* g[pol.name] .* g[pol.emis_col] for g in eachrow(gen)] #($/MWh Generated)
     add_table_col!(data, :gen, cols.prc, prc_col, DollarsPerMWhGenerated, "Allowance price of $(pol.name) converted to DollarsPerMWhGenerated")
 
-    add_results_formula!(data, :gen, cols.cost, "SumHourlyWeighted($(cols.prc), pgen)*(1-pol.offset)", Dollars, "The cost of $(pol.name) based on the allowance price, which is determined with the shadow price of the generation constraint")
+    # offsets (under and outside the cap) impact revenue calculation because they are not bough in the allowance auction, instead the payments are made to offset providers
+    # set up offset col to scale the cost in the results formula
+    data[cols.offset_factor] = ByNothing(1 - pol.offset)
+    println(pol.offset)
+    add_results_formula!(data, :gen, cols.cost, "SumHourlyWeighted($(cols.prc), pgen, $(cols.offset_factor))", Dollars, "The cost of $(pol.name) based on the allowance price, which is determined with the shadow price of the generation constraint, reduced by the offset fraction of compliance obligation ($(pol.offset)).")
     add_to_results_formula!(data, :gen, :emission_cap_cost, cols.cost)
 
     if pol.cap_imports
@@ -317,13 +334,18 @@ function add_import_results!(data, table_name, pol::EmissionCap, cols, alw_prc)
         "Allowance price of $(pol.name) per MWh of imports on $(table_name)")
 
     # results formula for cost of emission cap policy contributed by imports
-    add_results_formula!(data, table_name, cols.import_cost, "SumHourlyWeighted($(cols.prc), pflow)*(1-pol.offset)",
-        Dollars, "The cost of $(pol.name) attributed to imports on $(table_name)")
+    add_results_formula!(data, table_name, cols.import_cost, "SumHourlyWeighted($(cols.prc), pflow, $(cols.offset_factor))",
+        Dollars, "The cost of $(pol.name) attributed to imports on $(table_name), reduced by the offset fraction of compliance obligation ($(pol.offset)). Import costs have also been allocated to the corresponding busses in the bus table's emission_cap_cost result formula.")
     # setup a results formula to track total cost of all emission cap policies for imported power
     haskey(get_results_formulas(data), (table_name, :emission_cap_cost)) ||
         add_results_formula!(data, table_name, :emission_cap_cost, "0", Dollars,
-            "Cost attributed to imports for all emission caps on $(table_name)")
+            "Cost attributed to imports for all emission caps on $(table_name). Import costs have aslo been allocated to the corresponding busses in the bus table's emission_cap_cost result formula")
     add_to_results_formula!(data, table_name, :emission_cap_cost, cols.import_cost)
+
+    # attribute the import cost to the importing bus, so that it can be aggregated/filtered by
+    # any area available on the bus table (e.g. state) - branch/dc_line rows span two areas and
+    # have no area columns of their own.
+    add_import_cost_to_bus!(data, table_name, pol, cols, prc_col)
 
     # results formula to track associated emissions from imported power
     if pol.emis_col == "emis_co2"
@@ -332,6 +354,47 @@ function add_import_results!(data, table_name, pol::EmissionCap, cols, alw_prc)
         unit = Pounds
     end
     add_results_formula!(data, table_name, cols.import_emis_result, "SumHourlyWeighted($(cols.import_emis), (pflow .* $(cols.flag)))", unit, "Total emissions from imported power under $(pol.name). Note the imported emissions are calculated using the exogenous ef inputs and do not reflect the actual ef of the model run.")
+end
+
+"""
+    add_import_cost_to_bus!(data, table_name, pol::EmissionCap, cols, prc_col)
+
+Allocates the per-row import cost computed in [`add_import_results!`](@ref) (using the same
+per-row price container `prc_col`) onto the importing bus,which is the endpoint inside the capped
+region (`t_bus_idx` when `dir > 0`, `f_bus_idx` when `dir < 0`). This mirrors how branch-level
+merchandising surplus is allocated to buses in `parse_lmp_results!`. This is necessary to compute
+results like retail price at the state level, since the branch and dc line table have no area
+columns. 
+"""
+function add_import_cost_to_bus!(data, table_name, pol::EmissionCap, cols, prc_col)
+    table = get_table(data, table_name)
+    bus = get_table(data, :bus)
+    nyr = get_num_years(data)
+    nhr = get_num_hours(data)
+    hour_weights = get_hour_weights(data)
+
+    bus_cost_col = Symbol("$(pol.name)_import_cost")
+    bus_cost_total = Symbol("$(pol.name)_import_cost_total")
+    if !hasproperty(bus, bus_cost_col)
+        add_table_col!(data, :bus, bus_cost_col, Container[ByYearAndHour(zeros(nyr, nhr)) for _ in 1:nrow(bus)], Dollars,
+            "Cost of $(pol.name) attributed to imports, allocated to the importing bus.")
+        add_results_formula!(data, :bus, bus_cost_total, "SumHourly($(bus_cost_col))", Dollars,
+            "Total cost of $(pol.name) attributed to imports, allocated to buses.")
+        haskey(get_results_formulas(data), (:bus, :emission_cap_cost)) ||
+            add_results_formula!(data, :bus, :emission_cap_cost, "0", Dollars,
+                "Cost attributed to imports for all emission caps, allocated to buses.")
+        add_to_results_formula!(data, :bus, :emission_cap_cost, bus_cost_total)
+    end
+
+    for (row_idx, row) in enumerate(eachrow(table))
+        dir = row[cols.dir]
+        dir == 0 && continue
+        bus_idx = dir > 0 ? row[:t_bus_idx] : row[:f_bus_idx]
+        prc = prc_col[row_idx]
+        for y in 1:nyr, h in 1:nhr
+            bus[bus_idx, bus_cost_col][y,h] += hour_weights[h] * prc[y,h] * row[:pflow][y,h] * (1-pol.offset)
+        end
+    end
 end
 
 """
