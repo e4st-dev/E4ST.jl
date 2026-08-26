@@ -305,6 +305,36 @@
             @test compute_result(data, :gen, :emis_co2_total, :, 1, :season=>"summer") ≈ 1000
         end
 
+        @testset "Test Emission Cap with Offset" begin
+            # `offset` should scale down the reported cost without moving the physical
+            # cap constraint (targets, allowance price), since offset_under_cap defaults
+            # to true (offsets are counted toward compliance, not used to loosen the cap).
+            config_file = joinpath(@__DIR__, "config", "config_3bus_emiscap_offset.yml")
+            config_offset = read_config(config_file_ref, config_file)
+            data_offset = read_data(config_offset)
+            model_offset = setup_model(config_offset, data_offset)
+            optimize!(model_offset)
+            @test check(config_offset, data_offset, model_offset)
+
+            parse_results!(config_offset, data_offset, model_offset)
+            process_results!(config_offset, data_offset)
+
+            offset = config_offset[:mods][:example_emiscap][:offset]
+            @test offset > 0
+
+            gen_base = get_table(data, :gen)
+            gen_offset = get_table(data_offset, :gen)
+
+            # allowance price shouldn't move: offset only scales the reported cost below
+            prc_sum_base = sum(prc -> sum(prc.v), gen_base.example_emiscap_prc)
+            prc_sum_offset = sum(prc -> sum(prc.v), gen_offset.example_emiscap_prc)
+            @test prc_sum_offset ≈ prc_sum_base
+
+            cost_base = compute_result(data, :gen, :example_emiscap_cost)
+            cost_offset = compute_result(data_offset, :gen, :example_emiscap_cost)
+            @test cost_offset ≈ (1 - offset) * cost_base
+        end
+
         @testset "Test Emission Cap with Leakage" begin
 
             @testset "EmissionCap constructor validation" begin

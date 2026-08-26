@@ -21,8 +21,8 @@ Note: The banking formulation in this modification requires that years[n] - year
 * `banking`: Bool that indicates if emissions banking is allowed across years. When true, the constraint is cumulative: the sum of emissions from the first cap year through each year must be ≤ the sum of caps over those years plus `initial_bank`. Defaults to false.
 * `initial_bank`: Initial allowance bank (in the same units as targets) available at the start of the first cap year. Only used when `banking=true`. Defaults to 0.0.
 * `offset`: The amount of offsets allowed, represented as a percentage. The factor represents a limit on the use of offsets as a fraction of the entity's compliance obligation. Defaults to 0.
-* `offset_under_cap`: Bool that indicates whether offsets are under or outside the emission cap, defaults to true. 
-* `price_resp_alws`: Bool that turns on price responsive allowances, defaults to false.
+* `offset_under_cap`: Bool that indicates whether offsets are under or outside the emission cap, defaults to true. Either way, offsets impact the revenue calculation because offsets are not bought in the allowance auction and payments are instead made to offset providers (although the model does not track this). The same offset proportion is applied to the calculated cost for both in-region (gen) emissions and imported emissions.
+* `price_resp_alws`: Bool that turns on price responsive allowances, defaults to false. 
 * `step_prices`: Length-k vector of prices for each step.
 * `step_adders`: Length-k vector of allowance quantities added to (positive) or withdrawn from (negative) the base target at each price step, which defines the cumulative supply available at step k. When representing a price ceiling, include a backstop step with Inf allowances.
 * `rate`: The rate step prices increase by each year. Defaults to 5%. Prices escalate relative to the first year that has a target.
@@ -110,6 +110,7 @@ function _emiscap_colnames(pol::EmissionCap)
     return (
         prc                = Symbol("$(pol.name)_prc"),
         cost               = Symbol("$(pol.name)_cost"),
+        offset_factor      = Symbol("$(pol.name)_offset_factor"),
         import_cost        = Symbol("$(pol.name)_import_cost"),
         import_emis        = Symbol("$(pol.name)_$(pol.emis_col)"),
         flag               = Symbol("$(pol.name)_flag"),
@@ -303,7 +304,11 @@ function E4ST.modify_results!(pol::EmissionCap, config, data)
     prc_col = [(-alw_prc) .* g[pol.name] .* g[pol.emis_col] for g in eachrow(gen)] #($/MWh Generated)
     add_table_col!(data, :gen, cols.prc, prc_col, DollarsPerMWhGenerated, "Allowance price of $(pol.name) converted to DollarsPerMWhGenerated")
 
-    add_results_formula!(data, :gen, cols.cost, "SumHourlyWeighted($(cols.prc), pgen)*(1-pol.offset)", Dollars, "The cost of $(pol.name) based on the allowance price, which is determined with the shadow price of the generation constraint")
+    # offsets (under and outside the cap) impact revenue calculation because they are not bough in the allowance auction, instead the payments are made to offset providers
+    # set up offset col to scale the cost in the results formula
+    data[cols.offset_factor] = ByNothing(1 - pol.offset)
+    println(pol.offset)
+    add_results_formula!(data, :gen, cols.cost, "SumHourlyWeighted($(cols.prc), pgen, $(cols.offset_factor))", Dollars, "The cost of $(pol.name) based on the allowance price, which is determined with the shadow price of the generation constraint, reduced by the offset fraction of compliance obligation ($(pol.offset)).")
     add_to_results_formula!(data, :gen, :emission_cap_cost, cols.cost)
 
     if pol.cap_imports
@@ -329,8 +334,8 @@ function add_import_results!(data, table_name, pol::EmissionCap, cols, alw_prc)
         "Allowance price of $(pol.name) per MWh of imports on $(table_name)")
 
     # results formula for cost of emission cap policy contributed by imports
-    add_results_formula!(data, table_name, cols.import_cost, "SumHourlyWeighted($(cols.prc), pflow)*(1-pol.offset)",
-        Dollars, "The cost of $(pol.name) attributed to imports on $(table_name). Import costs have also been allocated to the corresponding busses in the bus table's emission_cap_cost result formula.")
+    add_results_formula!(data, table_name, cols.import_cost, "SumHourlyWeighted($(cols.prc), pflow, $(cols.offset_factor))",
+        Dollars, "The cost of $(pol.name) attributed to imports on $(table_name), reduced by the offset fraction of compliance obligation ($(pol.offset)). Import costs have also been allocated to the corresponding busses in the bus table's emission_cap_cost result formula.")
     # setup a results formula to track total cost of all emission cap policies for imported power
     haskey(get_results_formulas(data), (table_name, :emission_cap_cost)) ||
         add_results_formula!(data, table_name, :emission_cap_cost, "0", Dollars,
