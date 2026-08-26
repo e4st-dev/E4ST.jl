@@ -19,16 +19,26 @@ Emission Price - A price on a certain emission for a given set of generators.
 * `import_ef_file`: File that contains emissions factors of imported power by region and hour. Optional.
 
 ### Table Column Added:
+Naming note: In this mod, the `<name>` column holds the exogenous input price value, which is known when the mmodel is built. This isthe same convention used by other exogenous-price policies ([`PTC`](@ref), [`ITC`](@ref), [`ITCStorage`](@ref)). 
+This differs from policies with a post-solve shadow price (e.g. [`EmissionCap`](@ref), `GenerationStandard`, `ReserveRequirement`), where the `<name>` column is instead used as a indicator, and the `$`/MWh price is computed afterward into a separate `<name>_prc`-style column.
 * `(:gen, :<name>)` - emissions price per MWh generated for each policy
-* `(:gen, :<name>_capex_adj)` - Adjustment factor added to the obj function as a PerMWCapInv term to account for emisprc payments that do not continue through the entire econ lifetime of a generator
-* `(:branch, :<name>_imports)` - emission price per MWh imported for branches
-* `(:dc_line, :<name>_dc_imports)` - emission price per MWh imported for dc lines
+* `(:gen, :<name>_capex_adj)` - Adjustment factor added to the obj function as a PerMWCapInv term to account for emisprc payments that do not continue through the entire econ lifetime of a generator. Only added when `years_after_ref_min`/`years_after_ref_max` are set to non-default values.
+* `(:branch, :<name>_<emis_col>)` - Emissions factor of imported power (e.g. `<name>_emis_co2`). Only added when `price_imports=true`.
+* `(:dc_line, :<name>_<emis_col>)` - Emissions factor of imported power (e.g. `<name>_emis_co2`). Only added when `price_imports=true`.
+* `(:branch, :<name>_imports)` - emission price per MWh imported for branches. Only added when `price_imports=true`.
+* `(:dc_line, :<name>_dc_imports)` - emission price per MWh imported for dc lines. Only added when `price_imports=true`.
+* `(:branch, :<name>_flag)` - Sign of realized import flow direction, nonzero only where `pflow * <name>_imports > 0`; used to isolate import flows in results formulas. Only added when `price_imports=true`.
+* `(:dc_line, :<name>_flag)` - Sign of realized import flow direction, nonzero only where `pflow * <name>_dc_imports > 0`; used to isolate import flows in results formulas. Only added when `price_imports=true`.
+* `(:bus, :<name>_import_cost)` - Cost of the policy attributed to imports, allocated to the importing bus (`ByYearAndHour`). Only added when `price_imports=true`.
 
 ### Results Formulas:
 * `(:gen, :<name>_cost)` - the cost of the policy, excluding imports
 * `(:gen, :<name>_capex_adj_total)` - The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.
 * `(:branch, :<name>_import_cost)` - the cost of imports on branches for the policy
 * `(:dc_line, :<name>_import_cost)` - the cost of imports on dc lines for the policy
+* `(:branch, :<name>_import_emis)` - Total emissions from imported power. Only added when `price_imports=true`.
+* `(:dc_line, :<name>_import_emis)` - Total emissions from imported power. Only added when `price_imports=true`.
+* `(:bus, :<name>_import_cost_total)` - Total cost of the policy attributed to imports, allocated to buses. Only added when `price_imports=true`.
 
 """
 struct EmissionPrice <: Policy

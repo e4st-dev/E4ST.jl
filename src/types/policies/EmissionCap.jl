@@ -28,17 +28,29 @@ Note: The banking formulation in this modification requires that years[n] - year
 * `rate`: The rate step prices increase by each year. Defaults to 5%. Prices escalate relative to the first year that has a target.
 
 ### Table Column Added:
+Naming note: In this mod, the `<name>`` column is used to indicate which gens/branches/dc lines qualify under the cap, and the `<name>_prc`` column records the allowance price of policy which is unknown until after model solve. This is the same convention used by other post-solve-shadow-price policies (`GenerationStandard`, `ReserveRequirement`). 
+It differs from policies with an exogenous input price (e.g. [`EmissionPrice`](@ref), [`PTC`](@ref), [`ITC`](@ref)), where the`<name>` column holds the `$`/MWh value directly.
+* `(:gen, :<name>)` - Indicator marking whether the gen's emissions count toward the cap.
 * `(:gen, :<name>_prc)` - the allowance price of the policy converted to DollarsPerMWhGenerated
-* `(:branch, :<name>_prc)` - the allowance price of the policy converted to DollarsPerMWhGenerated
-* `(:dc_line, :<name>_prc)` - the allowance price of the policy converted to DollarsPerMWhGenerated
-* `(:branch, :<name>_import_emis)` - Total emissions from imported power on dc lines
-* `(:dc_line, :<name>_import_emis)` - Total emissions from imported power on dc lines
-
+* `(:branch, :<name>)` - Same indicator as `(:gen, :<name>)`, for branches that cross into the capped region. Only added when `cap_imports=true`.
+* `(:dc_line, :<name>)` - Same indicator as `(:gen, :<name>)`, for dc_lines that cross into the capped region. Only added when `cap_imports=true`.
+* `(:branch, :<name>_dir)` - Signed direction scalar: +1 if `t_bus_idx` is in the capped region, -1 if `f_bus_idx` is. Only added when `cap_imports=true`.
+* `(:dc_line, :<name>_dir)` - Signed direction scalar: +1 if `t_bus_idx` is in the capped region, -1 if `f_bus_idx` is. Only added when `cap_imports=true`.
+* `(:branch, :<name>_<emis_col>)` - Emissions factor of imported power (e.g. `<name>_emis_co2`). Only added when `cap_imports=true`.
+* `(:dc_line, :<name>_<emis_col>)` - Emissions factor of imported power (e.g. `<name>_emis_co2`). Only added when `cap_imports=true`.
+* `(:branch, :<name>_flag)` - Sign of realized import flow direction, nonzero only where `pflow * <name>_dir > 0`; used to isolate import flows in results formulas. Only added when `cap_imports=true`.
+* `(:dc_line, :<name>_flag)` - Sign of realized import flow direction, nonzero only where `pflow * <name>_dir > 0`; used to isolate import flows in results formulas. Only added when `cap_imports=true`.
+* `(:branch, :<name>_prc)` - the allowance price of the policy per MWh of imports. Only added when `cap_imports=true`.
+* `(:dc_line, :<name>_prc)` - the allowance price of the policy per MWh of imports. Only added when `cap_imports=true`.
+* `(:bus, :<name>_import_cost)` - Cost of the policy attributed to imports, allocated to the importing bus (`ByYearAndHour`). Only added when `cap_imports=true`.
 
 ### Results Formula:
-* `(:gen, :cost_name)` - the cost of the policy based on the allowance price, determined using the shadow price of the generation constraint
-* `(:branch, :cost_name)` - the cost of the policy based on the allowance price, determined using the shadow price of the generation constraint
-* `(:dc_line, :cost_name)` - the cost of the policy based on the allowance price, determined using the shadow price of the generation constraint
+* `(:gen, :<name>_cost)` - the cost of the policy based on the allowance price, determined using the shadow price of the generation constraint
+* `(:branch, :<name>_import_cost)` - the cost of the policy attributed to imports. Only added when `cap_imports=true`.
+* `(:dc_line, :<name>_import_cost)` - the cost of the policy attributed to imports. Only added when `cap_imports=true`.
+* `(:branch, :<name>_import_emis)` - Total emissions from imported power. Only added when `cap_imports=true`.
+* `(:dc_line, :<name>_import_emis)` - Total emissions from imported power. Only added when `cap_imports=true`.
+* `(:bus, :<name>_import_cost_total)` - Total cost of the policy attributed to imports, allocated to buses. Only added when `cap_imports=true`.
 
 """
 struct EmissionCap <: Policy
