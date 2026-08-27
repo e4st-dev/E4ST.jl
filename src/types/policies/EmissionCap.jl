@@ -207,7 +207,7 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
     # Feed residual sector emissions into any EmissionCap whose bus-filter
     # region contains this region-subsector's (area, subarea). Spread uniformly
     # across hours so the annual total the cap sees equals resid_emis[i, y].
-    # see the function `add_resid_emis_to_caps!` for details of adding to emissions cap
+    # see the function `add_resid_emis_to_cap!` for details of adding to emissions cap
 
     # Sectoral abatement is only meaningful when there is a price signal on
     # residual emissions -- an EmissionCap covering at least one of this
@@ -652,10 +652,10 @@ end
 export fieldnames_for_yaml
 
 """
-    add_resid_emis_to_caps!(sec::Sector, config, data, model, regsub, resid_emis)
+    add_resid_emis_to_cap!(pol::EmissionCap, config, data, model)
 
-Appends this sector's residual (non-abated) emissions into every
-[`EmissionCap`](@ref) policy in `config[:mods]`. Region-subsector `i` (a row of
+Appends every [`Sector`](@ref) modification's residual (non-abated) emissions
+into this cap's emissions expression. Region-subsector `i` (a row of
 the `regsub` table, i.e. an `(area, subarea, subsector, emis_col)`
 combination) is included in a cap for every year if:
 1. `regsub.emis_col[i]` matches the cap's `emis_col` (i.e. they regulate the same
@@ -688,9 +688,9 @@ function add_resid_emis_to_cap!(pol::EmissionCap, config, data, model)
     cap_bus_set = isempty(pol.bus_filters) ? Set(1:nbus) :
         Set(get_row_idxs(bus, parse_comparisons(pol.bus_filters)))
 
-    emis_sym = Symbol("emis_total_$(pol.name)")
-    haskey(model, emis_sym) || return 0
-    emis_expr = model[emis_sym]::Matrix{AffExpr}
+    emis_name = Symbol("emis_total_$(pol.name)")
+    haskey(model, emis_name) || return 0
+    emis_expr = model[emis_name]::Matrix{AffExpr}
     coef = 1.0 / nhr
     total_added = 0
 
@@ -703,9 +703,9 @@ function add_resid_emis_to_cap!(pol::EmissionCap, config, data, model)
         regsub = view(regsub_full, row_idxs, :)
         nregsub = nrow(regsub)
 
-        resid_sym = Symbol("resid_emis_$(sec.name)")
-        haskey(model, resid_sym) || continue
-        resid_emis = model[resid_sym]
+        resid_name = Symbol("resid_emis_$(sec.name)")
+        haskey(model, resid_name) || continue
+        resid_emis = model[resid_name]
 
         # Bus set per region-subsector (row of regsub): buses where bus[!, Symbol(area)] == subarea.
         regsub_bus_sets = Vector{Set{Int}}(undef, nregsub)
@@ -719,9 +719,6 @@ function add_resid_emis_to_cap!(pol::EmissionCap, config, data, model)
             end
         end
 
-        # same bus-set-per-region-subsector + matching logic as today's
-        # add_resid_emis_to_caps!, just keyed off `pol` (the fixed argument)
-        # instead of iterating over every cap.
         n_added = 0
         for i in 1:nregsub
             Symbol(regsub.emis_col[i]) == pol.emis_col || continue
