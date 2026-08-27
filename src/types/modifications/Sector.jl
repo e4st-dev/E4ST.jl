@@ -74,6 +74,7 @@ via `get_row_idxs` instead of persisting them alongside the columns above.
       whatever `EmissionCap` covers this sector's region-subsectors.
 * Constraints: `cons_abate_cap_<name>[i, y]` — `abate_total <= baseline_emis`.
 
+Note that the emissions are added in EmissionCap
 
 ## Pbal coupling
 `modify_model!` unconditionally calls [`add_sector_electrification_load!`](@ref),
@@ -99,8 +100,8 @@ end
 export Sector
 
 
-# Comes after policy (needs emissions cap to work, appends emissions to cap's emis_total expression)
-mod_rank(::Type{<:Sector}) = mod_rank(EmissionCap) + 0.1
+# sector mod comes right before the EmissionCap so that the sector emissions expression is set up before the emissions constraint is created
+mod_rank(::Type{<:Sector}) = mod_rank(EmissionCap) - 0.1
 
 ### All sector subtypes 
 
@@ -579,22 +580,6 @@ function modify_model!(sec::Sector, config, data, model)
         abate_total[i, y] <= baseline_emis[i, y]
     )
 
-    # Feed residual sector emissions into any EmissionCap whose bus-filter
-    # region contains this region-subsector's (area, subarea). Spread uniformly
-    # across hours so the annual total the cap sees equals resid_emis[i, y].
-    # see the function `add_resid_emis_to_caps!` for details of adding to emissions cap
-
-    # Sectoral abatement is only meaningful when there is a price signal on
-    # residual emissions -- an EmissionCap covering at least one of this
-    # sector's region-subsectors, whose shadow price is the only thing that
-    # makes reducing resid_emis worth paying the MAC cost for. Absent that,
-    # every MAC step has strictly positive cost with zero offsetting benefit,
-    # so the LP picks abate = 0 at every step and the modification is dormant.
-    cap_rows_added = add_resid_emis_to_caps!(sec, config, data, model, regsub, resid_emis)
-    if cap_rows_added == 0
-        @warn "Sector $name: no EmissionCap covers this sector's region-subsectors. Abatement will be zero for every MAC step in every year; the modification will not affect the LP."
-        return nothing
-    end
 
      # Power-balance coupling: add ONLY the responsive electrification load
     # induced by abatement (affine in abate_total, per Haiku eq. 9/10) into
@@ -623,91 +608,6 @@ Residual (unabated) emissions carry no direct cost term here -- see `cost_sector
 
   struct SectorTerm <: Term end
 
-"""
-    add_resid_emis_to_caps!(sec::Sector, config, data, model, regsub, resid_emis)
-
-Appends this sector's residual (non-abated) emissions into every
-[`EmissionCap`](@ref) policy in `config[:mods]`. Region-subsector `i` (a row of
-the `regsub` table, i.e. an `(area, subarea, subsector, emis_col)`
-combination) is included in a cap for every year if:
-1. `regsub.emis_col[i]` matches the cap's `emis_col` (i.e. they regulate the same
-   pollutant), and
-2. every bus in region-subsector `i`'s `(area, subarea)` set is inside the cap's
-   `bus_filters`-defined region.
-Region-subsectors that pass the pollutant check but only partially overlap a
-cap's bus region are skipped with a warning. Empty `bus_filters` is treated as
-grid-wide.
-
-Residual emissions are spread uniformly across the `nhour` hours of the year
-(coefficient `1/nhour` per hour), so `sum_h emis_expr[y,h]` — the quantity
-the cap's `<=` constraint compares against `target[y]` — receives exactly
-`resid_emis[i, y]`.
-
-Currently runs unconditionally: any Sector modification whose residual emissions
-overlap an active cap on the same pollutant contributes to that cap. There is
-no config knob to opt out — remove the cap or narrow its `bus_filters` if you
-don't want the sector to be captured.
-
-### might need to add a check for the case where the sector is not in the bus filter of any emission cap / there is no emission cap
-### in that case, the sector will not be abated at all, should issue warning sector isn't being captured
-
-"""
-function add_resid_emis_to_caps!(sec::Sector, config, data, model, regsub, resid_emis)
-    name = sec.name
-    bus = get_table(data, :bus)
-    nbus = nrow(bus)
-    nhr  = get_num_hours(data)
-    nyear = get_num_years(data)
-    nregsub = nrow(regsub)
-    total_added = 0
-
-    # Bus set per region-subsector (row of regsub): buses where bus[!, Symbol(area)] == subarea.
-    regsub_bus_sets = Vector{Set{Int}}(undef, nregsub)
-    for i in 1:nregsub
-        col = Symbol(regsub.area[i])
-        if !hasproperty(bus, col)
-            regsub_bus_sets[i] = Set{Int}()
-        else
-            target = string(regsub.subarea[i])
-            regsub_bus_sets[i] = Set(b for b in 1:nbus if string(bus[b, col]) == target)
-        end
-    end
-
-    for (pname, pol) in config[:mods]
-        pol isa EmissionCap || continue
-
-        cap_bus_set = isempty(pol.bus_filters) ?
-            Set(1:nbus) :
-            Set(get_row_idxs(bus, parse_comparisons(pol.bus_filters)))
-
-        emis_sym = Symbol("emis_total_$(pol.name)")
-        haskey(model, emis_sym) || continue   # cap ran but produced no expression
-        emis_expr = model[emis_sym]::Matrix{AffExpr}
-
-        coef = 1.0 / nhr
-        n_added = 0
-        for i in 1:nregsub
-            Symbol(regsub.emis_col[i]) == pol.emis_col || continue   # different pollutant, not applicable to this cap
-
-            bs = regsub_bus_sets[i]
-            isempty(bs) && continue
-
-            if issubset(bs, cap_bus_set)
-                for y in 1:nyear, h in 1:nhr
-                    add_to_expression!(emis_expr[y, h], coef, resid_emis[i, y])
-                end
-                n_added += 1
-            elseif !isdisjoint(bs, cap_bus_set)
-                @warn "Sector $name: region-subsector i=$i (area=$(regsub.area[i]), subarea=$(regsub.subarea[i]), emis_col=$(regsub.emis_col[i])) partially overlaps EmissionCap $(pol.name); not counted."
-            end
-        end
-        @info "Sector $name: added residual emissions from $n_added region-subsectors to EmissionCap $(pol.name)"
-        total_added += n_added
-    end
-
-    return total_added
-end
-export add_resid_emis_to_caps!
 
 
 """

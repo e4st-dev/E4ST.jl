@@ -203,7 +203,19 @@ function E4ST.modify_model!(pol::EmissionCap, config, data, model)
         nsteps = length(pol.step_prices)
         alw = model[cols.alw_name]
     end
-    
+
+    # Feed residual sector emissions into any EmissionCap whose bus-filter
+    # region contains this region-subsector's (area, subarea). Spread uniformly
+    # across hours so the annual total the cap sees equals resid_emis[i, y].
+    # see the function `add_resid_emis_to_caps!` for details of adding to emissions cap
+
+    # Sectoral abatement is only meaningful when there is a price signal on
+    # residual emissions -- an EmissionCap covering at least one of this
+    # sector's region-subsectors, whose shadow price is the only thing that
+    # makes reducing resid_emis worth paying the MAC cost for. Absent that,
+    # every MAC step has strictly positive cost with zero offsetting benefit,
+    # so the LP picks abate = 0 at every step and the modification is dormant.
+    add_resid_emis_to_cap!(pol, config, data, model)
 
     cap_cons_name = cols.cons_name
     @info "Creating emissions cap constraint for $(pol.name) in years $(cap_years)"
@@ -638,3 +650,95 @@ function fieldnames_for_yaml(T::Type{M}) where {M<:EmissionCap}
     return setdiff(fieldnames(T), (:name, :gen_cons,))
 end
 export fieldnames_for_yaml
+
+"""
+    add_resid_emis_to_caps!(sec::Sector, config, data, model, regsub, resid_emis)
+
+Appends this sector's residual (non-abated) emissions into every
+[`EmissionCap`](@ref) policy in `config[:mods]`. Region-subsector `i` (a row of
+the `regsub` table, i.e. an `(area, subarea, subsector, emis_col)`
+combination) is included in a cap for every year if:
+1. `regsub.emis_col[i]` matches the cap's `emis_col` (i.e. they regulate the same
+   pollutant), and
+2. every bus in region-subsector `i`'s `(area, subarea)` set is inside the cap's
+   `bus_filters`-defined region.
+Region-subsectors that pass the pollutant check but only partially overlap a
+cap's bus region are skipped with a warning. Empty `bus_filters` is treated as
+grid-wide.
+
+Residual emissions are spread uniformly across the `nhour` hours of the year
+(coefficient `1/nhour` per hour), so `sum_h emis_expr[y,h]` — the quantity
+the cap's `<=` constraint compares against `target[y]` — receives exactly
+`resid_emis[i, y]`.
+
+Currently runs unconditionally: any Sector modification whose residual emissions
+overlap an active cap on the same pollutant contributes to that cap. There is
+no config knob to opt out — remove the cap or narrow its `bus_filters` if you
+don't want the sector to be captured.
+
+### might need to add a check for the case where the sector is not in the bus filter of any emission cap / there is no emission cap
+### in that case, the sector will not be abated at all, should issue warning sector isn't being captured
+
+"""
+function add_resid_emis_to_cap!(pol::EmissionCap, config, data, model)
+    bus = get_table(data, :bus)
+    nbus = nrow(bus)
+    nhr  = get_num_hours(data)
+    nyear = get_num_years(data)
+    cap_bus_set = isempty(pol.bus_filters) ? Set(1:nbus) :
+        Set(get_row_idxs(bus, parse_comparisons(pol.bus_filters)))
+
+    emis_sym = Symbol("emis_total_$(pol.name)")
+    haskey(model, emis_sym) || return 0
+    emis_expr = model[emis_sym]::Matrix{AffExpr}
+    coef = 1.0 / nhr
+    total_added = 0
+
+    for (secname, sec) in config[:mods]
+        sec isa Sector || continue
+
+        regsub_full = get_table(data, :nonelec)
+        row_idxs = get_row_idxs(regsub_full, :mod_name => sec.name)
+        isempty(row_idxs) && continue
+        regsub = view(regsub_full, row_idxs, :)
+        nregsub = nrow(regsub)
+
+        resid_sym = Symbol("resid_emis_$(sec.name)")
+        haskey(model, resid_sym) || continue
+        resid_emis = model[resid_sym]
+
+        # Bus set per region-subsector (row of regsub): buses where bus[!, Symbol(area)] == subarea.
+        regsub_bus_sets = Vector{Set{Int}}(undef, nregsub)
+        for i in 1:nregsub
+            col = Symbol(regsub.area[i])
+            if !hasproperty(bus, col)
+                regsub_bus_sets[i] = Set{Int}()
+            else
+                target = string(regsub.subarea[i])
+                regsub_bus_sets[i] = Set(b for b in 1:nbus if string(bus[b, col]) == target)
+            end
+        end
+
+        # same bus-set-per-region-subsector + matching logic as today's
+        # add_resid_emis_to_caps!, just keyed off `pol` (the fixed argument)
+        # instead of iterating over every cap.
+        n_added = 0
+        for i in 1:nregsub
+            Symbol(regsub.emis_col[i]) == pol.emis_col || continue
+            bs = regsub_bus_sets[i]
+            isempty(bs) && continue
+            if issubset(bs, cap_bus_set)
+                for y in 1:nyear, h in 1:nhr
+                    add_to_expression!(emis_expr[y,h], coef, resid_emis[i,y])
+                end
+                n_added += 1
+            elseif !isdisjoint(bs, cap_bus_set)
+                @warn "Sector $secname: region-subsector overlaps EmissionCap $(pol.name) partially; not counted."
+            end
+        end
+        @info "Sector $secname: added residual emissions from $n_added region-subsectors to EmissionCap $(pol.name)"
+        total_added += n_added
+    end
+    return total_added
+end
+export add_resid_emis_to_cap!
