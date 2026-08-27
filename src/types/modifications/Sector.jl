@@ -397,6 +397,28 @@ function modify_setup_data!(sec::Sector, config, data)
         end
     end
 
+    # Validate up front that every load-profile row is usable, rather than
+    # discovering a bad row lazily per (region-subsector, year) in
+    # add_sector_electrification_load! -- there, a bad row would just
+    # silently drop that pair's responsive electrification load instead of
+    # failing loudly. Checked separately, rather than just requiring the
+    # weighted sum to be positive, because a negative hour could otherwise be
+    # masked by cancelling out against a positive one in the sum:
+    # * no individual hour may be negative -- there's no such thing as
+    #   negative load in an hour.
+    # * the shape must not be all-zero -- there'd be nothing to distribute
+    #   the responsive load across.
+    nhr = get_num_hours(data)
+    hour_cols = [Symbol("h$h") for h in 1:nhr]
+    hour_weights = get_hour_weights(data)
+    for row in eachrow(lp)
+        any(h -> row[hour_cols[h]] < 0, 1:nhr) &&
+            error("Sector $name: load profile row for area=$(row.area), subarea=$(row.subarea), subsector=$(row.subsector), year=$(row.year) has a negative value in one or more of h1..h$(nhr) -- hourly load shape values must be >= 0")
+        annual_shape = sum(row[hour_cols[h]] * hour_weights[h] for h in 1:nhr)
+        annual_shape == 0 &&
+            error("Sector $name: load profile row for area=$(row.area), subarea=$(row.subarea), subsector=$(row.subsector), year=$(row.year) has an all-zero load shape (h1..h$(nhr) all 0) -- there is no hourly pattern to distribute the responsive load across")
+    end
+
     # MAC steps sorted ascending in price per region-subsector, so that the
     # `mac_idxs` lookup built in `modify_model!` (via `get_row_idxs`) lists
     # them in step order -- mac's row position IS the step index `k` used to
@@ -503,9 +525,19 @@ function modify_model!(sec::Sector, config, data, model)
     # `add_sector_electrification_load!`'s loop) and passed down as an
     # explicit argument, the same way `regsub`/`abate_total` already are --
     # rather than round-tripped through a bespoke `data[...]` key.
+    # `lp_years_index` is a fallback for when there's no exact-year match in
+    # `lp_index`: (area, subarea, subsector) -> [(year, row index in lp), ...],
+    # used to find the closest available year instead of skipping outright.
+    # Blank-year rows ("applies to all years") aren't included -- there's no
+    # single numeric year to measure distance from.
     lp_index = Dict{NTuple{4, String}, Int}()
+    lp_years_index = Dict{NTuple{3, String}, Vector{Tuple{Int,Int}}}()
     for (i, row) in enumerate(eachrow(lp))
-        lp_index[(string(row.area), string(row.subarea), string(row.subsector), string(row.year))] = i
+        area, subarea, subsector = string(row.area), string(row.subarea), string(row.subsector)
+        yearstr = string(row.year)
+        lp_index[(area, subarea, subsector, yearstr)] = i
+        isempty(yearstr) && continue
+        push!(get!(lp_years_index, (area, subarea, subsector), Tuple{Int,Int}[]), (year2int(yearstr), i))
     end
     # `regsub` is a view onto this instance's rows only, within the table
     # shared across every Sector mod instance -- see `:nonelec` in
@@ -586,7 +618,7 @@ function modify_model!(sec::Sector, config, data, model)
     # plserv_bus. The sector's baseline electricity (Cons0) is NOT added here --
     # E4ST already ingests total baseline electric demand as a primary input, so
     # adding it again would double-count in the power-balance constraint.
-    add_sector_electrification_load!(sec, config, data, model, regsub, abate_total, lp, lp_index)
+    add_sector_electrification_load!(sec, config, data, model, regsub, abate_total, lp, lp_index, lp_years_index)
   
     model[cost_sym] = @expression(model,
         [y in 1:nyear],
@@ -630,6 +662,27 @@ function _sector_region_buses(bus, nbus)
 end
 
 """
+    _lp_lookup(lp_index, lp_years_index, area, subarea, sub, y, target_yr) -> (row_idx, closest_yr) or nothing
+
+Looks up a load-profile row for `(area, subarea, sub)` at year `y`: an
+exact-year match in `lp_index` if one exists, else the closest available year
+for that key from `lp_years_index` (in which case `closest_yr` is that year;
+otherwise `closest_yr` is `nothing`). Returns `nothing` if there's no data at
+all for `(area, subarea, sub)`. `sub` is usually a subsector, but see the
+two-stage lookup in `add_sector_electrification_load!`, which also tries this
+with a sector name in place of `sub`.
+"""
+function _lp_lookup(lp_index, lp_years_index, area, subarea, sub, y, target_yr)
+    lp_row_idx = get(lp_index, (area, subarea, sub, string(y)), nothing)
+    lp_row_idx !== nothing && return (lp_row_idx, nothing)
+    years_for_key = get(lp_years_index, (area, subarea, sub), nothing)
+    (years_for_key === nothing || isempty(years_for_key)) && return nothing
+    _, best_idx = findmin(yr_ridx -> abs(yr_ridx[1] - target_yr), years_for_key)
+    closest_yr, lp_row_idx = years_for_key[best_idx]
+    return (lp_row_idx, closest_yr)
+end
+
+"""
     add_sector_electrification_load!(sec::Sector, config, data, model,
                                      regsub, abate_total, lp, lp_index)
 
@@ -657,20 +710,27 @@ For each region-subsector `i` (a row of the `regsub` table, i.e. an
 
       plserv_bus[b, y, h] += (1/n_buses) · phi[i, y] · (lp_row.h_h / annual_shape) · abate_total[i, y]
 
-  If no `lp` row exists for a given region-subsector/year (or its shape sums
-  to zero), that region-subsector/year's responsive load is skipped with a
-  warning rather than falling back to an equal split.
+  If `lp` has no row for a given region-subsector/year, the closest available
+  year for that region-subsector (via `lp_years_index`) is used instead; only
+  when there's no `lp` row *at all* for the region-subsector is that
+  region-subsector/year's responsive load skipped with a warning rather than
+  falling back to an equal split. (Every `lp` row is guaranteed to have a
+  nonzero annual shape -- `modify_setup_data!` validates this up front and
+  errors otherwise, so that case can't arise here.)
 
 Because the coefficient multiplies the JuMP expression `abate_total[i, y]`, the
 LP is forced to serve more electric load whenever it chooses to abate more —
 the endogenous electrification feedback.
 
-`lp` (the `sector_<name>_load_profile` table) and `lp_index` (a
-`(area, subarea, subsector, year) -> row index in lp` lookup) are built once
-by the caller, `modify_model!`, and passed in here rather than being re-fetched
-from `data` -- the same way `regsub`/`abate_total` already are.
+`lp` (the `sector_<name>_load_profile` table), `lp_index` (a
+`(area, subarea, subsector, year) -> row index in lp` lookup for exact-year
+matches), and `lp_years_index` (a `(area, subarea, subsector) -> [(year, row
+index), ...]` fallback used to find the closest year when there's no exact
+match) are built once by the caller, `modify_model!`, and passed in here
+rather than being re-fetched from `data` -- the same way `regsub`/`abate_total`
+already are.
 """
-function add_sector_electrification_load!(sec::Sector, config, data, model, regsub, abate_total, lp, lp_index)
+function add_sector_electrification_load!(sec::Sector, config, data, model, regsub, abate_total, lp, lp_index, lp_years_index)
     name = sec.name
     plserv_bus = model[:plserv_bus]::Array{AffExpr,3}
     bus = get_table(data, :bus)
@@ -689,7 +749,7 @@ function add_sector_electrification_load!(sec::Sector, config, data, model, regs
     for i in 1:nregsub, (yi, y) in enumerate(years)
         phi = regsub.phi[i][yi]
         if isnan(phi)
-            @warn "Sector $name: no phi (eq. 10) for area=$(regsub.area[i]), subarea=$(regsub.subarea[i]), subsector=$(regsub.subsector[i]), year=$y; responsive load skipped"
+            error("Sector $name: no phi (eq. 10) for area=$(regsub.area[i]), subarea=$(regsub.subarea[i]), subsector=$(regsub.subsector[i]), year=$y; can't have emission abatement without electrification")
             continue
         end
         phi == 0.0 && continue   # no electrification response for this region-subsector/year
@@ -699,18 +759,29 @@ function add_sector_electrification_load!(sec::Sector, config, data, model, regs
         # in `SectorLoadProfile.jl` does normalize them so that `annual_shape`
         # below comes out to ~1, but dividing through here makes this robust
         # to an unnormalized `lp` too).
-        lp_key = (string(regsub.area[i]), string(regsub.subarea[i]), string(regsub.subsector[i]), string(y))
-        lp_row_idx = get(lp_index, lp_key, nothing)
-        if lp_row_idx === nothing
-            @warn "Sector $name: no load profile found for area=$(regsub.area[i]), subarea=$(regsub.subarea[i]), subsector=$(regsub.subsector[i]), year=$y; responsive load skipped"
+        area, subarea, subsector = string(regsub.area[i]), string(regsub.subarea[i]), string(regsub.subsector[i])
+        target_yr = year2int(string(y))
+
+        result = _lp_lookup(lp_index, lp_years_index, area, subarea, subsector, y, target_yr)
+        lookup_sub = subsector
+        if result === nothing
+            # Some sectors (e.g. buildings) provide a single load profile per
+            # area/subarea rather than one per subsector -- in that case the
+            # lp table's `subsector` column holds the sector name itself.
+            lookup_sub = string(sec.sector)
+            result = _lp_lookup(lp_index, lp_years_index, area, subarea, lookup_sub, y, target_yr)
+        end
+        if result === nothing
+            error("Sector $name: no load profile found for area=$area, subarea=$subarea, subsector=$subsector (also tried sector-level subsector=$(sec.sector)), can't have emission abatement without electrification.")
             continue
+        end
+        lp_row_idx, closest_yr = result
+        if closest_yr !== nothing
+            @info "Sector $name: no load profile for area=$area, subarea=$subarea, subsector=$lookup_sub, year=$y; using closest available year y$closest_yr instead"
         end
         lp_row = lp[lp_row_idx, :]
+        # annual_shape is guaranteed > 0 here -- every lp row was validated in modify_setup_data!
         annual_shape = sum(lp_row[hour_cols[h]] * hour_weights[h] for h in 1:nhr)
-        if annual_shape <= 0
-            @warn "Sector $name: zero annual load-profile shape for area=$(regsub.area[i]), subarea=$(regsub.subarea[i]), subsector=$(regsub.subsector[i]), year=$y; responsive load skipped"
-            continue
-        end
 
         buses = buses_for(regsub.area[i], regsub.subarea[i])
         isempty(buses) && continue
