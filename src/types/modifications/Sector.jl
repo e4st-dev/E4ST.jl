@@ -62,13 +62,15 @@ meaning to someone inspecting `:nonelec`, so `modify_model!` builds them fresh
 via `get_row_idxs` instead of persisting them alongside the columns above.
 
 ## Model contribution per sector `sec`
-* Variables: `abate_<name>[k, y]` — tons abated at MAC step `k`, year `y`.
+* Variables: `abate_<name>[s, k, y]` — tons abated at region-subsector `s`
+  (indexes this instance's rows of the `regsub` table), MAC step `k` (local to
+  that region-subsector, not a row index into `mac`), year `y`.
 * Expressions:
     - `abate_total_<name>[i, y]` — total tons abated for region-subsector `i`
       in year `y` (`i` indexes this instance's rows of the `regsub` table).
     - `resid_emis_<name>[i, y]` — `baseline_emis[i, y] - abate_total[i, y]`.
     - `cost_sector_<name>_obj[y]` — MAC abatement cost (area under the MAC
-      curve: `sum(abate[k,y] * mac.price[k])`), added to the model objective
+      curve: `sum(abate[s,k,y] * mac.price[mac_idxs[s][k]])`), added to the model objective
       via [`add_obj_exp!`](@ref). Residual (unabated) emissions carry no
       direct cost term here -- the only price signal on them comes from
       whatever `EmissionCap` covers this sector's region-subsectors.
@@ -439,6 +441,7 @@ function modify_model!(sec::Sector, config, data, model)
         isempty(idxs) && @warn "Sector $name: no MAC steps found for area=$(regsub.area[i]), subarea=$(regsub.subarea[i]), subsector=$(regsub.subsector[i]). Emissions will be added to constraint but there will be no way to abate."
         idxs
     end
+    nsteps = length.(mac_idxs)
 
     # Baseline emissions per (region-subsector, year), read directly off
     # regsub's `baseline_emis` ByYear column -- region-subsector i is
@@ -447,59 +450,51 @@ function modify_model!(sec::Sector, config, data, model)
 
     abate_name       = Symbol("abate_$(name)")
     abate_total_name = Symbol("abate_total_$(name)")
-    # like equation 7 in Nick's HAIKU documentation
     resid_name       = Symbol("resid_emis_$(name)")
-    # like equation 8 in Nick's HAIKU documentation
     cons_name        = Symbol("cons_abate_cap_$(name)")
-    # like equation 6 in Nick's HAIKU documentation
     cost_name        = Symbol("cost_sector_$(name)_obj")
     
-    # variable that tracks abatement by step and year for the sector
+    
+    # abatement variable, indexed by [i,k,y] where i is the region-subsector, k is the step on the mac curve, and y is the year
     model[abate_name] = @variable(model,
-        [k in 1:nstep, y in 1:nyear],
+        [i in 1:nregsub, k in 1:nsteps[s], y in 1:nyear],
         lower_bound = 0,
-        upper_bound = mac.quantity[k],
+        upper_bound = mac.quantity[mac_idxs[i][k]],
         base_name = String(abate_name)
     )
     abate = model[abate_name]
 
-    # abate_total is indexed by (region-subsector, year): region-subsector i
-    # is regsub's row i (area, subarea, subsector), and mac_idxs[i] (built
-    # above) gives the MAC step indices for region-subsector i, independent
-    # of year.
+    # set up abatement expression, index by region-subsector,year and sums over each step in abate[i,k,y]
     model[abate_total_name] = @expression(model,
         [i in 1:nregsub, y in 1:nyear],
-        sum(abate[k, y] for k in mac_idxs[i]; init = AffExpr(0.0))
+        sum(abate[i, k, y] for k in 1:nsteps[i]; init = AffExpr(0.0))
     )
     abate_total = model[abate_total_name]
 
-        # Equation 7 in HAIKU documentation
+    # residual emissions expression (baseline emissions minus abated emissions), indexed by [i, y] where is the region-subsector
     model[resid_name] = @expression(model,
         [i in 1:nregsub, y in 1:nyear],
         baseline_emis[i, y] - abate_total[i, y]
     )
     resid_emis = model[resid_name]
 
-        # Equation 8 in HAIKU documentation
+    # constraint so that abated emissions in a year can not be greater than the baseline emissions in that year
     model[cons_name] = @constraint(model,
         [i in 1:nregsub, y in 1:nyear],
         abate_total[i, y] <= baseline_emis[i, y]
     )
 
-
-     # Power-balance coupling: add ONLY the responsive electrification load
-    # induced by abatement (affine in abate_total, per Haiku eq. 9/10) into
-    # plserv_bus. The sector's baseline electricity (Cons0) is NOT added here --
-    # E4ST already ingests total baseline electric demand as a primary input, so
-    # adding it again would double-count in the power-balance constraint.
+    # couple the load from the electrification response with power-balancing equation
+    # the baseline electricity (Cons0) is NOT added, because load projections already capture the baseline demand from each of these sectors
     add_sector_electrification_load!(sec, config, data, model, regsub, abate_total, lp, lp_index, lp_years_index)
-  
+    
+    # abatement cost expression, summed over regsub and steps so that it is indexed by year only
     model[cost_name] = @expression(model,
         [y in 1:nyear],
-        sum(abate[k, y] * mac.price[k] for k in 1:nstep)
+        sum(abate[s, k, y] * mac.price[mac_idxs[s][k]] for s in 1:nregsub, k in 1:nsteps[s]; init = AffExpr(0.0))
     )
 
-    # sector term is in $/short ton of emissions
+    # add abatement costs to objective term, in units of $/short ton of emissions
     add_obj_exp!(data, model, SectorTerm(), cost_name; oper = +)
     return nothing
 end
