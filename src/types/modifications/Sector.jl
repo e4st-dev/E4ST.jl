@@ -70,7 +70,7 @@ via `get_row_idxs` instead of persisting them alongside the columns above.
       in year `y` (`i` indexes this instance's rows of the `regsub` table).
     - `resid_emis_<name>[i, y]` — `baseline_emis[i, y] - abate_total[i, y]`.
     - `cost_sector_<name>_obj[y]` — MAC abatement cost (area under the MAC
-      curve: `sum(abate[s,k,y] * mac.price[mac_idxs[s][k]])`), added to the model objective
+      curve: `sum(abate[i,k,y] * mac.price[mac_idxs[i][k]])`), added to the model objective
       via [`add_obj_exp!`](@ref). Residual (unabated) emissions carry no
       direct cost term here -- the only price signal on them comes from
       whatever `EmissionCap` covers this sector's region-subsectors.
@@ -457,7 +457,7 @@ function modify_model!(sec::Sector, config, data, model)
     
     # abatement variable, indexed by [i,k,y] where i is the region-subsector, k is the step on the mac curve, and y is the year
     model[abate_name] = @variable(model,
-        [i in 1:nregsub, k in 1:nsteps[s], y in 1:nyear],
+        [i in 1:nregsub, k in 1:nsteps[i], y in 1:nyear],
         lower_bound = 0,
         upper_bound = mac.quantity[mac_idxs[i][k]],
         base_name = String(abate_name)
@@ -491,7 +491,7 @@ function modify_model!(sec::Sector, config, data, model)
     # abatement cost expression, summed over regsub and steps so that it is indexed by year only
     model[cost_name] = @expression(model,
         [y in 1:nyear],
-        sum(abate[s, k, y] * mac.price[mac_idxs[s][k]] for s in 1:nregsub, k in 1:nsteps[s]; init = AffExpr(0.0))
+        sum(abate[i, k, y] * mac.price[mac_idxs[i][k]] for i in 1:nregsub, k in 1:nsteps[i]; init = AffExpr(0.0))
     )
 
     # add abatement costs to objective term, in units of $/short ton of emissions
@@ -713,9 +713,33 @@ function modify_results!(sec::Sector, config, data)
     isempty(row_idxs) && return nothing
 
     nyear = get_num_years(data)
-    hasproperty(regsub, :abate_total)        || (regsub.abate_total        = [ByYear(fill(NaN, nyear)) for _ in 1:nrow(regsub)])
-    hasproperty(regsub, :resid_emis)         || (regsub.resid_emis         = [ByYear(fill(NaN, nyear)) for _ in 1:nrow(regsub)])
-    hasproperty(regsub, :elec_demand_change) || (regsub.elec_demand_change = [ByYear(fill(NaN, nyear)) for _ in 1:nrow(regsub)])
+    hasproperty(regsub, :abate_total) ||
+        add_table_col!(data, :nonelec, :abate_total, [ByYear(fill(NaN, nyear)) for _ in 1:nrow(regsub)], NA,
+            "Total emissions abated for this region-subsector, by year. Units match `baseline_emis`'s (emis_col-dependent).")
+    hasproperty(regsub, :resid_emis) ||
+        add_table_col!(data, :nonelec, :resid_emis, [ByYear(fill(NaN, nyear)) for _ in 1:nrow(regsub)], NA,
+            "Residual (unabated) emissions for this region-subsector, by year: `baseline_emis - abate_total`. Units match `baseline_emis`'s (emis_col-dependent).")
+    hasproperty(regsub, :elec_demand_change) ||
+        add_table_col!(data, :nonelec, :elec_demand_change, [ByYear(fill(NaN, nyear)) for _ in 1:nrow(regsub)], MWhLoad,
+            "Induced change in electricity demand from abatement: `abate_total * phi`.")
+
+    # setup results formulas
+    results_formulas = get_results_formulas(data)
+    haskey(results_formulas, (:nonelec, :abate_emis_total)) ||
+        add_results_formula!(data, :nonelec, :abate_emis_total, "SumYearly(abate_total)", NA,
+            "Total emissions abated, summed across region-subsectors and years. Units match `baseline_emis`'s (emis_col-dependent).")
+    haskey(results_formulas, (:nonelec, :resid_emis_total)) ||
+        add_results_formula!(data, :nonelec, :resid_emis_total, "SumYearly(resid_emis)", NA,
+            "Residual (unabated) emissions, summed across region-subsectors and years. Units match `baseline_emis`'s (emis_col-dependent).")
+    haskey(results_formulas, (:nonelec, :baseline_emis_total)) ||
+        add_results_formula!(data, :nonelec, :baseline_emis_total, "SumYearly(baseline_emis)", NA,
+            "Baseline (pre-abatement) emissions, summed across region-subsectors and years. Units match `baseline_emis`'s (emis_col-dependent).")
+    haskey(results_formulas, (:nonelec, :baseline_demand_total)) ||
+        add_results_formula!(data, :nonelec, :baseline_demand_total, "SumYearly(baseline_demand)", MWhLoad,
+            "Baseline electricity consumption (Cons0), summed across region-subsectors and years.")
+    haskey(results_formulas, (:nonelec, :elec_response_total)) ||
+        add_results_formula!(data, :nonelec, :elec_response_total, "SumYearly(elec_demand_change)", MWhLoad,
+            "Induced change in electricity demand from abatement, summed across region-subsectors and years.")
 
     abate_total_raw = get_raw_result(data, Symbol("abate_total_$(name)"))::AbstractMatrix
     resid_emis_raw  = get_raw_result(data, Symbol("resid_emis_$(name)"))::AbstractMatrix
@@ -727,5 +751,8 @@ function modify_results!(sec::Sector, config, data)
         phi = regsub.phi[row_idx]
         regsub.elec_demand_change[row_idx] = ByYear([abate_total_raw[i, yi] * phi[yi] for yi in 1:nyear])
     end
+
+    
+   
     return nothing
 end
