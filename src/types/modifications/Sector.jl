@@ -346,6 +346,10 @@ function modify_setup_data!(sec::Sector, config, data)
     # build rows for the shared `:nonelec` table: one row per region-subsector, with `baseline_emis`/`cons0`/`phi` as `ByYear` columns
     #   phi = (cross_elast · Cons0) / (own_elast · EmisSector0)   (Haiku eq. 10)
     # phi is set to `NaN` only for a zero denominator (own_elast or emis0 == 0), since every remaining row is now guaranteed a full data match
+    # phi feeds directly into the `plserv_bus` coupling coefficients in `add_sector_electrification_load!`; round it to a few
+    # sig figs and snap negligible values to exactly 0.0 so a tiny phi doesn't inject a denormal coefficient into the constraint
+    # matrix (the existing `phi == 0.0` / `coef == 0.0` guards then drop that region-subsector's electrification term entirely).
+    phi_min = 1e-6   # MWh/ton below which the electrification response is treated as none
 
     # `:nonelec` is a single table shared across every Sector mod
     # `mod_name` identifies which mod instance each row belongs to
@@ -363,7 +367,12 @@ function modify_setup_data!(sec::Sector, config, data)
         emis0_vals = [Float64(row[Symbol(y)]) for y in years]
         cons0_vals = [Float64(elec_row[Symbol(y)]) for y in years]
         phi_vals = [
-            (own_elast == 0.0 || emis0_vals[j] == 0.0) ? NaN : (cross_elast * cons0_vals[j]) / (own_elast * emis0_vals[j])
+            if own_elast == 0.0 || emis0_vals[j] == 0.0
+                NaN
+            else
+                p = (cross_elast * cons0_vals[j]) / (own_elast * emis0_vals[j])
+                abs(p) < phi_min ? 0.0 : round(p; sigdigits = 4)
+            end
             for j in eachindex(years)
         ]
 
