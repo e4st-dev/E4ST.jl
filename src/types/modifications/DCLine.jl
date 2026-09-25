@@ -105,13 +105,14 @@ end
 function modify_results!(mod::DCLine, config, data)
     # Loop through each branch and add the hourly merchandising surplus, in dollars, to the appropriate bus
     ms =         get_table_col(data, :bus, :merchandising_surplus)::Vector{SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}}
-    
+    ms_comp =    get_table_col(data, :bus, :merchandising_surplus_comp)::Vector{SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}}
     if config[:line_loss_type] == "pflow"
         lmp_elserv = get_table_col(data, :bus, :lmp_elserv)::Vector{SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}}
     else
         lmp_elserv = get_table_col(data, :bus, :lmp_elserv_preloss)::Vector{SubArray{Float64, 2, Array{Float64, 3}, Tuple{Int64, Base.Slice{Base.OneTo{Int64}}, Base.Slice{Base.OneTo{Int64}}}, true}}
     end
     dc_line = get_table(data, :dc_line)
+    bus = get_table(data, :bus)
 
     # Get numbers used for indexing
     ndc = nrow(dc_line)
@@ -132,6 +133,8 @@ function modify_results!(mod::DCLine, config, data)
         ms_per_bus = ((t_bus_lmp .- f_bus_lmp) .* pflow) .* hour_weights_mat .* 0.5
         ms[f_bus_idx] .+= ms_per_bus
         ms[t_bus_idx] .+= ms_per_bus
+        ms_comp[f_bus_idx] .+= ms_per_bus * (1 - bus[f_bus_idx, :reg_factor])
+        ms_comp[t_bus_idx] .+= ms_per_bus * (1 - bus[t_bus_idx, :reg_factor])
     end
 
     add_table_col!(data, :dc_line, :pflow, pflow_dc, MWFlow,"Average Power flowing through line")    
