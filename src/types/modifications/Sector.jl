@@ -2,94 +2,75 @@
 """
     Sector <: Modification
 
-    sector is a supertype for the industrial, transportation, and building sectors. Non-electricity sectors are modeled through emissions and electricity demand baselines 
-    whose emissions can be abated through paying a cost (as determined by MAC curves) and whose abatement impacts electricity demand. 
+    The Sector modification can be used to model the emissions and electrification pathways of any non-power sector when subject to an emission cap or price. The modification takes in emissions and electricity 
+    demand baselines for each subsector. Then each sector/subsector emissions can be abated for a cost (as determined by MAC curves) and with a corresponding increase in electricity demand. The sectors are 
+    linked with the core power sector model through policies that constrain or price emissions.
 
-    'sector' subtypes (e.g. `Transportation`, `Buildings`, `Industrial`) are located in "src/types/sectors"
+    For example, when an emission cap has the same regional coverage as a Sector instance, the model will select abatement and electrification pathways across the relevant sector/subsectors and a power sector 
+    resource mix that minimize the economy-wide costswhile meeting the cap targets.
 
-Abstract supertype for sectors.  Must implement the following interfaces:
-* (required) [`sector!(sec::Sector)`](@ref)` 
 
-####
+### Keyword Arguments:
+* `name` - the name of the [`Modification`](@ref).
+* `mac_file` - the filename of the marginal abatement cost curve containing the abatement and price steps for the corresponding sector and subsectors.  See also [`summarize_table(::Val{:mac_steps})`](@ref)
+* `emis_baseline_file` - the filename of the sector's emissions table, which contains the baseline emissions by year for the corresponding sector and subsectros. See also [`summarize_table(::Val{:emis_baseline})`](@ref)
+* `elec_baseline_file` -  the filename of the sector's electricity table, which contains the baseline electricity demand by year for the corresponding sector and subsectors. See also [`summarize_table(::Val{:elec_baseline})`](@ref)
+* `load_profile_file` -  the filename of the sector's load profile table, which contains the hourly load profile for the corresponding sector and subsectors. See also [`summarize_table(::Val{:load_profile})`](@ref)
+* `elasticity_file` - the filename of the sector's elastcity table, which contains the cross and own semi-elasticities for the corresponding sector and subsectors.  See also [`summarize_table(::Val{:elasticity})`](@ref)
 
-## Sectors (Sector subtypes, see `src/types/sectors` for implementations)
-* [`Transportation`](@ref)
-* [`Buildings`](@ref)
-* [`Industry`](@ref)
+### Tables Added:
+* `mac_steps` - contains the sector's marginal abatement cost curve
+* `emis_baseline` - contains the sector's baseline emissions pathway
+* `elec_baseline` - contains the sector's baseline electricity pathway
+* `elasticity` - contains the sector's cross and own elasticity values
+* `load_profile` - contains the sector's diurnal load profile
+* `nonelec` - stores emissions and electricity baselines and abatement and electrification pathways for each modeled subsector. unlike other Sector tables, nonelec is shared across every `Sector` mod instance so that each 
+   sector from different regions are all included in the same table
 
-## Interface a concrete `sec <: Sector` must provide
-* A struct with fields:
-    - `mac_file::String`
-    - `emis_baseline_file::String`
-    - `elec_baseline_file::String`
-    - `load_profile_file::String`
-    - `electicity_file::String' own and cross-price elasticities for
-      unit abatement (MWh/short ton), per Haiku eq. 10.
 
-The following methods are defined for `Sector`.
-* ['modify_raw_data!(sec::Sector, config, data)'](@ref)
-* [`modify_setup_data!(sec::Sector, config, data)`](@ref)
-* [`modify_model!(sec::Sector, config, data, model)`](@ref)
-* [`modify_results!(sec::Sector, config, data)`](@ref)
+ ### Table Columns Added:
+The five input tables(`mac_steps`, `emis_baseline`, `elec_baseline`, `elasticity`, `load_profile`) are read as given and gain no columns.
 
-## The `:nonelec` table
-`modify_setup_data!` builds a `regsub` table (E4ST convention -- one row per
-model entity, like `gen`/`bus`/`branch`/`dc_line`; here the entity is a
-region-subsector, i.e. an `(area, subarea, subsector, emis_col)` combination)
-at `data[:nonelec]`. Unlike the other `sector_<name>_*` tables, this one
-is **shared across every `Sector` mod instance** rather than namespaced by
-`name` -- so e.g. three separate Sector mods covering three different states
-all contribute rows to the same table, matching how `gen`/`bus` are single
-shared tables rather than one per mod. Each `modify_setup_data!` call checks
-whether the table already exists (via [`has_table`](@ref)) and either creates
-it or appends its own rows. Columns:
-* `area`, `subarea`, `subsector`, `emis_col` -- row identity.
-* `mod_name::Symbol` -- which Sector mod instance (`sec.name`) a row belongs
-  to; `modify_model!`/`modify_results!` recover just their own instance's
-  rows via `get_row_idxs(regsub, :mod_name => name)`.
-* `baseline_emis`, `cons0`, `phi` -- `ByYear` containers, populated in
-  `modify_setup_data!` from `emis`'s/`elec`'s wide y2016..y2050-style input
-  columns and the Haiku eq. 10 elasticity ratio, respectively.
-* `abate_total`, `resid_emis` -- `ByYear` containers, populated post-solve by
-  `modify_results!` from the model's solved expression values.
-* `elec_demand_change` -- `ByYear` container, populated post-solve by
-  `modify_results!` as `abate_total · phi` (Haiku eq. 9's responsive term,
-  in MWh) -- the induced change in electricity demand from abatement.
+Populated in [`modify_setup_data!`](@ref):
+* `(:nonelec, :area, :subarea)` - indicates the E4ST region the sector mod belongs to
+* `(:nonelec, :sector, :subsector)` - indicates the sector and subsector the mod represents
+* `(:nonelec, :mod_name)` - which `Sector` instance (`sec.name`) the row belongs to. Since `:nonelec` is shared across instances, `modify_model!`/`modify_results!` recover only their own rows via `get_row_idxs(regsub, :mod_name => name)`.
+* `(:nonelec, :baseline_emis)` - `ByYear` baseline (pre-abatement) emissions. Units follow `emis_col`.
+* `(:nonelec, :baseline_demand)` - `ByYear` baseline electricity consumption (`Cons0`), in MWh. Used only to compute `elec_per_emis`; E4ST's total baseline load is not adjusted by it, since we assume load projections already carry this demand.
+* `(:nonelec, :elec_per_emis)` - `ByYear` induced electricity demand per unit of emissions abated, `(cross_elast · Cons0) / (own_elast · EmisSector0)`, in MWh per `emis_col` unit. `NaN` where the denominator is zero, which 
+   [`add_sector_electrification_load!`](@ref) treats as an error.
 
-Note: MAC step row-indices (`mac_idxs`, into the `sector_<name>_mac_steps`
-table) are *not* a column here -- they're a pure lookup with no standalone
-meaning to someone inspecting `:nonelec`, so `modify_model!` builds them fresh
-via `get_row_idxs` instead of persisting them alongside the columns above.
+Populated post-solve in [`modify_results!`](@ref):
+* `(:nonelec, :abate_total)` - `ByYear` emissions abated. Units follow `emis_col`.
+* `(:nonelec, :resid_emis)` - `ByYear` residual (unabated) emissions, `baseline_emis - abate_total`. These are the emissions `EmissionCap` counts against its constraint or `EmissionPrice` will price.
+* `(:nonelec, :elec_demand_change)` - `ByYear` induced change in electricity demand, `abate_total * elec_per_emis`, in MWh.
 
-## Model contribution per sector `sec`
-* Variables: `abate_<name>[s, k, y]` — tons abated at region-subsector `s`
-  (indexes this instance's rows of the `regsub` table), MAC step `k` (local to
-  that region-subsector, not a row index into `mac`), year `y`.
-* Expressions:
-    - `abate_total_<name>[i, y]` — total tons abated for region-subsector `i`
-      in year `y` (`i` indexes this instance's rows of the `regsub` table).
-    - `resid_emis_<name>[i, y]` — `baseline_emis[i, y] - abate_total[i, y]`.
-    - `cost_sector_<name>_obj[y]` — MAC abatement cost (area under the MAC
-      curve: `sum(abate[i,k,y] * mac.price[mac_idxs[i][k]])`), added to the model objective
-      via [`add_obj_exp!`](@ref). Residual (unabated) emissions carry no
-      direct cost term here -- the only price signal on them comes from
-      whatever `EmissionCap` covers this sector's region-subsectors.
-* Constraints: `cons_abate_cap_<name>[i, y]` — `abate_total <= baseline_emis`.
 
-Note that the emissions are added in EmissionCap
+### Model Modification
+Indices: `regsub_idx` is a row of this instance's region-subsectors in the shared `:nonelec` table (`mod_name == name`), `step_idx` is a MAC step local to that region-subsector (not a row index into the `mac_steps` table), and `yr_idx` 
+is the simulation year.
+* Variables
+    * `abate_<name>[regsub_idx, step_idx, yr_idx]` - emissions abated on one MAC step, bounded above by that step's `quantity`. Units follow `emis_col`.
+* Expressions
+    * `abate_total_<name>[regsub_idx, yr_idx]` - total emissions abated, summed over that region-subsector's MAC steps.
+    * `resid_emis_<name>[regsub_idx, yr_idx]` - residual (unabated) emissions, `baseline_emis - abate_total`. These are what `EmissionCap` counts.
+    * `cost_sector_<name>_obj[yr_idx]` - MAC abatement cost, the staircase area under the MAC curve (`sum(abate * mac.price)` over all region-subsectors and steps), added to the objective via [`add_obj_exp!`](@ref) 
+      under [`SectorTerm`](@ref). Residual emissions carry no direct cost term here -- their only price signal comes from whatever `EmissionCap` covers this sector's region-subsectors.
+* Constraints
+    * `cons_abate_cap_<name>[regsub_idx, yr_idx]` - abatement in a year cannot exceed that year's baseline emissions: `abate_total <= baseline_emis`.
 
 ## Pbal coupling
-`modify_model!` unconditionally calls [`add_sector_electrification_load!`](@ref),
-which adds only the responsive electrification load (`abate_total · phi`) into
-`plserv_bus`. For now it distributes that load equally across hours and equally
-across the buses matching each row's `(area, subarea)` -- both placeholders
-pending a weighted rule (hour_weights, load profile shape, population, existing
-load share, etc.). Baseline electricity (`Cons0`) is not added — E4ST already carries it as a
-primary input.
+`modify_model!` calls [`add_sector_electrification_load!`](@ref), which adds only the responsive electrification load (`abate_total · elec_per_emis`) into `plserv_bus`. The load is distributed across hours using the load profile table. 
 
+
+Note that the EmissionCap and EmissionPrice mods search for relevant sector emissions and add them to the full emission expression, linking these emissions with the power sector.
+
+### Results Formulas Added:
+All are `SumYearly` aggregations over `:nonelec`, summed across region-subsectors and years.
+* `(:nonelec, :abate_emis_total)`, `(:nonelec, :resid_emis_total)`, `(:nonelec, :baseline_emis_total)` - emissions, units following `emis_col`.
+* `(:nonelec, :baseline_demand_total)`, `(:nonelec, :elec_response_total)` - baseline and induced electricity demand, in MWh.
 
 """
-
 Base.@kwdef struct Sector <: Modification
     name::Symbol
     sector::Symbol
@@ -105,57 +86,13 @@ export Sector
 # sector mod comes right before the EmissionCap so that the sector emissions expression is set up before the emissions constraint is created
 mod_rank(::Type{<:Sector}) = mod_rank(EmissionCap) - 0.1
 
-### All sector subtypes 
-
-"""
-    modify_raw_data!(mod::SectorEmissions, config, data)
-
-Loads input files into tables:
-':sector_<name>_mac_steps', ':sector_<name>_baseline_emissions', ':sector_<name>_baseline_load_profile'
-
-# sector_mac_steps
-# edit table to append MAC curves from the preprocessing step by subsector 
-#
-# :region - string, region name to match to bus table (state should be fine?)
-# :subsector - string, sub-sector id (e.g., NAICS code for industrial sector, LDV / MHDV / transit for transportation)
-# :step_id - int, step id for MAC curve, ordered by price 
-# :price - float, MAC for given step
-# :quantity - float, abatement quantity for given step
-
-# sector_emis_baseline
-# :src_file - string, description of source data file for baseline emissions
-# :description - string, description of the baseline emissions row
-# :set
-# :area - string, geographic area of aggregation (state)
-# :subarea - string, state name or other subregion name to match to bus table
-# :sector - string, sector name (Transportation, Industry, Buildings)
-# :subsector - string, sub-sector id (e.g., NAICS code for industrial sector, LDV / MHDV / transit for transportation)
-# :emis_col - string, the pollutant this row's emissions are (e.g. "emis_co2", "emis_so2"),
-#             matched against EmissionCap.emis_col in add_resid_emis_to_caps! so a
-#             region-subsector's residual emissions only flow into caps regulating the
-#             same pollutant. A single (area, subarea, subsector) can appear as multiple
-#             rows, one per pollutant.
-# :y2016-y2050 - float, baseline emissions for given year in short tons
-
-# sector_load_profile 
-# :area
-# :subarea
-
-# sector_elec_baseline
-#
-#
-
-# sector_elec_per_ton
-
-"""
 
 """
     modify_raw_data!(sec::Sector, config, data)
 
-Reads in necessary input data files for the sector
+Reads in necessary input data files for the sector and stores them in data as tables.
 
 """
-
 function modify_raw_data!(sec::Sector, config, data)
     # read in sector tables, read_table will check type coercion and required columns against the summarize_table function
     name = sec.name
@@ -224,22 +161,13 @@ function summarize_table(::Val{:elec_baseline})
         (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:subsector, AbstractString, NA, true, "Refers to the subsector these data correspond with (e.g. a NAICS code for the industrial sector, or LDV/MHDV/transit for transportation).  Can be left blank if there are no subsectors for this sector."),
-        (:y_, Float64, MWhLoad, true, "The baseline electricity consumption (Cons0) for this region-subsector, per year.  Include a column for each year in the simulation, i.e. `:y2020`, `:y2030`, etc.  Used only to compute the electrification response coefficient `phi`; E4ST's total baseline load is not adjusted by these values, since it already ingests baseline demand as a primary input."),
+        (:y_, Float64, MWhLoad, true, "The baseline electricity consumption (Cons0) for this region-subsector, per year.  Include a column for each year in the simulation, i.e. `:y2020`, `:y2030`, etc.  Used only to compute the electrification response coefficient `elec_per_emis` (Haiku eq. 10's phi); E4ST's total baseline load is not adjusted by these values, since it already ingests baseline demand as a primary input."),
     )
     return df
 end
 
 @doc """
     summarize_table(::Val{:load_profile})
-
-Placeholder -- the `sector_<name>_load_profile` table is not yet wired up
-(its `read_table!` call is commented out in `modify_raw_data!`, and
-`add_sector_electrification_load!` currently splits responsive
-electrification load equally across hours rather than reading a shape from
-this table). Columns below are inferred from the `lp`/`lp_index`/`hour_cols`
-TODO comments in `add_sector_electrification_load!`, which key rows by
-`(area, subarea, subsector, year)` and reserve an hourly-shape column per
-hour. Update this once the table is actually implemented.
 
 $(table2markdown(summarize_table(Val(:load_profile))))
 """
@@ -267,8 +195,8 @@ function summarize_table(::Val{:elasticity})
         (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
         (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
         (:subsector, AbstractString, NA, true, "Refers to the subsector these data correspond with (e.g. a NAICS code for the industrial sector, or LDV/MHDV/transit for transportation).  Can be left blank if there are no subsectors for this sector."),
-        (:own_elast, Float64, NA, true, "The semi-elasticity of emissions in response to change in the carbon price for this region-subsector, used with `cross_elast` and baseline electricity/emissions to compute the electrification response coefficient `phi` (Haiku eq. 10)."),
-        (:cross_elast, Float64, NA, true, "The semi-elasticity of electricity demand with respect to a change in the carbon price for this region-subsector, used with `own_elast` and baseline electricity/emissions to compute the electrification response coefficient `phi` (Haiku eq. 10)."),
+        (:own_elast, Float64, NA, true, "The semi-elasticity of emissions in response to change in the carbon price for this region-subsector, used with `cross_elast` and baseline electricity/emissions to compute the electrification response coefficient `elec_per_emis` (Haiku eq. 10's phi)."),
+        (:cross_elast, Float64, NA, true, "The semi-elasticity of electricity demand with respect to a change in the carbon price for this region-subsector, used with `own_elast` and baseline electricity/emissions to compute the electrification response coefficient `elec_per_emis` (Haiku eq. 10's phi)."),
     )
     return df
 end
@@ -277,11 +205,11 @@ end
 """
     modify_setup_data!(sec::Sector, config, data)
 
-Creates or appends to a shared `:nonelec` table to store emissions and electricity pathways for each sector. Uses the elasticity table and baseline values to calculate and store `phi`: the electrification response per unit of abatement.
+Creates or appends to a shared `:nonelec` table to store emissions and electricity 
+pathways for each sector. Uses the elasticity table and baseline values to calculate 
+and store `elec_per_emis`: the electrification response per unit of abatement.
 
 """
-
-
 function modify_setup_data!(sec::Sector, config, data)
     name = sec.name
     @info "Setting up Sector: $name"
@@ -317,48 +245,39 @@ function modify_setup_data!(sec::Sector, config, data)
             error("Sector $name: load profile row for area=$(row.area), subarea=$(row.subarea), subsector=$(row.subsector), year=$(row.year) has an all-zero load shape (h1..h$(nhr) all 0) -- there is no hourly pattern to distribute the responsive load across")
     end
 
-    # sort MAC steps ascending in price (per region-subsector) so that they are listed in step_order
-    # although table is likely read in sorted
-    sort!(mac, [:area, :subarea, :subsector, :price])
+    # sort MAC steps ascending in price (per region-subsector) so that they are listed in step_order (although table is likely read in sorted)
+    sort!(mac, [:area, :subarea, :sector, :subsector, :price])
     mac.subsector = string.(mac.subsector)
 
-    # If any simulation year is entirely missing from emis or elec, there's no
-    # complete baseline for any region-subsector in this mod -- exclude all of
-    # them (no abatement option) rather than silently defaulting to 0/NaN.
+    # error if any simulation year is entirely missing from emis or elec
     missing_years = filter(y -> !hasproperty(emis, Symbol(y)) || !hasproperty(elec, Symbol(y)), years)
     if !isempty(missing_years)
-        @warn "Sector $name: missing baseline emissions/electricity data for year(s) $missing_years -- excluding all region-subsectors for this Sector mod (no abatement option)"
+        error("Sector $name: is missing baseline emissions or electricity data for year(s) $missing_years.")
         return nothing
     end
 
-    # Attach each emis row's own_elast/cross_elast (elast) and Cons0 (elec) by
-    # (area, subarea, subsector) via direct Dict lookups. A regsub with no
-    # match in either is excluded entirely (no abatement option), rather than
-    # kept with a NaN phi.
+    # Attach each emis row's own_elast/cross_elast (elast) and Cons0 (elec) by (area, subarea, subsector) 
+    # Error if a a regsub has no match because there is no abatement option without elasticities or baseline electrificity demand
     elast_lookup = Dict((r.area, r.subarea, r.subsector) => (r.own_elast, r.cross_elast) for r in eachrow(elast))
     elec_lookup = Dict((r.area, r.subarea, r.subsector) => r for r in eachrow(elec))
 
     keep_idxs = findall(r -> haskey(elast_lookup, (r.area, r.subarea, r.subsector)) && haskey(elec_lookup, (r.area, r.subarea, r.subsector)), eachrow(emis))
     n_excluded = nrow(emis) - length(keep_idxs)
-    n_excluded > 0 && @warn "Sector $name: excluding $n_excluded region-subsector row(s) with no matching elasticity or electricity baseline row (no abatement option for those)"
+    n_excluded > 0 && error("Sector $name: $n_excluded region-subsector row(s) with no matching elasticity or electricity baseline row.")
     emis = emis[keep_idxs, :]
 
-    # build rows for the shared `:nonelec` table: one row per region-subsector, with `baseline_emis`/`cons0`/`phi` as `ByYear` columns
-    #   phi = (cross_elast · Cons0) / (own_elast · EmisSector0)   (Haiku eq. 10)
-    # phi is set to `NaN` only for a zero denominator (own_elast or emis0 == 0), since every remaining row is now guaranteed a full data match
-    # phi feeds directly into the `plserv_bus` coupling coefficients in `add_sector_electrification_load!`; round it to a few
-    # sig figs and snap negligible values to exactly 0.0 so a tiny phi doesn't inject a denormal coefficient into the constraint
-    # matrix (the existing `phi == 0.0` / `coef == 0.0` guards then drop that region-subsector's electrification term entirely).
-    phi_min = 1e-6   # MWh/ton below which the electrification response is treated as none
+    # build rows for the shared `:nonelec` table: one row per region-subsector, with `baseline_emis`/`baseline_demand`/`elec_per_emis` as `ByYear` columns
+    # elec_per_emis = (cross_elast · Cons0) / (own_elast · EmisSector0), set to `NaN` only for a zero denominator (own_elast or emis0 == 0), 
+    elec_per_emis_min = 1e-6   # MWh per emis_col unit below which the electrification response is treated as none
 
     # `:nonelec` is a single table shared across every Sector mod
     # `mod_name` identifies which mod instance each row belongs to
-    regsub_new = select(emis, [:area, :subarea, :subsector, :emis_col])
+    regsub_new = select(emis, [:area, :subarea, :sector, :subsector, :emis_col])
     regsub_new.mod_name = fill(name, nrow(emis))
 
-    baseline_emis_col = Vector{ByYear}(undef, nrow(emis))
-    cons0_col         = Vector{ByYear}(undef, nrow(emis))
-    phi_col           = Vector{ByYear}(undef, nrow(emis))
+    baseline_emis_col  = Vector{ByYear}(undef, nrow(emis))
+    cons0_col          = Vector{ByYear}(undef, nrow(emis))
+    elec_per_emis_col  = Vector{ByYear}(undef, nrow(emis))
 
     for (i, row) in enumerate(eachrow(emis))
         own_elast, cross_elast = elast_lookup[(row.area, row.subarea, row.subsector)]
@@ -366,24 +285,24 @@ function modify_setup_data!(sec::Sector, config, data)
 
         emis0_vals = [Float64(row[Symbol(y)]) for y in years]
         cons0_vals = [Float64(elec_row[Symbol(y)]) for y in years]
-        phi_vals = [
+        elec_per_emis_vals = [
             if own_elast == 0.0 || emis0_vals[j] == 0.0
                 NaN
             else
                 p = (cross_elast * cons0_vals[j]) / (own_elast * emis0_vals[j])
-                abs(p) < phi_min ? 0.0 : round(p; sigdigits = 4)
+                abs(p) < elec_per_emis_min ? 0.0 : round(p; sigdigits = 4)
             end
             for j in eachindex(years)
         ]
 
-        baseline_emis_col[i] = ByYear(emis0_vals)
-        cons0_col[i]         = ByYear(cons0_vals)
-        phi_col[i]           = ByYear(phi_vals)
+        baseline_emis_col[i]     = ByYear(emis0_vals)
+        cons0_col[i]             = ByYear(cons0_vals)
+        elec_per_emis_col[i]     = ByYear(elec_per_emis_vals)
     end
 
     regsub_new.baseline_emis           = baseline_emis_col
     regsub_new.baseline_demand         = cons0_col
-    regsub_new.phi                     = phi_col
+    regsub_new.elec_per_emis           = elec_per_emis_col
 
     if has_table(data, :nonelec)
         append!(get_table(data, :nonelec), regsub_new)
@@ -398,13 +317,14 @@ end
 """
     modify_model!(sec::Sector, config, data, model)
 
-Set up the sector's abatement and residual emissions variables, constraints (non-negativity), and objective function contribution. The emissions expressoin for all Sector mods is created here, but it is added to the relevant constraint through
-the respective mod (e.g., the EmissionCap mod will search for a Sector mod and add the sector emissions to the model-wide emissions expression). 
+Set up the sector's abatement and residual emissions variables, constraints (non-negativity), 
+and objective function contribution. The emissions expression for a Sector mod is created here, 
+but it is added to the relevant constraint through the respective mod (e.g., the EmissionCap 
+mod will search for a Sector mod and add the sector emissions to the model-wide emissions expression). 
 
 Also adds the sector's responsive electric load to `plserv_bus` via [`add_sector_electrification_load!`](@ref). 
 
 """
-
 function modify_model!(sec::Sector, config, data, model)
     name = sec.name
     @info "Adding Sector $name to the model"
@@ -425,37 +345,32 @@ function modify_model!(sec::Sector, config, data, model)
         return nothing
     end
 
-     # Load-profile lookup by (area, subarea, subsector, year) -> row index in lp, and passied as an argument to `add_sector_electrification_load!`
-    # `lp_years_index` is a fallback for when there's no exact-year match in
-    # `lp_index`: (area, subarea, subsector) -> [(year, row index in lp), ...],
-    # used to find the closest available year instead of skipping outright.
+    # Two region-subsector -> input-row lookups, `load_profile` and `mac_steps`.
+
+    # Load profile: lp varies by year, so these are set up as keyed Dicts rather than a Vector. 
+    #  `lp_index` is the exact match, # (area, subarea, subsector, year) -> lp row
+    #  `lp_years_index` is the fallback, (area, subarea, subsector) -> [(year, lp row)], which lets `_lp_lookup` pick the closest available year instead of skipping the region-subsector
     lp_index = Dict{NTuple{4, String}, Int}()
     lp_years_index = Dict{NTuple{3, String}, Vector{Tuple{Int,Int}}}()
-    for (i, row) in enumerate(eachrow(lp))
+    for (lp_idx, row) in enumerate(eachrow(lp))
         area, subarea, subsector = string(row.area), string(row.subarea), string(row.subsector)
         yearstr = string(row.year)
-        lp_index[(area, subarea, subsector, yearstr)] = i
+        lp_index[(area, subarea, subsector, yearstr)] = lp_idx
         isempty(yearstr) && continue
-        push!(get!(lp_years_index, (area, subarea, subsector), Tuple{Int,Int}[]), (year2int(yearstr), i))
+        push!(get!(lp_years_index, (area, subarea, subsector), Tuple{Int,Int}[]), (year2int(yearstr), lp_idx))
     end
 
-    # MAC step row-indices (into `mac`, sorted ascending in price by
-    # `modify_setup_data!`) for each region-subsector, year-invariant. A pure
-    # lookup with no standalone meaning outside this function, so it's built
-    # fresh here rather than persisted as a `:nonelec` column (unlike
-    # `lp_index` above, this one only needs `regsub`'s row identity, not a
-    # `year` dimension `regsub` doesn't have).
-    mac_idxs = map(1:nregsub) do i
-        idxs = get_row_idxs(mac, :area => regsub.area[i], :subarea => regsub.subarea[i], :subsector => regsub.subsector[i])
-        isempty(idxs) && @warn "Sector $name: no MAC steps found for area=$(regsub.area[i]), subarea=$(regsub.subarea[i]), subsector=$(regsub.subsector[i]). Emissions will be added to constraint but there will be no way to abate."
+    # MAC steps: year-invariant, setup as a vector indexed by `regsub_idx` and kept local rather than stored in `:nonelec` column, since there is no meaning outside this function
+    # A region-subsector with no matching steps still has its emissions counted by whatever cap covers it, there just is no way to abate 
+    mac_idxs = map(1:nregsub) do regsub_idx
+        idxs = get_row_idxs(mac, :area => regsub.area[regsub_idx], :subarea => regsub.subarea[regsub_idx], :subsector => regsub.subsector[regsub_idx])
+        isempty(idxs) && @warn "Sector $name: no MAC steps found for area=$(regsub.area[regsub_idx]), subarea=$(regsub.subarea[regsub_idx]), subsector=$(regsub.subsector[regsub_idx]). Emissions will be added to constraint but there will be no way to abate."
         idxs
     end
     nsteps = length.(mac_idxs)
 
-    # Baseline emissions per (region-subsector, year), read directly off
-    # regsub's `baseline_emis` ByYear column -- region-subsector i is
-    # regsub's row i.
-    baseline_emis = [regsub.baseline_emis[i][yi] for i in 1:nregsub, yi in 1:nyear]
+    # Baseline emissions per (region-subsector, year)
+    baseline_emis = [regsub.baseline_emis[regsub_idx][yr_idx] for regsub_idx in 1:nregsub, yr_idx in 1:nyear]
 
     abate_name       = Symbol("abate_$(name)")
     abate_total_name = Symbol("abate_total_$(name)")
@@ -464,33 +379,33 @@ function modify_model!(sec::Sector, config, data, model)
     cost_name        = Symbol("cost_sector_$(name)_obj")
     
     
-    # abatement variable, indexed by [i,k,y] where i is the region-subsector, k is the step on the mac curve, and y is the year
+    # abatement variable, indexed by [regsub_idx, step_idx, yr_idx] where regsub_idx is the region-subsector, step_idx is the step on the mac curve, and yr_idx is the year
     model[abate_name] = @variable(model,
-        [i in 1:nregsub, k in 1:nsteps[i], y in 1:nyear],
+        [regsub_idx in 1:nregsub, step_idx in 1:nsteps[regsub_idx], yr_idx in 1:nyear],
         lower_bound = 0,
-        upper_bound = mac.quantity[mac_idxs[i][k]],
+        upper_bound = mac.quantity[mac_idxs[regsub_idx][step_idx]],
         base_name = String(abate_name)
     )
     abate = model[abate_name]
 
-    # set up abatement expression, index by region-subsector,year and sums over each step in abate[i,k,y]
+    # set up abatement expression, indexed by region-subsector and year, summing over each step in abate[regsub_idx, step_idx, yr_idx]
     model[abate_total_name] = @expression(model,
-        [i in 1:nregsub, y in 1:nyear],
-        sum(abate[i, k, y] for k in 1:nsteps[i]; init = AffExpr(0.0))
+        [regsub_idx in 1:nregsub, yr_idx in 1:nyear],
+        sum(abate[regsub_idx, step_idx, yr_idx] for step_idx in 1:nsteps[regsub_idx]; init = AffExpr(0.0))
     )
     abate_total = model[abate_total_name]
 
-    # residual emissions expression (baseline emissions minus abated emissions), indexed by [i, y] where is the region-subsector
+    # residual emissions expression (baseline emissions minus abated emissions), indexed by [regsub_idx, yr_idx]
     model[resid_name] = @expression(model,
-        [i in 1:nregsub, y in 1:nyear],
-        baseline_emis[i, y] - abate_total[i, y]
+        [regsub_idx in 1:nregsub, yr_idx in 1:nyear],
+        baseline_emis[regsub_idx, yr_idx] - abate_total[regsub_idx, yr_idx]
     )
     resid_emis = model[resid_name]
 
     # constraint so that abated emissions in a year can not be greater than the baseline emissions in that year
     model[cons_name] = @constraint(model,
-        [i in 1:nregsub, y in 1:nyear],
-        abate_total[i, y] <= baseline_emis[i, y]
+        [regsub_idx in 1:nregsub, yr_idx in 1:nyear],
+        abate_total[regsub_idx, yr_idx] <= baseline_emis[regsub_idx, yr_idx]
     )
 
     # couple the load from the electrification response with power-balancing equation
@@ -499,8 +414,9 @@ function modify_model!(sec::Sector, config, data, model)
     
     # abatement cost expression, summed over regsub and steps so that it is indexed by year only
     model[cost_name] = @expression(model,
-        [y in 1:nyear],
-        sum(abate[i, k, y] * mac.price[mac_idxs[i][k]] for i in 1:nregsub, k in 1:nsteps[i]; init = AffExpr(0.0))
+        [yr_idx in 1:nyear],
+        sum(abate[regsub_idx, step_idx, yr_idx] * mac.price[mac_idxs[regsub_idx][step_idx]]
+            for regsub_idx in 1:nregsub, step_idx in 1:nsteps[regsub_idx]; init = AffExpr(0.0))
     )
 
     # add abatement costs to objective term, in units of $/short ton of emissions
@@ -509,23 +425,18 @@ function modify_model!(sec::Sector, config, data, model)
 end
 
 """
-    named `SectorTerm` for the sector's contribution to the objective function.
-Used in `add_obj_term!` to add the sector's MAC abatement cost to the objective function.
-Residual (unabated) emissions carry no direct cost term here -- see `cost_sector_<name>_obj`.
+    SectorTerm <: Term
 
-    look at emissions price modification -- might use per MWh term, might be reusable if it's just per unit of emissions
+Labels the sector's contribution to the objective function: the MAC abatement
+cost `cost_sector_<name>_obj`, added via [`add_obj_exp!`](@ref).
 """
-
-  struct SectorTerm <: Term end
-
-
+struct SectorTerm <: Term end
 
 """
     _sector_region_buses(bus, nbus)
 
-Returns a closure `buses_for(area, subarea) -> Vector{Int}` giving the bus
-indices where `bus[!, Symbol(area)] == subarea`, memoized per `(area, subarea)`.
-Shared by the baseline- and responsive-load couplings.
+Returns a function `buses_for(area, subarea)` that returns bus indices in the region. Stores the busses 
+for each region, so that the bus table is only scanned once per region instead of once per lookup.
 """
 function _sector_region_buses(bus, nbus)
     cache = Dict{Tuple{String,String}, Vector{Int}}()
@@ -542,13 +453,10 @@ end
 """
     _lp_lookup(lp_index, lp_years_index, area, subarea, sub, y, target_yr) -> (row_idx, closest_yr) or nothing
 
-Looks up a load-profile row for `(area, subarea, sub)` at year `y`: an
-exact-year match in `lp_index` if one exists, else the closest available year
-for that key from `lp_years_index` (in which case `closest_yr` is that year;
-otherwise `closest_yr` is `nothing`). Returns `nothing` if there's no data at
-all for `(area, subarea, sub)`. `sub` is usually a subsector, but see the
-two-stage lookup in `add_sector_electrification_load!`, which also tries this
-with a sector name in place of `sub`.
+Looks up a load-profile row for `(area, subarea, sub)` at year `y`: an exact-year match in `lp_index` 
+if one exists, otherwise the closest available year for that key from `lp_years_index`. Returns `nothing` 
+if there's no data at all for `(area, subarea, sub)`. `sub` is usually a subsector, but see the
+`add_sector_electrification_load!` has a two stage lookup, which also tries this with a sector name in place of `sub`.
 """
 function _lp_lookup(lp_index, lp_years_index, area, subarea, sub, y, target_yr)
     lp_row_idx = get(lp_index, (area, subarea, sub, string(y)), nothing)
@@ -561,52 +469,31 @@ function _lp_lookup(lp_index, lp_years_index, area, subarea, sub, y, target_yr)
 end
 
 """
-    add_sector_electrification_load!(sec::Sector, config, data, model,
-                                     regsub, abate_total, lp, lp_index)
+    add_sector_electrification_load!(sec::Sector, config, data, model, regsub, abate_total, lp, lp_index)
 
-Adds the *responsive* electrification load induced by abatement into
-`plserv_bus`, implementing the consumption/abatement linkage of Haiku eq. 9:
+Adds the *responsive* electrification load induced by abatement into `plserv_bus`, 
+mplementing the consumption/abatement linkage equation:
 
     Cons_{y,r,sec} = Cons0_{y,r,sec} + Σ_k EmisAbatement_{y,r,sec,k} · phi_{y,r,sec}
 
-where `phi` (short tons -> MWh) is computed in `modify_setup_data!` per Haiku
-eq. 10, `phi = (cross_elast · Cons0) / (own_elast · EmisSector0)`, and stored as
-`regsub.phi`, a `ByYear` column. `Cons0` (baseline electricity) is NOT added
-by the Sector modification — E4ST already carries total baseline electric
-demand as a primary input, so this function adds only the second (responsive)
-term to avoid double-counting.
+where `phi` (emis_col unit -> MWh) is computed in `modify_setup_data!` 
+per  `(cross_elast · Cons0) / (own_elast · EmisSector0)`, 
+and stored as `regsub.elec_per_emis`, a `ByYear` column. 
 
-For each region-subsector `i` (a row of the `regsub` table, i.e. an
-`(area, subarea, subsector)` combination) and year `y`:
-* `annual_responsive_MWh = abate_total[i, y] · phi[i, y]` (an affine expression
-  in the `abate` variables).
-* That annual energy is distributed across the `nhr` representative hours
-  according to `lp`'s hourly shape for this region-subsector/year (`lp_row.h1
-  .. lp_row.hn`, weighted by `hour_weights` and renormalized by
-  `annual_shape` so the shape need not already sum to 1). It's split equally
-  across the buses in `(area, subarea)`:
+For each region-subsector `regsub_idx` and year `yr_idx`:
+* Responsive annual MWh = abate_total[regsub_idx, yr_idx] · elec_per_emis[regsub_idx, yr_idx]`
+* Annual energy is distributed across the `nhr` representative hours according to `lp`'s hourly 
+shape for the region-subsector/year, weighted by `hour_weights` and renormalized by `annual_shape` 
+so the shape need not already sum to 1). It's split equally across the buses in `(area, subarea)`:
 
-      plserv_bus[b, y, h] += (1/n_buses) · phi[i, y] · (lp_row.h_h / annual_shape) · abate_total[i, y]
+      plserv_bus[bus_idx, yr_idx, hr_idx] += (1/n_buses) · elec_per_emis[regsub_idx, yr_idx] · (lp_row.h_hr_idx / annual_shape) · abate_total[regsub_idx, yr_idx]
 
-  If `lp` has no row for a given region-subsector/year, the closest available
-  year for that region-subsector (via `lp_years_index`) is used instead; only
-  when there's no `lp` row *at all* for the region-subsector is that
-  region-subsector/year's responsive load skipped with a warning rather than
-  falling back to an equal split. (Every `lp` row is guaranteed to have a
-  nonzero annual shape -- `modify_setup_data!` validates this up front and
-  errors otherwise, so that case can't arise here.)
+If `lp` has no row for a given region-subsector/year, the closest available year for that region-subsector 
+(via `lp_years_index`) is used instead; only when there's no `lp` row at all for the region-subsector is
+that region-subsector/year's responsive load skipped with a warning rather than falling back to an equal split. 
 
-Because the coefficient multiplies the JuMP expression `abate_total[i, y]`, the
-LP is forced to serve more electric load whenever it chooses to abate more —
-the endogenous electrification feedback.
 
-`lp` (the `sector_<name>_load_profile` table), `lp_index` (a
-`(area, subarea, subsector, year) -> row index in lp` lookup for exact-year
-matches), and `lp_years_index` (a `(area, subarea, subsector) -> [(year, row
-index), ...]` fallback used to find the closest year when there's no exact
-match) are built once by the caller, `modify_model!`, and passed in here
-rather than being re-fetched from `data` -- the same way `regsub`/`abate_total`
-already are.
+`lp`, `lp_index`, and `lp_years_index` are built once by  `modify_model!`, and passed in here rather than being re-fetched from `data`.
 """
 function add_sector_electrification_load!(sec::Sector, config, data, model, regsub, abate_total, lp, lp_index, lp_years_index)
     name = sec.name
@@ -617,37 +504,29 @@ function add_sector_electrification_load!(sec::Sector, config, data, model, regs
     nregsub = nrow(regsub)
     years = get_years(data)
     buses_for = _sector_region_buses(bus, nbus)
-    # `:h_` -> `h1`, `h2`, ... `hn` (E4ST's wide-hour-column convention, see
-    # e.g. `summarize_table(::Val{:load_profile})`/`AdjustHourly`), not
-    # `hour1`, `hour2`, ....
-    hour_cols = [Symbol("h$h") for h in 1:nhr]
+..
+    hour_cols = [Symbol("h$hr_idx") for hr_idx in 1:nhr]
     hour_weights = get_hour_weights(data)
 
     n_applied = 0
-    for i in 1:nregsub, (yi, y) in enumerate(years)
-        phi = regsub.phi[i][yi]
-        if isnan(phi)
-            error("Sector $name: no phi (eq. 10) for area=$(regsub.area[i]), subarea=$(regsub.subarea[i]), subsector=$(regsub.subsector[i]), year=$y; can't have emission abatement without electrification")
+    for regsub_idx in 1:nregsub, (yr_idx, yr) in enumerate(years)
+        elec_per_emis = regsub.elec_per_emis[regsub_idx][yr_idx]
+        if isnan(elec_per_emis)
+            error("Sector $name: no elec_per_emis for area=$(regsub.area[regsub_idx]), subarea=$(regsub.subarea[regsub_idx]), subsector=$(regsub.subsector[regsub_idx]), year=$yr; can't have emission abatement without electrification")
             continue
         end
-        phi == 0.0 && continue   # no electrification response for this region-subsector/year
+        elec_per_emis == 0.0 && continue   # no electrification response for this region-subsector/year
 
-        # Look up this region-subsector/year's hourly load shape. `lp_row`'s
-        # `h1..hn` values need not already be normalized (`get_sector_load_shape`
-        # in `SectorLoadProfile.jl` does normalize them so that `annual_shape`
-        # below comes out to ~1, but dividing through here makes this robust
-        # to an unnormalized `lp` too).
-        area, subarea, subsector = string(regsub.area[i]), string(regsub.subarea[i]), string(regsub.subsector[i])
-        target_yr = year2int(string(y))
+        # Look up this region-subsector/year's hourly load shape
+        area, subarea, subsector = string(regsub.area[regsub_idx]), string(regsub.subarea[regsub_idx]), string(regsub.subsector[regsub_idx])
+        target_yr = year2int(string(yr))
 
-        result = _lp_lookup(lp_index, lp_years_index, area, subarea, subsector, y, target_yr)
+        result = _lp_lookup(lp_index, lp_years_index, area, subarea, subsector, yr, target_yr)
         lookup_sub = subsector
         if result === nothing
-            # Some sectors (e.g. buildings) provide a single load profile per
-            # area/subarea rather than one per subsector -- in that case the
-            # lp table's `subsector` column holds the sector name itself.
+            # Some sectors (e.g. buildings) provide a single load profile per area/subarea rather than one per subsector -- in that case the lp table's `subsector` column holds the sector name itself.
             lookup_sub = string(sec.sector)
-            result = _lp_lookup(lp_index, lp_years_index, area, subarea, lookup_sub, y, target_yr)
+            result = _lp_lookup(lp_index, lp_years_index, area, subarea, lookup_sub, yr, target_yr)
         end
         if result === nothing
             error("Sector $name: no load profile found for area=$area, subarea=$subarea, subsector=$subsector (also tried sector-level subsector=$(sec.sector)), can't have emission abatement without electrification.")
@@ -655,25 +534,23 @@ function add_sector_electrification_load!(sec::Sector, config, data, model, regs
         end
         lp_row_idx, closest_yr = result
         if closest_yr !== nothing
-            @info "Sector $name: no load profile for area=$area, subarea=$subarea, subsector=$lookup_sub, year=$y; using closest available year y$closest_yr instead"
+            @info "Sector $name: no load profile for area=$area, subarea=$subarea, subsector=$lookup_sub, year=$yr; using closest available year y$closest_yr instead"
         end
         lp_row = lp[lp_row_idx, :]
         # annual_shape is guaranteed > 0 here -- every lp row was validated in modify_setup_data!
-        annual_shape = sum(lp_row[hour_cols[h]] * hour_weights[h] for h in 1:nhr)
+        annual_shape = sum(lp_row[hour_cols[hr_idx]] * hour_weights[hr_idx] for hr_idx in 1:nhr)
 
-        buses = buses_for(regsub.area[i], regsub.subarea[i])
+        buses = buses_for(regsub.area[regsub_idx], regsub.subarea[regsub_idx])
         isempty(buses) && continue
         share = 1.0 / length(buses)
 
-        # Distribute the responsive annual MWh (abate_total[i,y] * phi[i,y])
-        # across the nhr representative hours according to lp_row's shape,
-        # rather than splitting it equally.
+        # Distribute the responsive annual MWh across the nhr representative hours according to lp_row's shape
         applied_this = false
-        for h in 1:nhr
-            coef = share * phi * lp_row[hour_cols[h]] / annual_shape
+        for hr_idx in 1:nhr
+            coef = share * elec_per_emis * lp_row[hour_cols[hr_idx]] / annual_shape
             coef == 0.0 && continue
-            for b in buses
-                add_to_expression!(plserv_bus[b, yi, h], coef, abate_total[i, yi])
+            for bus_idx in buses
+                add_to_expression!(plserv_bus[bus_idx, yr_idx, hr_idx], coef, abate_total[regsub_idx, yr_idx])
             end
             applied_this = true
         end
@@ -687,34 +564,18 @@ export add_sector_electrification_load!
 """
     modify_results!(sec::Sector, config, data)
 
-Writes the solved `abate_total_<name>`/`resid_emis_<name>` expressions back
-onto this instance's rows (`mod_name == sec.name`) of the shared
-`:nonelec` table, as `ByYear` columns (`abate_total`, `resid_emis`) --
-alongside `baseline_emis`, `cons0`, and `phi`, which are populated the same
-way (per-row `ByYear`) in `modify_setup_data!`. Solved values are retrieved
-via [`get_raw_result`](@ref) rather than the (by now emptied) JuMP `model`,
-since `modify_results!` runs after `parse_results!` has already pulled every
-registered variable/expression value into `data[:results][:raw]`.
+Modify sector results.  Add `ByYear` columns to the `nonelec` table, 
+for this instance's rows only (`mod_name == sec.name`):
+* `abate_total` - emissions abated, by year
+* `resid_emis` - residual (unabated) emissions, `baseline_emis - abate_total`
+* `elec_demand_change` - induced electricity demand, `abate_total * elec_per_emis`, in MWh
 
-Also writes `elec_demand_change`, the induced change in electricity demand
-(Haiku eq. 9's responsive term, `abate_total · phi`, in MWh -- see
-[`add_sector_electrification_load!`](@ref)). Unlike `abate_total`/`resid_emis`,
-this isn't a separate JuMP expression -- `phi` is a precomputed constant
-(not a decision variable), so it's just an elementwise product of the
-already-retrieved `abate_total` and the `phi` column `modify_setup_data!`
-already populated.
+Also adds `SumYearly` results formulas for those columns plus `baseline_emis`
+and `baseline_demand`.
 
-Since `:nonelec` is shared across every Sector mod instance, the
-`abate_total`/`resid_emis`/`elec_demand_change` columns are created (filled
-with a `NaN`-`ByYear` placeholder for every row) the first time any
-instance's `modify_results!` runs; each instance then overwrites only its
-own rows. Which instance runs first doesn't matter -- `process_results!`
-calls `modify_results!` for every mod, so every row ends up written by the
-time all Sector instances have run.
+Because `nonelec` is shared across every `Sector` instance, the columns are created once by 
+whichever instance runs first, and each instance then overwrites only its own rows.
 """
-
-# Post-solve, `modify_results!` adds `abate_total`/`resid_emis` ByYear
-    # columns to this same table.
 function modify_results!(sec::Sector, config, data)
     name = sec.name
     regsub = get_table(data, :nonelec)
@@ -730,7 +591,7 @@ function modify_results!(sec::Sector, config, data)
             "Residual (unabated) emissions for this region-subsector, by year: `baseline_emis - abate_total`. Units match `baseline_emis`'s (emis_col-dependent).")
     hasproperty(regsub, :elec_demand_change) ||
         add_table_col!(data, :nonelec, :elec_demand_change, [ByYear(fill(NaN, nyear)) for _ in 1:nrow(regsub)], MWhLoad,
-            "Induced change in electricity demand from abatement: `abate_total * phi`.")
+            "Induced change in electricity demand from abatement: `abate_total * elec_per_emis`.")
 
     # setup results formulas
     results_formulas = get_results_formulas(data)
@@ -753,14 +614,21 @@ function modify_results!(sec::Sector, config, data)
     abate_total_raw = get_raw_result(data, Symbol("abate_total_$(name)"))::AbstractMatrix
     resid_emis_raw  = get_raw_result(data, Symbol("resid_emis_$(name)"))::AbstractMatrix
 
-    for (i, row_idx) in enumerate(row_idxs)
-        regsub.abate_total[row_idx] = ByYear(Float64.(abate_total_raw[i, :]))
-        regsub.resid_emis[row_idx]  = ByYear(Float64.(resid_emis_raw[i, :]))
+    # `regsub_idx` indexes this instance's rows as the model saw them (and so
+    # indexes the raw result matrices); `row_idx` is the corresponding row of the
+    # shared `:nonelec` table.
+    for (regsub_idx, row_idx) in enumerate(row_idxs)
+        regsub.abate_total[row_idx] = ByYear(Float64.(abate_total_raw[regsub_idx, :]))
+        regsub.resid_emis[row_idx]  = ByYear(Float64.(resid_emis_raw[regsub_idx, :]))
 
-        phi = regsub.phi[row_idx]
-        regsub.elec_demand_change[row_idx] = ByYear([abate_total_raw[i, yi] * phi[yi] for yi in 1:nyear])
+        elec_per_emis = regsub.elec_per_emis[row_idx]
+        regsub.elec_demand_change[row_idx] = ByYear([abate_total_raw[regsub_idx, yr_idx] * elec_per_emis[yr_idx] for yr_idx in 1:nyear])
     end
 
+    # # save out the nonelec table
+    # nonelec = get_table(data, :nonelec)
+    # file_out = get_out_path(config, "nonelec.csv")
+    # CSV.write(file_out, nonelec)
     
    
     return nothing
