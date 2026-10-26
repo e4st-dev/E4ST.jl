@@ -624,11 +624,6 @@ function modify_results!(sec::Sector, config, data)
         elec_per_emis = regsub.elec_per_emis[row_idx]
         regsub.elec_demand_change[row_idx] = ByYear([abate_total_raw[regsub_idx, yr_idx] * elec_per_emis[yr_idx] for yr_idx in 1:nyear])
     end
-
-    # # save out the nonelec table
-    # nonelec = get_table(data, :nonelec)
-    # file_out = get_out_path(config, "nonelec.csv")
-    # CSV.write(file_out, nonelec)
     
    
     return nothing
