@@ -119,10 +119,10 @@ $(table2markdown(summarize_table(Val(:mac_steps))))
 function summarize_table(::Val{:mac_steps})
     df = TableSummary()
     push!(df,
-        (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
-        (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:area, AbstractString, NA, true, "The geographic level this row applies to, given as the name of a column in the `bus` table.  I.e. \"state\", \"county\", or \"nation\".  Paired with `subarea` to identify the region."),
+        (:subarea, AbstractString, NA, true, "The region this row applies to, given as a value of the `bus` column named by `area`.  I.e. \"minnesota\" when `area` is \"state\" or \"us\" when it is \"nation\"."),
+        (:sector, AbstractString, NA, true, "Refers to the sector these data correspond with (e.g. buildings, transportation, industrial)."),
         (:subsector, AbstractString, NA, true, "Refers to the subsector these data correspond with (e.g. a NAICS code for the industrial sector, or LDV/MHDV/transit for transportation).  Can be left blank if there are no subsectors for this sector."),
-        (:step_id, Int64, NA, false, "Identifier for this MAC step.  Informational only -- step order (and thus the abatement step index `k`) is determined by sorting rows on `price` within each (area, subarea, subsector), not by this column."),
         (:price, Float64, DollarsPerShortTon, true, "The marginal abatement cost of this step, i.e. the cost per short ton of emissions abated.  Steps are used in ascending price order, so cheaper abatement is exhausted first."),
         (:quantity, Float64, ShortTonsPerYear, true, "The maximum amount of abatement available at this step, in short tons per year.  Sets the upper bound of the `abate` variable for this step."),
     )
@@ -138,8 +138,8 @@ function summarize_table(::Val{:emis_baseline})
     df = TableSummary()
     push!(df,
         (:src_file, AbstractString, NA, false, "Description of the source data file this baseline emissions data came from."),
-        (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
-        (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:area, AbstractString, NA, true, "The geographic level this row applies to, given as the name of a column in the `bus` table.  I.e. \"state\", \"county\", or \"nation\".  Paired with `subarea` to identify the region."),
+        (:subarea, AbstractString, NA, true, "The region this row applies to, given as a value of the `bus` column named by `area`.  I.e. \"minnesota\" when `area` is \"state\" or \"us\" when it is \"nation\"."),
         (:sector, AbstractString, NA, false, "Refers to the broad sector these data correspond with e.g., industry, building, transportation."),
         (:subsector, AbstractString, NA, true, "Refers to the subsector these data correspond with (e.g. a NAICS code for the industrial sector, or LDV/MHDV/transit for transportation).  Can be left blank if there are no subsectors for this sector."),
         (:status, Bool, NA, false, "Whether or not to include this baseline emissions row."),
@@ -158,9 +158,10 @@ function summarize_table(::Val{:elec_baseline})
     df = TableSummary()
     push!(df,
         (:src_file, AbstractString, NA, false, "Description of the source data file this baseline electricity data came from."),
-        (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
-        (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:area, AbstractString, NA, true, "The geographic level this row applies to, given as the name of a column in the `bus` table.  I.e. \"state\", \"county\", or \"nation\".  Paired with `subarea` to identify the region."),
+        (:subarea, AbstractString, NA, true, "The region this row applies to, given as a value of the `bus` column named by `area`.  I.e. \"minnesota\" when `area` is \"state\", \"hennepin\" when it is \"county\", or \"us\" when it is \"nation\"."),
         (:subsector, AbstractString, NA, true, "Refers to the subsector these data correspond with (e.g. a NAICS code for the industrial sector, or LDV/MHDV/transit for transportation).  Can be left blank if there are no subsectors for this sector."),
+        (:status, Bool, NA, false, "Whether or not to include this baseline electricity row."),
         (:y_, Float64, MWhLoad, true, "The baseline electricity consumption (Cons0) for this region-subsector, per year.  Include a column for each year in the simulation, i.e. `:y2020`, `:y2030`, etc.  Used only to compute the electrification response coefficient `elec_per_emis` (Haiku eq. 10's phi); E4ST's total baseline load is not adjusted by these values, since it already ingests baseline demand as a primary input."),
     )
     return df
@@ -174,11 +175,10 @@ $(table2markdown(summarize_table(Val(:load_profile))))
 function summarize_table(::Val{:load_profile})
     df = TableSummary()
     push!(df,
-        (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
-        (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:area, AbstractString, NA, true, "The geographic level this row applies to, given as the name of a column in the `bus` table.  I.e. \"state\", \"county\", or \"nation\".  Paired with `subarea` to identify the region."),
+        (:subarea, AbstractString, NA, true, "The region this row applies to, given as a value of the `bus` column named by `area`.  I.e. \"minnesota\" when `area` is \"state\" or \"us\" when it is \"nation\"."),
         (:subsector, AbstractString, NA, true, "Refers to the subsector these data correspond with (e.g. a NAICS code for the industrial sector, or LDV/MHDV/transit for transportation).  Can be left blank if there are no subsectors for this sector."),
         (:year, String, Year, false, "The year this load profile applies to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\".  Leave blank to apply to all years."),
-        (:status, Bool, NA, false, "Whether or not to use this load profile row."),
         (:h_, Float64, Ratio, true, "Share of this region-subsector's annual responsive electrification load falling in each hour.  Include a column for each hour in the hours table, i.e. `:h1`, `:h2`, ... `:hn`."),
     )
     return df
@@ -192,11 +192,13 @@ $(table2markdown(summarize_table(Val(:elasticity))))
 function summarize_table(::Val{:elasticity})
     df = TableSummary()
     push!(df,
-        (:area, AbstractString, NA, true, "The area with which to filter by. I.e. \"state\". Leave blank to not filter by area."),
-        (:subarea, AbstractString, NA, true, "The subarea to include in the filter.  I.e. \"maryland\".  Leave blank to not filter by area."),
+        (:area, AbstractString, NA, true, "The geographic level this row applies to, given as the name of a column in the `bus` table.  I.e. \"state\", \"county\", or \"nation\".  Paired with `subarea` to identify the region."),
+        (:subarea, AbstractString, NA, true, "The region this row applies to, given as a value of the `bus` column named by `area`.  I.e. \"minnesota\" when `area` is \"state\" or \"us\" when it is \"nation\"."),
         (:subsector, AbstractString, NA, true, "Refers to the subsector these data correspond with (e.g. a NAICS code for the industrial sector, or LDV/MHDV/transit for transportation).  Can be left blank if there are no subsectors for this sector."),
-        (:own_elast, Float64, NA, true, "The semi-elasticity of emissions in response to change in the carbon price for this region-subsector, used with `cross_elast` and baseline electricity/emissions to compute the electrification response coefficient `elec_per_emis` (Haiku eq. 10's phi)."),
-        (:cross_elast, Float64, NA, true, "The semi-elasticity of electricity demand with respect to a change in the carbon price for this region-subsector, used with `own_elast` and baseline electricity/emissions to compute the electrification response coefficient `elec_per_emis` (Haiku eq. 10's phi)."),
+        (:own_elast, Float64, NA, true, "The semi-elasticity of emissions in response to change in the carbon price for this region-subsector, used with `cross_elast` and baseline electricity/emissions to compute the electrification response coefficient `elec_per_emis`."),
+        (:cross_elast, Float64, NA, true, "The semi-elasticity of electricity demand with respect to a change in the carbon price for this region-subsector, used with `own_elast` and baseline electricity/emissions to compute the electrification response coefficient `elec_per_emis`."),
+        (:c_price, Float64, NA, true, "The carbon price point used to anchor the MAC curve. For regions that do not yet have a carbon price, this will be zero."),
+        (:emis_qty, Float64, NA, true, "The historical annual emissions value that corresponds with the carbon price, used to anchor the MAC curve."),
     )
     return df
 end
