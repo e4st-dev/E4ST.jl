@@ -1,0 +1,19 @@
+base_out_path:    "../out/3bus_emiscap"
+mods:
+  example_emiscap:
+    type: "EmissionCap"
+    emis_col: "emis_co2"
+    targets: 
+      y2035: 3000
+      y2040: 2000
+    gen_filters:
+      bus_nation: "[narnia, archenland]"
+  transportation_sector:
+    type: "Sector"
+    sector: "transportation"
+    mac_file: "../data/3bus/sector_mac_curve.csv"
+    emis_baseline_file: "../data/3bus/sector_emis.csv"
+    elec_baseline_file: "../data/3bus/sector_elec.csv"
+    elasticity_file: "../data/3bus/sector_elasticity.csv"
+    load_profile_file: "../data/3bus/sector_load_profile.csv"
+

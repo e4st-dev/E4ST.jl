@@ -506,7 +506,7 @@ function add_sector_electrification_load!(sec::Sector, config, data, model, regs
     nregsub = nrow(regsub)
     years = get_years(data)
     buses_for = _sector_region_buses(bus, nbus)
-..
+
     hour_cols = [Symbol("h$hr_idx") for hr_idx in 1:nhr]
     hour_weights = get_hour_weights(data)
 
