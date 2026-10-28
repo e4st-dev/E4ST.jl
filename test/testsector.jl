@@ -14,7 +14,63 @@
     process_results!(config, data)
 
     @test haskey(data, :nonelec)
-  
+
+    # Test that the data validation step works. Each case below feeds it a deliberately 
+    # broken copy to exercise the error paths.
+    @testset "Input validation" begin
+        sec   = config[:mods][:transportation_sector]
+        nm    = sec.name
+        mac   = get_table(data, Symbol("sector_$(nm)_mac_steps"))
+        emis  = get_table(data, Symbol("sector_$(nm)_emis_baseline"))
+        elec  = get_table(data, Symbol("sector_$(nm)_elec_baseline"))
+        lp    = get_table(data, Symbol("sector_$(nm)_load_profile"))
+        elast = get_table(data, Symbol("sector_$(nm)_elasticity"))
+
+        validate(; mac=mac, emis=emis, elec=elec, lp=lp, elast=elast) =
+            E4ST._validate_sector_inputs(sec, data, mac, emis, elec, lp, elast)
+
+        # the unmodified tables pass
+        @test validate() === nothing
+
+        # `area` must name a column of the bus table
+        bad_area = copy(emis); bad_area.area .= "not_a_bus_column"
+        @test_throws "not a column of the bus table" validate(emis = bad_area)
+
+        # both baselines need a column per simulation year
+        yr1 = Symbol(first(get_years(data)))
+        @test_throws "emis_baseline has no column for simulation year" validate(emis = select(emis, Not(yr1)))
+        @test_throws "elec_baseline has no column for simulation year" validate(elec = select(elec, Not(yr1)))
+
+        # load shapes: no negatives, not all zero
+        neg = copy(lp); neg[1, :h1] = -1.0
+        @test_throws "has a negative value in h1" validate(lp = neg)
+        zeroed = copy(lp)
+        for hr_idx in 1:get_num_hours(data); zeroed[1, Symbol("h$hr_idx")] = 0.0; end
+        @test_throws "all-zero load shape" validate(lp = zeroed)
+
+        # duplicate rows in each of the four tables keyed one-per-region-subsector
+        @test_throws "emis_baseline has 2 rows" validate(emis  = vcat(emis,  emis[1:1, :]))
+        @test_throws "elec_baseline has 2 rows" validate(elec  = vcat(elec,  elec[1:1, :]))
+        @test_throws "elasticity has 2 rows"    validate(elast = vcat(elast, elast[1:1, :]))
+        @test_throws "load_profile has 2 rows"  validate(lp    = vcat(lp,    lp[1:1, :]))
+
+        # every region-subsector needs an elasticity row, an electricity row,
+        # MAC steps, a load profile, and at least one matching bus
+        @test_throws "no matching elasticity row"   validate(elast = elast[2:end, :])
+        @test_throws "no matching elec_baseline row" validate(elec = elec[2:end, :])
+        @test_throws "has no MAC steps"              validate(mac = mac[0:-1, :])
+        @test_throws "no usable load profile row"    validate(lp = lp[0:-1, :])
+
+        no_bus = copy(emis); no_bus.subarea .= "nowhere"
+        @test_throws "matches no rows in the bus table" validate(emis = no_bus)
+
+        # a zero denominator leaves elec_per_emis undefined
+        zero_elast = copy(elast); zero_elast.own_elast .= 0.0
+        @test_throws "own_elast = 0" validate(elast = zero_elast)
+        zero_emis = copy(emis); zero_emis[!, yr1] .= 0.0
+        @test_throws "zero baseline emissions" validate(emis = zero_emis)
+    end
+
     baseline = compute_result(data, :nonelec, :baseline_emis_total)
     resid = compute_result(data, :nonelec, :resid_emis_total)
     abate = compute_result(data, :nonelec, :abate_emis_total, :)

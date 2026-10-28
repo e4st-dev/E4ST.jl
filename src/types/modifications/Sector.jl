@@ -205,12 +205,158 @@ end
 
 
 """
+    _build_lp_index(lp) -> (lp_index, lp_years_index)
+
+Builds the two load-profile lookups:
+
+* `lp_index` - exact match, `(area, subarea, subsector, year) -> lp row index`.
+* `lp_years_index` - the fallback, `(area, subarea, subsector) -> [(year, lp row index)]`,
+  which lets `_lp_lookup` pick the closest available year rather than skipping
+  the region-subsector outright.  Rows with a blank `year` are left out.
+"""
+function _build_lp_index(lp)
+    lp_index = Dict{NTuple{4, String}, Int}()
+    lp_years_index = Dict{NTuple{3, String}, Vector{Tuple{Int,Int}}}()
+    for (lp_idx, row) in enumerate(eachrow(lp))
+        area, subarea, subsector = string(row.area), string(row.subarea), string(row.subsector)
+        yearstr = string(row.year)
+        lp_index[(area, subarea, subsector, yearstr)] = lp_idx
+        isempty(yearstr) && continue
+        push!(get!(lp_years_index, (area, subarea, subsector), Tuple{Int,Int}[]), (year2int(yearstr), lp_idx))
+    end
+    return lp_index, lp_years_index
+end
+
+"""
+    _validate_sector_inputs(sec, data, mac, emis, elec, lp, elast) -> nothing
+
+Checks every `Sector` input table up front and reports all problems in one error.
+
+Anything that would prevents a region-subsector from option to abate is an error,
+including: a missing elasticity or electricity row, no MAC steps, no load profile, 
+an `area` without a matching `bus`column, or a zero denominator in `elec_per_emis`.
+
+Runs in two phases that checks for table-level issues and then row-level issues.
+"""
+function _validate_sector_inputs(sec::Sector, data, mac, emis, elec, lp, elast)
+    name  = sec.name
+    bus   = get_table(data, :bus)
+    years = get_years(data)
+    nhr   = get_num_hours(data)
+    hour_cols    = [Symbol("h$hr_idx") for hr_idx in 1:nhr]
+    hour_weights = get_hour_weights(data)
+
+    raise(problems) = isempty(problems) ? nothing : error(
+        "Sector $name: $(length(problems)) problem(s) in the input tables:\n  - " *
+        join(problems, "\n  - "))
+
+    # identify keys that appear on more than one row so that they aren't 
+    # overwirtten or counted twice in the case of the emis_baseline table 
+    function report_duplicates!(problems, tbl, tbl_name, key_cols)
+        counts = Dict{Tuple{Vararg{String}}, Int}()
+        for row in eachrow(tbl)
+            key = Tuple(string(row[c]) for c in key_cols)
+            counts[key] = get(counts, key, 0) + 1
+        end
+        for key in sort!([k for (k, n) in counts if n > 1])
+            pairs = join(("$c=$v" for (c, v) in zip(key_cols, key)), ", ")
+            push!(problems, "$tbl_name has $(counts[key]) rows for ($pairs); only the last would be used")
+        end
+    end
+
+    ### check table level
+    problems = String[]
+
+    # `area` names a column of the bus table; `subarea` is one of that column's values
+    for (tbl_name, tbl) in ((:mac_steps, mac), (:emis_baseline, emis), (:elec_baseline, elec),
+                            (:load_profile, lp), (:elasticity, elast))
+        for area in unique(tbl.area)
+            hasproperty(bus, Symbol(area)) ||
+                push!(problems, "$tbl_name references area `$area`, which is not a column of the bus table")
+        end
+    end
+
+    # both baselines need a column for every simulation year
+    for yr in years
+        hasproperty(emis, Symbol(yr)) || push!(problems, "emis_baseline has no column for simulation year $yr")
+        hasproperty(elec, Symbol(yr)) || push!(problems, "elec_baseline has no column for simulation year $yr")
+    end
+
+    # hourly shares can't be negative, and a shape of all zeros leaves nothing to
+    # distribute the responsive load across
+    for row in eachrow(lp)
+        loc = "load_profile row (area=$(row.area), subarea=$(row.subarea), subsector=$(row.subsector), year=$(row.year))"
+        any(hr_idx -> row[hour_cols[hr_idx]] < 0, 1:nhr) &&
+            push!(problems, "$loc has a negative value in h1..h$nhr")
+        sum(row[hour_cols[hr_idx]] * hour_weights[hr_idx] for hr_idx in 1:nhr) == 0 &&
+            push!(problems, "$loc has an all-zero load shape")
+    end
+
+    # Check that there is one row per region-subsector in each of these (`mac_steps`
+    #  is excluded because there are many rows per region-subsector) 
+    report_duplicates!(problems, emis,  :emis_baseline, (:area, :subarea, :subsector))
+    report_duplicates!(problems, elec,  :elec_baseline, (:area, :subarea, :subsector))
+    report_duplicates!(problems, elast, :elasticity,    (:area, :subarea, :subsector))
+    report_duplicates!(problems, lp,    :load_profile,  (:area, :subarea, :subsector, :year))
+
+    raise(problems)
+
+    ### check row level, one pass over emis_baseline
+    elast_own  = Dict((r.area, r.subarea, r.subsector) => r.own_elast for r in eachrow(elast))
+    elec_keys  = Set((r.area, r.subarea, r.subsector) for r in eachrow(elec))
+    mac_keys   = Set((r.area, r.subarea, string(r.subsector)) for r in eachrow(mac))
+    # the same index that `modify_model!` builds
+    lp_index, lp_years_index = _build_lp_index(lp)
+    probe_yr = first(years)
+    probe_target = year2int(string(probe_yr))
+
+    for row in eachrow(emis)
+        key = (row.area, row.subarea, row.subsector)
+        loc = "region-subsector (area=$(row.area), subarea=$(row.subarea), subsector=$(row.subsector))"
+
+        haskey(elast_own, key) || push!(problems, "$loc has no matching elasticity row")
+        key in elec_keys       || push!(problems, "$loc has no matching elec_baseline row")
+
+        (row.area, row.subarea, string(row.subsector)) in mac_keys ||
+            push!(problems, "$loc has no MAC steps, so it would add emissions with no way to abate")
+
+        # a load profile keyed by subsector, or by the sector name for sectors
+        # supplying one profile for the whole sector.  `_lp_lookup` returns
+        # nothing only when a key has no usable row at all
+        area, subarea, subsector = string(row.area), string(row.subarea), string(row.subsector)
+        lp_hit = _lp_lookup(lp_index, lp_years_index, area, subarea, subsector, probe_yr, probe_target)
+        lp_hit === nothing &&
+            (lp_hit = _lp_lookup(lp_index, lp_years_index, area, subarea, string(sec.sector), probe_yr, probe_target))
+        lp_hit === nothing &&
+            push!(problems, "$loc has no usable load profile row (also tried subsector=$(sec.sector))")
+
+        # (area, subarea) has to select at least one bus
+        col = Symbol(row.area)
+        any(bus_idx -> string(bus[bus_idx, col]) == string(row.subarea), 1:nrow(bus)) ||
+            push!(problems, "$loc matches no rows in the bus table")
+
+        # either half of `elec_per_emis`'s denominator going to zero leaves the
+        # electrification response undefined
+        get(elast_own, key, 1.0) == 0.0 &&
+            push!(problems, "$loc has own_elast = 0, leaving elec_per_emis undefined")
+        zero_yrs = join([yr for yr in years if Float64(row[Symbol(yr)]) == 0.0], ", ")
+        isempty(zero_yrs) ||
+            push!(problems, "$loc has zero baseline emissions in $zero_yrs, leaving elec_per_emis undefined")
+    end
+
+    raise(problems)
+    return nothing
+end
+
+"""
     modify_setup_data!(sec::Sector, config, data)
 
-Creates or appends to a shared `:nonelec` table to store emissions and electricity 
-pathways for each sector. Uses the elasticity table and baseline values to calculate 
+Creates or appends to a shared `:nonelec` table to store emissions and electricity
+pathways for each sector. Uses the elasticity table and baseline values to calculate
 and store `elec_per_emis`: the electrification response per unit of abatement.
 
+Input tables are checked by [`_validate_sector_inputs`](@ref) before anything is
+built, so that every region-subsector has a complete set of inputs.
 """
 function modify_setup_data!(sec::Sector, config, data)
     name = sec.name
@@ -224,52 +370,20 @@ function modify_setup_data!(sec::Sector, config, data)
 
     years = get_years(data)
 
-    # Validate per-row (area, subarea) against the bus table. `area` names a bus column ("state", "bus_idx", ...); `subarea` is one of that column's values
-    bus = get_table(data, :bus)
-    for (tbl_name, tbl) in ((:mac, mac), (:emis, emis), (:elec, elec), (:lp, lp), (:elast, elast))
-        for area in unique(tbl.area)
-            sym = Symbol(area)
-            hasproperty(bus, sym) || @warn "Sector $name: bus table has no column `$area` referenced in $(tbl_name) table"
-        end
-    end
-
-    # validate load profile table, check that:
-    # * no individual hour may be negative -- there's no such thing as negative load in an hour.
-    # * the shape must not be all-zero -- there'd be nothing to distribute the responsive load across.
-    nhr = get_num_hours(data)
-    hour_cols = [Symbol("h$h") for h in 1:nhr]
-    hour_weights = get_hour_weights(data)
-    for row in eachrow(lp)
-        any(h -> row[hour_cols[h]] < 0, 1:nhr) &&
-            error("Sector $name: load profile row for area=$(row.area), subarea=$(row.subarea), subsector=$(row.subsector), year=$(row.year) has a negative value in one or more of h1..h$(nhr) -- hourly load shape values must be >= 0")
-        annual_shape = sum(row[hour_cols[h]] * hour_weights[h] for h in 1:nhr)
-        annual_shape == 0 &&
-            error("Sector $name: load profile row for area=$(row.area), subarea=$(row.subarea), subsector=$(row.subsector), year=$(row.year) has an all-zero load shape (h1..h$(nhr) all 0) -- there is no hourly pattern to distribute the responsive load across")
-    end
-
     # sort MAC steps ascending in price (per region-subsector) so that they are listed in step_order (although table is likely read in sorted)
     sort!(mac, [:area, :subarea, :sector, :subsector, :price])
     mac.subsector = string.(mac.subsector)
 
-    # error if any simulation year is entirely missing from emis or elec
-    missing_years = filter(y -> !hasproperty(emis, Symbol(y)) || !hasproperty(elec, Symbol(y)), years)
-    if !isempty(missing_years)
-        error("Sector $name: is missing baseline emissions or electricity data for year(s) $missing_years.")
-        return nothing
-    end
+    # Every input problem is found and reported here, before anything is built
+    _validate_sector_inputs(sec, data, mac, emis, elec, lp, elast)
 
-    # Attach each emis row's own_elast/cross_elast (elast) and Cons0 (elec) by (area, subarea, subsector) 
-    # Error if a a regsub has no match because there is no abatement option without elasticities or baseline electrificity demand
+    # Attach each emis row's own_elast/cross_elast (elast) and Cons0 (elec) by
+    # (area, subarea, subsector). Validation guarantees a match for every row.
     elast_lookup = Dict((r.area, r.subarea, r.subsector) => (r.own_elast, r.cross_elast) for r in eachrow(elast))
     elec_lookup = Dict((r.area, r.subarea, r.subsector) => r for r in eachrow(elec))
 
-    keep_idxs = findall(r -> haskey(elast_lookup, (r.area, r.subarea, r.subsector)) && haskey(elec_lookup, (r.area, r.subarea, r.subsector)), eachrow(emis))
-    n_excluded = nrow(emis) - length(keep_idxs)
-    n_excluded > 0 && error("Sector $name: $n_excluded region-subsector row(s) with no matching elasticity or electricity baseline row.")
-    emis = emis[keep_idxs, :]
-
     # build rows for the shared `:nonelec` table: one row per region-subsector, with `baseline_emis`/`baseline_demand`/`elec_per_emis` as `ByYear` columns
-    # elec_per_emis = (cross_elast · Cons0) / (own_elast · EmisSector0), set to `NaN` only for a zero denominator (own_elast or emis0 == 0), 
+    # elec_per_emis = (cross_elast · Cons0) / (own_elast · EmisSector0)
     elec_per_emis_min = 1e-6   # MWh per emis_col unit below which the electrification response is treated as none
 
     # `:nonelec` is a single table shared across every Sector mod
@@ -287,11 +401,9 @@ function modify_setup_data!(sec::Sector, config, data)
 
         emis0_vals = [Float64(row[Symbol(y)]) for y in years]
         cons0_vals = [Float64(elec_row[Symbol(y)]) for y in years]
+        # Denominators are guaranteed nonzero by `_validate_sector_inputs`.
         elec_per_emis_vals = [
-            if own_elast == 0.0 || emis0_vals[j] == 0.0
-                NaN
-            else
-                p = (cross_elast * cons0_vals[j]) / (own_elast * emis0_vals[j])
+            let p = (cross_elast * cons0_vals[j]) / (own_elast * emis0_vals[j])
                 abs(p) < elec_per_emis_min ? 0.0 : round(p; sigdigits = 4)
             end
             for j in eachindex(years)
@@ -335,39 +447,19 @@ function modify_model!(sec::Sector, config, data, model)
     lp  = get_table(data, Symbol("sector_$(name)_load_profile"))
     years = get_years(data)
     nyear = length(years)
-    nstep = nrow(mac)
 
     regsub_full = get_table(data, :nonelec)
     regsub = view(regsub_full, get_row_idxs(regsub_full, :mod_name => name), :)
     nregsub = nrow(regsub)
 
-    # skip model modification if there are no MAC or baseline rows for the sector
-    if nstep == 0 || nregsub == 0
-        @warn "Sector $name: empty MAC or baseline table, skipping model modification"
-        return nothing
-    end
-
     # Two region-subsector -> input-row lookups, `load_profile` and `mac_steps`.
-
-    # Load profile: lp varies by year, so these are set up as keyed Dicts rather than a Vector. 
-    #  `lp_index` is the exact match, # (area, subarea, subsector, year) -> lp row
-    #  `lp_years_index` is the fallback, (area, subarea, subsector) -> [(year, lp row)], which lets `_lp_lookup` pick the closest available year instead of skipping the region-subsector
-    lp_index = Dict{NTuple{4, String}, Int}()
-    lp_years_index = Dict{NTuple{3, String}, Vector{Tuple{Int,Int}}}()
-    for (lp_idx, row) in enumerate(eachrow(lp))
-        area, subarea, subsector = string(row.area), string(row.subarea), string(row.subsector)
-        yearstr = string(row.year)
-        lp_index[(area, subarea, subsector, yearstr)] = lp_idx
-        isempty(yearstr) && continue
-        push!(get!(lp_years_index, (area, subarea, subsector), Tuple{Int,Int}[]), (year2int(yearstr), lp_idx))
-    end
+    
+    lp_index, lp_years_index = _build_lp_index(lp)
 
     # MAC steps: year-invariant, setup as a vector indexed by `regsub_idx` and kept local rather than stored in `:nonelec` column, since there is no meaning outside this function
-    # A region-subsector with no matching steps still has its emissions counted by whatever cap covers it, there just is no way to abate 
+    # Every region-subsector is guaranteed at least one step by `_validate_sector_inputs`
     mac_idxs = map(1:nregsub) do regsub_idx
-        idxs = get_row_idxs(mac, :area => regsub.area[regsub_idx], :subarea => regsub.subarea[regsub_idx], :subsector => regsub.subsector[regsub_idx])
-        isempty(idxs) && @warn "Sector $name: no MAC steps found for area=$(regsub.area[regsub_idx]), subarea=$(regsub.subarea[regsub_idx]), subsector=$(regsub.subsector[regsub_idx]). Emissions will be added to constraint but there will be no way to abate."
-        idxs
+        get_row_idxs(mac, :area => regsub.area[regsub_idx], :subarea => regsub.subarea[regsub_idx], :subsector => regsub.subsector[regsub_idx])
     end
     nsteps = length.(mac_idxs)
 
@@ -474,7 +566,7 @@ end
     add_sector_electrification_load!(sec::Sector, config, data, model, regsub, abate_total, lp, lp_index)
 
 Adds the *responsive* electrification load induced by abatement into `plserv_bus`, 
-mplementing the consumption/abatement linkage equation:
+implementing the consumption/abatement linkage equation:
 
     Cons_{y,r,sec} = Cons0_{y,r,sec} + Σ_k EmisAbatement_{y,r,sec,k} · phi_{y,r,sec}
 
@@ -512,11 +604,8 @@ function add_sector_electrification_load!(sec::Sector, config, data, model, regs
 
     n_applied = 0
     for regsub_idx in 1:nregsub, (yr_idx, yr) in enumerate(years)
+        # never NaN -- `_validate_sector_inputs` rules out a zero denominator
         elec_per_emis = regsub.elec_per_emis[regsub_idx][yr_idx]
-        if isnan(elec_per_emis)
-            error("Sector $name: no elec_per_emis for area=$(regsub.area[regsub_idx]), subarea=$(regsub.subarea[regsub_idx]), subsector=$(regsub.subsector[regsub_idx]), year=$yr; can't have emission abatement without electrification")
-            continue
-        end
         elec_per_emis == 0.0 && continue   # no electrification response for this region-subsector/year
 
         # Look up this region-subsector/year's hourly load shape
@@ -530,10 +619,8 @@ function add_sector_electrification_load!(sec::Sector, config, data, model, regs
             lookup_sub = string(sec.sector)
             result = _lp_lookup(lp_index, lp_years_index, area, subarea, lookup_sub, yr, target_yr)
         end
-        if result === nothing
-            error("Sector $name: no load profile found for area=$area, subarea=$subarea, subsector=$subsector (also tried sector-level subsector=$(sec.sector)), can't have emission abatement without electrification.")
-            continue
-        end
+        # non-nothing by construction -- `_validate_sector_inputs` requires every
+        # region-subsector to have a load profile row under one of these two keys
         lp_row_idx, closest_yr = result
         if closest_yr !== nothing
             @info "Sector $name: no load profile for area=$area, subarea=$subarea, subsector=$lookup_sub, year=$yr; using closest available year y$closest_yr instead"

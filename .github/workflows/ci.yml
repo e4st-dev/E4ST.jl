@@ -16,8 +16,6 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          # Pinned rather than '1' (newest stable), which silently moved to 1.13
-          # and broke on changes to Base's array hashing. Matches benchmark.yml.
           - '1.10'
         os:
           - windows-latest
