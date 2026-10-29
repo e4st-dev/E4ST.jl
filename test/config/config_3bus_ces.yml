@@ -18,4 +18,8 @@ mods:
           y2040: 0.95
         filters:
           state: "anvard"
+  stor:
+    type: Storage
+    file: ../data/3bus/storage_load.csv
+    build_file: ../data/3bus/build_storage.csv
 

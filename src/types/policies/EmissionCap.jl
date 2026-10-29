@@ -307,7 +307,7 @@ function E4ST.modify_results!(pol::EmissionCap, config, data)
     # offsets (under and outside the cap) impact revenue calculation because they are not bough in the allowance auction, instead the payments are made to offset providers
     # set up offset col to scale the cost in the results formula
     data[cols.offset_factor] = ByNothing(1 - pol.offset)
-    println(pol.offset)
+    
     add_results_formula!(data, :gen, cols.cost, "SumHourlyWeighted($(cols.prc), pgen, $(cols.offset_factor))", Dollars, "The cost of $(pol.name) based on the allowance price, which is determined with the shadow price of the generation constraint, reduced by the offset fraction of compliance obligation ($(pol.offset)).")
     add_to_results_formula!(data, :gen, :emission_cap_cost, cols.cost)
 
