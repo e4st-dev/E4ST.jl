@@ -132,7 +132,7 @@ function modify_model!(ret::Retrofit, config, data, model)
             push!(current_gen_retrofit_idxs, gen_idx)
         end
     end
-
+    
     # Make constraint on the sum of the retrofit capacities
     # retrofit capacity is scaled by the ratio of original pcap_max over retrofit pcap_max so that penalty losses are included in max constraint
     # e.g. if pcap_max for a gen is 500 MW, its retrofit pcap_max might only be 450 MW because of penalties - need to scale up so that penalty is considered in constraint 
@@ -152,6 +152,33 @@ function modify_model!(ret::Retrofit, config, data, model)
         ) + pcap_gen[gen_idx, yr_idx] <= pcap_max[gen_idx, yr_idx]
     )
 
+    # Constrain the retrofit ceiling to the capacity trajectory of unit so that the timing of retrofits must occur in the same year that the unit's unretrofitted capacity declines
+    # otherwise units could go offline and then retire years in the future
+    @constraint(model,
+        cons_pcap_gen_retro_max_noadd[
+            gen_idx in keys(retrofits),
+            yr_idx in 1:(nyr-1)
+        ],
+        sum(
+            ret_idx -> pcap_gen[ret_idx, yr_idx+1] *
+                (
+                    pcap_max[ret_idx, yr_idx+1] == 0.0 ? # catches divisions by zero when pcap_max is zero
+                    0.0 : 
+                    pcap_max[gen_idx, yr_idx+1] / pcap_max[ret_idx, yr_idx+1]
+                ), 
+            retrofits[gen_idx]
+        ) + pcap_gen[gen_idx, yr_idx+1] <= sum(
+            ret_idx -> pcap_gen[ret_idx, yr_idx] *
+                (
+                    pcap_max[ret_idx, yr_idx] == 0.0 ? # catches divisions by zero when pcap_max is zero
+                    0.0 : 
+                    pcap_max[gen_idx, yr_idx] / pcap_max[ret_idx, yr_idx]
+                ), 
+            retrofits[gen_idx]
+        ) + pcap_gen[gen_idx, yr_idx]
+    )
+
+    
     # Lower bound the capacities with zero
     for gen_idx in keys(retrofits)
         ret_idxs = retrofits[gen_idx]

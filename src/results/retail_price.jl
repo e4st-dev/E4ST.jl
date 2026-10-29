@@ -47,6 +47,15 @@ function setup_retail_price!(config, data)
     # payments for RPS and CES policies
     add_price_term!(data, :avg_elec_rate, :bus, :gs_payment, +)
 
+    # cost from imported power under emission caps and emission prices, allocated to the importing
+    # bus by EmissionCap/EmissionPrice (branch/dc_line have no area columns of their own).
+    # these results formulas default to 0 if there is no emission cap/price or the mods do not cover imports
+    add_price_term!(data, :avg_elec_rate, :bus, :emission_cap_cost, +)
+    add_price_term!(data, :avg_elec_rate, :bus, :emission_cost, +)
+
+
+    # check for price terms and add
+
     # past invest file will overwrite the past invest column of the gen table
     if haskey(config, :past_invest_file)
         add_price_term!(data, :avg_elec_rate, :past_invest, :cost_of_service_past_costs, +)
