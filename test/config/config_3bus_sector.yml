@@ -16,4 +16,3 @@ mods:
     elec_baseline_file: "../data/3bus/sector_elec.csv"
     elasticity_file: "../data/3bus/sector_elasticity.csv"
     load_profile_file: "../data/3bus/sector_load_profile.csv"
-

@@ -12,6 +12,7 @@
 
 ### Keyword Arguments:
 * `name` - the name of the [`Modification`](@ref).
+* `sector` - the sector this instance models, e.g. `buildings`, `transportation`, `industrial`.  Every input file's `sector` column must match it; see [`_validate_sector_inputs`](@ref).
 * `mac_file` - the filename of the marginal abatement cost curve containing the abatement and price steps for the corresponding sector and subsectors.  See also [`summarize_table(::Val{:mac_steps})`](@ref)
 * `emis_baseline_file` - the filename of the sector's emissions table, which contains the baseline emissions by year for the corresponding sector and subsectros. See also [`summarize_table(::Val{:emis_baseline})`](@ref)
 * `elec_baseline_file` -  the filename of the sector's electricity table, which contains the baseline electricity demand by year for the corresponding sector and subsectors. See also [`summarize_table(::Val{:elec_baseline})`](@ref)
@@ -158,6 +159,7 @@ function summarize_table(::Val{:elec_baseline})
     df = TableSummary()
     push!(df,
         (:src_file, AbstractString, NA, false, "Description of the source data file this baseline electricity data came from."),
+        (:sector, AbstractString, NA, true, "Refers to the sector these data correspond with (e.g. buildings, transportation, industrial).  Must match the `sector` keyword argument of the `Sector` mod reading this table."),
         (:area, AbstractString, NA, true, "The geographic level this row applies to, given as the name of a column in the `bus` table.  I.e. \"state\", \"county\", or \"nation\".  Paired with `subarea` to identify the region."),
         (:subarea, AbstractString, NA, true, "The region this row applies to, given as a value of the `bus` column named by `area`.  I.e. \"minnesota\" when `area` is \"state\", \"hennepin\" when it is \"county\", or \"us\" when it is \"nation\"."),
         (:subsector, AbstractString, NA, true, "Refers to the subsector these data correspond with (e.g. a NAICS code for the industrial sector, or LDV/MHDV/transit for transportation).  Can be left blank if there are no subsectors for this sector."),
@@ -178,6 +180,7 @@ function summarize_table(::Val{:load_profile})
         (:area, AbstractString, NA, true, "The geographic level this row applies to, given as the name of a column in the `bus` table.  I.e. \"state\", \"county\", or \"nation\".  Paired with `subarea` to identify the region."),
         (:subarea, AbstractString, NA, true, "The region this row applies to, given as a value of the `bus` column named by `area`.  I.e. \"minnesota\" when `area` is \"state\" or \"us\" when it is \"nation\"."),
         (:subsector, AbstractString, NA, true, "Refers to the subsector these data correspond with (e.g. a NAICS code for the industrial sector, or LDV/MHDV/transit for transportation).  Can be left blank if there are no subsectors for this sector."),
+        (:sector, AbstractString, NA, true, "Refers to the sector these data correspond with (e.g. buildings, transportation, industrial).  Must match the `sector` keyword argument of the `Sector` mod reading this table."),
         (:year, String, Year, false, "The year this load profile applies to, expressed as a year string prepended with a \"y\".  I.e. \"y2022\".  Leave blank to apply to all years."),
         (:h_, Float64, Ratio, true, "Share of this region-subsector's annual responsive electrification load falling in each hour.  Include a column for each hour in the hours table, i.e. `:h1`, `:h2`, ... `:hn`."),
     )
@@ -195,6 +198,7 @@ function summarize_table(::Val{:elasticity})
         (:area, AbstractString, NA, true, "The geographic level this row applies to, given as the name of a column in the `bus` table.  I.e. \"state\", \"county\", or \"nation\".  Paired with `subarea` to identify the region."),
         (:subarea, AbstractString, NA, true, "The region this row applies to, given as a value of the `bus` column named by `area`.  I.e. \"minnesota\" when `area` is \"state\" or \"us\" when it is \"nation\"."),
         (:subsector, AbstractString, NA, true, "Refers to the subsector these data correspond with (e.g. a NAICS code for the industrial sector, or LDV/MHDV/transit for transportation).  Can be left blank if there are no subsectors for this sector."),
+        (:sector, AbstractString, NA, true, "Refers to the sector these data correspond with (e.g. buildings, transportation, industrial).  Must match the `sector` keyword argument of the `Sector` mod reading this table."),
         (:own_elast, Float64, NA, true, "The semi-elasticity of emissions in response to change in the carbon price for this region-subsector, used with `cross_elast` and baseline electricity/emissions to compute the electrification response coefficient `elec_per_emis`."),
         (:cross_elast, Float64, NA, true, "The semi-elasticity of electricity demand with respect to a change in the carbon price for this region-subsector, used with `own_elast` and baseline electricity/emissions to compute the electrification response coefficient `elec_per_emis`."),
         (:c_price, Float64, NA, true, "The carbon price point used to anchor the MAC curve. For regions that do not yet have a carbon price, this will be zero."),
@@ -276,6 +280,15 @@ function _validate_sector_inputs(sec::Sector, data, mac, emis, elec, lp, elast)
         end
     end
 
+    # Every table's `sector` column must match the mod's `sector` kwarg
+    want_sector = string(sec.sector)
+    for (tbl_name, tbl) in ((:mac_steps, mac), (:emis_baseline, emis), (:elec_baseline, elec),
+                            (:load_profile, lp), (:elasticity, elast))
+        wrong = join(sort!(unique(string(v) for v in tbl.sector if string(v) != want_sector)), ", ")
+        isempty(wrong) ||
+            push!(problems, "$tbl_name has sector = $wrong, but this Sector mod declares sector = $want_sector")
+    end
+
     # both baselines need a column for every simulation year
     for yr in years
         hasproperty(emis, Symbol(yr)) || push!(problems, "emis_baseline has no column for simulation year $yr")
@@ -326,9 +339,9 @@ function _validate_sector_inputs(sec::Sector, data, mac, emis, elec, lp, elast)
         area, subarea, subsector = string(row.area), string(row.subarea), string(row.subsector)
         lp_hit = _lp_lookup(lp_index, lp_years_index, area, subarea, subsector, probe_yr, probe_target)
         lp_hit === nothing &&
-            (lp_hit = _lp_lookup(lp_index, lp_years_index, area, subarea, string(sec.sector), probe_yr, probe_target))
+            (lp_hit = _lp_lookup(lp_index, lp_years_index, area, subarea, want_sector, probe_yr, probe_target))
         lp_hit === nothing &&
-            push!(problems, "$loc has no usable load profile row (also tried subsector=$(sec.sector))")
+            push!(problems, "$loc has no usable load profile row (also tried subsector=$want_sector)")
 
         # (area, subarea) has to select at least one bus
         col = Symbol(row.area)

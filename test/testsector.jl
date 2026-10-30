@@ -36,6 +36,13 @@
         bad_area = copy(emis); bad_area.area .= "not_a_bus_column"
         @test_throws "not a column of the bus table" validate(emis = bad_area)
 
+        # every table's `sector` column must match the mod's `sector` kwarg
+        for tbl in (:mac, :emis, :elec, :lp, :elast)
+            orig = Dict(:mac=>mac, :emis=>emis, :elec=>elec, :lp=>lp, :elast=>elast)[tbl]
+            bad = copy(orig); bad.sector .= "not_the_declared_sector"
+            @test_throws "but this Sector mod declares sector" validate(; tbl => bad)
+        end
+
         # both baselines need a column per simulation year
         yr1 = Symbol(first(get_years(data)))
         @test_throws "emis_baseline has no column for simulation year" validate(emis = select(emis, Not(yr1)))
