@@ -1,0 +1,3 @@
+area,subarea,sector,subsector,own_elast,cross_elast,c_price,emis_qty
+nation,narnia,transportation,ldv,-0.0008,-0.0005,0,1.00E+03
+nation,narnia,transportation,mhdv,-0.0022,-0.0014,0,5.00E+02

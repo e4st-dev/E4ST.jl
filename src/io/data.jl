@@ -454,8 +454,14 @@ function force_table_types!(df::DataFrame, name, pairs...; optional=false)
         end
         ET = eltype(df[!,col])
         ET <: T && continue
-        hasmethod(T, Tuple{ET}) || error("Column $name[$col] cannot be forced into type $T from type $ET")
-        df[!, col] = T.(df[!,col])
+        # hasmethod(T, Tuple{ET}) is unreliable when ET is a Union (e.g. Union{Missing,String15}):
+        # it checks for one method covering the whole Union, which fails even when each member
+        # of the Union has its own valid conversion method. Attempt the conversion directly instead.
+        try
+            df[!, col] = T.(df[!,col])
+        catch
+            error("Column $name[$col] cannot be forced into type $T from type $ET")
+        end
     end
 end
 export force_table_types!
@@ -480,6 +486,18 @@ function force_table_types!(df::DataFrame, name, row::DataFrameRow; kwargs...)
         req || return
         error(":$name table missing column :$col")
     end
+
+    # filter columns (filter1, filter2, ...) hold arbitrary user-defined comparison
+    # expressions (eg. "resource_id=>wind_ID2314528") whose length varies table to table.
+    # The expected `data_type` here gets locked in from whichever table happens to set this
+    # column's type first (often blank/narrow, eg. InlineStrings.String1), which is too
+    # narrow for another table's real filter values. Widen to plain String instead of
+    # forcing the (possibly too-narrow) expected type, rather than erroring/truncating.
+    if occursin(r"^filter\d+$", string(col)) && eltype(df[!, col]) <: Union{Missing, AbstractString}
+        df[!, col] = String.(df[!, col])
+        return
+    end
+
     ET = eltype(df[!,col])
     if ET === Missing
         df[!,col] = convert(Vector{T}, df[!,col])
@@ -487,8 +505,14 @@ function force_table_types!(df::DataFrame, name, row::DataFrameRow; kwargs...)
         # Leave as is
         row["data_type"] = ET
     elseif ~(ET <: T)
-        hasmethod(T, Tuple{ET}) || error("Column $name[$col] with eltype $ET cannot be forced into type $T")
-        df[!, col] = T.(df[!,col])
+        # hasmethod(T, Tuple{ET}) is unreliable when ET is a Union (e.g. Union{Missing,String15}):
+        # it checks for one method covering the whole Union, which fails even when each member
+        # of the Union has its own valid conversion method. Attempt the conversion directly instead.
+        try
+            df[!, col] = T.(df[!,col])
+        catch
+            error("Column $name[$col] with eltype $ET cannot be forced into type $T")
+        end
     end
     return
 end

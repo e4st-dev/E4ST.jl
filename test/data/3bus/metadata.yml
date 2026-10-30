@@ -1,0 +1,9 @@
+sector_mac_curve.csv:
+  user: "mpeplinski"
+  description: "Creating a csv of mac price steps using reference points from L:\\Project-Gurobi\\Workspace3\\E4ST\\mpeplinski\\repos\\e4st-input-processing\\process\\MACCurve\\scripts\\../../../../../.julia/dev/E4ST/test/data/3bus/sector_elasticity.csv"
+  "time created": "2026-10-27 15:55:55.603"
+  "stack trace": |
+    make_mac_curve(mac_params_file::String, out_file::String; prc_step_size::Float64, min_price::Float64, max_price::Float64) at MACCurve.jl:155
+    kwcall(::@NamedTuple{prc_step_size::Float64, max_price::Float64}, ::typeof(make_mac_curve), mac_params_file::String, out_file::String) at MACCurve.jl:149
+    top-level scope at L:\Project-Gurobi\Workspace3\E4ST\mpeplinski\repos\e4st-input-processing\process\MACCurve\scripts\make_mac_curves_co.jl:7
+    
