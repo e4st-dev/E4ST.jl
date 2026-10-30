@@ -48,6 +48,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Separate runner from the test job, so it needs its own Julia.
+      # Same version as the test matrix so docs build against what we test.
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: '1.10'
       - uses: julia-actions/cache@v1
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-docdeploy@latest
