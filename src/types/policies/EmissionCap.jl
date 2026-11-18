@@ -45,9 +45,13 @@ It differs from policies with an exogenous input price (e.g. [`EmissionPrice`](@
 * `(:bus, :<name>_import_cost)` - Cost of the policy attributed to imports, allocated to the importing bus (`ByYearAndHour`). Only added when `cap_imports=true`.
 
 ### Results Formula:
-* `(:gen, :<name>_cost)` - the cost of the policy based on the allowance price, determined using the shadow price of the generation constraint
-* `(:branch, :<name>_import_cost)` - the cost of the policy attributed to imports. Only added when `cap_imports=true`.
-* `(:dc_line, :<name>_import_cost)` - the cost of the policy attributed to imports. Only added when `cap_imports=true`.
+Naming note: each cost is reported twice, as a `_gross` result before offsets and a plain result with the offset applied.
+* `(:gen, :<name>_cost_gross)` - the cost of the policy based on the allowance price, determined using the shadow price of the generation constraint, before offsets are applied.
+* `(:gen, :<name>_cost)` - `<name>_cost_gross` reduced by the offset fraction of compliance obligation.
+* `(:branch, :<name>_import_cost_gross)` - the cost of the policy attributed to imports, before offsets are applied. Only added when `cap_imports=true`.
+* `(:branch, :<name>_import_cost)` - `<name>_import_cost_gross` reduced by the offset fraction of compliance obligation. Only added when `cap_imports=true`.
+* `(:dc_line, :<name>_import_cost_gross)` - the cost of the policy attributed to imports, before offsets are applied. Only added when `cap_imports=true`.
+* `(:dc_line, :<name>_import_cost)` - `<name>_import_cost_gross` reduced by the offset fraction of compliance obligation. Only added when `cap_imports=true`.
 * `(:branch, :<name>_import_emis)` - Total emissions from imported power. Only added when `cap_imports=true`.
 * `(:dc_line, :<name>_import_emis)` - Total emissions from imported power. Only added when `cap_imports=true`.
 * `(:bus, :<name>_import_cost_total)` - Total cost of the policy attributed to imports, allocated to buses. Only added when `cap_imports=true`.
@@ -109,9 +113,10 @@ Returns a NamedTuple of all derived column/result Symbol names for an EmissionCa
 function _emiscap_colnames(pol::EmissionCap)
     return (
         prc                = Symbol("$(pol.name)_prc"),
+        cost_gross         = Symbol("$(pol.name)_cost_gross"),
         cost               = Symbol("$(pol.name)_cost"),
-        offset_factor      = Symbol("$(pol.name)_offset_factor"),
         import_cost        = Symbol("$(pol.name)_import_cost"),
+        import_cost_gross  = Symbol("$(pol.name)_import_cost_gross"),
         import_emis        = Symbol("$(pol.name)_$(pol.emis_col)"),
         flag               = Symbol("$(pol.name)_flag"),
         import_emis_result = Symbol("$(pol.name)_import_emis"),
@@ -304,11 +309,9 @@ function E4ST.modify_results!(pol::EmissionCap, config, data)
     prc_col = [(-alw_prc) .* g[pol.name] .* g[pol.emis_col] for g in eachrow(gen)] #($/MWh Generated)
     add_table_col!(data, :gen, cols.prc, prc_col, DollarsPerMWhGenerated, "Allowance price of $(pol.name) converted to DollarsPerMWhGenerated")
 
-    # offsets (under and outside the cap) impact revenue calculation because they are not bough in the allowance auction, instead the payments are made to offset providers
-    # set up offset col to scale the cost in the results formula
-    data[cols.offset_factor] = ByNothing(1 - pol.offset)
-   
-    add_results_formula!(data, :gen, cols.cost, "SumHourlyWeighted($(cols.prc), pgen, $(cols.offset_factor))", Dollars, "The cost of $(pol.name) based on the allowance price, which is determined with the shadow price of the generation constraint, reduced by the offset fraction of compliance obligation ($(pol.offset)).")
+    # offsets (under and outside the cap) impact revenue calculation because they are not bought in the allowance auction, instead the payments are made to offset providers
+    add_results_formula!(data, :gen, cols.cost_gross, "SumHourlyWeighted($(cols.prc), pgen)", Dollars, "The cost of $(pol.name) based on the allowance price, which is determined with the shadow price of the generation constraint, gross of offsets.")
+    add_results_formula!(data, :gen, cols.cost, "$(cols.cost_gross) * $(1 - pol.offset)", Dollars, "The cost of $(pol.name) based on the allowance price, which is determined with the shadow price of the generation constraint, reduced by the offset fraction of compliance obligation ($(pol.offset)).")
     add_to_results_formula!(data, :gen, :emission_cap_cost, cols.cost)
 
     if pol.cap_imports
@@ -333,13 +336,17 @@ function add_import_results!(data, table_name, pol::EmissionCap, cols, alw_prc)
     add_table_col!(data, table_name, cols.prc, prc_col, DollarsPerMWhGenerated,
         "Allowance price of $(pol.name) per MWh of imports on $(table_name)")
 
-    # results formula for cost of emission cap policy contributed by imports, multiply by the flag so that exports don't detract from the calculation
-    add_results_formula!(data, table_name, cols.import_cost, "SumHourlyWeighted($(cols.prc), (pflow .* $(cols.flag)), $(cols.offset_factor))",
+    # Results formula for cost of emission cap policy contributed by imports, multiplied by the flag so that
+    # exports don't detract from the calculation. This formula does not make adjustments for offsets.
+    add_results_formula!(data, table_name, cols.import_cost_gross, "SumHourlyWeighted($(cols.prc), (pflow .* $(cols.flag)))",
+        Dollars, "The cost of $(pol.name) attributed to imports on $(table_name), gross of offsets.")
+    # Cost of imported emissions for program, reduced by offset fraction
+    add_results_formula!(data, table_name, cols.import_cost, "$(cols.import_cost_gross) * $(1 - pol.offset)",
         Dollars, "The cost of $(pol.name) attributed to imports on $(table_name), reduced by the offset fraction of compliance obligation ($(pol.offset)). Import costs have also been allocated to the corresponding busses in the bus table's emission_cap_cost result formula.")
     # setup a results formula to track total cost of all emission cap policies for imported power
     haskey(get_results_formulas(data), (table_name, :emission_cap_cost)) ||
         add_results_formula!(data, table_name, :emission_cap_cost, "0", Dollars,
-            "Cost attributed to imports for all emission caps on $(table_name). Import costs have aslo been allocated to the corresponding busses in the bus table's emission_cap_cost result formula")
+            "Cost attributed to imports for all emission caps on $(table_name). Import costs have also been allocated to the corresponding busses in the bus table's emission_cap_cost result formula")
     add_to_results_formula!(data, table_name, :emission_cap_cost, cols.import_cost)
 
     # attribute the import cost to the importing bus, so that it can be aggregated/filtered by
