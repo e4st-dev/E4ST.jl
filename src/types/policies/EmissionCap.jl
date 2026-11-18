@@ -307,7 +307,7 @@ function E4ST.modify_results!(pol::EmissionCap, config, data)
     # offsets (under and outside the cap) impact revenue calculation because they are not bough in the allowance auction, instead the payments are made to offset providers
     # set up offset col to scale the cost in the results formula
     data[cols.offset_factor] = ByNothing(1 - pol.offset)
-    println(pol.offset)
+   
     add_results_formula!(data, :gen, cols.cost, "SumHourlyWeighted($(cols.prc), pgen, $(cols.offset_factor))", Dollars, "The cost of $(pol.name) based on the allowance price, which is determined with the shadow price of the generation constraint, reduced by the offset fraction of compliance obligation ($(pol.offset)).")
     add_to_results_formula!(data, :gen, :emission_cap_cost, cols.cost)
 
@@ -333,8 +333,8 @@ function add_import_results!(data, table_name, pol::EmissionCap, cols, alw_prc)
     add_table_col!(data, table_name, cols.prc, prc_col, DollarsPerMWhGenerated,
         "Allowance price of $(pol.name) per MWh of imports on $(table_name)")
 
-    # results formula for cost of emission cap policy contributed by imports
-    add_results_formula!(data, table_name, cols.import_cost, "SumHourlyWeighted($(cols.prc), pflow, $(cols.offset_factor))",
+    # results formula for cost of emission cap policy contributed by imports, multiply by the flag so that exports don't detract from the calculation
+    add_results_formula!(data, table_name, cols.import_cost, "SumHourlyWeighted($(cols.prc), (pflow .* $(cols.flag)), $(cols.offset_factor))",
         Dollars, "The cost of $(pol.name) attributed to imports on $(table_name), reduced by the offset fraction of compliance obligation ($(pol.offset)). Import costs have also been allocated to the corresponding busses in the bus table's emission_cap_cost result formula.")
     # setup a results formula to track total cost of all emission cap policies for imported power
     haskey(get_results_formulas(data), (table_name, :emission_cap_cost)) ||
@@ -354,6 +354,9 @@ function add_import_results!(data, table_name, pol::EmissionCap, cols, alw_prc)
         unit = Pounds
     end
     add_results_formula!(data, table_name, cols.import_emis_result, "SumHourlyWeighted($(cols.import_emis), (pflow .* $(cols.flag)))", unit, "Total emissions from imported power under $(pol.name). Note the imported emissions are calculated using the exogenous ef inputs and do not reflect the actual ef of the model run.")
+
+    # exclude the cap cost from merchandising surplus
+    remove_cap_cost_from_ms!(data, table_name, pol, cols, prc_col)
 end
 
 """
@@ -362,9 +365,7 @@ end
 Allocates the per-row import cost computed in [`add_import_results!`](@ref) (using the same
 per-row price container `prc_col`) onto the importing bus,which is the endpoint inside the capped
 region (`t_bus_idx` when `dir > 0`, `f_bus_idx` when `dir < 0`). This mirrors how branch-level
-merchandising surplus is allocated to buses in `parse_lmp_results!`. This is necessary to compute
-results like retail price at the state level, since the branch and dc line table have no area
-columns. 
+merchandising surplus is allocated to buses in `parse_lmp_results!`. 
 """
 function add_import_cost_to_bus!(data, table_name, pol::EmissionCap, cols, prc_col)
     table = get_table(data, table_name)
@@ -384,6 +385,13 @@ function add_import_cost_to_bus!(data, table_name, pol::EmissionCap, cols, prc_c
             add_results_formula!(data, :bus, :emission_cap_cost, "0", Dollars,
                 "Cost attributed to imports for all emission caps, allocated to buses.")
         add_to_results_formula!(data, :bus, :emission_cap_cost, bus_cost_total)
+
+        # `remove_cap_cost_from_ms!` removes cost of imported emissions from merchandising
+        # surplus, since the allowance payment is not congestion rent and should not
+        # be rebated to load.  So need to add the cost associated with imports back into
+        # the welfare calculations.
+        add_welfare_term!(data, :electricity_payments, :bus, :emission_cap_cost, -)
+        add_welfare_term!(data, :government, :bus, :emission_cap_cost, +)
     end
 
     for (row_idx, row) in enumerate(eachrow(table))
@@ -392,7 +400,38 @@ function add_import_cost_to_bus!(data, table_name, pol::EmissionCap, cols, prc_c
         bus_idx = dir > 0 ? row[:t_bus_idx] : row[:f_bus_idx]
         prc = prc_col[row_idx]
         for y in 1:nyr, h in 1:nhr
-            bus[bus_idx, bus_cost_col][y,h] += hour_weights[h] * prc[y,h] * row[:pflow][y,h] * (1-pol.offset)
+            bus[bus_idx, bus_cost_col][y,h] += hour_weights[h] * prc[y,h] * row[:pflow][y,h] * (1-pol.offset) * row[cols.flag][y,h]
+        end
+    end
+end
+
+"""
+    remove_cap_cost_from_ms!(data, table_name, pol::EmissionCap, cols, prc_col)
+
+The merchandising surplus finds the difference in energy payments vs revenue at a bus, so that congestion rent can be returned to load.
+The allowance price contributes to differences in the LMP, but should not be returned as a merchandising surplus - the allowance payment 
+should go to the allowance market.
+"""
+
+function remove_cap_cost_from_ms!(data, table_name, pol, cols, prc_col)
+    table  = get_table(data, table_name)
+    bus    = get_table(data, :bus)
+    ms_all  = get_table_col(data, :bus, :merchandising_surplus)
+    ms_comp = get_table_col(data, :bus, :merchandising_surplus_comp)
+    hour_weights = get_hour_weights(data)
+    nyr, nhr = get_num_years(data), get_num_hours(data)
+
+    for (row_idx, row) in enumerate(eachrow(table))
+        row[cols.dir] == 0 && continue
+        f, t = row[:f_bus_idx], row[:t_bus_idx]
+        prc = prc_col[row_idx]
+        for y in 1:nyr, h in 1:nhr
+            # same 0.5-to-each-end split parse_lmp_results! used
+            half = 0.5 * hour_weights[h] * prc[y,h] * row[:pflow][y,h] * (1-pol.offset) * row[cols.flag][y,h]
+            ms_all[f][y,h]  -= half
+            ms_all[t][y,h]  -= half
+            ms_comp[f][y,h] -= half * (1 - bus[f, :reg_factor])
+            ms_comp[t][y,h] -= half * (1 - bus[t, :reg_factor])
         end
     end
 end
@@ -411,7 +450,7 @@ function tag_import_flows!(pol, data, table_name)
                 "Indicates pflow in $(table_name) table is covered by $(pol.name).")
     for i in axes(table,1), y in axes(table[i,:pflow],1), h in axes(table[i,:pflow],2)   # search for rows where pol col times pflow is greater than 0, which indicates the power line 1) transfers power with policy region 2) and is importing power in the y,h combination
         if table[i,:pflow][y,h] * table[i,cols.dir][y,h] > 0
-            table[i,cols.flag][y,h] = 1 * table[i,cols.dir][y,h]
+            table[i,cols.flag][y,h] = table[i,cols.dir][y,h]
         end
     end
 end
