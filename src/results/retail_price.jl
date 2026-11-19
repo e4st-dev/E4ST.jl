@@ -47,12 +47,6 @@ function setup_retail_price!(config, data)
     # payments for RPS and CES policies
     add_price_term!(data, :avg_elec_rate, :bus, :gs_payment, +)
 
-    # cost from imported power under emission caps and emission prices, allocated to the importing
-    # bus by EmissionCap/EmissionPrice (branch/dc_line have no area columns of their own).
-    # these results formulas default to 0 if there is no emission cap/price or the mods do not cover imports
-    add_price_term!(data, :avg_elec_rate, :bus, :emission_cap_cost, +)
-    add_price_term!(data, :avg_elec_rate, :bus, :emission_cost, +)
-
 
     # check for price terms and add
 

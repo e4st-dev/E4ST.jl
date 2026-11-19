@@ -86,6 +86,7 @@ function _emisprc_colnames(pol::EmissionPrice, table_name::Symbol=:branch)
         capex_adj_total = Symbol("$(pol.name)_capex_adj_total"),
         import_emis     = Symbol("$(pol.name)_$(pol.emis_col)"),
         imports         = Symbol(pol.name, table_name == :branch ? "_imports" : "_dc_imports"),
+        import_prc      = Symbol("$(pol.name)_import_prc"),
         flag            = Symbol("$(pol.name)_flag"),
         import_cost     = Symbol("$(pol.name)_import_cost"),
         import_emis_result = Symbol("$(pol.name)_import_emis"),
@@ -204,7 +205,7 @@ function E4ST.modify_results!(pol::EmissionPrice, config, data)
     branch_cols = _emisprc_colnames(pol, :branch)
     if hasproperty(branch, branch_cols.imports)
         tag_import_flows!(pol, data, branch, :branch)
-        add_import_results!(data, :branch, pol, branch_cols.imports)
+        add_import_results!(data, :branch, pol)
     end
 
     if any(mod -> mod isa DCLine, values(config[:mods]))
@@ -212,7 +213,7 @@ function E4ST.modify_results!(pol::EmissionPrice, config, data)
         dc_cols = _emisprc_colnames(pol, :dc_line)
         if hasproperty(dc_line, dc_cols.imports)
             tag_import_flows!(pol, data, dc_line, :dc_line)
-            add_import_results!(data, :dc_line, pol, dc_cols.imports)
+            add_import_results!(data, :dc_line, pol)
         end
     end
 
@@ -220,15 +221,22 @@ function E4ST.modify_results!(pol::EmissionPrice, config, data)
 end
 
 """
-    add_import_results!(data, table_name, pol::EmissionPrice, col::Symbol) ->
+    add_import_results!(data, table_name, pol::EmissionPrice) ->
     Create results formulas for import cost and import emissions for the given table.
 """
-function add_import_results!(data, table_name, pol::EmissionPrice, col::Symbol)
+function add_import_results!(data, table_name, pol::EmissionPrice)
     table = get_table(data, table_name)
     cols = _emisprc_colnames(pol, table_name)
     hasproperty(table, cols.imports) || return
 
-    add_results_formula!(data, table_name, cols.import_cost, "SumHourlyWeighted($(col), (pflow .* $(cols.flag)))",
+    # Multiply unsigned `import_prc` against `pflow` and `flag` to get cost of imports
+    # The sign of `pflow` and `flag` together ensure that positive costs are added to the 
+    # results formula regardless of power flow direction. `flag` is zero during export hours 
+    # so that they drop out of the results formula and aren't included as negative costs.
+    # Uses the unsigned `import_prc`, because `imports` carries the direction scalar so 
+    # pairing it with the flag (which makes `pflow` positive) would report a
+    # negative cost on rows where the priced region is on the f_bus side.
+    add_results_formula!(data, table_name, cols.import_cost, "SumHourlyWeighted($(cols.import_prc), (pflow .* $(cols.flag)))",
                             Dollars, "The cost of $(pol.name) associated with imported emissions.")
     haskey(get_results_formulas(data), (table_name, :emission_cost)) ||
         add_results_formula!(data, table_name, :emission_cost, "0", Dollars,
@@ -238,7 +246,7 @@ function add_import_results!(data, table_name, pol::EmissionPrice, col::Symbol)
     # attribute the import cost to the importing bus, so that it can be aggregated/filtered by
     # any area available on the bus table (e.g. state) - branch/dc_line rows span two areas and
     # have no area columns of their own.
-    add_import_cost_to_bus!(data, table_name, pol, col)
+    add_import_cost_to_bus!(data, table_name, pol)
 
     if pol.emis_col == "emis_co2"
         unit = ShortTons
@@ -247,10 +255,13 @@ function add_import_results!(data, table_name, pol::EmissionPrice, col::Symbol)
     end
 
     add_results_formula!(data, table_name, cols.import_emis_result, "SumHourlyWeighted($(cols.import_emis), (pflow .* $(cols.flag)))", unit, "Total emissions from imported power under $(pol.name). Note the imported emissions are calculated using the exogenous ef inputs and do not reflect the actual ef of the model run.")
+
+    # exclude the cost of imported emissions from merchandising surplus
+    remove_import_cost_from_ms!(data, table_name, pol)
 end
 
 """
-    add_import_cost_to_bus!(data, table_name, pol::EmissionPrice, col::Symbol)
+    add_import_cost_to_bus!(data, table_name, pol::EmissionPrice)
 Allocates the per-row import cost computed in [`add_import_results!`](@ref) (using the same
 per-row price container `prc_col`) onto the importing bus,which is the endpoint inside the capped
 region (`t_bus_idx` when `dir > 0`, `f_bus_idx` when `dir < 0`). This mirrors how branch-level
@@ -258,7 +269,7 @@ merchandising surplus is allocated to buses in `parse_lmp_results!`. This is nec
 results like retail price at the state level, since the branch and dc line table have no area
 columns. 
 """
-function add_import_cost_to_bus!(data, table_name, pol::EmissionPrice, col::Symbol)
+function add_import_cost_to_bus!(data, table_name, pol::EmissionPrice)
     table = get_table(data, table_name)
     bus = get_table(data, :bus)
     cols = _emisprc_colnames(pol, table_name)
@@ -278,6 +289,13 @@ function add_import_cost_to_bus!(data, table_name, pol::EmissionPrice, col::Symb
             add_results_formula!(data, :bus, :emission_cost, "0", Dollars,
                 "The total cost of imported emissions, allocated to buses.")
         add_to_results_formula!(data, :bus, :emission_cost, bus_cost_total)
+
+        # `remove_import_cost_from_ms!` removes cost of imported emissions from merchandising
+        # surplus, since the emission price is a payment to government rather than congestion
+        # rent and should not be rebated to load.  So need to add the cost associated with
+        # imports back into the welfare calculations.
+        add_welfare_term!(data, :electricity_payments, :bus, :emission_cost, -)
+        add_welfare_term!(data, :government, :bus, :emission_cost, +)
     end
 
     for row in eachrow(table)
@@ -286,7 +304,42 @@ function add_import_cost_to_bus!(data, table_name, pol::EmissionPrice, col::Symb
         t_in == f_in && continue  # not a branch/dc_line crossing the priced region boundary
         bus_idx = t_in ? row[:t_bus_idx] : row[:f_bus_idx]
         for y in 1:nyr, h in 1:nhr
-            bus[bus_idx, bus_cost_col][y,h] += hour_weights[h] * row[col][y,h] * row[:pflow][y,h] * row[cols.flag][y,h]
+            # same product as the cols.import_cost formula
+            bus[bus_idx, bus_cost_col][y,h] += hour_weights[h] * row[cols.import_prc][y,h] * row[:pflow][y,h] * row[cols.flag][y,h]
+        end
+    end
+end
+
+"""
+    remove_import_cost_from_ms!(data, table_name, pol::EmissionPrice)
+
+The merchandising surplus finds the difference in energy payments vs revenue at a bus, so that congestion rent can be
+returned to load.  The emission price on imports contributes to differences in the LMP, but it is a payment to
+government rather than congestion rent, so it should not be returned as a merchandising surplus.
+"""
+function remove_import_cost_from_ms!(data, table_name, pol::EmissionPrice)
+    table = get_table(data, table_name)
+    bus = get_table(data, :bus)
+    cols = _emisprc_colnames(pol, table_name)
+    ms_all = get_table_col(data, :bus, :merchandising_surplus)
+    ms_comp = get_table_col(data, :bus, :merchandising_surplus_comp)
+    hour_weights = get_hour_weights(data)
+    nyr, nhr = get_num_years(data), get_num_hours(data)
+    bus_set = Set(get_row_idxs(bus, parse_comparisons(pol.bus_filters)))
+
+    for row in eachrow(table)
+        t_in = row[:t_bus_idx] in bus_set
+        f_in = row[:f_bus_idx] in bus_set
+        t_in == f_in && continue  # not a branch/dc_line crossing the priced region boundary
+        f, t = row[:f_bus_idx], row[:t_bus_idx]
+        for y in 1:nyr, h in 1:nhr
+            # same 0.5-to-each-end split parse_lmp_results! used, and the same product as the
+            # cols.import_cost formula
+            half = 0.5 * hour_weights[h] * row[cols.import_prc][y,h] * row[:pflow][y,h] * row[cols.flag][y,h]
+            ms_all[f][y,h]  -= half
+            ms_all[t][y,h]  -= half
+            ms_comp[f][y,h] -= half * (1 - bus[f, :reg_factor])
+            ms_comp[t][y,h] -= half * (1 - bus[t, :reg_factor])
         end
     end
 end
@@ -328,6 +381,8 @@ function setup_import_branches!(pol::EmissionPrice, config, data, table_name::Sy
         "Emissions factor of imported power on $(table_name) for $(pol.name)")
     add_table_col!(data, table_name, cols.imports, Container[ByNothing(0.0) for _ in 1:nrow(table)],
         DollarsPerMWhGenerated, "Emission price per MWh imported for $(pol.name)")
+    add_table_col!(data, table_name, cols.import_prc, Container[ByNothing(0.0) for _ in 1:nrow(table)],
+        DollarsPerMWhGenerated, "Emission price per MWh imported for $(pol.name), without the direction scalar that $(cols.imports) carries for the objective.")
 
     if !isempty(pol.import_ef_file)
         _setup_import_branches_by_file!(pol, data, table_name, bus_set, cols, hour_multiplier, years)
@@ -350,7 +405,8 @@ function _setup_import_branches_by_value!(pol::EmissionPrice, data, table_name, 
     price_yearly = [get(pol.prices, Symbol(y), 0.0) for y in years]
     for idx in idxs
         scalar = table[idx, :t_bus_idx] in bus_set ? 1 : -1
-        table[idx, cols.imports] = ByYear(price_yearly) .* table[idx, cols.import_emis] .* hour_multiplier .* scalar
+        table[idx, cols.import_prc] = ByYear(price_yearly) .* table[idx, cols.import_emis] .* hour_multiplier
+        table[idx, cols.imports] = table[idx, cols.import_prc] .* scalar
     end
     @info "Applied EmissionPrice $(pol.name) to $(length(idxs)) $(table_name)."
 end
@@ -411,7 +467,8 @@ function _setup_import_branches_by_file!(pol::EmissionPrice, data, table_name, b
     price_yearly = [get(pol.prices, Symbol(y), 0.0) for y in years]
     for idx in all_idxs
         scalar = table[idx, :t_bus_idx] in bus_set ? 1 : -1
-        table[idx, cols.imports] = ByYear(price_yearly) .* table[idx, cols.import_emis] .* hour_multiplier .* scalar
+        table[idx, cols.import_prc] = ByYear(price_yearly) .* table[idx, cols.import_emis] .* hour_multiplier
+        table[idx, cols.imports] = table[idx, cols.import_prc] .* scalar
     end
     @info "Applied EmissionPrice $(pol.name) to $(length(all_idxs)) $(table_name)."
 end
