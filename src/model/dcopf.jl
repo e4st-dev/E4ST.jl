@@ -442,6 +442,24 @@ function add_obj_term!(data, model, ::PerMWhCurtailed, s::Symbol; oper)
     add_obj_exp!(data, model, PerMWhCurtailed(), s; oper = oper)  
 end
 
+
+function add_obj_term!(data, model, ::PerResidEmis, s::Symbol, rows::Vector{Int}, resid::Vector{Vector{AffExpr}}; oper) 
+    #Check if s has already been added to obj
+    Base.@assert s ∉ keys(data[:obj_vars]) "$s has already been added to the objective function"
+    
+    nonelec = get_table(data, :nonelec)
+    nyr = get_num_years(data)
+    col = nonelec[!, s]
+
+    model[s] = @expression(model, 
+        [k in 1:length(rows), yr_idx in 1:nyr],
+        col[rows[k]][yr_idx, 1] * resid[k][yr_idx] 
+    )     
+       
+    # add or subtract the expression from the objective function
+    add_obj_exp!(data, model, PerResidEmis(), s; oper = oper)  
+end
+
 """
     function add_obj_exp!(data, model, term::Term, s::Symbol; oper)
 

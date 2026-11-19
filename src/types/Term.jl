@@ -11,6 +11,7 @@ struct PerMWCap <: Term end
 struct PerMWCapInv <: Term end
 struct PerMWhCurtailed <: Term end
 struct PerMMBtu <: Term end
+struct PerResidEmis <: Term end
 export Term
 export PerMWCap
 export PerMWCapInv
