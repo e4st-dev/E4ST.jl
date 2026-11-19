@@ -71,6 +71,13 @@ function parse_results!(config, data, model)
 
     save_updated_gen_table(config, data)
 
+    #  save out the nonelec table
+    if haskey(data, :nonelec)
+        nonelec = get_table(data, :nonelec)
+        file_out = get_out_path(config, "nonelec.csv")
+        CSV.write(file_out, nonelec)
+    end
+
     return nothing
 end
 

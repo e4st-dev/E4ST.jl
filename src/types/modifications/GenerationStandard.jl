@@ -250,25 +250,26 @@ function add_pl_gs_bus!(config, data, model)
         # Add DAC here
     )
 
-    # Add line losses
-    line_loss_type = config[:line_loss_type]
-    line_loss_rate = config[:line_loss_rate]
-    if line_loss_type == "plserv"
-        loss_scalar = 1/(1-line_loss_rate) - 1 # -1 because we are adding it
-        for bus_idx in axes(bus, 1), yr_idx in 1:nyear, hr_idx in 1:nhour
-            add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pl_gs_bus[bus_idx, yr_idx, hr_idx], loss_scalar)
-        end
-    elseif line_loss_type == "pflow"
-        pflow_out_bus = model[:pflow_out_bus]::Array{VariableRef, 3}
-        for bus_idx in axes(bus, 1), yr_idx in 1:nyear, hr_idx in 1:nhour
-            add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pflow_out_bus[bus_idx, yr_idx, hr_idx], line_loss_rate)
-        end
-    else
-        error("config[:line_loss_type] must be `plserv` or `pflow`, but $line_loss_type was given")
+    # comment out adding line losses because RPS/CES are based on retail sales, not generation, keeping code in case there is ever a reason to run RPS/CES with line losses
+    # # Add line losses
+    # line_loss_type = config[:line_loss_type]
+    # line_loss_rate = config[:line_loss_rate]
+    # if line_loss_type == "plserv"
+    #     loss_scalar = 1/(1-line_loss_rate) - 1 # -1 because we are adding it
+    #     for bus_idx in axes(bus, 1), yr_idx in 1:nyear, hr_idx in 1:nhour
+    #         add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pl_gs_bus[bus_idx, yr_idx, hr_idx], loss_scalar)
+    #     end
+    # elseif line_loss_type == "pflow"
+    #     pflow_out_bus = model[:pflow_out_bus]::Array{VariableRef, 3}
+    #     for bus_idx in axes(bus, 1), yr_idx in 1:nyear, hr_idx in 1:nhour
+    #         add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pflow_out_bus[bus_idx, yr_idx, hr_idx], line_loss_rate)
+    #     end
+    # else
+    #     error("config[:line_loss_type] must be `plserv` or `pflow`, but $line_loss_type was given")
 
-    end
+    # end
 
-    # Add storage to the expression.  Note this must come after line losses so that the generation-side storage doesn't get penalized for line losses.
+    # Add storage to the expression.  Note, if adjusting for line losses, storage must come second so that the generation-side storage doesn't get penalized for line losses.
     if haskey(data, :storage)
         pdischarge_stor = model[:pdischarge_stor]::Array{VariableRef, 3}
         pcharge_stor = model[:pcharge_stor]::Array{VariableRef, 3}
@@ -277,11 +278,17 @@ function add_pl_gs_bus!(config, data, model)
         for (stor_idx, row) in enumerate(eachrow(storage))
             bus_idx = row.bus_idx
 
-            # Only add line losses here if we're acconting for losses on plserv and with load-side storage devices
-            line_loss_scalar = ((line_loss_type == "plserv" && row.side == "load") ? 1.0/(1.0-line_loss_rate) : 1.0)
+            # commenting out since we are excluding line losses but leaving code in case its useful in the future
+            # # Only add line losses here if we're acconting for losses on plserv and with load-side storage devices
+            # line_loss_scalar = ((line_loss_type == "plserv" && row.side == "load") ? 1.0/(1.0-line_loss_rate) : 1.0)
+            # for yr_idx in 1:nyear, hr_idx in 1:nhour
+            #     add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pdischarge_stor[stor_idx, yr_idx, hr_idx], -line_loss_scalar)
+            #     add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pcharge_stor[stor_idx, yr_idx, hr_idx], line_loss_scalar)
+            # end
+            row.side == "load" || continue   # only customer-sited storage should be included since RPS/CES is based on retail sales and so we don't need to include the round-trip losses in pl_gs_Bus
             for yr_idx in 1:nyear, hr_idx in 1:nhour
-                add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pdischarge_stor[stor_idx, yr_idx, hr_idx], -line_loss_scalar)
-                add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pcharge_stor[stor_idx, yr_idx, hr_idx], line_loss_scalar)
+                add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pdischarge_stor[stor_idx, yr_idx, hr_idx], -1.0)
+                add_to_expression!(pl_gs_bus[bus_idx, yr_idx, hr_idx], pcharge_stor[stor_idx, yr_idx, hr_idx], 1.0)
             end
         end
     end
