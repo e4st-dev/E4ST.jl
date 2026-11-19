@@ -1,23 +1,51 @@
 @testset "Test Sector Representation" begin
-    config_file = joinpath(@__DIR__, "config/config_3bus.yml")
+
+    config_file        = joinpath(@__DIR__, "config/config_3bus.yml")
     sector_config_file = joinpath(@__DIR__, "config/config_3bus_sector.yml")
 
-    config = read_config(config_file, sector_config_file)
+    # Each testset below isolates a single emissions policy, so `drop` names the
+    # mods to remove from the shared sector config.
+    function sector_config(drop::Symbol...)
+        config = read_config(config_file, sector_config_file)
+        foreach(mod_name -> delete!(config[:mods], mod_name), drop)
+        return config
+    end
 
-    data = read_data(config)
+    function solve_config(config)
+        data = read_data(config)
+        model = setup_model(config, data)
+        optimize!(model)
+        parse_results!(config, data, model)
+        process_results!(config, data)
+        return data
+    end
 
-    model = setup_model(config, data)
+    # set of common tests for Sector mods paired with both EmissionPrice and EmissionCap 
+    function test_sector_response(config, data)
+        baseline  = compute_result(data, :nonelec, :baseline_emis_total)
+        resid     = compute_result(data, :nonelec, :resid_emis_total)
+        abate     = compute_result(data, :nonelec, :abate_emis_total)
+        electrify = compute_result(data, :nonelec, :elec_response_total)
 
-    optimize!(model)
+        # the price signal induces some abatement
+        @test abate > 0
+        # abated plus residual emissions account for the whole baseline
+        @test abate + resid ≈ baseline
+        # abatement shows up as additional electric load
+        @test electrify > 0
+        # the sector's results are written out
+        @test isfile(get_out_path(config, "nonelec.csv"))
+    end
 
-    parse_results!(config, data, model)
-    process_results!(config, data)
+    @testset "Setup and Input Validation" begin
+        config = sector_config(:example_emiscap, :example_emisprice)
+        data = read_data(config)
 
-    @test haskey(data, :nonelec)
+        # the Sector mod builds its table regardless of what prices its emissions
+        @test haskey(data, :nonelec)
 
-    # Test that the data validation step works. Each case below feeds it a deliberately 
-    # broken copy to exercise the error paths.
-    @testset "Input validation" begin
+        # Each case below feeds the validator a deliberately broken copy of one
+        # input table to exercise a single error path.
         sec   = config[:mods][:transportation_sector]
         nm    = sec.name
         mac   = get_table(data, Symbol("sector_$(nm)_mac_steps"))
@@ -63,7 +91,7 @@
 
         # every region-subsector needs an elasticity row, an electricity row,
         # MAC steps, a load profile, and at least one matching bus
-        @test_throws "no matching elasticity row"   validate(elast = elast[2:end, :])
+        @test_throws "no matching elasticity row"    validate(elast = elast[2:end, :])
         @test_throws "no matching elec_baseline row" validate(elec = elec[2:end, :])
         @test_throws "has no MAC steps"              validate(mac = mac[0:-1, :])
         @test_throws "no usable load profile row"    validate(lp = lp[0:-1, :])
@@ -78,49 +106,53 @@
         @test_throws "zero baseline emissions" validate(emis = zero_emis)
     end
 
-    baseline = compute_result(data, :nonelec, :baseline_emis_total)
-    resid = compute_result(data, :nonelec, :resid_emis_total)
-    abate = compute_result(data, :nonelec, :abate_emis_total, :)
-    electrify = compute_result(data, :nonelec, :elec_response_total)
+    #======================================================================
+    Response to an EmissionCap. The sector abates against the cap's shadow
+    price, and its covered emissions count against the cap itself.
+    ======================================================================#
+    @testset "Response to Emission Cap" begin
+        config = sector_config(:example_emisprice)
+        data = solve_config(config)
 
-    
-    # test that there is some abatement
-    @test abate > 0
-    # test that abatement plus residual emissions is equal to the baseline emissions
-    @test abate + resid ≈ baseline
-    # test that there is some associated electrification response
-    @test electrify > 0
+        test_sector_response(config, data)
 
-    # Allowance price with the Sector mod active.
-    cap_cons_name = :cons_example_emiscap_max
-    @test haskey(data[:results][:raw], cap_cons_name)
+        cap_cons_name = :cons_example_emiscap_max
+        @test haskey(data[:results][:raw], cap_cons_name)
 
-    nyr = get_num_years(data)
-    alw_prc_with_sector = [-get_shadow_price_as_ByYear(data, cap_cons_name)[yr_idx] for yr_idx in 1:nyr]
+        nyr = get_num_years(data)
+        alw_prc_with_sector = [-get_shadow_price_as_ByYear(data, cap_cons_name)[yr_idx] for yr_idx in 1:nyr]
 
-    # check that cap is binding
-    @test any(>(0), alw_prc_with_sector)
+        # the cap binds, so there is an allowance price for the sector to respond to
+        @test any(>(0), alw_prc_with_sector)
 
-    @test isfile(get_out_path(config, "nonelec.csv"))
+        @testset "Impact on Allowance Price" begin
+            # Re-solve with the sector removed and the cap target unchanged.
+            config_ns = sector_config(:example_emisprice, :transportation_sector)
+            data_ns = solve_config(config_ns)
 
-    @testset "Test Economy-Wide Impact on Allowance Price" begin
-        # Re-solve with the sector removed and an unchanged cap target
-        config_ns = read_config(config_file, sector_config_file)
-        delete!(config_ns[:mods], :transportation_sector)
+            # no Sector mod means no :nonelec table at all
+            @test !haskey(data_ns, :nonelec)
 
-        data_ns = read_data(config_ns)
-        model_ns = setup_model(config_ns, data_ns)
-        optimize!(model_ns)
-        parse_results!(config_ns, data_ns, model_ns)
-        process_results!(config_ns, data_ns)
+            alw_prc_no_sector = [-get_shadow_price_as_ByYear(data_ns, cap_cons_name)[yr_idx] for yr_idx in 1:nyr]
 
-        # no Sector mod means no :nonelec table at all
-        @test !haskey(data_ns, :nonelec)
-
-        alw_prc_no_sector = [-get_shadow_price_as_ByYear(data_ns, cap_cons_name)[yr_idx] for yr_idx in 1:nyr]
-
-        # test that removing covered emissions loosens the cap
-        @test all(alw_prc_with_sector .>= alw_prc_no_sector .- 1e-6)
+            # putting the sector's emissions under the cap tightens it, so the
+            # allowance price can only rise
+            @test all(alw_prc_with_sector .>= alw_prc_no_sector .- 1e-6)
+        end
     end
-    
+
+    #======================================================================
+    Response to an EmissionPrice. Same abatement and electrification response,
+    driven by an exogenous price rather than a shadow price.
+    ======================================================================#
+    @testset "Response to Emission Price" begin
+        config = sector_config(:example_emiscap)
+        data = solve_config(config)
+
+        test_sector_response(config, data)
+
+        # residual emissions are priced, so the sector carries the policy's price column
+        pol = config[:mods][:example_emisprice]
+        @test hasproperty(get_table(data, :nonelec), Symbol("$(pol.name)_nonelec"))
+    end
 end
