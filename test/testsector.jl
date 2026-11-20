@@ -26,6 +26,7 @@
         resid     = compute_result(data, :nonelec, :resid_emis_total)
         abate     = compute_result(data, :nonelec, :abate_emis_total)
         electrify = compute_result(data, :nonelec, :elec_response_total)
+        abate_cost = compute_result(data, :nonelec, :abate_cost_total)
 
         # the price signal induces some abatement
         @test abate > 0
@@ -33,6 +34,13 @@
         @test abate + resid ≈ baseline
         # abatement shows up as additional electric load
         @test electrify > 0
+        # abatement is not free
+        @test abate_cost > 0
+        # the per-row abatement cost reconciles with the objective-side cost, which is
+        # built by summing the same expression over region-subsectors
+        sec_name = config[:mods][:transportation_sector].name
+        obj_cost = sum(get_raw_result(data, Symbol("cost_sector_$(sec_name)_obj")))
+        @test abate_cost ≈ obj_cost
         # the sector's results are written out
         @test isfile(get_out_path(config, "nonelec.csv"))
     end
@@ -113,8 +121,12 @@
     @testset "Response to Emission Cap" begin
         config = sector_config(:example_emisprice)
         data = solve_config(config)
-
+        
         test_sector_response(config, data)
+        # test that the total cost of emission cap programs is nonzero outside of power sector
+        @test compute_result(data, :nonelec, :emission_cap_cost) > 0
+         # config has a single EmissionCap so total emission cap cost and the program's emission cap cost should be equal
+        @test compute_result(data, :nonelec, :emission_cap_cost) == compute_result(data, :nonelec, :example_emiscap_nonelec_cost)
 
         cap_cons_name = :cons_example_emiscap_max
         @test haskey(data[:results][:raw], cap_cons_name)
@@ -148,11 +160,16 @@
     @testset "Response to Emission Price" begin
         config = sector_config(:example_emiscap)
         data = solve_config(config)
-
+        
         test_sector_response(config, data)
+        # test that the total cost of emission price programs is nonzero outside of power sector
+        @test compute_result(data, :nonelec, :emission_cost) > 0
+        # config has a single EmissionPrice so total emission cost and the program's emission cost should be equal
+        @test compute_result(data, :nonelec, :emission_cost) == compute_result(data, :nonelec, :example_emisprice_nonelec_cost)
 
         # residual emissions are priced, so the sector carries the policy's price column
         pol = config[:mods][:example_emisprice]
         @test hasproperty(get_table(data, :nonelec), Symbol("$(pol.name)_nonelec"))
+ 
     end
 end

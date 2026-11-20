@@ -39,6 +39,7 @@ This differs from policies with a post-solve shadow price (e.g. [`EmissionCap`](
 * `(:branch, :<name>_import_emis)` - Total emissions from imported power. Only added when `price_imports=true`.
 * `(:dc_line, :<name>_import_emis)` - Total emissions from imported power. Only added when `price_imports=true`.
 * `(:bus, :<name>_import_cost_total)` - Total cost of the policy attributed to imports, allocated to buses. Only added when `price_imports=true`.
+* `(:nonelec, :<name>_nonelec_cost)` - Total cost of $(pol.name) in non-power sector."
 
 """
 struct EmissionPrice <: Policy
@@ -81,15 +82,16 @@ centralizing name construction to avoid repetition across functions.
 """
 function _emisprc_colnames(pol::EmissionPrice, table_name::Symbol=:branch)
     return (
-        cost            = Symbol("$(pol.name)_cost"),
-        capex_adj       = Symbol("$(pol.name)_capex_adj"),
-        capex_adj_total = Symbol("$(pol.name)_capex_adj_total"),
-        import_emis     = Symbol("$(pol.name)_$(pol.emis_col)"),
-        imports         = Symbol(pol.name, table_name == :branch ? "_imports" : "_dc_imports"),
-        flag            = Symbol("$(pol.name)_flag"),
-        import_cost     = Symbol("$(pol.name)_import_cost"),
-        import_emis_result = Symbol("$(pol.name)_import_emis"),
-        nonelec_prc     = Symbol("$(pol.name)_nonelec"),
+        cost                = Symbol("$(pol.name)_cost"),
+        capex_adj           = Symbol("$(pol.name)_capex_adj"),
+        capex_adj_total     = Symbol("$(pol.name)_capex_adj_total"),
+        import_emis         = Symbol("$(pol.name)_$(pol.emis_col)"),
+        imports             = Symbol(pol.name, table_name == :branch ? "_imports" : "_dc_imports"),
+        flag                = Symbol("$(pol.name)_flag"),
+        import_cost         = Symbol("$(pol.name)_import_cost"),
+        import_emis_result  = Symbol("$(pol.name)_import_emis"),
+        nonelec_prc         = Symbol("$(pol.name)_nonelec"),
+        nonelec_cost        = Symbol("$(pol.name)_nonelec_cost")
     )
 end
 
@@ -232,6 +234,15 @@ function E4ST.modify_results!(pol::EmissionPrice, config, data)
     end
 
     should_adjust_invest_cost(pol) && add_results_formula!(data, :gen, cols.capex_adj_total, "SumYearly(ecap_inv_sim, $(cols.capex_adj))", Dollars, "The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.")
+
+    # Residual (non-power) emissions covered by the price are also a source of program revenue.
+    if has_table(data, :nonelec) && hasproperty(get_table(data, :nonelec), cols.nonelec_prc)
+        nonelec = get_table(data, :nonelec)
+        add_results_formula!(data, :nonelec, cols.nonelec_cost,
+            "SumYearly($(cols.nonelec_prc), resid_emis)", Dollars,
+            "Cost of emission price for non-power sectors under $(pol.name).")
+        add_to_results_formula!(data, :nonelec, :emission_cost, cols.nonelec_cost)
+    end
 end
 
 """
