@@ -39,6 +39,7 @@ This differs from policies with a post-solve shadow price (e.g. [`EmissionCap`](
 * `(:branch, :<name>_import_emis)` - Total emissions from imported power. Only added when `price_imports=true`.
 * `(:dc_line, :<name>_import_emis)` - Total emissions from imported power. Only added when `price_imports=true`.
 * `(:bus, :<name>_import_cost_total)` - Total cost of the policy attributed to imports, allocated to buses. Only added when `price_imports=true`.
+* `(:nonelec, :<name>_nonelec_cost)` - Total cost of $(pol.name) in non-power sector."
 
 """
 struct EmissionPrice <: Policy
@@ -81,14 +82,16 @@ centralizing name construction to avoid repetition across functions.
 """
 function _emisprc_colnames(pol::EmissionPrice, table_name::Symbol=:branch)
     return (
-        cost            = Symbol("$(pol.name)_cost"),
-        capex_adj       = Symbol("$(pol.name)_capex_adj"),
-        capex_adj_total = Symbol("$(pol.name)_capex_adj_total"),
-        import_emis     = Symbol("$(pol.name)_$(pol.emis_col)"),
-        imports         = Symbol(pol.name, table_name == :branch ? "_imports" : "_dc_imports"),
-        flag            = Symbol("$(pol.name)_flag"),
-        import_cost     = Symbol("$(pol.name)_import_cost"),
-        import_emis_result = Symbol("$(pol.name)_import_emis"),
+        cost                = Symbol("$(pol.name)_cost"),
+        capex_adj           = Symbol("$(pol.name)_capex_adj"),
+        capex_adj_total     = Symbol("$(pol.name)_capex_adj_total"),
+        import_emis         = Symbol("$(pol.name)_$(pol.emis_col)"),
+        imports             = Symbol(pol.name, table_name == :branch ? "_imports" : "_dc_imports"),
+        flag                = Symbol("$(pol.name)_flag"),
+        import_cost         = Symbol("$(pol.name)_import_cost"),
+        import_emis_result  = Symbol("$(pol.name)_import_emis"),
+        nonelec_prc         = Symbol("$(pol.name)_nonelec"),
+        nonelec_cost        = Symbol("$(pol.name)_nonelec_cost")
     )
 end
 
@@ -187,6 +190,20 @@ function E4ST.modify_model!(pol::EmissionPrice, config, data, model)
             _add_import_obj_term!(data, model, pol, :dc_line)
         end
     end
+
+
+    # Feed residual sector emissions into any EmissionPrice whose bus-filter
+    # region contains this region-subsector's (area, subarea). Spread uniformly
+    # across hours so the annual total the cap sees equals resid_emis[i, y].
+    # see the function `add_resid_emis_to_price!` for details of adding to emissions price.
+
+    # Sectoral abatement is only meaningful when there is a price signal on
+    # residual emissions -- an EmissionPrice covering at least one of this
+    # sector's region-subsectors, whose price is the only thing that
+    # makes reducing resid_emis worth paying the MAC cost for. Absent that,
+    # every MAC step has strictly positive cost with zero offsetting benefit,
+    # so the LP picks abate = 0 at every step and the modification is dormant.
+    _add_resid_emis_obj_term!(pol, config, data, model)
 end
 
 
@@ -217,6 +234,15 @@ function E4ST.modify_results!(pol::EmissionPrice, config, data)
     end
 
     should_adjust_invest_cost(pol) && add_results_formula!(data, :gen, cols.capex_adj_total, "SumYearly(ecap_inv_sim, $(cols.capex_adj))", Dollars, "The necessary investment-based objective function penalty for having the subsidy end before the economic lifetime.")
+
+    # Residual (non-power) emissions covered by the price are also a source of program revenue.
+    if has_table(data, :nonelec) && hasproperty(get_table(data, :nonelec), cols.nonelec_prc)
+        nonelec = get_table(data, :nonelec)
+        add_results_formula!(data, :nonelec, cols.nonelec_cost,
+            "SumYearly($(cols.nonelec_prc), resid_emis)", Dollars,
+            "Cost of emission price for non-power sectors under $(pol.name).")
+        add_to_results_formula!(data, :nonelec, :emission_cost, cols.nonelec_cost)
+    end
 end
 
 """
@@ -458,3 +484,84 @@ function get_emisprc_capex_adj(pol::EmissionPrice, g::DataFrameRow, config)
     capex_adj = adj_factor .* cf .* emisprc_vals
     return capex_adj
 end
+
+
+"""
+    _add_resid_emis_obj_term!(pol::EmissionPrice, config, data, model)
+
+Adds the cost  of every [`Sector`](@ref) modification's residual (non-abated) 
+emissions into the objective function when there is a corresponding EmissionPrice. 
+
+Region-subsectors that pass the pollutant check but only partially overlap a
+price's bus region are skipped with a warning.
+
+Residual emissions are indexed only by region-subector and year (no hour index).
+
+Currently runs unconditionally: any Sector modification whose residual emissions
+overlap an active price on the same pollutant will be subject to the price. There is
+no config arg to opt out — would have to remove the price or narrow its `bus_filters` 
+if you don't want the sector to be captured.
+
+"""
+
+
+function _add_resid_emis_obj_term!(pol::EmissionPrice, config, data, model)
+    has_table(data, :nonelec) || return 0
+
+    cols = _emisprc_colnames(pol)
+    bus = get_table(data, :bus)
+    nbus = nrow(bus)
+    nyear = get_num_years(data)
+    nonelec = get_table(data, :nonelec)
+
+    price_bus_set = isempty(pol.bus_filters) ? Set(1:nbus) :
+        Set(get_row_idxs(bus, parse_comparisons(pol.bus_filters)))
+
+    price_yearly = [get(pol.prices, Symbol(year), 0.0) for year in get_years(data)]
+
+    # create column of emission prices, only once for this EmissionPrice instance
+    hasproperty(nonelec, cols.nonelec_prc) || 
+        add_table_col!(data, :nonelec, cols.nonelec_prc, Container[ByNothing(0.0) for i in 1:nrow(nonelec)], DollarsPerResidEmis,
+                "Emission price per unit of residual emissions in non-power sectors for $(pol.name)")
+
+    priced_rows = Int[]
+    priced_emis = Vector{AffExpr}[]
+
+    for (secname, sec) in config[:mods]
+        sec isa Sector || continue
+
+        row_idxs = get_row_idxs(nonelec, :mod_name => sec.name)
+        isempty(row_idxs) && continue
+
+        resid_name = Symbol("resid_emis_$(sec.name)")
+        haskey(model, resid_name) || continue
+        resid_emis = model[resid_name]
+        @assert length(row_idxs) == size(resid_emis, 1) "Sector $(sec.name): :nonelec rows ($(length(row_idxs))) don't match resid_emis ($(size(resid_emis, 1))); table rows changed since the sector was set up"
+
+        n_added = 0
+        for (i, row) in enumerate(row_idxs)
+            Symbol(nonelec.emis_col[row]) == pol.emis_col || continue
+            
+            area = Symbol(nonelec.area[row])
+            hasproperty(bus, area) || continue
+            target = string(nonelec.subarea[row])
+            bs = Set(b for b in 1:nbus if string(bus[b, area]) == target)
+            isempty(bs) && continue
+
+            if issubset(bs, price_bus_set)
+                nonelec[row, cols.nonelec_prc] = ByYear(price_yearly)
+                push!(priced_rows, row_idxs[i])
+                push!(priced_emis, [resid_emis[i,y] for y in 1:nyear])
+                n_added += 1
+            elseif !isdisjoint(bs, price_bus_set)
+                @warn "Sector $secname: region-subsector overlaps EmissionPrice $(pol.name) partially; not counted."
+            end
+        end
+        @info "Sector $secname: added residual emissions from $n_added region-subsectors to EmissionPrice $(pol.name)"
+    end
+
+    isempty(priced_rows) ||
+        add_obj_term!(data, model, PerResidEmis(), cols.nonelec_prc, priced_rows, priced_emis, oper = +)
+    return length(priced_rows)
+end
+export _add_resid_emis_obj_term!

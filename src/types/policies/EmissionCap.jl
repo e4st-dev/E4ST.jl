@@ -43,15 +43,20 @@ It differs from policies with an exogenous input price (e.g. [`EmissionPrice`](@
 * `(:branch, :<name>_prc)` - the allowance price of the policy per MWh of imports. Only added when `cap_imports=true`.
 * `(:dc_line, :<name>_prc)` - the allowance price of the policy per MWh of imports. Only added when `cap_imports=true`.
 * `(:bus, :<name>_import_cost)` - Cost of the policy attributed to imports, allocated to the importing bus (`ByYearAndHour`). Only added when `cap_imports=true`.
+* `(:nonelec, :<name>)` - Indicator marking whether a region-subsector's residual emissions are covered by the cap. Only added when a [`Sector`](@ref) mod is present.
+* `(:nonelec, :<name>_nonelec_prc)` - the allowance price of the policy applied to residual emissions, zero for uncovered rows. Only added when a [`Sector`](@ref) mod is present.
 
 ### Results Formula:
 * `(:gen, :<name>_cost)` - the cost of the policy based on the allowance price, determined using the shadow price of the generation constraint
+* `(:nonelec, :<name>_nonelec_cost_gross)` - allowance payments from non-power sectors, before offsets are applied. Only added when a [`Sector`](@ref) mod is present.
+* `(:nonelec, :<name>_nonelec_cost)` - `<name>_nonelec_cost_gross` reduced by the offset fraction of compliance obligation. Only added when a [`Sector`](@ref) mod is present.
 * `(:branch, :<name>_import_cost)` - the cost of the policy attributed to imports. Only added when `cap_imports=true`.
 * `(:dc_line, :<name>_import_cost)` - the cost of the policy attributed to imports. Only added when `cap_imports=true`.
 * `(:branch, :<name>_import_emis)` - Total emissions from imported power. Only added when `cap_imports=true`.
 * `(:dc_line, :<name>_import_emis)` - Total emissions from imported power. Only added when `cap_imports=true`.
 * `(:bus, :<name>_import_cost_total)` - Total cost of the policy attributed to imports, allocated to buses. Only added when `cap_imports=true`.
-
+* `(:nonelec, :<name>_nonelec_cost_gross)` - "Allowance payments from non-power sectors under $(pol.name), gross of offsets."
+* `(:nonelec, :<name>_nonelec_cost)` - "Allowance payments from non-power sectors under $(pol.name), reduced by the offset fraction of compliance obligation ($(pol.offset))."
 """
 struct EmissionCap <: Policy
     name::Symbol
@@ -119,7 +124,12 @@ function _emiscap_colnames(pol::EmissionCap)
         cons_name          = Symbol("cons_$(pol.name)_max"),
         alw_name           = Symbol("alw_$(pol.name)"),
         alw_cost           = Symbol("alw_cost_$(pol.name)"),
-        price_resp_alws        = Symbol("$(pol.name)_supply_curve")
+        price_resp_alws    = Symbol("$(pol.name)_supply_curve"),
+        nonelec_cov        = Symbol("$(pol.name)_nonelec"),
+        nonelec_prc        = Symbol("$(pol.name)_nonelec_prc"),
+        nonelec_cost_gross = Symbol("$(pol.name)_nonelec_cost_gross"),
+        nonelec_cost       = Symbol("$(pol.name)_nonelec_cost")
+
     )
 end
 
@@ -330,6 +340,25 @@ function E4ST.modify_results!(pol::EmissionCap, config, data)
             add_import_results!(data, table_name, pol, cols, alw_prc)
         end
     end
+
+    # Residual (non-power) emissions covered by the cap are also a srouce of program
+    # revenue. `cols.nonelec_cov` was tagged in `add_resid_emis_to_cap!` so that the 
+    # nonelec program costs can be computed here. 
+    if has_table(data, :nonelec) && hasproperty(get_table(data, :nonelec), cols.nonelec_cov)
+        nonelec = get_table(data, :nonelec)
+        cov = nonelec[!, cols.nonelec_cov]
+        add_table_col!(data, :nonelec, cols.nonelec_prc,
+            Container[cov[i] ? (-alw_prc) : ByNothing(0.0) for i in 1:nrow(nonelec)],
+            DollarsPerResidEmis, "Allowance price of $(pol.name) applied to residual emissions.")
+        add_results_formula!(data, :nonelec, cols.nonelec_cost_gross,
+            "SumYearly($(cols.nonelec_prc), resid_emis)", Dollars,
+            "Allowance payments from non-power sectors under $(pol.name), gross of offsets.")
+        add_results_formula!(data, :nonelec, cols.nonelec_cost,
+            "$(cols.nonelec_cost_gross) * $(1 - pol.offset)", Dollars,
+            "Allowance payments from non-power sectors under $(pol.name), reduced by the offset fraction of compliance obligation ($(pol.offset)).")
+        add_to_results_formula!(data, :nonelec, :emission_cap_cost, cols.nonelec_cost)
+    end
+
 end
 
 """
@@ -757,6 +786,15 @@ function add_resid_emis_to_cap!(pol::EmissionCap, config, data, model)
     coef = 1.0 / nhr
     total_added = 0
 
+    cols = _emiscap_colnames(pol)
+
+    has_table(data, :nonelec) || return 0
+    nonelec = get_table(data, :nonelec)
+    hasproperty(nonelec, cols.nonelec_cov) ||
+        add_table_col!(data, :nonelec, cols.nonelec_cov, fill(false, nrow(nonelec)), NA,
+            "True if this region-subsector's residual emissions are covered by $(pol.name).")
+
+
     for (secname, sec) in config[:mods]
         sec isa Sector || continue
 
@@ -788,6 +826,7 @@ function add_resid_emis_to_cap!(pol::EmissionCap, config, data, model)
             bs = regsub_bus_sets[i]
             isempty(bs) && continue
             if issubset(bs, cap_bus_set)
+                nonelec[row_idxs[i], cols.nonelec_cov] = true
                 for y in 1:nyear, h in 1:nhr
                     add_to_expression!(emis_expr[y,h], coef, resid_emis[i,y])
                 end

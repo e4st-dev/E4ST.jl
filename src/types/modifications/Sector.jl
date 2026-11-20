@@ -20,11 +20,12 @@
 * `elasticity_file` - the filename of the sector's elastcity table, which contains the cross and own semi-elasticities for the corresponding sector and subsectors.  See also [`summarize_table(::Val{:elasticity})`](@ref)
 
 ### Tables Added:
-* `mac_steps` - contains the sector's marginal abatement cost curve
-* `emis_baseline` - contains the sector's baseline emissions pathway
-* `elec_baseline` - contains the sector's baseline electricity pathway
-* `elasticity` - contains the sector's cross and own elasticity values
-* `load_profile` - contains the sector's diurnal load profile
+The five input tables are stored per-instance under `sector_<name>_*`, so multiple `Sector` mods do not collide.
+* `sector_<name>_mac_steps` - contains the sector's marginal abatement cost curve
+* `sector_<name>_emis_baseline` - contains the sector's baseline emissions pathway
+* `sector_<name>_elec_baseline` - contains the sector's baseline electricity pathway
+* `sector_<name>_elasticity` - contains the sector's cross and own elasticity values
+* `sector_<name>_load_profile` - contains the sector's diurnal load profile
 * `nonelec` - stores emissions and electricity baselines and abatement and electrification pathways for each modeled subsector. unlike other Sector tables, nonelec is shared across every `Sector` mod instance so that each 
    sector from different regions are all included in the same table
 
@@ -35,6 +36,7 @@ The five input tables(`mac_steps`, `emis_baseline`, `elec_baseline`, `elasticity
 Populated in [`modify_setup_data!`](@ref):
 * `(:nonelec, :area, :subarea)` - indicates the E4ST region the sector mod belongs to
 * `(:nonelec, :sector, :subsector)` - indicates the sector and subsector the mod represents
+* `(:nonelec, :emis_col)` - the pollutant these baseline emissions are measured in, e.g. `emis_co2`. [`EmissionCap`](@ref) and [`EmissionPrice`](@ref) only cover a row when this matches their own `emis_col`.
 * `(:nonelec, :mod_name)` - which `Sector` instance (`sec.name`) the row belongs to. Since `:nonelec` is shared across instances, `modify_model!`/`modify_results!` recover only their own rows via `get_row_idxs(regsub, :mod_name => name)`.
 * `(:nonelec, :baseline_emis)` - `ByYear` baseline (pre-abatement) emissions. Units follow `emis_col`.
 * `(:nonelec, :baseline_demand)` - `ByYear` baseline electricity consumption (`Cons0`), in MWh. Used only to compute `elec_per_emis`; E4ST's total baseline load is not adjusted by it, since we assume load projections already carry this demand.
@@ -45,6 +47,7 @@ Populated post-solve in [`modify_results!`](@ref):
 * `(:nonelec, :abate_total)` - `ByYear` emissions abated. Units follow `emis_col`.
 * `(:nonelec, :resid_emis)` - `ByYear` residual (unabated) emissions, `baseline_emis - abate_total`. These are the emissions `EmissionCap` counts against its constraint or `EmissionPrice` will price.
 * `(:nonelec, :elec_demand_change)` - `ByYear` induced change in electricity demand, `abate_total * elec_per_emis`, in MWh.
+* `(:nonelec, :abate_cost)` - `ByYear` cost of abatement, the area under that region-subsector's MAC curve up to `abate_total`, in dollars.
 
 
 ### Model Modification
@@ -55,7 +58,8 @@ is the simulation year.
 * Expressions
     * `abate_total_<name>[regsub_idx, yr_idx]` - total emissions abated, summed over that region-subsector's MAC steps.
     * `resid_emis_<name>[regsub_idx, yr_idx]` - residual (unabated) emissions, `baseline_emis - abate_total`. These are what `EmissionCap` counts.
-    * `cost_sector_<name>_obj[yr_idx]` - MAC abatement cost, the staircase area under the MAC curve (`sum(abate * mac.price)` over all region-subsectors and steps), added to the objective via [`add_obj_exp!`](@ref) 
+    * `abate_cost_<name>[regsub_idx, yr_idx]` - MAC abatement cost for one region-subsector, the staircase area under its MAC curve (`sum(abate * mac.price)` over that region-subsector's steps). Reported per row as `(:nonelec, :abate_cost)`.
+    * `cost_sector_<name>_obj[yr_idx]` - MAC abatement cost, `abate_cost_<name>` summed over all region-subsectors, added to the objective via [`add_obj_exp!`](@ref)
       under [`SectorTerm`](@ref). Residual emissions carry no direct cost term here -- their only price signal comes from whatever `EmissionCap` covers this sector's region-subsectors.
 * Constraints
     * `cons_abate_cap_<name>[regsub_idx, yr_idx]` - abatement in a year cannot exceed that year's baseline emissions: `abate_total <= baseline_emis`.
@@ -67,10 +71,18 @@ is the simulation year.
 Note that the EmissionCap and EmissionPrice mods search for relevant sector emissions and add them to the full emission expression, linking these emissions with the power sector.
 
 ### Results Formulas Added:
-All are `SumYearly` aggregations over `:nonelec`, summed across region-subsectors and years.
+The first six are `SumYearly` aggregations over `:nonelec`, summed across region-subsectors and years.
 * `(:nonelec, :abate_emis_total)`, `(:nonelec, :resid_emis_total)`, `(:nonelec, :baseline_emis_total)` - emissions, units following `emis_col`.
 * `(:nonelec, :baseline_demand_total)`, `(:nonelec, :elec_response_total)` - baseline and induced electricity demand, in MWh.
+* `(:nonelec, :abate_cost_total)` - cost of abatement, in dollars. Equals `cost_sector_<name>_obj` summed over years.
 
+The last two are empty (`"0"`) results formulas initialized here, since `:nonelec` belongs to this mod, and appended to by
+each policy covering a region-subsector. They are zero unless such a policy is present.
+* `(:nonelec, :emission_cap_cost)` - cost of allowances for all emissions caps in non-power sectors.
+* `(:nonelec, :emission_cost)` - cost of paying all emission prices in non-power sectors.
+
+Note that [`EmissionCap`](@ref) and [`EmissionPrice`](@ref) each add their own per-policy columns and results
+formulas to `:nonelec` (coverage flag, price, and cost); see those mods' docstrings.
 """
 Base.@kwdef struct Sector <: Modification
     name::Symbol
@@ -483,6 +495,7 @@ function modify_model!(sec::Sector, config, data, model)
     abate_total_name = Symbol("abate_total_$(name)")
     resid_name       = Symbol("resid_emis_$(name)")
     cons_name        = Symbol("cons_abate_cap_$(name)")
+    abate_cost_name  = Symbol("abate_cost_$(name)")
     cost_name        = Symbol("cost_sector_$(name)_obj")
     
     
@@ -519,11 +532,20 @@ function modify_model!(sec::Sector, config, data, model)
     # the baseline electricity (Cons0) is NOT added, because load projections already capture the baseline demand from each of these sectors
     add_sector_electrification_load!(sec, config, data, model, regsub, abate_total, lp, lp_index, lp_years_index)
     
-    # abatement cost expression, summed over regsub and steps so that it is indexed by year only
+    # abatement cost per region-subsector and year: the staircase area under that
+    # region-subsector's MAC curve. Kept separate from `cost_name` so that results can
+    # attribute abatement cost to a :nonelec row, not just to a year.
+    model[abate_cost_name] = @expression(model,
+        [regsub_idx in 1:nregsub, yr_idx in 1:nyear],
+        sum(abate[regsub_idx, step_idx, yr_idx] * mac.price[mac_idxs[regsub_idx][step_idx]]
+            for step_idx in 1:nsteps[regsub_idx]; init = AffExpr(0.0))
+    )
+    abate_cost = model[abate_cost_name]
+
+    # objective-side abatement cost, summed over regsub so that it is indexed by year only
     model[cost_name] = @expression(model,
         [yr_idx in 1:nyear],
-        sum(abate[regsub_idx, step_idx, yr_idx] * mac.price[mac_idxs[regsub_idx][step_idx]]
-            for regsub_idx in 1:nregsub, step_idx in 1:nsteps[regsub_idx]; init = AffExpr(0.0))
+        sum(abate_cost[regsub_idx, yr_idx] for regsub_idx in 1:nregsub; init = AffExpr(0.0))
     )
 
     # add abatement costs to objective term, in units of $/short ton of emissions
@@ -694,6 +716,9 @@ function modify_results!(sec::Sector, config, data)
     hasproperty(regsub, :elec_demand_change) ||
         add_table_col!(data, :nonelec, :elec_demand_change, [ByYear(fill(NaN, nyear)) for _ in 1:nrow(regsub)], MWhLoad,
             "Induced change in electricity demand from abatement: `abate_total * elec_per_emis`.")
+    hasproperty(regsub, :abate_cost) ||
+        add_table_col!(data, :nonelec, :abate_cost, [ByYear(fill(NaN, nyear)) for _ in 1:nrow(regsub)], Dollars,
+            "Cost of emissions abatement for this region-subsector, by year: the area under its MAC curve up to `abate_total`.")
 
     # setup results formulas
     results_formulas = get_results_formulas(data)
@@ -712,9 +737,19 @@ function modify_results!(sec::Sector, config, data)
     haskey(results_formulas, (:nonelec, :elec_response_total)) ||
         add_results_formula!(data, :nonelec, :elec_response_total, "SumYearly(elec_demand_change)", MWhLoad,
             "Induced change in electricity demand from abatement, summed across region-subsectors and years.")
+    haskey(results_formulas, (:nonelec, :abate_cost_total)) ||
+        add_results_formula!(data, :nonelec, :abate_cost_total, "SumYearly(abate_cost)", Dollars,
+            "Cost of emissions abatement, summed across region-subsectors and years.")
+    haskey(results_formulas, (:nonelec, :emission_cap_cost)) ||
+        add_results_formula!(data, :nonelec, :emission_cap_cost, "0", Dollars,
+            "Cost for paying for allowances for all emissions caps in non-power sectors.")
+    haskey(results_formulas, (:nonelec, :emission_cost)) ||
+        add_results_formula!(data, :nonelec, :emission_cost, "0", Dollars,
+            "Cost for paying for all emission prices in non-power sectors.")
 
     abate_total_raw = get_raw_result(data, Symbol("abate_total_$(name)"))::AbstractMatrix
     resid_emis_raw  = get_raw_result(data, Symbol("resid_emis_$(name)"))::AbstractMatrix
+    abate_cost_raw  = get_raw_result(data, Symbol("abate_cost_$(name)"))::AbstractMatrix
 
     # `regsub_idx` indexes this instance's rows as the model saw them (and so
     # indexes the raw result matrices); `row_idx` is the corresponding row of the
@@ -722,6 +757,7 @@ function modify_results!(sec::Sector, config, data)
     for (regsub_idx, row_idx) in enumerate(row_idxs)
         regsub.abate_total[row_idx] = ByYear(Float64.(abate_total_raw[regsub_idx, :]))
         regsub.resid_emis[row_idx]  = ByYear(Float64.(resid_emis_raw[regsub_idx, :]))
+        regsub.abate_cost[row_idx]  = ByYear(Float64.(abate_cost_raw[regsub_idx, :]))
 
         elec_per_emis = regsub.elec_per_emis[row_idx]
         regsub.elec_demand_change[row_idx] = ByYear([abate_total_raw[regsub_idx, yr_idx] * elec_per_emis[yr_idx] for yr_idx in 1:nyear])
